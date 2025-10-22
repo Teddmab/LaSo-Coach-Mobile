@@ -18,8 +18,12 @@ const SubscriptionBanner = ({
     return null;
   }
 
+  // Check if subscription is expiring soon (≤7 days)
+  const isExpiringSoon = subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 7;
+  const isExpired = subscriptionData.isExpired || (subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 0);
+
   const getBannerConfig = () => {
-    if (subscriptionData.isExpired) {
+    if (isExpired) {
       return {
         icon: 'warning',
         iconColor: '#F44336',
@@ -30,7 +34,7 @@ const SubscriptionBanner = ({
         buttonColor: '#FFFFFF',
         buttonTextColor: '#F44336'
       };
-    } else if (subscriptionData.isExpiringSoon) {
+    } else if (isExpiringSoon) {
       return {
         icon: 'time',
         iconColor: '#FF9800',

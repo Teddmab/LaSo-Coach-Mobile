@@ -6,7 +6,12 @@ import {
   ScrollView, 
   TouchableOpacity,
   Image,
-  StatusBar
+  StatusBar,
+  RefreshControl,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,36 +20,169 @@ import { theme } from '../constants/theme';
 import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
+import Avatar from '../components/Avatar';
+import NotificationBadge from '../components/NotificationBadge';
+import { ProfileApi } from '../services/profileApi';
+import nutritionAPI from '../services/nutritionApi';
+import Toast from 'react-native-toast-message';
+import BottomNavigation from '../components/BottomNavigation';
 
 const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew }) => {
-  const [selectedDate, setSelectedDate] = useState(18); // Friday 18th
+  // State management
+  const today = new Date();
+  const [currentDate] = useState(today); // Keep current date constant
+  const [selectedDate, setSelectedDate] = useState(today.getDate());
+  const [selectedDay, setSelectedDay] = useState(today.getDay() || 7); // Use current day of week
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [showBlurOverlay, setShowBlurOverlay] = useState(false);
+  const [profileData, setProfileData] = useState(null);
+  const [nutritionPlans, setNutritionPlans] = useState([]);
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const [dayMeals, setDayMeals] = useState([]);
+  const [completionStatus, setCompletionStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Meal interaction states
+  const [mealInteractions, setMealInteractions] = useState({});
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedMealForFeedback, setSelectedMealForFeedback] = useState(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  
+  // Selected meal for preview
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  
+  // Tab state for meal preview
+  const [activeMealTab, setActiveMealTab] = useState('composition'); // 'composition', 'recipe', or 'ingredients'
+
+  // Meal type configuration - minimal UI mapping only
+  const mealTypeMap = {
+    breakfast: { 
+      title: 'Petit-Déj', 
+      icon: '🍳', 
+      bg: '#E8F5E8',
+      time: 'entre 7h30-9h00'
+    },
+    lunch: { 
+      title: 'Déjeuner', 
+      icon: '🍽️', 
+      bg: '#F0F8FF',
+      time: 'entre 12h00-14h00'
+    },
+    dinner: { 
+      title: 'Souper', 
+      icon: '🍲', 
+      bg: '#FFF8DC',
+      time: 'entre 19h00-21h00'
+    },
+    snack: { 
+      title: 'Bonus', 
+      icon: '🥤', 
+      bg: '#FFF9E6',
+      time: 'Snack'
+    }
+  };
 
   useEffect(() => {
-    checkSubscriptionStatus();
+    fetchAllData();
   }, []);
 
-  const checkSubscriptionStatus = async () => {
+  useEffect(() => {
+    if (currentPlan && selectedDay) {
+      loadDayData();
+    }
+  }, [currentPlan, selectedDay]);
+
+  const fetchAllData = async () => {
     try {
-      console.log('💳 Nutrition: Checking subscription status...');
-      const data = await SubscriptionService.getSubscriptionStatus();
-      setSubscriptionData(data);
+      setLoading(true);
+      console.log('🥗 Nutrition: Fetching all data...');
       
-      if (data.requiresRenewal) {
-        setShowBlurOverlay(true);
+      // Fetch all data in parallel
+      const [profileRes, subscriptionRes, plansRes] = await Promise.allSettled([
+        ProfileApi.getProfile(),
+        SubscriptionService.getSubscriptionStatus(),
+        nutritionAPI.getPlans()
+      ]);
+
+      // Handle profile data
+      if (profileRes.status === 'fulfilled') {
+        setProfileData(profileRes.value);
+        console.log('✅ Nutrition: Profile data loaded');
+      }
+
+      // Handle subscription data
+      if (subscriptionRes.status === 'fulfilled') {
+        const subscription = subscriptionRes.value;
+        setSubscriptionData(subscription);
+        
+        if (subscription?.requiresRenewal || subscription?.status === 'EXPIRED') {
+          setShowBlurOverlay(true);
+        }
+        console.log('✅ Nutrition: Subscription data loaded');
+      }
+
+      // Handle nutrition plans
+      if (plansRes.status === 'fulfilled') {
+        const plansData = plansRes.value;
+        setNutritionPlans(plansData?.data?.plans || []);
+        
+        // Set current plan (first active plan or first available)
+        const activePlan = plansData?.data?.plans?.find(plan => plan.isActive) || plansData?.data?.plans?.[0];
+        if (activePlan) {
+          setCurrentPlan(activePlan);
+          console.log('✅ Nutrition: Current plan set:', activePlan.name);
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Nutrition: Error fetching data:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de chargement',
+        text2: 'Impossible de charger les données des menus'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadDayData = async () => {
+    if (!currentPlan?.id) return;
+    
+    try {
+      console.log(`🥗 Nutrition: Loading data for day ${selectedDay}`);
+      console.log(`🥗 Nutrition: Current plan:`, currentPlan.name);
+      console.log(`🥗 Nutrition: Plan menus:`, currentPlan.menus);
+      
+      // Get meals for selected day
+      const dayMenu = currentPlan.menus?.find(menu => menu.day === selectedDay);
+      console.log(`🥗 Nutrition: Found day menu for day ${selectedDay}:`, dayMenu);
+      
+      if (dayMenu) {
+        console.log(`🥗 Nutrition: Day meals:`, dayMenu.meals);
+        setDayMeals(dayMenu.meals || []);
+      } else {
+        console.log(`🥗 Nutrition: No menu found for day ${selectedDay}`);
+        setDayMeals([]);
+      }
+
+      // Get completion status for the day
+      const completionRes = await nutritionAPI.getDayCompletionStatus(currentPlan.id, selectedDay);
+      if (completionRes.status === 'fulfilled') {
+        setCompletionStatus(completionRes.value.data);
       }
       
     } catch (error) {
-      console.error('❌ Nutrition: Error checking subscription status:', error);
-      // Default to expired status on error
-      setSubscriptionData({
-        status: 'EXPIRED',
-        isExpired: true,
-        requiresRenewal: true
-      });
-      setShowBlurOverlay(true);
+      console.error('❌ Nutrition: Error loading day data:', error);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllData();
+    setRefreshing(false);
   };
 
   const handleSubscriptionRenew = () => {
@@ -55,185 +193,290 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     }
   };
 
-  // Generate week days around the selected date
-  const weekDays = [
-    { number: 16, day: 'Mer' },
-    { number: 17, day: 'Jeu' },
-    { number: 18, day: 'Ven' },
-    { number: 19, day: 'Sam' },
-    { number: 20, day: 'Dim' },
-    { number: 21, day: 'Lun' },
-    { number: 22, day: 'Mar' },
-  ];
-
-  const meals = [
-    {
-      id: 'breakfast',
-      title: 'Petit-Déj',
-      subtitle: 'Aucun plat',
-      timeRange: 'entre 7h30-9h00',
-      icon: '☀️',
-      backgroundColor: '#F5F5F5'
-    },
-    {
-      id: 'lunch',
-      title: 'Déjeuner',
-      subtitle: 'Aucun plat',
-      timeRange: 'entre 12h00-14h00',
-      icon: '🥘',
-      backgroundColor: '#F5F5F5'
-    },
-    {
-      id: 'dinner',
-      title: 'Souper',
-      subtitle: 'Aucun plat',
-      timeRange: 'entre 19h00-21h00',
-      icon: '🌙',
-      backgroundColor: '#F5F5F5'
-    },
-    {
-      id: 'bonus',
-      title: 'Bonus',
-      subtitle: 'Aucun plat',
-      timeRange: '',
-      icon: '⭐',
-      backgroundColor: '#FFF9E6',
-      isSpecial: true
+  // Meal interaction functions
+  const handleMealLike = async (mealId) => {
+    try {
+      const currentInteraction = mealInteractions[mealId];
+      
+      if (currentInteraction === 'like') {
+        // Remove like
+        await nutritionAPI.removeMealInteraction(mealId);
+        setMealInteractions(prev => ({ ...prev, [mealId]: null }));
+        Toast.show({
+          type: 'success',
+          text1: 'Like supprimé',
+          text2: 'Votre like a été retiré'
+        });
+      } else {
+        // Add like
+        await nutritionAPI.likeMeal(mealId);
+        setMealInteractions(prev => ({ ...prev, [mealId]: 'like' }));
+        Toast.show({
+          type: 'success',
+          text1: 'Repas aimé',
+          text2: 'Merci pour votre retour!'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Nutrition: Error handling meal like:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de sauvegarder votre choix'
+      });
     }
-  ];
-
-  const formatDate = (dateNum) => {
-    const months = [
-      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
-    ];
-    
-    const days = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-    
-    // For demo, assuming July 2025 and Friday for 18th
-    return `vendredi ${dateNum} juillet 2025`;
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+  const handleMealDislike = async (mealId) => {
+    try {
+      const currentInteraction = mealInteractions[mealId];
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menus</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>6</Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
-              style={styles.profileImage}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      if (currentInteraction === 'dislike') {
+        // Remove dislike
+        await nutritionAPI.removeMealInteraction(mealId);
+        setMealInteractions(prev => ({ ...prev, [mealId]: null }));
+        Toast.show({
+          type: 'success',
+          text1: 'Dislike supprimé',
+          text2: 'Votre dislike a été retiré'
+        });
+      } else {
+        // Add dislike
+        await nutritionAPI.dislikeMeal(mealId);
+        setMealInteractions(prev => ({ ...prev, [mealId]: 'dislike' }));
+        Toast.show({
+          type: 'success',
+          text1: 'Repas non aimé',
+          text2: 'Merci pour votre retour!'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Nutrition: Error handling meal dislike:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de sauvegarder votre choix'
+      });
+    }
+  };
 
-      {/* Subscription Banner */}
-      <SubscriptionBanner 
-        subscriptionData={subscriptionData}
-        onRenew={handleSubscriptionRenew}
-      />
+  const handleMealComplete = async (mealId) => {
+    try {
+      await nutritionAPI.completeMeal(mealId);
+      Toast.show({
+        type: 'success',
+        text1: 'Repas terminé',
+        text2: 'Félicitations!'
+      });
+      
+      // Refresh completion status
+      if (currentPlan?.id) {
+        loadDayData();
+      }
+    } catch (error) {
+      console.error('❌ Nutrition: Error completing meal:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de marquer le repas comme terminé'
+      });
+    }
+  };
 
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+  const handleMealFeedback = (meal) => {
+    setSelectedMealForFeedback(meal);
+    setFeedbackText('');
+    setFeedbackRating(5);
+    setShowFeedbackModal(true);
+  };
+
+  const submitMealFeedback = async () => {
+    if (!selectedMealForFeedback) return;
+    
+    try {
+      await nutritionAPI.submitMealFeedback(selectedMealForFeedback.id, {
+        feedback: feedbackText,
+        rating: feedbackRating,
+        suggestions: feedbackText // Using feedback as suggestions for now
+      });
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Feedback envoyé',
+        text2: 'Merci pour votre retour détaillé!'
+      });
+      
+      setShowFeedbackModal(false);
+      setSelectedMealForFeedback(null);
+    } catch (error) {
+      console.error('❌ Nutrition: Error submitting feedback:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible d\'envoyer votre feedback'
+      });
+    }
+  };
+
+  // Generate week days centered around current date
+  const generateWeekDays = () => {
+    const weekDays = [];
+    const today = new Date();
+    
+    // Generate 7 days starting from 3 days before today
+    for (let i = -3; i <= 3; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      
+      weekDays.push({
+        number: date.getDate(),
+        day: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][date.getDay()],
+        dayOfWeek: date.getDay() || 7, // Convert Sunday (0) to 7
+        date: date,
+        isToday: date.toDateString() === today.toDateString()
+      });
+    }
+    return weekDays;
+  };
+
+  const weekDays = generateWeekDays();
+
+  const formatDate = (date) => {
+    const months = [
+      'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+      'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'
+    ];
+    
+    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    
+    return `${days[date.getDay()]}, ${date.getDate()}-${months[date.getMonth()]}-${date.getFullYear()}`;
+  };
+
+  // Function to sort meals by type in correct order
+  const sortMealsByType = (meals) => {
+    const typeOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+    return meals.sort((a, b) => {
+      return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type);
+    });
+  };
+
+  const renderMealCard = (meal) => {
+    const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
+    const isCompleted = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
+    const interaction = mealInteractions[meal.id];
+    const isSelected = selectedMeal?.id === meal.id;
+    
+    console.log(`🥗 Rendering meal card for: ${meal.name} (${meal.type})`);
+    console.log(`🥗 Meal imageUrl: ${meal.imageUrl}`);
+    
+    return (
+      <TouchableOpacity 
+        key={meal.id} 
+        style={[
+          styles.mealCard, 
+          { backgroundColor: mealType.bg },
+          isSelected && styles.selectedMealCard
+        ]}
+        onPress={() => setSelectedMeal(meal)}
       >
-        {/* Menu du jour section */}
-        <View style={styles.menuHeader}>
-          <View style={styles.menuTitleRow}>
-            <Text style={styles.menuIcon}>🍽️</Text>
-            <Text style={styles.menuTitle}>Menu du jour</Text>
-            <Text style={styles.menuDate}>{formatDate(selectedDate)}</Text>
+        <View style={styles.mealContent}>
+          {/* Meal Image - Left thumbnail */}
+          <View style={styles.mealCardImageContainer}>
+            {meal.imageUrl ? (
+              <Image 
+                source={{ uri: meal.imageUrl }}
+                style={styles.mealCardImage}
+                resizeMode="cover"
+                onError={(error) => console.log('❌ Image load error:', error)}
+                onLoad={() => console.log('✅ Image loaded successfully')}
+              />
+            ) : (
+              <View style={styles.placeholderImage}>
+                <Text style={styles.placeholderText}>🍽️</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* Meal Info - Center */}
+          <View style={styles.mealInfo}>
+            <View style={styles.mealHeader}>
+              <Text style={styles.mealTypeTitle}>{mealType.title}</Text>
+              <Text style={styles.mealName}>{meal.name || 'Aucun plat'}</Text>
+              {mealType.time && (
+                <Text style={styles.mealTime}>{mealType.time}</Text>
+              )}
+            </View>
+          </View>
+
+          {/* Icon and Status - Right */}
+          <View style={styles.mealRightSection}>
+            <Text style={styles.mealIcon}>{mealType.icon}</Text>
           </View>
         </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* Current Phase */}
-        <View style={styles.phaseCard}>
-          <Text style={styles.phaseText}>Phase actuelle: Test</Text>
-        </View>
-
-        {/* Week Calendar */}
-        <View style={styles.calendarContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.calendarContent}
-          >
-            {weekDays.map((day) => (
-              <TouchableOpacity
-                key={day.number}
-                style={[
-                  styles.calendarDay,
-                  selectedDate === day.number && styles.selectedDay
-                ]}
-                onPress={() => setSelectedDate(day.number)}
-              >
-                <Text style={[
-                  styles.dayNumber,
-                  selectedDate === day.number && styles.selectedDayNumber
-                ]}>
-                  {day.number}
-                </Text>
-                <Text style={[
-                  styles.dayName,
-                  selectedDate === day.number && styles.selectedDayName
-                ]}>
-                  {day.day}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Meal Preview Card */}
+  const renderMealPreviewCard = () => {
+    if (!selectedMeal) {
+      return (
         <View style={styles.mealPreviewCard}>
-          {/* Header Section */}
-          <View style={styles.mealPreviewHeader}>
-            <View style={styles.mealPreviewTitleRow}>
-              <Text style={styles.mealPreviewTitle}>Boiled Plantain with Egg Sauce</Text>
-            </View>
-            <Text style={styles.mealPreviewTime}>entre 7h30-9h00</Text>
-            
-            {/* Nutritional Information */}
-            <View style={styles.nutritionalInfo}>
-              <View style={styles.nutritionalItem}>
-                <Ionicons name="flame" size={16} color="#FF6B35" />
-                <Text style={styles.nutritionalValue}>400 kcal</Text>
-              </View>
-              <View style={styles.nutritionalItem}>
-                <Ionicons name="fitness" size={16} color="#4CAF50" />
-                <Text style={styles.nutritionalValue}>20g</Text>
-              </View>
-              <View style={styles.nutritionalItem}>
-                <Ionicons name="leaf" size={16} color="#8BC34A" />
-                <Text style={styles.nutritionalValue}>50g</Text>
-              </View>
-              <View style={styles.nutritionalItem}>
-                <Ionicons name="water" size={16} color="#FFC107" />
-                <Text style={styles.nutritionalValue}>15g</Text>
-              </View>
-            </View>
+          <View style={styles.emptyPreviewContainer}>
+            <Text style={styles.emptyPreviewIcon}>🍽️</Text>
+            <Text style={styles.emptyPreviewTitle}>Sélectionnez un repas</Text>
+            <Text style={styles.emptyPreviewSubtitle}>
+              Choisissez un repas dans la liste ci-dessous pour voir les détails
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const mealType = mealTypeMap[selectedMeal.type] || mealTypeMap.breakfast;
+    const isCompleted = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
+    const interaction = mealInteractions[selectedMeal.id];
+
+    return (
+      <View style={styles.mealPreviewCard}>
+        {/* Header Section */}
+        <View style={styles.mealPreviewHeader}>
+          <View style={styles.mealPreviewTitleRow}>
+            <Text style={styles.mealPreviewTitle}>{selectedMeal.name}</Text>
+            <Text style={styles.mealPreviewType}>{mealType.title}</Text>
+          </View>
+          <Text style={styles.mealPreviewTime}>{mealType.time}</Text>
+          
+          {/* Interaction Buttons */}
+          <View style={styles.headerInteractionButtons}>
+            <TouchableOpacity 
+              style={[styles.headerInteractionButton, interaction === 'like' && styles.activeHeaderInteractionButton]}
+              onPress={() => handleMealLike(selectedMeal.id)}
+            >
+              <Ionicons 
+                name="thumbs-up-outline" 
+                size={22} 
+                color={interaction === 'like' ? '#1877F2' : '#8E8E93'} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.headerInteractionButton, interaction === 'dislike' && styles.activeHeaderInteractionButton]}
+              onPress={() => handleMealDislike(selectedMeal.id)}
+            >
+              <Ionicons 
+                name="thumbs-down-outline" 
+                size={22} 
+                color={interaction === 'dislike' ? '#FF3B30' : '#8E8E93'} 
+              />
+            </TouchableOpacity>
           </View>
 
-          {/* Meal Image and Video Overlay */}
+        </View>
+
+        {/* Meal Image and Video Overlay */}
+        {selectedMeal.imageUrl && (
           <View style={styles.mealImageContainer}>
             <Image 
-              source={{ uri: 'https://via.placeholder.com/400x250/FFD700/FFFFFF?text=Boiled+Plantain+with+Egg+Sauce' }}
+              source={{ uri: selectedMeal.imageUrl }}
               style={styles.mealImage}
               resizeMode="cover"
             />
@@ -249,110 +492,363 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
               <Ionicons name="images" size={16} color={theme.colors.primary} />
             </View>
           </View>
+        )}
 
-          {/* Navigation Tabs */}
+        {/* Completion Button */}
+        <TouchableOpacity 
+          style={[styles.completeButton, isCompleted && styles.completedButtonStyle]}
+          onPress={() => handleMealComplete(selectedMeal.id)}
+        >
+          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+          <Text style={styles.completeButtonText}>
+            {isCompleted ? 'Complété' : 'Marquer comme complété'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Navigation Tabs and Interaction Buttons */}
+        <View style={styles.mealTabsContainer}>
+          {/* Left Side - Navigation Tabs */}
           <View style={styles.mealTabs}>
-            <TouchableOpacity style={[styles.mealTab, styles.activeMealTab]}>
-              <Text style={[styles.mealTabText, styles.activeMealTabText]}>Recette</Text>
+            <TouchableOpacity 
+              style={[styles.mealTab, activeMealTab === 'composition' && styles.activeMealTab]}
+              onPress={() => setActiveMealTab('composition')}
+            >
+              <Ionicons 
+                name="nutrition" 
+                size={20} 
+                color={activeMealTab === 'composition' ? "#000000" : "#666666"} 
+              />
+              {activeMealTab === 'composition' && (
+                <Text style={styles.tabTitle}>Composition</Text>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.mealTab}>
-              <Text style={styles.mealTabText}>Liste de course</Text>
+            <TouchableOpacity 
+              style={[styles.mealTab, activeMealTab === 'recipe' && styles.activeMealTab]}
+              onPress={() => setActiveMealTab('recipe')}
+            >
+              <Ionicons 
+                name="restaurant" 
+                size={20} 
+                color={activeMealTab === 'recipe' ? "#000000" : "#666666"} 
+              />
+              {activeMealTab === 'recipe' && (
+                <Text style={styles.tabTitle}>Instructions</Text>
+              )}
             </TouchableOpacity>
-            
-            {/* Interaction Buttons */}
-            <View style={styles.interactionButtons}>
-              <TouchableOpacity style={styles.interactionButton}>
-                <Ionicons name="thumbs-up" size={20} color="#666666" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.interactionButton}>
-                <Ionicons name="thumbs-down" size={20} color="#FF4444" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Recipe Content */}
-          <View style={styles.recipeContent}>
-            <Text style={styles.recipeStep}>1. Boil plantains. Prepare egg sauce with tomato and onion, then serve.</Text>
+            <TouchableOpacity 
+              style={[styles.mealTab, activeMealTab === 'ingredients' && styles.activeMealTab]}
+              onPress={() => setActiveMealTab('ingredients')}
+            >
+              <Ionicons 
+                name="list" 
+                size={20} 
+                color={activeMealTab === 'ingredients' ? "#000000" : "#666666"} 
+              />
+              {activeMealTab === 'ingredients' && (
+                <Text style={styles.tabTitle}>Ingrédients</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Content based on active tab */}
+        {activeMealTab === 'composition' ? (
+          /* Composition Content */
+          <View style={styles.compositionContent}>
+            <Text style={styles.contentTitle}>Composition nutritionnelle</Text>
+            <View style={styles.mockDataContent}>
+              <Text style={styles.mockDataText}>
+                • Riche en fibres alimentaires
+              </Text>
+              <Text style={styles.mockDataText}>
+                • Source de potassium et magnésium
+              </Text>
+              <Text style={styles.mockDataText}>
+                • Contient des vitamines B6 et C
+              </Text>
+              <Text style={styles.mockDataText}>
+                • Faible en sodium
+              </Text>
+              <Text style={styles.mockDataText}>
+                • Antioxydants naturels présents
+              </Text>
+            </View>
+          </View>
+        ) : activeMealTab === 'recipe' ? (
+          /* Recipe Content */
+          <View style={styles.recipeContent}>
+            <Text style={styles.contentTitle}>Instructions de préparation</Text>
+            {selectedMeal.instructions && selectedMeal.instructions.length > 0 ? (
+              (() => {
+                // Parse instructions - they come as string array from API
+                let instructions = selectedMeal.instructions;
+                if (typeof instructions === 'string') {
+                  try {
+                    instructions = JSON.parse(instructions);
+                  } catch (e) {
+                    instructions = [instructions];
+                  }
+                }
+                return instructions.map((instruction, index) => (
+                  <Text key={index} style={styles.recipeStep}>
+                    {index + 1}. {instruction}
+                  </Text>
+                ));
+              })()
+            ) : (
+              <Text style={styles.noContentText}>
+                Aucune instruction disponible pour ce repas
+              </Text>
+            )}
+          </View>
+        ) : (
+          /* Ingredients Content */
+          <View style={styles.ingredientsContent}>
+            <Text style={styles.contentTitle}>Liste des ingrédients</Text>
+            {(() => {
+              // Parse ingredients from API format
+              let ingredients = selectedMeal.ingredients;
+              if (typeof ingredients === 'string') {
+                try {
+                  ingredients = JSON.parse(ingredients);
+                } catch (e) {
+                  console.error('❌ Error parsing ingredients:', e);
+                  ingredients = [];
+                }
+              }
+              
+              return ingredients && ingredients.length > 0 ? (
+                ingredients.map((ingredient, index) => (
+                  <View key={index} style={styles.ingredientItem}>
+                    <Text style={styles.ingredientNumber}>{index + 1}.</Text>
+                    {ingredient.amount && ingredient.unit && (
+                      <Text style={styles.ingredientAmount}>
+                        {ingredient.amount} {ingredient.unit}
+                      </Text>
+                    )}
+                    <Text style={styles.ingredientText}>
+                      {ingredient.name || ingredient}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noContentText}>
+                  Aucun ingrédient disponible pour ce repas
+                </Text>
+              );
+            })()}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement des menus...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Menus</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.helpButton}>
+            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.notificationButton}>
+            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
+            <NotificationBadge />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
+            <Avatar 
+              source={{ uri: profileData?.avatar || user?.avatar }} 
+              size={40}
+              style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Subscription Banner */}
+      <SubscriptionBanner 
+        subscriptionData={subscriptionData}
+        onRenew={handleSubscriptionRenew}
+      />
+
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Menu du jour section */}
+        <View style={styles.menuHeader}>
+          <View style={styles.menuTitleRow}>
+            <Text style={styles.menuIcon}>🍽️</Text>
+            <Text style={styles.menuTitle}>Menu du jour</Text>
+            <Text style={styles.menuDate}>{formatDate(currentDate)}</Text>
+          </View>
+        </View>
+
+        {/* Current Phase */}
+        <View style={styles.phaseCard}>
+          <Text style={styles.phaseText}>
+            Phase actuelle: {profileData?.currentPhase || 'Test'}
+          </Text>
+        </View>
+
+        {/* Week Calendar */}
+        <View style={styles.calendarContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.calendarContent}
+            initialScrollIndex={3}
+          >
+            {weekDays.map((day) => (
+              <TouchableOpacity
+                key={day.dayOfWeek}
+                style={[
+                  styles.calendarDay,
+                  day.isToday && styles.todayDay,
+                  selectedDay === day.dayOfWeek && styles.selectedDay
+                ]}
+                onPress={() => {
+                  setSelectedDay(day.dayOfWeek);
+                  setSelectedDate(day.number);
+                }}
+              >
+                <Text style={[
+                  styles.dayNumber,
+                  day.isToday && styles.todayDayNumber,
+                  selectedDay === day.dayOfWeek && styles.selectedDayNumber
+                ]}>
+                  {day.number}
+                </Text>
+                <Text style={[
+                  styles.dayName,
+                  day.isToday && styles.todayDayName,
+                  selectedDay === day.dayOfWeek && styles.selectedDayName
+                ]}>
+                  {day.day}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Meal Preview Card */}
+        {renderMealPreviewCard()}
 
         {/* Meals List */}
         <View style={styles.mealsContainer}>
-          {meals.map((meal) => (
-            <TouchableOpacity key={meal.id} style={styles.mealCardContainer}>
-              {meal.isSpecial ? (
-                <LinearGradient
-                  colors={['#E1BEE7', '#FFE082']}
-                  style={styles.mealCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <View style={[styles.mealCard, { backgroundColor: 'transparent' }]}>
-                    <View style={styles.mealIconContainer}>
-                      <Text style={styles.mealEmoji}>{meal.icon}</Text>
-                    </View>
-                    
-                    <View style={styles.mealContent}>
-                      <Text style={styles.mealTitle}>{meal.title}</Text>
-                      <Text style={styles.mealSubtitle}>{meal.subtitle}</Text>
-                      {meal.timeRange && (
-                        <Text style={styles.mealTime}>{meal.timeRange}</Text>
-                      )}
-                    </View>
-
-                    <View style={styles.mealStatusIcon}>
-                      <Text style={styles.statusEmoji}>{meal.icon}</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              ) : (
-                <View style={[styles.mealCard, { backgroundColor: meal.backgroundColor }]}>
-                  <View style={styles.mealIconContainer}>
-                    <Text style={styles.mealEmoji}>🍽️</Text>
-                  </View>
-                  
-                  <View style={styles.mealContent}>
-                    <Text style={styles.mealTitle}>{meal.title}</Text>
-                    <Text style={styles.mealSubtitle}>{meal.subtitle}</Text>
-                    {meal.timeRange && (
-                      <Text style={styles.mealTime}>{meal.timeRange}</Text>
-                    )}
-                  </View>
-
-                  <View style={styles.mealStatusIcon}>
-                    <Text style={styles.statusEmoji}>{meal.icon}</Text>
-                  </View>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+          <Text style={styles.mealsSectionTitle}>Repas disponibles</Text>
+          {dayMeals.length > 0 ? (
+            sortMealsByType(dayMeals).map((meal) => renderMealCard(meal))
+          ) : (
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateIcon}>🍽️</Text>
+              <Text style={styles.emptyStateTitle}>Aucun repas planifié</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                Pas de repas prévus pour ce jour
+              </Text>
+              <Text style={styles.debugText}>Debug: Selected day: {selectedDay}, Meals count: {dayMeals.length}</Text>
+              </View>
+          )}
+              </View>
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('home')}>
-          <Ionicons name="home" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('progress')}>
-          <Ionicons name="trending-up-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('nutrition')}>
-          <Ionicons name="restaurant" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('achievements')}>
-          <Ionicons name="trophy-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('more')}>
-          <Ionicons name="add-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-      </View>
+      <BottomNavigation 
+        activeTab={activeTab} 
+        onTabPress={onTabPress} 
+      />
+
+      {/* Feedback Modal */}
+      <Modal
+        visible={showFeedbackModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowFeedbackModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Feedback sur le repas</Text>
+              <TouchableOpacity 
+                style={styles.modalCloseButton}
+                onPress={() => setShowFeedbackModal(false)}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+
+            {selectedMealForFeedback && (
+              <View style={styles.modalBody}>
+                <Text style={styles.modalMealName}>{selectedMealForFeedback.name}</Text>
+                
+                <View style={styles.ratingContainer}>
+                  <Text style={styles.ratingLabel}>Note:</Text>
+                  <View style={styles.starRating}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setFeedbackRating(star)}
+                      >
+                        <Ionicons 
+                          name={star <= feedbackRating ? "star" : "star-outline"} 
+                          size={24} 
+                          color="#FFD700" 
+                        />
+              </TouchableOpacity>
+                    ))}
+            </View>
+          </View>
+
+                <TextInput
+                  style={styles.feedbackInput}
+                  placeholder="Votre avis sur ce repas..."
+                  multiline
+                  numberOfLines={4}
+                  value={feedbackText}
+                  onChangeText={setFeedbackText}
+                />
+                
+                <TouchableOpacity 
+                  style={styles.submitFeedbackButton}
+                  onPress={submitMealFeedback}
+                >
+                  <Text style={styles.submitFeedbackButtonText}>Envoyer le feedback</Text>
+                </TouchableOpacity>
+                    </View>
+                      )}
+                    </View>
+                    </View>
+      </Modal>
 
       {/* Blur Overlay for Expired Subscription */}
       <BlurOverlay
         visible={showBlurOverlay}
         onRenew={handleSubscriptionRenew}
       />
+      
+      <Toast />
     </SafeAreaView>
   );
 };
@@ -417,6 +913,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
   menuHeader: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
@@ -470,6 +976,8 @@ const styles = StyleSheet.create({
   },
   calendarContent: {
     paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   calendarDay: {
     alignItems: 'center',
@@ -478,6 +986,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 12,
     minWidth: 60,
+  },
+  todayDay: {
+    backgroundColor: '#E3F2FD',
+    borderWidth: 2,
+    borderColor: '#2196F3',
   },
   selectedDay: {
     backgroundColor: '#7B1FA2',
@@ -488,6 +1001,9 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginBottom: 4,
   },
+  todayDayNumber: {
+    color: '#2196F3',
+  },
   selectedDayNumber: {
     color: '#FFFFFF',
   },
@@ -495,94 +1011,286 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.text.secondary,
   },
+  todayDayName: {
+    color: '#2196F3',
+  },
   selectedDayName: {
     color: '#FFFFFF',
   },
-  mealsContainer: {
-    paddingHorizontal: 20,
-  },
-  mealCardContainer: {
-    marginBottom: 16,
-  },
-  mealCardGradient: {
-    borderRadius: 16,
-    padding: 2, // This creates the gradient border effect
-  },
-  mealCard: {
-    backgroundColor: '#F5F5F5',
+  completionStatusCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  mealIconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  mealEmoji: {
-    fontSize: 24,
-  },
-  mealContent: {
-    flex: 1,
-  },
-  mealTitle: {
-    fontSize: 18,
+  completionStatusTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
-    marginBottom: 4,
+    marginBottom: 12,
   },
-  mealSubtitle: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    fontStyle: 'italic',
-    marginBottom: 4,
+  completionProgress: {
+    alignItems: 'center',
   },
-  mealTime: {
+  progressBar: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#10B981',
+    borderRadius: 4,
+  },
+  progressText: {
     fontSize: 14,
     color: theme.colors.text.secondary,
   },
-  mealStatusIcon: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+  mealsContainer: {
+    paddingHorizontal: 20,
   },
-  statusEmoji: {
-    fontSize: 20,
+  mealsSectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
   },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  navTab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
+  mealCard: {
     borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  activeNavTab: {
-    backgroundColor: theme.colors.primaryLight,
+  selectedMealCard: {
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
   },
+  mealContent: {
+    flexDirection: 'row',
+    height: 80,
+  },
+  mealCardImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    margin: 0,
+    overflow: 'hidden',
+  },
+  mealCardImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  placeholderImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontSize: 32,
+    color: '#CCCCCC',
+  },
+  mealInfo: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    justifyContent: 'space-between',
+  },
+  mealHeader: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  mealTypeTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 4,
+  },
+  mealName: {
+    fontSize: 16,
+    color: '#000000',
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  mealTime: {
+    fontSize: 12,
+    color: '#666666',
+    fontStyle: 'italic',
+  },
+  mealRightSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  mealIcon: {
+    fontSize: 28,
+    marginBottom: 4,
+  },
+  mealDetails: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginTop: 8,
+  },
+  mealTime: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  mealNutritionInfo: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  nutritionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  nutritionValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  mealActions: {
+    alignItems: 'center',
+  },
+  completedButton: {
+    marginBottom: 8,
+  },
+  interactionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  interactionButton: {
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 44,
+    minHeight: 44,
+  },
+  activeInteractionButton: {
+    backgroundColor: '#E3F2FD',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#FF6B35',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalMealName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 20,
+  },
+  ratingContainer: {
+    marginBottom: 20,
+  },
+  ratingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  starRating: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: theme.colors.text.primary,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+  },
+  submitFeedbackButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  submitFeedbackButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // Meal Preview Card styles
   mealPreviewCard: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
@@ -594,6 +1302,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  emptyPreviewContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyPreviewIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyPreviewTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  emptyPreviewSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
   mealPreviewHeader: {
     marginBottom: 16,
@@ -608,6 +1335,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+    marginRight: 8,
+  },
+  mealPreviewType: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
   },
   mealPreviewTime: {
     fontSize: 14,
@@ -617,18 +1350,39 @@ const styles = StyleSheet.create({
   nutritionalInfo: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+    justifyContent: 'space-between',
+    marginTop: 0,
   },
   nutritionalItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginBottom: 4,
   },
   nutritionalValue: {
     fontSize: 14,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+  },
+  completeButton: {
+    backgroundColor: theme.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  completedButtonStyle: {
+    backgroundColor: '#4CAF50',
+  },
+  completeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   mealImageContainer: {
     position: 'relative',
@@ -667,21 +1421,39 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 5,
   },
-  mealTabs: {
+  mealTabsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
+  mealTabs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   mealTab: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 48,
+    flexDirection: 'column',
+  },
+  tabTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#000000',
+    marginTop: 4,
   },
   activeMealTab: {
     backgroundColor: theme.colors.primaryLight,
     borderColor: theme.colors.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: '#000000',
   },
   activeMealTabText: {
     color: theme.colors.primary,
@@ -691,14 +1463,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text.secondary,
   },
-  interactionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-  },
-  interactionButton: {
-    padding: 8,
-  },
   recipeContent: {
     marginTop: 10,
   },
@@ -706,6 +1470,91 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text.primary,
     lineHeight: 22,
+    marginBottom: 8,
+  },
+  ingredientsContent: {
+    marginTop: 10,
+  },
+  ingredientItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    marginBottom: 6,
+    gap: 8,
+  },
+  ingredientText: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    fontWeight: '500',
+  },
+  ingredientAmount: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+    backgroundColor: '#E9ECEF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  noIngredientsText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  contentTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  compositionContent: {
+    marginTop: 10,
+  },
+  noContentText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  headerInteractionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  headerInteractionButton: {
+    padding: 8,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 36,
+    minHeight: 36,
+  },
+  activeHeaderInteractionButton: {
+    backgroundColor: '#E3F2FD',
+  },
+  mockDataContent: {
+    marginTop: 8,
+  },
+  mockDataText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+    marginBottom: 6,
+  },
+  ingredientNumber: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginRight: 8,
+    minWidth: 20,
   },
 });
 

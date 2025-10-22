@@ -1,5 +1,5 @@
 import api from './api';
-import { API_CONFIG } from '../config/apiConfig';
+import Config from '../config/env';
 
 /**
  * Agenda API Service
@@ -12,15 +12,20 @@ export class AgendaApi {
    */
   static async getAgenda() {
     try {
+      // Check if api is properly initialized
+      if (!api) {
+        throw new Error('API instance is not initialized');
+      }
+      
       console.log('📅 Fetching agenda content...');
-      console.log('📅 Request URL:', API_CONFIG.endpoints.agenda.get);
-      console.log('📅 Full URL:', `${API_CONFIG.BASE_URL}${API_CONFIG.endpoints.agenda.get}`);
+      console.log('📅 Request URL:', '/agenda');
+      console.log('📅 Full URL:', `${Config.API_BASE_URL}/agenda`);
       
       // Log the API instance configuration
-      console.log('📅 API base URL:', API_CONFIG.BASE_URL);
-      console.log('📅 API timeout:', API_CONFIG.TIMEOUT);
+      console.log('📅 API base URL:', Config.API_BASE_URL);
+      console.log('📅 API timeout:', Config.API_TIMEOUT);
       
-      const response = await api.get(API_CONFIG.endpoints.agenda.get);
+      const response = await api.get('/agenda');
       
       console.log('✅ Agenda content fetched successfully');
       console.log('📅 Response status:', response.status);
@@ -85,10 +90,10 @@ export class AgendaApi {
   static async markContentComplete(contentId) {
     try {
       console.log('✅ Marking content as complete:', contentId);
-      console.log('✅ Request URL:', API_CONFIG.endpoints.agenda.complete.replace('{contentId}', contentId));
-      console.log('✅ Full URL:', `${API_CONFIG.BASE_URL}${API_CONFIG.endpoints.agenda.complete.replace('{contentId}', contentId)}`);
+      console.log('✅ Request URL:', `/agenda/${contentId}/complete`);
+      console.log('✅ Full URL:', `${Config.API_BASE_URL}/agenda/${contentId}/complete`);
       
-      const response = await api.post(API_CONFIG.endpoints.agenda.complete.replace('{contentId}', contentId));
+      const response = await api.post(`/agenda/${contentId}/complete`);
       
       console.log('✅ Content marked as complete successfully');
       console.log('✅ Response status:', response.status);

@@ -1,0 +1,527 @@
+Mobile API Contract: Menus Page (/menus)
+==========================================
+
+Overview
+--------
+The Menus page displays personalized nutrition plans with daily meal recommendations, meal interactions, and subscription management. This contract covers all API endpoints, data structures, and behaviors for mobile implementation.
+
+1. Core Data Structures
+======================
+
+1.1 Ingredient Interface
+------------------------
+```typescript
+interface Ingredient {
+  name?: string;
+  amount?: string | number;
+  unit?: string;
+  [key: string]: any;
+}
+```
+
+1.2 Meal Interface
+------------------
+```typescript
+interface Meal {
+  id: string;
+  name: string;
+  type: string; // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+  description?: string;
+  image?: string;
+  ingredients?: Ingredient[];
+  instructions?: string[];
+  nutritionInfo?: {
+    calories?: number;
+    protein?: number;
+    carbs?: number;
+    fat?: number;
+    fiber?: number;
+  };
+  preparationTime?: number; // minutes
+  cookingTime?: number; // minutes
+  difficulty?: 'easy' | 'medium' | 'hard';
+  servings?: number;
+  tags?: string[];
+  [key: string]: any;
+}
+```
+
+1.3 Menu Interface
+------------------
+```typescript
+interface Menu {
+  day: number; // 1-7 (Monday-Sunday)
+  title: string;
+  description: string;
+  type: string;
+  meals: Meal[];
+  [key: string]: any;
+}
+```
+
+1.4 NutritionPlan Interface
+---------------------------
+```typescript
+interface NutritionPlan {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  menus: Menu[];
+  [key: string]: any;
+}
+```
+
+1.5 Profile Interface
+---------------------
+```typescript
+interface Profile {
+  firstName?: string;
+  name?: string;
+  avatar?: string;
+  [key: string]: any;
+}
+```
+
+1.6 MealInteraction Interface
+-----------------------------
+```typescript
+interface MealInteraction {
+  mealId: string;
+  userId: string;
+  type: 'like' | 'dislike' | null;
+  feedback?: string;
+  completed?: boolean;
+  completedAt?: string;
+  [key: string]: any;
+}
+```
+
+1.7 Subscription Interface
+--------------------------
+```typescript
+interface Subscription {
+  id: string;
+  status: 'ACTIVE' | 'PENDING' | 'EXPIRED' | 'INACTIVE' | 'CANCELLED' | 'FREE';
+  planId: string;
+  startDate: string;
+  endDate?: string;
+  autoRenewal: boolean;
+  [key: string]: any;
+}
+```
+
+2. API Endpoints
+================
+
+2.1 Get Nutrition Plans
+-----------------------
+**Endpoint**: `GET /api/v1/nutrition/plans`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Fetch all available nutrition plans for the user
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "plans": [
+      {
+        "id": "plan_123",
+        "name": "Plan TASCC",
+        "description": "Plan de rééquilibrage alimentaire",
+        "type": "tascc",
+        "menus": [
+          {
+            "day": 1,
+            "title": "Lundi",
+            "description": "Menu du lundi",
+            "type": "regular",
+            "meals": [
+              {
+                "id": "meal_456",
+                "name": "Petit-déjeuner équilibré",
+                "type": "breakfast",
+                "description": "Un petit-déjeuner riche en protéines",
+                "image": "https://example.com/breakfast.jpg",
+                "ingredients": [
+                  {
+                    "name": "Œufs",
+                    "amount": 2,
+                    "unit": "pièces"
+                  }
+                ],
+                "instructions": [
+                  "Casser les œufs dans une poêle",
+                  "Cuire 3 minutes"
+                ],
+                "nutritionInfo": {
+                  "calories": 350,
+                  "protein": 20,
+                  "carbs": 15,
+                  "fat": 12
+                },
+                "preparationTime": 5,
+                "cookingTime": 10,
+                "difficulty": "easy",
+                "servings": 1,
+                "tags": ["protéines", "équilibré"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+2.2 Get User Profile
+--------------------
+**Endpoint**: `GET /api/v1/profile`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Fetch user profile information
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "firstName": "John",
+    "name": "John Doe",
+    "avatar": "https://example.com/avatar.jpg",
+    "email": "john@example.com",
+    "phone": "+1234567890"
+  }
+}
+```
+
+2.3 Get Current Subscription
+----------------------------
+**Endpoint**: `GET /api/v1/subscriptions/current`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Fetch current subscription status
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "hasSubscription": true,
+    "subscription": {
+      "id": "sub_123",
+      "status": "ACTIVE",
+      "planId": "plan_premium",
+      "startDate": "2024-01-01T00:00:00Z",
+      "endDate": "2024-02-01T00:00:00Z",
+      "autoRenewal": true
+    }
+  }
+}
+```
+
+2.4 Get Plan Completion Status
+------------------------------
+**Endpoint**: `GET /api/v1/meals/plans/{planId}/completion-status`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Get completion status for all meals in a plan
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "planId": "plan_123",
+    "totalMeals": 28,
+    "completedMeals": 15,
+    "completionPercentage": 53.6,
+    "dailyCompletion": {
+      "1": { "completed": 3, "total": 4 },
+      "2": { "completed": 2, "total": 4 },
+      "3": { "completed": 4, "total": 4 }
+    },
+    "mealStatus": {
+      "meal_456": {
+        "completed": true,
+        "completedAt": "2024-01-15T08:30:00Z",
+        "feedback": "Très bon repas!"
+      }
+    }
+  }
+}
+```
+
+2.5 Complete Meal
+-----------------
+**Endpoint**: `POST /api/v1/meals/{mealId}/complete`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Mark a meal as completed
+
+**Request Body**:
+```json
+{
+  "feedback": "Excellent repas, très satisfait!",
+  "rating": 5
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "mealId": "meal_456",
+    "completed": true,
+    "completedAt": "2024-01-15T08:30:00Z",
+    "message": "Repas marqué comme terminé avec succès"
+  }
+}
+```
+
+2.6 Like/Dislike Meal
+---------------------
+**Endpoint**: `POST /api/v1/meals/{mealId}/like`
+**Endpoint**: `POST /api/v1/meals/{mealId}/dislike`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Like or dislike a meal
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "mealId": "meal_456",
+    "interaction": "like",
+    "message": "Repas aimé avec succès"
+  }
+}
+```
+
+2.7 Remove Meal Interaction
+---------------------------
+**Endpoint**: `DELETE /api/v1/meals/{mealId}/interaction`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Remove like/dislike from a meal
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "mealId": "meal_456",
+    "message": "Interaction supprimée avec succès"
+  }
+}
+```
+
+2.8 Submit Meal Feedback
+------------------------
+**Endpoint**: `POST /api/v1/meals/{mealId}/feedback`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Submit detailed feedback for a meal
+
+**Request Body**:
+```json
+{
+  "feedback": "Le repas était délicieux mais un peu trop épicé pour mon goût.",
+  "rating": 4,
+  "suggestions": "Réduire la quantité d'épices"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "mealId": "meal_456",
+    "feedback": "Le repas était délicieux mais un peu trop épicé pour mon goût.",
+    "rating": 4,
+    "submittedAt": "2024-01-15T08:30:00Z"
+  }
+}
+```
+
+2.9 Get Day Completion Status
+-----------------------------
+**Endpoint**: `GET /api/v1/meals/plans/{planId}/day/{day}/completion`
+**Headers**: `Authorization: Bearer {token}`
+**Purpose**: Get completion status for a specific day
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "day": 1,
+    "planId": "plan_123",
+    "totalMeals": 4,
+    "completedMeals": 3,
+    "completionPercentage": 75,
+    "meals": [
+      {
+        "mealId": "meal_456",
+        "type": "breakfast",
+        "completed": true,
+        "completedAt": "2024-01-15T08:30:00Z"
+      },
+      {
+        "mealId": "meal_789",
+        "type": "lunch",
+        "completed": false,
+        "completedAt": null
+      }
+    ]
+  }
+}
+```
+
+3. Meal Type Configuration
+==========================
+
+3.1 Meal Type Mapping
+---------------------
+```typescript
+const mealTypeMap = {
+  breakfast: { 
+    title: 'Petit-Déj', 
+    icon: '🌅', 
+    bg: 'bg-green-50', 
+    time: 'entre 7h30-9h00' 
+  },
+  lunch: { 
+    title: 'Déjeuner', 
+    icon: '☀️', 
+    bg: 'bg-gray-100', 
+    time: 'entre 12h00-14h00' 
+  },
+  dinner: { 
+    title: 'Souper', 
+    icon: '🌙', 
+    bg: 'bg-blue-50', 
+    time: 'entre 19h00-21h00' 
+  },
+  snack: { 
+    title: 'Bonus', 
+    icon: '⭐', 
+    bg: 'bg-yellow-50', 
+    time: '' 
+  }
+};
+```
+
+4. UI Behavior & States
+=======================
+
+4.1 Loading States
+------------------
+- **Initial Load**: Show skeleton/placeholder while fetching nutrition plans
+- **Meal Interaction**: Show loading spinner during like/dislike operations
+- **Completion**: Show loading state when marking meals as complete
+- **Feedback Submission**: Disable form during feedback submission
+
+4.2 Subscription States
+-----------------------
+- **ACTIVE**: Full access to all meal features
+- **PENDING**: Full access with renewal reminder
+- **EXPIRED/INACTIVE/CANCELLED**: Blur content, show subscription modal
+- **FREE**: Limited access, show upgrade prompts
+
+4.3 Meal Interaction States
+---------------------------
+- **Default**: Show like/dislike buttons
+- **Liked**: Highlight like button, show unlike option
+- **Disliked**: Highlight dislike button, show undislike option
+- **Completed**: Show checkmark, allow feedback submission
+
+4.4 Date Navigation
+-------------------
+- **Week View**: Show 7 days starting from Monday
+- **Current Day**: Highlight today's date
+- **Date Selection**: Allow tapping to switch between days
+- **Meal Display**: Show meals for selected day
+
+5. Error Handling
+=================
+
+5.1 Network Errors
+------------------
+- **Connection Failed**: Show retry button with offline message
+- **Timeout**: Show timeout message with retry option
+- **Server Error**: Show generic error with support contact
+
+5.2 Authentication Errors
+-------------------------
+- **Token Expired**: Redirect to login page
+- **Unauthorized**: Show access denied message
+- **Forbidden**: Show subscription required message
+
+5.3 Data Errors
+---------------
+- **No Plans Available**: Show empty state with contact support
+- **Meal Not Found**: Show error message for specific meal
+- **Completion Failed**: Show retry option for meal completion
+
+6. Mobile-Specific Considerations
+=================================
+
+6.1 Touch Interactions
+----------------------
+- **Meal Cards**: Tap to view details, long press for quick actions
+- **Like/Dislike**: Tap to toggle, show haptic feedback
+- **Date Navigation**: Swipe left/right to change days
+- **Completion**: Tap checkmark to mark as complete
+
+6.2 Offline Support
+-------------------
+- **Cache Plans**: Store nutrition plans locally for offline viewing
+- **Queue Actions**: Queue meal interactions for when online
+- **Sync Status**: Show sync status when back online
+
+6.3 Performance
+---------------
+- **Lazy Loading**: Load meal images on demand
+- **Image Optimization**: Use appropriate image sizes for mobile
+- **Data Pagination**: Load meals in batches for large plans
+
+6.4 Accessibility
+-----------------
+- **Screen Reader**: Proper labels for all interactive elements
+- **Voice Over**: Descriptive text for meal information
+- **High Contrast**: Support for high contrast mode
+- **Font Scaling**: Respect system font size preferences
+
+7. Push Notifications
+=====================
+
+7.1 Meal Reminders
+------------------
+- **Breakfast**: 7:30 AM daily
+- **Lunch**: 12:00 PM daily
+- **Dinner**: 7:00 PM daily
+- **Customizable**: Allow users to set their own times
+
+7.2 Completion Reminders
+------------------------
+- **Daily Summary**: End of day reminder for incomplete meals
+- **Weekly Progress**: Weekly completion statistics
+- **Achievement**: Celebrate milestones and streaks
+
+8. Analytics & Tracking
+======================
+
+8.1 User Engagement
+-------------------
+- **Meal Views**: Track which meals are viewed most
+- **Completion Rate**: Monitor daily/weekly completion rates
+- **Interaction Rate**: Track like/dislike patterns
+- **Time Spent**: Monitor time spent on meal details
+
+8.2 Performance Metrics
+-----------------------
+- **Load Times**: Track API response times
+- **Error Rates**: Monitor failed requests
+- **Cache Hit Rate**: Track offline usage
+- **User Retention**: Monitor daily/weekly active users
+
+This contract provides complete implementation details for the mobile menus page, ensuring consistent behavior and optimal user experience across platforms.

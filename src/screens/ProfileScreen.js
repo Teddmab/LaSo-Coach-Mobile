@@ -8,15 +8,25 @@ import {
   Image,
   StatusBar,
   TextInput,
-  Modal
+  Modal,
+  ActivityIndicator,
+  Pressable,
+  Alert
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../constants/theme';
+import Toast from 'react-native-toast-message';
+import { theme, TYPOGRAPHY } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
+import { ProfileApi } from '../services/profileApi';
+import SubscriptionScreen from './SubscriptionScreen';
+import Avatar from '../components/Avatar';
+import NotificationBadge from '../components/NotificationBadge';
+import * as ImagePicker from 'expo-image-picker';
 
-const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1 }) => {
+const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation }) => {
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -27,6 +37,76 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   const [selectedTab, setSelectedTab] = useState('subscriptions'); // subscriptions or transactions
   const [expandedPlan, setExpandedPlan] = useState(null); // which plan details are expanded
   const [subscriptionData, setSubscriptionData] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+  const [measurementsData, setMeasurementsData] = useState(null);
+  const [progressData, setProgressData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  // Old dropdown states removed - now using modals
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [rendezvousData, setRendezvousData] = useState(null);
+  const [rendezvousLoading, setRendezvousLoading] = useState(true);
+  const [showDurationDropdown, setShowDurationDropdown] = useState(false);
+  const [durationOptions] = useState(['30 minutes', '60 minutes', '90 minutes']);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  
+  // Modal states for selection
+  const [showCountryModal, setShowCountryModal] = useState(false);
+  const [showGenderModal, setShowGenderModal] = useState(false);
+  const [showOccupationModal, setShowOccupationModal] = useState(false);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [occupationOptions, setOccupationOptions] = useState([
+    'Software Engineer',
+    'Teacher',
+    'Student',
+    'Healthcare Professional',
+    'Manager',
+    'Self-employed',
+    'Unemployed',
+    'Retired',
+    'Other'
+  ]);
+  const [genderOptions] = useState([
+    'Homme',
+    'Femme'
+  ]);
+  const [countryOptions] = useState([
+    'Algérie',
+    'Andorre',
+    'Bénin',
+    'Belgique',
+    'Burkina Faso',
+    'Cameroun',
+    'Canada',
+    'Congo',
+    'Côte d\'Ivoire',
+    'France',
+    'Gabon',
+    'Guinée',
+    'Guinée-Bissau',
+    'Luxembourg',
+    'Madagascar',
+    'Mali',
+    'Maroc',
+    'Mauritanie',
+    'Monaco',
+    'Niger',
+    'République centrafricaine',
+    'République démocratique du Congo',
+    'Sénégal',
+    'Suisse',
+    'Tchad',
+    'Togo',
+    'Tunisie',
+    'Comores',
+    'Djibouti',
+    'Haïti',
+    'Vanuatu',
+    'Seychelles',
+    'Maurice',
+    'Autre'
+  ]);
   const [expandedSections, setExpandedSections] = useState({
     dailyInstructions: false,
     mandatoryRequirements: false,
@@ -45,22 +125,22 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     height: '1,75',
     initialWeight: '70',
     initialWaist: '80',
-    gender: 'Homme',
-    occupation: 'Sélectionner',
+    gender: 'Male',
+    occupation: 'Software Engineer',
     // Step 2 - Objectives
     targetWeight: '60',
     targetWaist: '60',
     generalObjective: 'Perdre beaucoup en première semaine',
     specificObjectives: ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
-    dietaryRestrictions: ['Végétarien', 'Sans noix', 'Aucune', 'Autre'],
+    dietaryRestrictions: ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune'],
     acceptedTerms: true,
     // Step 3 - Photo consent
     photoConsent: true,
     // Step 4 - Appointment
-    appointmentDate: '17.07.2025, 22:00',
+    appointmentDate: '',
     appointmentDuration: '60 minutes',
-    appointmentSubject: 'Perdre du poid et retrouver une taille de gueppe',
-    appointmentNotes: 'Je souhaite reprendre ma taille d avant mariage'
+    appointmentSubject: '',
+    appointmentNotes: ''
   });
 
   // Update currentStep when initialStep changes
@@ -69,8 +149,127 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   }, [initialStep]);
 
   useEffect(() => {
+    fetchProfileData();
     checkSubscriptionStatus();
+    loadConsentState();
+    fetchRendezvousData();
   }, []);
+
+  // Refresh data when step changes to ensure we have the latest information
+  useEffect(() => {
+    if (currentStep > 1) {
+      console.log('🔄 Step changed to', currentStep, '- refreshing data...');
+      fetchProfileData(false);
+      fetchRendezvousData();
+    }
+  }, [currentStep]);
+
+  const fetchProfileData = async (showLoading = true) => {
+    try {
+      if (showLoading) {
+        setLoading(true);
+      }
+      console.log('👤 Profile: Fetching profile data...');
+      
+      // Fetch profile data
+      const profile = await ProfileApi.getProfile();
+      setProfileData(profile);
+      
+      // Parse address if it exists
+      if (profile.address) {
+        const parsedAddress = ProfileApi.parseAddress(profile.address);
+        console.log('👤 Parsed address:', parsedAddress);
+                     const newFormData = {
+               ...formData,
+               firstName: profile.firstName || '',
+               lastName: profile.lastName || '',
+               phone: profile.phoneNumber || '',
+               email: profile.email || '',
+               address1: parsedAddress.address1 || '',
+               address2: parsedAddress.address2 || '',
+               city: parsedAddress.city || '',
+               postalCode: parsedAddress.postalCode || '',
+               country: parsedAddress.country || '',
+               height: profile.profile?.height?.toString() || '',
+               initialWeight: profile.profile?.initialWeight?.toString() || '',
+               initialWaist: profile.profile?.initialWaistSize?.toString() || '',
+               gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
+               occupation: profile.profile?.occupation || 'Software Engineer',
+               // Target objectives
+               targetWeight: profile.profile?.targetWeight?.toString() || '',
+               targetWaist: profile.profile?.targetWaistSize?.toString() || '',
+               generalObjective: profile.profile?.goal || '',
+               specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+               dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+             };
+        console.log('👤 Setting form data with address:', newFormData);
+        setFormData(newFormData);
+      } else {
+        // Set basic profile data even if no address
+                 const newFormData = {
+           ...formData,
+           firstName: profile.firstName || '',
+           lastName: profile.lastName || '',
+           phone: profile.phoneNumber || '',
+           email: profile.email || '',
+           height: profile.profile?.height?.toString() || '',
+           initialWeight: profile.profile?.initialWeight?.toString() || '',
+           initialWaist: profile.profile?.initialWaistSize?.toString() || '',
+           gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
+           occupation: profile.profile?.occupation || 'Software Engineer',
+           // Target objectives
+           targetWeight: profile.profile?.targetWeight?.toString() || '',
+           targetWaist: profile.profile?.targetWaistSize?.toString() || '',
+           generalObjective: profile.profile?.goal || '',
+           specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+                          dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+         };
+        console.log('👤 Setting form data without address:', newFormData);
+        setFormData(newFormData);
+      }
+      
+      // Fetch measurements data
+      try {
+        const measurements = await ProfileApi.getMeasurements();
+        setMeasurementsData(measurements);
+      } catch (error) {
+        console.log('📏 Profile: No measurements data available');
+        setMeasurementsData(null);
+      }
+      
+      // Fetch progress data
+      try {
+        const progress = await ProfileApi.getProgress();
+        setProgressData(progress);
+      } catch (error) {
+        console.log('📊 Profile: No progress data available');
+        setProgressData(null);
+      }
+      
+      // Fetch occupation options
+      // Set occupation options from the UI list
+      setOccupationOptions([
+        'Software Engineer',
+        'Teacher',
+        'Student',
+        'Healthcare Professional',
+        'Manager',
+        'Self-employed',
+        'Unemployed',
+        'Retired',
+        'Other'
+      ]);
+      console.log('👤 Profile: Using occupation options from UI');
+      
+      console.log('✅ Profile: All data fetched successfully');
+    } catch (error) {
+      console.error('❌ Profile: Error fetching profile data:', error);
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  };
 
   const checkSubscriptionStatus = async () => {
     try {
@@ -87,6 +286,39 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     }
   };
 
+  const fetchRendezvousData = async () => {
+    try {
+      setRendezvousLoading(true);
+      console.log('📅 Profile: Fetching rendezvous data...');
+      
+      const rendezvous = await ProfileApi.getCurrentRendezvous();
+      setRendezvousData(rendezvous);
+      
+      // Update hasExistingAppointment based on rendezvous data
+      if (rendezvous) {
+        setHasExistingAppointment(true);
+        // Pre-fill form data with existing appointment
+        const appointmentDate = new Date(rendezvous.scheduledAt);
+        const formattedDate = `${appointmentDate.getDate().toString().padStart(2, '0')}/${(appointmentDate.getMonth() + 1).toString().padStart(2, '0')}/${appointmentDate.getFullYear()} ${appointmentDate.getHours().toString().padStart(2, '0')}:${appointmentDate.getMinutes().toString().padStart(2, '0')}:${appointmentDate.getSeconds().toString().padStart(2, '0')}`;
+        
+        setFormData(prev => ({
+          ...prev,
+          appointmentDate: formattedDate,
+          appointmentDuration: `${rendezvous.duration} minutes`,
+          appointmentSubject: rendezvous.subject,
+          appointmentNotes: rendezvous.notes || ''
+        }));
+      }
+      
+      console.log('✅ Profile: Rendezvous data fetched successfully');
+    } catch (error) {
+      console.error('❌ Profile: Error fetching rendezvous data:', error);
+      setRendezvousData(null);
+    } finally {
+      setRendezvousLoading(false);
+    }
+  };
+
   const handleSubscriptionRenew = () => {
     console.log('🔄 Profile: Navigating to subscription renewal page');
     // Since we're already on the profile screen, just ensure we're on step 5
@@ -100,12 +332,132 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     }));
   };
 
+  const getOccupationDisplayText = (occupation) => {
+    // For the new occupation options, we can return them as-is since they're already in English
+    return occupation || 'Sélectionner';
+  };
+
+  const getGenderDisplayText = (gender) => {
+    return gender || 'Sélectionner';
+  };
+
+  const getRendezvousStatusText = (status) => {
+    const statusMap = {
+      'PENDING': 'En attente de confirmation du coach',
+      'ACCEPTED': 'Accepté par le coach',
+      'REJECTED': 'Refusé',
+      'CANCELLED': 'Annulé',
+      'COMPLETED': 'Terminé'
+    };
+    return statusMap[status] || status;
+  };
+
+  // Load consent state from localStorage
+  const loadConsentState = async () => {
+    try {
+      const consent = await AsyncStorage.getItem('onboarding_consent');
+      if (consent !== null) {
+        setConsentChecked(JSON.parse(consent));
+      }
+    } catch (error) {
+      console.log('📋 Could not load consent state:', error);
+    }
+  };
+
+  // Save consent state to localStorage
+  const saveConsentState = async (checked) => {
+    try {
+      await AsyncStorage.setItem('onboarding_consent', JSON.stringify(checked));
+    } catch (error) {
+      console.log('📋 Could not save consent state:', error);
+    }
+  };
+
+  // Handle avatar upload
+  const handleAvatarUpload = async () => {
+    console.log('📸 Starting avatar upload...');
+    
+    // Prevent multiple uploads
+    if (avatarUploading) {
+      console.log('📸 Upload already in progress, ignoring...');
+      return;
+    }
+    
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Toast.show({
+          type: 'error',
+          text1: 'Permission refusée',
+          text2: 'Veuillez autoriser l\'accès à votre galerie pour changer votre avatar',
+        });
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setAvatarUploading(true);
+        
+        const formData = new FormData();
+        formData.append('avatar', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: 'avatar.jpg'
+        });
+        
+        const response = await ProfileApi.uploadAvatar(formData);
+        console.log('✅ Avatar uploaded successfully');
+        
+        // Update profile data with new avatar
+        if (response.avatarUrl) {
+          setProfileData(prev => ({
+            ...prev,
+            avatar: response.avatarUrl
+          }));
+        }
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Avatar mis à jour',
+          text2: 'Votre photo de profil a été mise à jour avec succès',
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error uploading avatar:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de téléchargement',
+        text2: 'Impossible de télécharger votre avatar. Veuillez réessayer.',
+      });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const handleNext = () => {
     if (currentStep === 1) {
       setShowSaveModal(true);
     } else if (currentStep === 2) {
       setShowObjectivesModal(true);
     } else if (currentStep === 3) {
+      // Check if consent is given before allowing to proceed
+      if (!consentChecked) {
+        Toast.show({
+          type: 'error',
+          text1: 'Consentement requis',
+          text2: 'Veuillez accepter les recommandations pour continuer',
+        });
+        return;
+      }
       setShowRecommendationsModal(true);
     } else if (currentStep === 4) {
       // Move to subscription step
@@ -130,22 +482,180 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     console.log('Previous step to:', currentStep - 1);
   };
 
-  const handleSaveProfile = () => {
-    setShowSaveModal(false);
-    setCurrentStep(2);
-    console.log('Profile saved, moving to step 2');
+  const handleSaveProfile = async () => {
+    try {
+      console.log('👤 Profile: Saving profile data...');
+      
+      // Format address
+      const addressString = ProfileApi.formatAddress({
+        address1: formData.address1,
+        address2: formData.address2,
+        city: formData.city,
+        postalCode: formData.postalCode,
+        country: formData.country
+      });
+      
+      // Prepare profile data for API
+      const profileUpdateData = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phone,
+        address: addressString,
+        profile: {
+          height: parseFloat(formData.height.replace(',', '.')),
+          gender: formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male',
+          occupation: formData.occupation,
+          initialWeight: parseFloat(formData.initialWeight),
+          initialWaistSize: parseFloat(formData.initialWaist)
+        }
+      };
+      
+      console.log('👤 Profile: Update data:', profileUpdateData);
+      
+      // Update profile via API
+      await ProfileApi.updateProfile(profileUpdateData);
+      
+      // Update progress if available
+      if (progressData) {
+        try {
+          await ProfileApi.updateProgress({
+            step: 'profile_setup',
+            completed: true
+          });
+        } catch (error) {
+          console.log('📊 Profile: Could not update progress');
+        }
+      }
+      
+      setShowSaveModal(false);
+      setCurrentStep(2);
+      console.log('✅ Profile saved successfully, moving to step 2');
+      
+      // Refresh data to show updated information (without loading indicator)
+      await fetchProfileData(false);
+      
+      // Show success message to user
+      Toast.show({
+        type: 'success',
+        text1: 'Profil sauvegardé',
+        text2: 'Vos informations ont été mises à jour avec succès',
+      });
+    } catch (error) {
+      console.error('❌ Profile: Error saving profile:', error);
+      
+      // Show error message to user
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de sauvegarde',
+        text2: 'Impossible de sauvegarder votre profil. Veuillez réessayer.',
+      });
+    }
   };
 
-  const handleSaveObjectives = () => {
-    setShowObjectivesModal(false);
-    setCurrentStep(3);
-    console.log('Objectives saved, moving to step 3');
+  const handleSaveObjectives = async () => {
+    try {
+      console.log('🎯 Objectives: Saving objectives data...');
+      
+      // Prepare objectives data for API
+      const objectivesUpdateData = {
+        profile: {
+          height: parseFloat(profileData?.profile?.height || 0),
+          initialWeight: parseFloat(profileData?.profile?.initialWeight || 0),
+          initialWaistSize: parseFloat(profileData?.profile?.initialWaistSize || 0),
+          targetWeight: parseFloat(formData.targetWeight || 0),
+          targetWaistSize: parseFloat(formData.targetWaist || 0),
+          goal: formData.generalObjective,
+          goals: formData.specificObjectives,
+          dietaryRestrictions: formData.dietaryRestrictions,
+          gender: profileData?.profile?.gender || 'male',
+          occupation: profileData?.profile?.occupation || 'Software Engineer',
+          acceptedGuidelines: true
+        }
+      };
+      
+      console.log('🎯 Objectives: Update data:', objectivesUpdateData);
+      
+      // Update profile via API
+      await ProfileApi.updateProfile(objectivesUpdateData);
+      
+      // Update progress if available
+      if (progressData) {
+        try {
+          await ProfileApi.updateProgress({
+            step: 'goals_setup',
+            completed: true
+          });
+        } catch (error) {
+          console.log('📊 Objectives: Could not update progress');
+        }
+      }
+      
+      setShowObjectivesModal(false);
+      setCurrentStep(3);
+      console.log('✅ Objectives saved successfully, moving to step 3');
+      
+      // Refresh data to show updated information (without loading indicator)
+      await fetchProfileData(false);
+      
+      // Show success message to user
+      Toast.show({
+        type: 'success',
+        text1: 'Objectifs sauvegardés',
+        text2: 'Vos objectifs ont été enregistrés avec succès',
+      });
+    } catch (error) {
+      console.error('❌ Objectives: Error saving objectives:', error);
+      
+      // Show error message to user
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de sauvegarde',
+        text2: 'Impossible de sauvegarder vos objectifs. Veuillez réessayer.',
+      });
+    }
   };
 
-  const handleSaveRecommendations = () => {
-    setShowRecommendationsModal(false);
-    setCurrentStep(4);
-    console.log('Recommendations saved, moving to step 4');
+  const handleSaveRecommendations = async () => {
+    try {
+      console.log('📋 Recommendations: Saving recommendations data...');
+      
+      // Update progress if available
+      if (progressData) {
+        try {
+          await ProfileApi.updateProgress({
+            step: 'recommendations',
+            completed: true
+          });
+        } catch (error) {
+          console.log('📊 Recommendations: Could not update progress');
+        }
+      }
+      
+      setShowRecommendationsModal(false);
+      setCurrentStep(4);
+      console.log('✅ Recommendations saved successfully, moving to step 4');
+      
+      // Refresh data to show updated information (without loading indicator)
+      await fetchProfileData(false);
+      
+      // Show success message to user
+      Toast.show({
+        type: 'success',
+        text1: 'Recommandations sauvegardées',
+        text2: 'Vos recommandations ont été enregistrées avec succès',
+      });
+    } catch (error) {
+      console.error('❌ Recommendations: Error saving recommendations:', error);
+      
+      // Show error message to user
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de sauvegarde',
+        text2: 'Impossible de sauvegarder vos recommandations. Veuillez réessayer.',
+      });
+    }
   };
 
   const handleCancelSave = () => {
@@ -164,26 +674,232 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   };
 
   const handleBookAppointment = () => {
-    setHasExistingAppointment(true);
+    console.log('📅 handleBookAppointment called');
+    
+    // Reset form data to empty values for new appointment
+    setFormData(prev => ({
+      ...prev,
+      appointmentDate: '',
+      appointmentDuration: '60 minutes',
+      appointmentSubject: '',
+      appointmentNotes: ''
+    }));
+    
     setShowBookingForm(true);
     setShowAppointmentModal(true);
-    console.log('Appointment booked');
+    console.log('📅 Opening appointment booking form');
   };
 
   const handleRescheduleAppointment = () => {
+    console.log('📅 handleRescheduleAppointment called');
+    console.log('📅 Current showBookingForm:', showBookingForm);
+    console.log('📅 Current showAppointmentModal:', showAppointmentModal);
+    console.log('📅 Current showSaveModal:', showSaveModal);
+    console.log('📅 Current showObjectivesModal:', showObjectivesModal);
+    console.log('📅 Current showRecommendationsModal:', showRecommendationsModal);
+    
+    // Close any other modals first
+    setShowSaveModal(false);
+    setShowObjectivesModal(false);
+    setShowRecommendationsModal(false);
+    
+    // Reset form data to current appointment data or empty values
+    if (rendezvousData) {
+      const appointmentDate = new Date(rendezvousData.scheduledAt);
+      const formattedDate = `${appointmentDate.getDate().toString().padStart(2, '0')}/${(appointmentDate.getMonth() + 1).toString().padStart(2, '0')}/${appointmentDate.getFullYear()} ${appointmentDate.getHours().toString().padStart(2, '0')}:${appointmentDate.getMinutes().toString().padStart(2, '0')}:${appointmentDate.getSeconds().toString().padStart(2, '0')}`;
+      
+      setFormData(prev => ({
+        ...prev,
+        appointmentDate: formattedDate,
+        appointmentDuration: `${rendezvousData.duration} minutes`,
+        appointmentSubject: rendezvousData.subject,
+        appointmentNotes: rendezvousData.notes || ''
+      }));
+    } else {
+      // Reset to empty values for new appointment
+      setFormData(prev => ({
+        ...prev,
+        appointmentDate: '',
+        appointmentDuration: '60 minutes',
+        appointmentSubject: '',
+        appointmentNotes: ''
+      }));
+    }
+    
+    // Set the appointment modal states
+    setShowBookingForm(true);
     setShowAppointmentModal(true);
-    console.log('Reschedule appointment');
+    console.log('📅 Opening reschedule appointment form');
+    console.log('📅 showBookingForm set to true');
   };
 
-  const handleConfirmAppointment = () => {
-    setShowAppointmentModal(false);
-    setCurrentStep(5); // Move to subscription step
-    console.log('Appointment confirmed, moving to subscription');
+  const handleConfirmAppointment = async () => {
+    try {
+      console.log('📅 Confirming appointment...');
+      console.log('📅 Appointment date string:', formData.appointmentDate);
+      
+      // Validate required fields
+      if (!formData.appointmentDate || !formData.appointmentSubject) {
+        Toast.show({
+          type: 'error',
+          text1: 'Champs requis',
+          text2: 'Veuillez remplir tous les champs obligatoires',
+        });
+        return;
+      }
+
+      // Parse date and validate it's at least 24 hours in advance
+      let appointmentDate;
+      try {
+        // Check if date is empty
+        if (!formData.appointmentDate || formData.appointmentDate.trim() === '') {
+          Toast.show({
+            type: 'error',
+            text1: 'Date requise',
+            text2: 'Veuillez saisir une date et heure de rendez-vous',
+          });
+          return;
+        }
+        
+        // Handle different date formats
+        if (formData.appointmentDate.includes('/')) {
+          // Format: "12/07/2026 17:10:00" (DD/MM/YYYY HH:mm:ss)
+          const [datePart, timePart] = formData.appointmentDate.split(' ');
+          if (!datePart || !timePart) {
+            throw new Error('Invalid date format - missing date or time part');
+          }
+          
+          const [day, month, year] = datePart.split('/');
+          const [hours, minutes, seconds] = timePart.split(':');
+          
+          if (!day || !month || !year || !hours || !minutes || !seconds) {
+            throw new Error('Invalid date format - missing components');
+          }
+          
+          // Create date with proper format (month is 0-indexed)
+          appointmentDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes), parseInt(seconds));
+        } else {
+          // Try standard date parsing
+          appointmentDate = new Date(formData.appointmentDate);
+        }
+        
+        // Validate the date is valid
+        if (isNaN(appointmentDate.getTime())) {
+          throw new Error('Invalid date format');
+        }
+        
+        console.log('📅 Parsed appointment date:', appointmentDate);
+        console.log('📅 Appointment date ISO string:', appointmentDate.toISOString());
+      } catch (error) {
+        console.error('❌ Date parsing error:', error);
+        Toast.show({
+          type: 'error',
+          text1: 'Format de date invalide',
+          text2: 'Veuillez utiliser le format DD/MM/YYYY HH:mm:ss',
+        });
+        return;
+      }
+      
+      const now = new Date();
+      const minDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+      
+      if (appointmentDate <= minDate) {
+        Toast.show({
+          type: 'error',
+          text1: 'Date invalide',
+          text2: 'Le rendez-vous doit être prévu au moins 24h à l\'avance',
+        });
+        return;
+      }
+
+      // Extract duration from string (e.g., "60 minutes" -> 60)
+      const duration = parseInt(formData.appointmentDuration.split(' ')[0]);
+
+      // Prepare rendezvous data
+      const rendezvousData = {
+        scheduledAt: appointmentDate.toISOString(),
+        subject: formData.appointmentSubject,
+        duration: duration,
+        notes: formData.appointmentNotes || ''
+      };
+
+      console.log('📅 Rendezvous data:', rendezvousData);
+      console.log('📅 About to call ProfileApi.createRendezvous...');
+
+      // Create rendezvous via API
+      const response = await ProfileApi.createRendezvous(rendezvousData);
+      console.log('✅ Rendezvous created successfully:', response);
+
+      // Close the appointment form modal
+      setShowAppointmentModal(false);
+      setShowBookingForm(false);
+      setShowDurationDropdown(false);
+
+      // Show confirmation modal
+      setShowConfirmationModal(true);
+
+    } catch (error) {
+      console.error('❌ Error confirming appointment:', error);
+      
+      // Handle specific API errors
+      let errorMessage = 'Impossible de confirmer le rendez-vous. Veuillez réessayer.';
+      
+      if (error.response?.status === 422) {
+        errorMessage = 'Le rendez-vous doit être prévu au moins 24h à l\'avance.';
+      } else if (error.response?.status === 409) {
+        errorMessage = 'Ce créneau n\'est plus disponible. Merci de choisir un autre horaire.';
+      }
+
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de confirmation',
+        text2: errorMessage,
+      });
+    }
   };
 
   const handleCancelAppointmentModal = () => {
     setShowAppointmentModal(false);
-    console.log('Appointment modal cancelled');
+    setShowBookingForm(false);
+    setShowDurationDropdown(false);
+    console.log('📅 Appointment modal cancelled');
+  };
+
+  const handleConfirmationModalAction = async () => {
+    try {
+      // Update progress if available
+      if (progressData) {
+        try {
+          await ProfileApi.updateProgress({
+            step: 'rendezvous',
+            completed: true
+          });
+        } catch (error) {
+          console.log('📊 Rendezvous: Could not update progress');
+        }
+      }
+
+      // Close confirmation modal
+      setShowConfirmationModal(false);
+
+      // Move to step 5 (subscription)
+      setCurrentStep(5);
+      console.log('✅ Moving to subscription step');
+
+      // Show success message
+      Toast.show({
+        type: 'success',
+        text1: 'Rendez-vous confirmé',
+        text2: 'Votre rendez-vous a été programmé avec succès',
+      });
+
+      // Refresh data to show updated information (without loading indicator)
+      await fetchProfileData(false);
+      await fetchRendezvousData();
+
+    } catch (error) {
+      console.error('❌ Error in confirmation modal action:', error);
+    }
   };
 
   const toggleSection = (sectionKey) => {
@@ -302,7 +1018,14 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     </Modal>
   );
 
-  const renderAppointmentModal = () => (
+  const renderAppointmentModal = () => {
+    console.log('📅 renderAppointmentModal - showAppointmentModal:', showAppointmentModal);
+    console.log('📅 renderAppointmentModal - showBookingForm:', showBookingForm);
+    console.log('📅 renderAppointmentModal - showSaveModal:', showSaveModal);
+    console.log('📅 renderAppointmentModal - showObjectivesModal:', showObjectivesModal);
+    console.log('📅 renderAppointmentModal - showRecommendationsModal:', showRecommendationsModal);
+    
+    return (
     <Modal
       visible={showAppointmentModal}
       transparent={true}
@@ -311,23 +1034,446 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     >
       <View style={styles.modalOverlay}>
         <View style={styles.saveModalContainer}>
-          <Text style={styles.saveModalTitle}>Confirmation de rendez-vous</Text>
+          {showBookingForm ? (
+            <>
+              <Text style={styles.saveModalTitle}>
+                {rendezvousData ? 'Reprogrammer le rendez-vous' : 'Prendre RDV avec Sonia'}
+              </Text>
+              
+              {/* Date and Time Section */}
+              <View style={styles.modalFormField}>
+                <Text style={styles.modalInputLabel}>Date et heure du rendez-vous *</Text>
+                <TouchableOpacity 
+                  style={styles.dateTimeInputWrapper}
+                  onPress={() => {
+                    console.log('📅 Date input pressed, closing appointment modal and opening date modal');
+                    setShowAppointmentModal(false);
+                    setTimeout(() => {
+                      setShowDateModal(true);
+                    }, 300);
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <Text style={styles.dateTimeInputText}>
+                      {formData.appointmentDate || "Sélectionner une date"}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={20} color="#666" />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Duration Section */}
+              <View style={styles.modalFormField}>
+                <Text style={styles.modalInputLabel}>Durée *</Text>
+                <TouchableOpacity 
+                  style={styles.modalDropdownInput}
+                  onPress={() => setShowDurationDropdown(!showDurationDropdown)}
+                >
+                  <Text style={styles.modalDropdownText}>{formData.appointmentDuration}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#999" />
+                </TouchableOpacity>
+                
+                {showDurationDropdown && (
+                  <View style={styles.modalDropdownOptions}>
+                    {durationOptions.map((option, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.modalDropdownOption}
+                        onPress={() => {
+                          updateFormData('appointmentDuration', option);
+                          setShowDurationDropdown(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.modalDropdownOptionText,
+                          formData.appointmentDuration === option && styles.modalDropdownOptionTextSelected
+                        ]}>
+                          {option}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Subject Section */}
+              <View style={styles.modalFormField}>
+                <Text style={styles.modalInputLabel}>Sujet de la session *</Text>
+                <TextInput
+                  style={[styles.modalTextInput, styles.modalSubjectInput]}
+                  value={formData.appointmentSubject}
+                  onChangeText={(text) => updateFormData('appointmentSubject', text)}
+                  placeholder="Décrivez l'objectif de votre session"
+                  multiline={true}
+                  numberOfLines={3}
+                />
+                <Text style={styles.modalCharacterCount}>
+                  {formData.appointmentSubject ? formData.appointmentSubject.length : 0}/500
+                </Text>
+              </View>
+
+              {/* Notes Section */}
+              <View style={styles.modalFormField}>
+                <Text style={styles.modalInputLabel}>Notes (optionnel)</Text>
+                <TextInput
+                  style={[styles.modalTextInput, styles.modalNotesInput]}
+                  value={formData.appointmentNotes}
+                  onChangeText={(text) => updateFormData('appointmentNotes', text)}
+                  placeholder="Ajoutez des notes supplémentaires..."
+                  multiline={true}
+                  numberOfLines={4}
+                />
+                <Text style={styles.modalCharacterCount}>
+                  {formData.appointmentNotes ? formData.appointmentNotes.length : 0}/1000
+                </Text>
+              </View>
+              
+              <View style={styles.saveModalButtons}>
+                <TouchableOpacity style={styles.cancelButton} onPress={handleCancelAppointmentModal}>
+                  <Text style={styles.cancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmAppointment}>
+                  <Text style={styles.confirmButtonText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.saveModalTitle}>Confirmation de rendez-vous</Text>
+              <Text style={styles.saveModalText}>
+                {hasExistingAppointment ? 'Voulez-vous réserver un nouveau rendez-vous ?' : 'Voulez-vous réserver un nouveau rendez-vous ?'}
+              </Text>
+              
+              <View style={styles.saveModalButtons}>
+                <TouchableOpacity style={styles.cancelButton} onPress={handleCancelAppointmentModal}>
+                  <Text style={styles.cancelButtonText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmAppointment}>
+                  <Text style={styles.confirmButtonText}>Confirmer</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+    );
+  };
+
+  const renderConfirmationModal = () => (
+    <Modal
+      visible={showConfirmationModal}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowConfirmationModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.saveModalContainer}>
+          <Text style={styles.saveModalTitle}>Rendez-vous créé avec succès</Text>
           <Text style={styles.saveModalText}>
-            {hasExistingAppointment ? 'Voulez-vous réserver un nouveau rendez-vous ?' : 'Voulez-vous réserver un nouveau rendez-vous ?'}
+            Votre rendez-vous a été programmé avec succès. Vous recevrez une confirmation par email.
           </Text>
           
           <View style={styles.saveModalButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancelAppointmentModal}>
-              <Text style={styles.cancelButtonText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmAppointment}>
-              <Text style={styles.confirmButtonText}>Confirmer</Text>
+            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmationModalAction}>
+              <Text style={styles.confirmButtonText}>Continuer</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
     </Modal>
   );
+
+  // Selection Modal Functions
+  function renderCountryModal() {
+    return (
+    <Modal
+      visible={showCountryModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowCountryModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.selectionModalContainer}>
+          <View style={styles.selectionModalHeader}>
+            <Text style={styles.selectionModalTitle}>Sélectionner un pays</Text>
+            <TouchableOpacity 
+              onPress={() => setShowCountryModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.selectionModalContent}>
+            {countryOptions.map((country, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.selectionModalOption,
+                  formData.country === country && styles.selectionModalOptionSelected
+                ]}
+                onPress={() => {
+                  updateFormData('country', country);
+                  setShowCountryModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.selectionModalOptionText,
+                  formData.country === country && styles.selectionModalOptionTextSelected
+                ]}>
+                  {country}
+                </Text>
+                {formData.country === country && (
+                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    );
+  }
+
+  function renderGenderModal() {
+    return (
+    <Modal
+      visible={showGenderModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowGenderModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.selectionModalContainer}>
+          <View style={styles.selectionModalHeader}>
+            <Text style={styles.selectionModalTitle}>Sélectionner le genre</Text>
+            <TouchableOpacity 
+              onPress={() => setShowGenderModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.selectionModalContent}>
+            {genderOptions.map((gender, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.selectionModalOption,
+                  formData.gender === gender && styles.selectionModalOptionSelected
+                ]}
+                onPress={() => {
+                  updateFormData('gender', gender);
+                  setShowGenderModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.selectionModalOptionText,
+                  formData.gender === gender && styles.selectionModalOptionTextSelected
+                ]}>
+                  {getGenderDisplayText(gender)}
+                </Text>
+                {formData.gender === gender && (
+                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    );
+  }
+
+  function renderOccupationModal() {
+    return (
+    <Modal
+      visible={showOccupationModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => setShowOccupationModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.selectionModalContainer}>
+          <View style={styles.selectionModalHeader}>
+            <Text style={styles.selectionModalTitle}>Sélectionner l'occupation</Text>
+            <TouchableOpacity 
+              onPress={() => setShowOccupationModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.selectionModalContent}>
+            {occupationOptions.map((occupation, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.selectionModalOption,
+                  formData.occupation === occupation && styles.selectionModalOptionSelected
+                ]}
+                onPress={() => {
+                  updateFormData('occupation', occupation);
+                  setShowOccupationModal(false);
+                }}
+              >
+                <Text style={[
+                  styles.selectionModalOptionText,
+                  formData.occupation === occupation && styles.selectionModalOptionTextSelected
+                ]}>
+                  {getOccupationDisplayText(occupation)}
+                </Text>
+                {formData.occupation === occupation && (
+                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+    );
+  }
+
+  function renderDateModal() {
+    console.log('📅 renderDateModal called, showDateModal:', showDateModal);
+    return (
+    <Modal
+      visible={showDateModal}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={() => {
+        setShowDateModal(false);
+        setTimeout(() => {
+          setShowAppointmentModal(true);
+          setShowBookingForm(true);
+        }, 300);
+      }}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.selectionModalContainer}>
+          <View style={styles.selectionModalHeader}>
+            <Text style={styles.selectionModalTitle}>Sélectionner la date et l'heure</Text>
+            <TouchableOpacity 
+              onPress={() => setShowDateModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.dateModalContent}>
+            <Text style={styles.saveModalText}>
+              Choisissez la date et l'heure de votre rendez-vous
+            </Text>
+            <View style={styles.datePickerContainer}>
+              <Text style={styles.datePickerLabel}>Date</Text>
+              <View style={styles.datePickerRow}>
+                <TouchableOpacity 
+                  style={styles.datePickerButton}
+                  onPress={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() - 1);
+                    setSelectedDate(newDate);
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+                
+                <Text style={styles.datePickerText}>
+                  {selectedDate.toLocaleDateString('fr-FR', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+                
+                <TouchableOpacity 
+                  style={styles.datePickerButton}
+                  onPress={() => {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(newDate.getDate() + 1);
+                    setSelectedDate(newDate);
+                  }}
+                >
+                  <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <View style={styles.timePickerContainer}>
+              <Text style={styles.datePickerLabel}>Heure</Text>
+              <View style={styles.timePickerRow}>
+                {[9, 10, 11, 14, 15, 16, 17].map((hour) => (
+                  <TouchableOpacity
+                    key={hour}
+                    style={[
+                      styles.timeSlotButton,
+                      selectedDate.getHours() === hour && styles.timeSlotButtonSelected
+                    ]}
+                    onPress={() => {
+                      const newDate = new Date(selectedDate);
+                      newDate.setHours(hour, 0, 0, 0);
+                      setSelectedDate(newDate);
+                    }}
+                  >
+                    <Text style={[
+                      styles.timeSlotText,
+                      selectedDate.getHours() === hour && styles.timeSlotTextSelected
+                    ]}>
+                      {hour.toString().padStart(2, '0')}:00
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            
+            <View style={styles.saveModalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => {
+                setShowDateModal(false);
+                setTimeout(() => {
+                  setShowAppointmentModal(true);
+                  setShowBookingForm(true);
+                }, 300);
+              }}>
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.confirmButton}
+                                  onPress={() => {
+                    const formattedDate = selectedDate.toLocaleString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    });
+                    console.log('📅 Date selected:', formattedDate);
+                    updateFormData('appointmentDate', formattedDate);
+                    setShowDateModal(false);
+                    setTimeout(() => {
+                      console.log('📅 Reopening appointment modal');
+                      setShowAppointmentModal(true);
+                      setShowBookingForm(true);
+                    }, 300);
+                  }}
+              >
+                <Text style={styles.confirmButtonText}>Confirmer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+    );
+  }
 
   const renderPersonalInfo = () => (
     <View style={styles.formSection}>
@@ -372,11 +1518,11 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
       <View style={styles.fullWidthInput}>
         <Text style={styles.inputLabel}>Email</Text>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, styles.disabledInput]}
           value={formData.email}
-          onChangeText={(text) => updateFormData('email', text)}
           placeholder="Email"
           keyboardType="email-address"
+          editable={false}
         />
       </View>
 
@@ -422,7 +1568,10 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
 
       <View style={styles.fullWidthInput}>
         <Text style={styles.inputLabel}>Pays</Text>
-        <TouchableOpacity style={styles.dropdownInput}>
+        <TouchableOpacity 
+          style={styles.dropdownInput}
+          onPress={() => setShowCountryModal(true)}
+        >
           <Text style={styles.dropdownText}>{formData.country}</Text>
           <Ionicons name="chevron-down" size={20} color="#999" />
         </TouchableOpacity>
@@ -471,7 +1620,10 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
 
       <View style={styles.fullWidthInput}>
         <Text style={styles.inputLabel}>Genre</Text>
-        <TouchableOpacity style={styles.dropdownInput}>
+        <TouchableOpacity 
+          style={styles.dropdownInput}
+          onPress={() => setShowGenderModal(true)}
+        >
           <Text style={styles.dropdownText}>{formData.gender}</Text>
           <Ionicons name="chevron-down" size={20} color="#999" />
         </TouchableOpacity>
@@ -479,10 +1631,13 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
 
       <View style={styles.fullWidthInput}>
         <Text style={styles.inputLabel}>Occupation</Text>
-        <TouchableOpacity style={styles.dropdownInput}>
-          <Text style={styles.dropdownText}>{formData.occupation}</Text>
-          <Ionicons name="chevron-down" size={20} color="#999" />
-        </TouchableOpacity>
+               <TouchableOpacity 
+         style={styles.dropdownInput}
+         onPress={() => setShowOccupationModal(true)}
+       >
+         <Text style={styles.dropdownText}>{getOccupationDisplayText(formData.occupation)}</Text>
+         <Ionicons name="chevron-down" size={20} color="#999" />
+       </TouchableOpacity>
       </View>
     </View>
   );
@@ -498,33 +1653,33 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         <View style={styles.fullWidthInput}>
           <Text style={styles.inputLabel}>Taille (m)</Text>
           <TextInput
-            style={styles.textInput}
-            value={formData.height}
-            onChangeText={(text) => updateFormData('height', text)}
+            style={[styles.textInput, styles.disabledInput]}
+            value={profileData?.profile?.height?.toString() || ''}
             placeholder="Taille en mètres"
             keyboardType="decimal-pad"
+            editable={false}
           />
         </View>
 
         <View style={styles.fullWidthInput}>
           <Text style={styles.inputLabel}>Poids initial (kg)</Text>
           <TextInput
-            style={styles.textInput}
-            value={formData.initialWeight}
-            onChangeText={(text) => updateFormData('initialWeight', text)}
+            style={[styles.textInput, styles.disabledInput]}
+            value={profileData?.profile?.initialWeight?.toString() || ''}
             placeholder="Poids initial"
             keyboardType="numeric"
+            editable={false}
           />
         </View>
 
         <View style={styles.fullWidthInput}>
           <Text style={styles.inputLabel}>Tour de taille initial (cm)</Text>
           <TextInput
-            style={styles.textInput}
-            value={formData.initialWaist}
-            onChangeText={(text) => updateFormData('initialWaist', text)}
+            style={[styles.textInput, styles.disabledInput]}
+            value={profileData?.profile?.initialWaistSize?.toString() || ''}
             placeholder="Tour de taille initial"
             keyboardType="numeric"
+            editable={false}
           />
         </View>
       </View>
@@ -622,16 +1777,22 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
 
         <View style={styles.fullWidthInput}>
           <Text style={styles.inputLabel}>Genre</Text>
-          <TouchableOpacity style={styles.dropdownInput}>
-            <Text style={styles.dropdownText}>Male</Text>
+          <TouchableOpacity 
+            style={styles.dropdownInput}
+            onPress={() => setShowGenderModal(true)}
+          >
+            <Text style={styles.dropdownText}>{getGenderDisplayText(formData.gender)}</Text>
             <Ionicons name="chevron-down" size={20} color="#999" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.fullWidthInput}>
           <Text style={styles.inputLabel}>Occupation</Text>
-          <TouchableOpacity style={styles.dropdownInput}>
-            <Text style={styles.dropdownText}>Manager</Text>
+          <TouchableOpacity 
+            style={styles.dropdownInput}
+            onPress={() => setShowOccupationModal(true)}
+          >
+            <Text style={styles.dropdownText}>{getOccupationDisplayText(formData.occupation)}</Text>
             <Ionicons name="chevron-down" size={20} color="#999" />
           </TouchableOpacity>
         </View>
@@ -906,43 +2067,89 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           </View>
         </View>
       </View>
+
+      {/* Consent Checkbox */}
+      <View style={styles.formSection}>
+        <View style={styles.consentContainer}>
+          <TouchableOpacity 
+            style={styles.checkbox}
+            onPress={() => {
+              const newConsentState = !consentChecked;
+              setConsentChecked(newConsentState);
+              saveConsentState(newConsentState);
+            }}
+          >
+            <Ionicons 
+              name={consentChecked ? "checkbox" : "square-outline"} 
+              size={20} 
+              color={consentChecked ? "#2196F3" : "#999"}
+            />
+          </TouchableOpacity>
+          <View style={styles.consentTextContainer}>
+            <Text style={styles.consentText}>
+              J'accepte de suivre les recommandations et instructions personnalisées fournies dans ce programme.
+            </Text>
+          </View>
+        </View>
+      </View>
     </>
   );
 
   const renderAppointmentForm = () => (
     <>
-      {hasExistingAppointment ? (
+      {rendezvousLoading ? (
+        <View style={styles.formSection}>
+          <ActivityIndicator size="large" color="#8BC34A" />
+          <Text style={styles.loadingText}>Chargement du rendez-vous...</Text>
+        </View>
+      ) : rendezvousData ? (
         <>
           {/* Existing Appointment Display */}
           <View style={styles.appointmentCard}>
             <Text style={styles.appointmentCardTitle}>Rendez-vous programmé</Text>
             <View style={styles.appointmentStatus}>
-              <Text style={styles.appointmentStatusText}>En attente de confirmation du coach</Text>
+              <Text style={styles.appointmentStatusText}>
+                {getRendezvousStatusText(rendezvousData.status)}
+              </Text>
             </View>
             
             <View style={styles.appointmentDetails}>
               <Text style={styles.appointmentDetailLabel}>Date:</Text>
-              <Text style={styles.appointmentDetailValue}>8/17/2025, 10:00:00 PM</Text>
+              <Text style={styles.appointmentDetailValue}>
+                {new Date(rendezvousData.scheduledAt).toLocaleString('fr-FR')}
+              </Text>
             </View>
             
             <View style={styles.appointmentDetails}>
               <Text style={styles.appointmentDetailLabel}>Durée:</Text>
-              <Text style={styles.appointmentDetailValue}>60 minutes</Text>
+              <Text style={styles.appointmentDetailValue}>{rendezvousData.duration} minutes</Text>
             </View>
             
             <View style={styles.appointmentDetails}>
               <Text style={styles.appointmentDetailLabel}>Sujet:</Text>
-              <Text style={styles.appointmentDetailValue}>Perdre du poid et retrouver une taille de gueppe</Text>
+              <Text style={styles.appointmentDetailValue}>{rendezvousData.subject}</Text>
             </View>
             
-            <View style={styles.appointmentDetails}>
-              <Text style={styles.appointmentDetailLabel}>Notes:</Text>
-              <Text style={styles.appointmentDetailValue}>Je souhaite reprendre ma taille d avant mariage</Text>
-            </View>
+            {rendezvousData.notes && (
+              <View style={styles.appointmentDetails}>
+                <Text style={styles.appointmentDetailLabel}>Notes:</Text>
+                <Text style={styles.appointmentDetailValue}>{rendezvousData.notes}</Text>
+              </View>
+            )}
             
-            <TouchableOpacity style={styles.rescheduleButton} onPress={handleRescheduleAppointment}>
-              <Text style={styles.rescheduleButtonText}>Reprogrammer le rendez-vous</Text>
-            </TouchableOpacity>
+            {rendezvousData.assignedCoach && (
+              <View style={styles.appointmentDetails}>
+                <Text style={styles.appointmentDetailLabel}>Coach:</Text>
+                <Text style={styles.appointmentDetailValue}>{rendezvousData.assignedCoach.name}</Text>
+              </View>
+            )}
+            
+            {/* Only show reschedule button if status allows it */}
+            {rendezvousData.status !== 'ACCEPTED' && rendezvousData.status !== 'COMPLETED' && (
+              <TouchableOpacity style={styles.rescheduleButton} onPress={handleRescheduleAppointment}>
+                <Text style={styles.rescheduleButtonText}>Reprogrammer le rendez-vous</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </>
       ) : (
@@ -953,65 +2160,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         </View>
       )}
 
-      {/* Appointment Booking Form - Only show after clicking book appointment */}
-      {showBookingForm && (
-        <View style={styles.formSection}>
-          <View style={styles.fullWidthInput}>
-            <Text style={styles.inputLabel}>Date et heure du rendez-vous *</Text>
-            <View style={styles.dateTimeInputWrapper}>
-              <TextInput
-                style={[styles.textInput, styles.dateTimeInput]}
-                value={formData.appointmentDate}
-                onChangeText={(text) => updateFormData('appointmentDate', text)}
-                placeholder="DD.MM.YYYY, HH:MM"
-              />
-              <TouchableOpacity style={styles.calendarIcon}>
-                <Ionicons name="calendar-outline" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-          </View>
 
-          <View style={styles.fullWidthInput}>
-            <Text style={styles.inputLabel}>Durée *</Text>
-            <TouchableOpacity style={styles.dropdownInput}>
-              <Text style={styles.dropdownText}>{formData.appointmentDuration}</Text>
-              <Ionicons name="chevron-down" size={20} color="#999" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.fullWidthInput}>
-            <Text style={styles.inputLabel}>Sujet de la session *</Text>
-            <TextInput
-              style={[styles.textInput, styles.subjectInput]}
-              value={formData.appointmentSubject}
-              onChangeText={(text) => updateFormData('appointmentSubject', text)}
-              placeholder="Décrivez l'objectif de votre session"
-              multiline={true}
-              numberOfLines={3}
-            />
-            <Text style={styles.characterCount}>48/500</Text>
-          </View>
-
-          <View style={styles.fullWidthInput}>
-            <Text style={styles.inputLabel}>Notes (optionnel)</Text>
-            <TextInput
-              style={[styles.textInput, styles.notesInput]}
-              value={formData.appointmentNotes}
-              onChangeText={(text) => updateFormData('appointmentNotes', text)}
-              placeholder="Ajoutez des notes supplémentaires..."
-              multiline={true}
-              numberOfLines={4}
-            />
-            <Text style={styles.characterCount}>46/1000</Text>
-          </View>
-
-          <View style={styles.appointmentActions}>
-            <TouchableOpacity style={styles.confirmAppointmentButton} onPress={handleBookAppointment}>
-              <Text style={styles.confirmAppointmentButtonText}>Reprogrammer le rendez-vous</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </>
   );
 
@@ -1179,10 +2328,10 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           <View style={styles.stepCheckIcon}>
             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
           </View>
-          <Text style={styles.stepSummaryText}>1. Mon Profil</Text>
+          <Text style={styles.stepSummaryText}>Mon Profile</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+250pts</Text>
+            <Text style={styles.pointsText}>+25pts</Text>
           </View>
         </View>
         
@@ -1193,7 +2342,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           <Text style={styles.stepSummaryText}>2. Mes Objectifs</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+400pts</Text>
+            <Text style={styles.pointsText}>+40pts</Text>
           </View>
         </View>
         
@@ -1204,7 +2353,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           <Text style={styles.stepSummaryText}>3. Recommandations</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+200pts</Text>
+            <Text style={styles.pointsText}>+20pts</Text>
           </View>
         </View>
         
@@ -1215,7 +2364,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           <Text style={styles.stepSummaryText}>4. Rendez-vous</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+100pts</Text>
+            <Text style={styles.pointsText}>+10pts</Text>
           </View>
         </View>
         
@@ -1226,7 +2375,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           <Text style={styles.stepSummaryText}>5. Mon Abonnement</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+850pts</Text>
+            <Text style={styles.pointsText}>+85pts</Text>
           </View>
         </View>
       </View>
@@ -1236,7 +2385,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return '1. Mon Profil';
+        return 'Mon Profile';
       case 2:
         return '2. Mes Objectifs';
       case 3:
@@ -1272,25 +2421,32 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   };
 
   const getStepProgress = () => {
+    // Use real progress data if available
+    if (progressData && progressData.totalSteps) {
+      const completedSteps = progressData.completedSteps?.length || 0;
+      return (completedSteps / progressData.totalSteps) * 100;
+    }
+    
+    // Fallback to step-based progress
     return (currentStep / 6) * 100;
   };
 
   const getPoints = () => {
     switch (currentStep) {
       case 1:
-        return '+250pts';
-      case 2:
-        return '+400pts';
-      case 3:
-        return '+100pts';
-      case 4:
         return '+25pts';
+      case 2:
+        return '+40pts';
+      case 3:
+        return '+10pts';
+      case 4:
+        return '+3pts';
       case 5:
-        return '+850pts';
+        return '+85pts';
       case 6:
-        return '+1000pts';
+        return '+100pts';
       default:
-        return '+250pts';
+        return '+25pts';
     }
   };
 
@@ -1333,6 +2489,26 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   };
 
   const getStatusText = () => {
+    // Use real progress data if available
+    if (progressData && progressData.completedSteps) {
+      const stepNames = {
+        'welcome': 'Accueil',
+        'goals': 'Objectifs',
+        'profile_setup': 'Profil',
+        'measurements': 'Mesures',
+        'appointment': 'Rendez-vous',
+        'subscription': 'Abonnement'
+      };
+      
+      const currentStepName = progressData.currentStep;
+      const completedSteps = progressData.completedSteps;
+      
+      if (completedSteps.includes(currentStepName)) {
+        return `${stepNames[currentStepName] || 'Étape'} complété`;
+      }
+    }
+    
+    // Fallback to step-based status
     switch (currentStep) {
       case 1:
         return 'Profil complété';
@@ -1374,12 +2550,31 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           
           <TouchableOpacity style={styles.notificationButton}>
             <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
+            <NotificationBadge />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.profileButton} onPress={onLogout}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+          <TouchableOpacity style={styles.profileButton} onPress={() => {
+            console.log('🔍 ProfileScreen: Header avatar clicked');
+            console.log('🔍 ProfileScreen: onTabPress function:', onTabPress);
+            console.log('🔍 ProfileScreen: onLogout function:', onLogout);
+            console.log('🔍 ProfileScreen: navigation prop:', navigation);
+            
+            if (onTabPress && typeof onTabPress === 'function') {
+              console.log('🔍 ProfileScreen: Calling onTabPress("settings")');
+              onTabPress('settings');
+            } else if (navigation && typeof navigation.navigate === 'function') {
+              console.log('🔍 ProfileScreen: Using navigation.navigate("Settings")');
+              navigation.navigate('Settings');
+            } else {
+              console.log('🔍 ProfileScreen: No navigation method available, doing nothing');
+              // Don't call onLogout - just do nothing
+            }
+          }}>
+            <Avatar 
+              source={{ uri: profileData?.avatar || user?.avatar }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
             />
           </TouchableOpacity>
         </View>
@@ -1395,15 +2590,43 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScrollBeginDrag={() => {
+          // Clean up any open modals if needed
+        }}
       >
-        {/* Profile Header */}
-        <View style={styles.profileHeader}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>Chargement du profil...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Profile Header */}
+            <View style={styles.profileHeader}>
           <View style={styles.profileImageContainer}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/80' }} 
-              style={styles.largeProfileImage}
-            />
-            <View style={styles.profileImageBorder} />
+            <Pressable 
+              onPress={handleAvatarUpload}
+              style={({ pressed }) => [
+                styles.avatarUploadButton,
+                pressed && { opacity: 0.7 }
+              ]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Avatar 
+                source={{ uri: profileData?.avatar || user?.avatar }} 
+                size={80}
+                style={styles.largeProfileImage}
+                fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+              />
+              <View style={styles.avatarUploadOverlay}>
+                <Ionicons name="camera" size={24} color="#FFFFFF" />
+              </View>
+              {avatarUploading && (
+                <View style={styles.avatarUploadingOverlay}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                </View>
+              )}
+            </Pressable>
           </View>
           <View style={styles.profileHeaderText}>
             <Text style={styles.profileTitle}>{getStepTitle()}</Text>
@@ -1443,10 +2666,16 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         ) : currentStep === 4 ? (
           renderAppointmentForm()
         ) : currentStep === 5 ? (
-          renderSubscriptionForm()
+          <SubscriptionScreen
+            navigation={navigation}
+            onClose={() => setCurrentStep(4)}
+            onNext={() => setCurrentStep(6)}
+          />
         ) : currentStep === 6 ? (
           renderOnboardingSummary()
         ) : null}
+          </>
+        )}
       </ScrollView>
 
       {/* Navigation Footer */}
@@ -1456,7 +2685,9 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         </TouchableOpacity>
         
         <View style={styles.stepIndicator}>
-          <Text style={styles.stepText}>Étape {currentStep} sur 6</Text>
+          <Text style={styles.stepText}>
+            Étape {currentStep} sur 6
+          </Text>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${getStepProgress()}%` }]} />
           </View>
@@ -1499,8 +2730,15 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
       {renderObjectivesModal()}
       {renderRecommendationsModal()}
       {renderAppointmentModal()}
+      {renderConfirmationModal()}
+      
+      {/* Selection Modals */}
+      {renderCountryModal()}
+      {renderGenderModal()}
+      {renderOccupationModal()}
+      {renderDateModal()}
     </SafeAreaView>
-  );
+    );
 };
 
 const styles = StyleSheet.create({
@@ -1546,6 +2784,17 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1559,10 +2808,38 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginRight: 16,
   },
+  avatarUploadButton: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
   largeProfileImage: {
     width: 80,
     height: 80,
     borderRadius: 40,
+  },
+  avatarUploadOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarUploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileImageBorder: {
     position: 'absolute',
@@ -1669,6 +2946,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: theme.colors.text.primary,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  disabledInput: {
+    backgroundColor: '#F5F5F5',
+    color: theme.colors.text.secondary,
+    borderColor: '#CCCCCC',
   },
   textArea: {
     minHeight: 80,
@@ -1688,11 +2974,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
+    minHeight: 48,
   },
   dropdownText: {
     fontSize: 16,
     color: theme.colors.text.primary,
+    flex: 1,
+    marginRight: 8,
   },
+  dropdownOptions: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginTop: 4,
+    zIndex: 9999,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    maxHeight: 200,
+  },
+  dropdownOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  dropdownOptionText: {
+    fontSize: 16,
+    color: theme.colors.text.primary,
+  },
+  dropdownOptionTextSelected: {
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+  },
+
   specificObjectiveRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1947,6 +3272,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 12,
   },
+  consentContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 16,
+    marginBottom: 12,
+  },
   photoConsentQuestion: {
     fontSize: 14,
     color: theme.colors.text.primary,
@@ -1966,6 +3297,108 @@ const styles = StyleSheet.create({
   consentDetailText: {
     fontSize: 12,
     color: theme.colors.text.secondary,
+    marginTop: 4,
+  },
+  consentText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    marginLeft: 10,
+    flex: 1,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 16,
+  },
+  modalFormField: {
+    marginBottom: 16,
+    width: '100%',
+  },
+  modalInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 6,
+  },
+  modalTextInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    backgroundColor: '#FFFFFF',
+    minHeight: 44,
+  },
+  modalDropdownInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    minHeight: 44,
+  },
+  modalDropdownText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    flex: 1,
+    marginRight: 8,
+  },
+  modalDropdownOptions: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    marginTop: 2,
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  modalDropdownOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  modalDropdownOptionText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+  },
+  modalDropdownOptionTextSelected: {
+    color: '#2196F3',
+    fontWeight: '600',
+  },
+  modalSubjectInput: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  modalNotesInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  modalCharacterCount: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    textAlign: 'right',
+    marginTop: 2,
+  },
+  characterCount: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    textAlign: 'right',
     marginTop: 4,
   },
   appointmentCard: {
@@ -2041,12 +3474,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    minHeight: 44,
   },
   dateTimeInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: theme.colors.text.primary,
+    minHeight: 44,
+    paddingVertical: 10,
   },
   calendarIcon: {
     paddingLeft: 12,
@@ -2401,6 +3837,152 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4CAF50',
     fontWeight: 'bold',
+  },
+  
+  // Selection Modal Styles
+  selectionModalContainer: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    padding: 24,
+    width: '80%',
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  selectionModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  selectionModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  selectionModalContent: {
+    maxHeight: 300,
+  },
+  selectionModalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: 'transparent',
+    minHeight: 48,
+  },
+  selectionModalOptionText: {
+    fontSize: 16,
+    color: theme.colors.text.primary,
+    fontWeight: '400',
+  },
+  selectionModalOptionTextSelected: {
+    color: theme.colors.primary,
+    fontWeight: TYPOGRAPHY.weights.semibold,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  selectionModalOptionSelected: {
+    backgroundColor: theme.colors.primaryLight,
+  },
+  
+  // Date Modal Styles
+  dateModalContent: {
+    padding: 0,
+    marginBottom: 24,
+  },
+  datePickerContainer: {
+    marginBottom: 24,
+  },
+  datePickerLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  datePickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+  },
+  datePickerButton: {
+    padding: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  datePickerText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    flex: 1,
+    marginHorizontal: 16,
+  },
+  timePickerContainer: {
+    marginBottom: 24,
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  timeSlotButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  timeSlotButtonSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  timeSlotText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    fontWeight: '500',
+  },
+  timeSlotTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  confirmDateButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  confirmDateButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateTimeInputText: {
+    fontSize: 16,
+    color: theme.colors.text.primary,
+    flex: 1,
+    paddingVertical: 12,
   },
 });
 

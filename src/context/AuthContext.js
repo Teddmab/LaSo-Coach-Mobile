@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { TokenManager } from '../services/tokenManager';
-import { authAPI, handleAuthError } from '../services/api';
+import { authAPI, handleAuthError, retryRequest } from '../services/api';
 import Toast from 'react-native-toast-message';
 
 /**
@@ -8,6 +8,8 @@ import Toast from 'react-native-toast-message';
  * @typedef {import('../types/auth.js').User} User
  * @typedef {import('../types/auth.js').AuthState} AuthState
  * @typedef {import('../types/auth.js').RegisterData} RegisterData
+ * @typedef {import('../types/auth.js').ProfileUpdateData} ProfileUpdateData
+ * @typedef {import('../types/auth.js').VerifyResetTokenResponse} VerifyResetTokenResponse
  */
 
 // Initial auth state
@@ -106,8 +108,8 @@ export function AuthProvider({ children }) {
           hasRefreshToken: !!refreshToken 
         });
 
-        if (token && refreshToken) {
-          console.log('🔐 Tokens found, updating state...');
+        if (token) {
+          console.log('🔐 Token found, updating state...');
           
           // Update state with tokens
           dispatch({
@@ -116,25 +118,43 @@ export function AuthProvider({ children }) {
           });
           console.log('🔐 Tokens stored in state');
 
-          // Fetch user profile
+          // Fetch user profile with retry logic
           try {
             console.log('🔐 Fetching user profile...');
-            const user = await authAPI.getProfile();
+            const user = await retryRequest(
+              () => authAPI.getProfile(),
+              3, // max retries
+              2000 // initial delay (2 seconds)
+            );
             console.log('🔐 User profile fetched:', user?.email);
             
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
             console.log('✅ User authenticated on app launch');
           } catch (error) {
             console.error('❌ Failed to fetch user profile:', error);
-            await TokenManager.clearTokens();
-            dispatch({ type: AUTH_ACTIONS.LOGOUT });
+            
+            // Only log out if it's an authentication error (401, 403)
+            // Don't log out for network errors - keep the user logged in
+            if (error.response && [401, 403].includes(error.response.status)) {
+              console.log('🔐 Auth error - clearing tokens and logging out');
+              await TokenManager.clearTokens();
+              dispatch({ type: AUTH_ACTIONS.LOGOUT });
+            } else {
+              console.log('🔐 Network error - keeping user logged in, will retry later');
+              // Keep the user logged in but without profile data
+              // They can still try to use the app and the token will be validated on next API call
+              dispatch({ type: AUTH_ACTIONS.SET_USER, payload: null });
+              dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
+            }
           }
         } else {
-          console.log('🔐 No tokens found, logging out');
+          console.log('🔐 No token found, logging out');
           dispatch({ type: AUTH_ACTIONS.LOGOUT });
         }
       } catch (error) {
         console.error('❌ Auth initialization error:', error);
+        // Only logout if we're sure there's no valid token
+        // Network errors shouldn't force logout
         dispatch({ type: AUTH_ACTIONS.LOGOUT });
       } finally {
         console.log('🔐 Setting auth ready to true');
@@ -149,41 +169,52 @@ export function AuthProvider({ children }) {
    * Login user with email and password
    * @param {string} email 
    * @param {string} password 
-   * @returns {Promise<User>}
+   * @returns {Promise<{user: User | null, error: string | null}>}
    */
   const login = async (email, password) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
-
-      const response = await authAPI.login(email, password);
-      const { token, refreshToken, ...userData } = response;
-
-      // Store tokens securely
-      await TokenManager.storeTokens(token, refreshToken);
-
-      // Update state
-      dispatch({
-        type: AUTH_ACTIONS.SET_TOKENS,
-        payload: { token, refreshToken },
-      });
-      dispatch({ type: AUTH_ACTIONS.SET_USER, payload: userData });
-
-      Toast.show({
-        type: 'success',
-        text1: 'Connexion réussie',
-        text2: `Bienvenue ${userData.name}!`,
-      });
-
-      console.log('✅ User logged in successfully');
-      return userData;
+      
+      // Use retry mechanism for network resilience
+      const response = await retryRequest(
+        () => authAPI.login(email, password),
+        3, // max retries
+        1000 // initial delay
+      );
+      
+      console.log('🔐 Login response received:', response);
+      
+      // The API returns the user object directly with token included
+      const user = {
+        id: response.id,
+        email: response.email,
+        name: response.name,
+        firstName: response.firstName,
+        lastName: response.lastName,
+        avatar: response.avatar,
+        role: response.role,
+      };
+      const token = response.token;
+      
+      console.log('🔐 Storing token and user data...');
+      await TokenManager.storeTokens(token, null); // No refresh token in this response
+      dispatch({ type: AUTH_ACTIONS.SET_TOKENS, payload: { token, refreshToken: null } });
+      dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+      
+      console.log('✅ Login successful, user authenticated:', user.firstName);
+      Toast.show({ type: 'success', text1: 'Connexion réussie', text2: `Bienvenue ${user.firstName || user.name}!` });
+      return { user, error: null };
     } catch (error) {
+      console.error('❌ Login error:', error);
       const errorMessage = handleAuthError(error);
+      console.log('🔍 Error message to show:', errorMessage);
       Toast.show({
         type: 'error',
         text1: 'Erreur de connexion',
         text2: errorMessage,
       });
-      throw new Error(errorMessage);
+      // Return error message for component to handle
+      return { user: null, error: errorMessage };
     } finally {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
     }
@@ -197,24 +228,27 @@ export function AuthProvider({ children }) {
   const register = async (userData) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
-
-      await authAPI.register(userData);
-
-      Toast.show({
-        type: 'success',
-        text1: 'Inscription réussie',
-        text2: 'Votre compte a été créé avec succès',
-      });
-
-      console.log('✅ User registered successfully');
+      const response = await authAPI.register(userData);
+      
+      // Handle the actual API response format
+      // The API returns the user object directly, not nested in data
+      const user = response;
+      const token = response.token;
+      
+      // Store tokens
+      await TokenManager.storeTokens(token, null); // No refresh token in this response
+      dispatch({ type: AUTH_ACTIONS.SET_TOKENS, payload: { token, refreshToken: null } });
+      dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+      Toast.show({ type: 'success', text1: 'Inscription réussie', text2: 'Votre compte a été créé avec succès' });
     } catch (error) {
+      console.error('❌ Registration error:', error);
       const errorMessage = handleAuthError(error);
       Toast.show({
         type: 'error',
         text1: 'Erreur d\'inscription',
         text2: errorMessage,
       });
-      throw new Error(errorMessage);
+      throw error;
     } finally {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
     }
@@ -282,6 +316,39 @@ export function AuthProvider({ children }) {
   };
 
   /**
+   * Update user profile
+   * @param {ProfileUpdateData} profileData 
+   * @returns {Promise<User>}
+   */
+  const updateProfile = async (profileData) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+
+      const user = await authAPI.updateProfile(profileData);
+      dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Profil mis à jour',
+        text2: 'Vos informations ont été sauvegardées',
+      });
+
+      console.log('✅ Profile updated successfully');
+      return user;
+    } catch (error) {
+      const errorMessage = handleAuthError(error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: errorMessage,
+      });
+      throw new Error(errorMessage);
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+    }
+  };
+
+  /**
    * Request password reset
    * @param {string} email 
    * @returns {Promise<void>}
@@ -312,6 +379,63 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /**
+   * Verify password reset token
+   * @param {string} token 
+   * @returns {Promise<VerifyResetTokenResponse>}
+   */
+  const verifyResetToken = async (token) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+
+      const response = await authAPI.verifyResetToken(token);
+      console.log('✅ Reset token verified');
+      return response;
+    } catch (error) {
+      const errorMessage = handleAuthError(error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: errorMessage,
+      });
+      throw new Error(errorMessage);
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+    }
+  };
+
+  /**
+   * Complete password reset
+   * @param {string} token 
+   * @param {string} newPassword 
+   * @returns {Promise<void>}
+   */
+  const resetPassword = async (token, newPassword) => {
+    try {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+
+      await authAPI.resetPassword(token, newPassword);
+
+      Toast.show({
+        type: 'success',
+        text1: 'Mot de passe réinitialisé',
+        text2: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe',
+      });
+
+      console.log('✅ Password reset completed');
+    } catch (error) {
+      const errorMessage = handleAuthError(error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: errorMessage,
+      });
+      throw new Error(errorMessage);
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+    }
+  };
+
   // Context value
   /** @type {AuthContextType} */
   const value = {
@@ -323,7 +447,12 @@ export function AuthProvider({ children }) {
     logout,
     register,
     refreshProfile,
+    updateProfile,
     forgotPassword,
+    verifyResetToken,
+    resetPassword,
+    // Add a function to refresh user data from profile API
+    refreshUserFromProfile: refreshProfile,
   };
 
   return (

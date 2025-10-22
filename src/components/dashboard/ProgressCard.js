@@ -15,7 +15,8 @@ const ProgressCard = ({
   dashboardData, 
   onRefresh, 
   subscriptionData = null,
-  onSubscriptionRenew 
+  onSubscriptionRenew,
+  onProgressPress 
 }) => {
   const isSubscriptionExpired = subscriptionData?.isExpired || false;
   const isSubscriptionExpiringSoon = subscriptionData?.isExpiringSoon || false;
@@ -28,8 +29,10 @@ const ProgressCard = ({
         onSubscriptionRenew();
       }
     } else {
-      console.log('📊 Progress: En savoir plus pressed');
-      // Handle normal progress navigation
+      console.log('📊 Progress: En savoir plus pressed - navigating to progress tab');
+      if (onProgressPress) {
+        onProgressPress('progress');
+      }
     }
   };
 
@@ -42,15 +45,19 @@ const ProgressCard = ({
         currentWaistSize: 0,
         targetWaistSize: 0,
         initialWaistSize: 0,
+        currentPoints: 0,
+        maxPoints: 5000,
         progressPercentage: 0,
         weightProgress: 0,
         waistProgress: 0,
+        pointsProgress: 0,
         hasProfileData: false
       };
     }
 
     const profile = dashboardData.profile;
     const measurements = dashboardData.measurements;
+    const tasccProgress = dashboardData.tascc;
     
     if (!profile) {
       return {
@@ -60,9 +67,12 @@ const ProgressCard = ({
         currentWaistSize: 0,
         targetWaistSize: 0,
         initialWaistSize: 0,
+        currentPoints: 0,
+        maxPoints: 5000,
         progressPercentage: 0,
         weightProgress: 0,
         waistProgress: 0,
+        pointsProgress: 0,
         hasProfileData: false
       };
     }
@@ -75,6 +85,10 @@ const ProgressCard = ({
     const targetWaistSize = profile.targetWaistSize || 0;
     const currentWaistSize = measurements?.currentWaistSize || initialWaistSize;
 
+    // Get points data
+    const currentPoints = tasccProgress?.totalPoints || 0;
+    const maxPoints = 5000; // Default max points
+
     // Calculate progress percentages
     const weightProgress = initialWeight > targetWeight 
       ? Math.max(0, Math.min(100, ((initialWeight - currentWeight) / (initialWeight - targetWeight)) * 100))
@@ -84,7 +98,9 @@ const ProgressCard = ({
       ? Math.max(0, Math.min(100, ((initialWaistSize - currentWaistSize) / (initialWaistSize - targetWaistSize)) * 100))
       : Math.max(0, Math.min(100, ((currentWaistSize - initialWaistSize) / (targetWaistSize - initialWaistSize)) * 100));
 
-    const overallProgress = (weightProgress + waistProgress) / 2;
+    const pointsProgress = Math.min(100, (currentPoints / maxPoints) * 100);
+
+    const overallProgress = (weightProgress + waistProgress + pointsProgress) / 3;
 
     return {
       currentWeight,
@@ -93,11 +109,22 @@ const ProgressCard = ({
       currentWaistSize,
       targetWaistSize,
       initialWaistSize,
+      currentPoints,
+      maxPoints,
       progressPercentage: overallProgress,
       weightProgress,
       waistProgress,
+      pointsProgress,
       hasProfileData: true
     };
+  };
+
+  // Helper function to format points with K suffix
+  const formatPoints = (points) => {
+    if (points >= 1000) {
+      return `${(points / 1000).toFixed(1)}K`;
+    }
+    return points.toString();
   };
 
   const progressData = getProgressData();
@@ -188,24 +215,44 @@ const ProgressCard = ({
           </View>
         ) : (
           <>
-            {/* Main Progress Circle */}
+            {/* Three Progress Circles */}
             <View style={styles.progressSection}>
-              <CircularProgress
-                progress={progressData.progressPercentage}
-                size={120}
-                strokeWidth={8}
-                initial={progressData.initialWeight}
-                current={progressData.currentWeight}
-                target={progressData.targetWeight}
-                unit="kg"
-                label="Poids actuel"
-              />
-              
-              <View style={styles.progressInfo}>
-                <Text style={styles.progressTitle}>Progression globale</Text>
-                <Text style={styles.progressPercentage}>
-                  {Math.round(progressData.progressPercentage)}%
-                </Text>
+              <View style={styles.progressCircles}>
+                {/* Weight Circle */}
+                <CircularProgress
+                  progress={progressData.weightProgress}
+                  size={80}
+                  strokeWidth={6}
+                  initial={progressData.initialWeight}
+                  current={progressData.currentWeight}
+                  target={progressData.targetWeight}
+                  unit="kg"
+                  label="Poids"
+                />
+                
+                {/* Waist Circle */}
+                <CircularProgress
+                  progress={progressData.waistProgress}
+                  size={80}
+                  strokeWidth={6}
+                  initial={progressData.initialWaistSize}
+                  current={progressData.currentWaistSize}
+                  target={progressData.targetWaistSize}
+                  unit="cm"
+                  label="Tour de taille"
+                />
+                
+                {/* Points Circle */}
+                <CircularProgress
+                  progress={progressData.pointsProgress}
+                  size={80}
+                  strokeWidth={6}
+                  initial={0}
+                  current={formatPoints(progressData.currentPoints)}
+                  target={formatPoints(progressData.maxPoints)}
+                  unit=""
+                  label="Points"
+                />
               </View>
             </View>
 
@@ -378,6 +425,12 @@ const styles = StyleSheet.create({
   progressSection: {
     alignItems: 'center',
     gap: 16,
+  },
+  progressCircles: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    alignItems: 'center',
   },
   progressInfo: {
     alignItems: 'center',

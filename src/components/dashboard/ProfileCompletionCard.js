@@ -12,8 +12,24 @@ import { theme } from '../../constants/theme';
 
 const ProfileCompletionCard = ({ 
   onboardingData,
-  onCompleteProfile 
+  onCompleteProfile,
+  onStepPress,
+  subscriptionData,
+  onSubscriptionRenew
 }) => {
+  // Force re-render when onboarding data changes
+  React.useEffect(() => {
+    console.log('🎯 ProfileCompletionCard - Onboarding data changed:', {
+      onboardingData,
+      completedSteps: onboardingData?.data?.completedSteps,
+      currentStep: onboardingData?.data?.currentStep
+    });
+  }, [onboardingData]);
+  console.log('🎯 ProfileCompletionCard - Received props:', {
+    onboardingData,
+    hasOnboardingData: !!onboardingData,
+    onboardingDataType: typeof onboardingData
+  });
   const steps = [
     { id: 1, title: 'Mon Profil', completed: true, points: 250 },
     { id: 2, title: 'Mes Objectifs', completed: false, points: 200 },
@@ -23,8 +39,16 @@ const ProfileCompletionCard = ({
     { id: 6, title: 'Confirmation', completed: false, points: 50 }
   ];
 
-  const completedSteps = onboardingData?.data?.completedSteps || [];
-  const currentStep = onboardingData?.data?.currentStep || 'profile_setup';
+  // Ensure we have valid onboarding data with fallbacks
+  const onboardingDataSafe = onboardingData || {};
+  const completedSteps = onboardingDataSafe?.data?.completedSteps || [];
+  const currentStep = onboardingDataSafe?.data?.currentStep || 'profile_setup';
+
+  console.log('🎯 ProfileCompletionCard - Step data:', {
+    completedSteps,
+    currentStep,
+    completedStepsLength: completedSteps.length
+  });
 
   // Update step completion status based on onboarding data
   const updatedSteps = steps.map(step => {
@@ -37,20 +61,20 @@ const ProfileCompletionCard = ({
         isCurrent = currentStep === 'profile_setup';
         break;
       case 2: // Mes Objectifs
-        completed = completedSteps.includes('objectives_setup');
-        isCurrent = currentStep === 'objectives_setup';
+        completed = completedSteps.includes('goals_setup');
+        isCurrent = currentStep === 'goals_setup';
         break;
       case 3: // Recommandations
-        completed = completedSteps.includes('recommendations_setup');
-        isCurrent = currentStep === 'recommendations_setup';
+        completed = completedSteps.includes('recommendations');
+        isCurrent = currentStep === 'recommendations';
         break;
       case 4: // Rendez-vous
-        completed = completedSteps.includes('appointment_setup');
-        isCurrent = currentStep === 'appointment_setup';
+        completed = completedSteps.includes('appointment');
+        isCurrent = currentStep === 'appointment';
         break;
       case 5: // Mon Abonnement
-        completed = completedSteps.includes('subscription_setup');
-        isCurrent = currentStep === 'subscription_setup';
+        completed = completedSteps.includes('subscription');
+        isCurrent = currentStep === 'subscription';
         break;
       case 6: // Confirmation
         completed = completedSteps.includes('confirmation');
@@ -65,14 +89,34 @@ const ProfileCompletionCard = ({
     step.completed ? sum + step.points : sum, 0
   );
 
+  // Calculate progress percentage
+  const completedStepsCount = updatedSteps.filter(step => step.completed).length;
+  const progressPercentage = (completedStepsCount / updatedSteps.length) * 100;
+  const isComplete = completedStepsCount === updatedSteps.length;
+
   const handleCompleteProfile = () => {
+    // Check subscription status before proceeding
+    const requiresRenewal = subscriptionData?.requiresRenewal || false;
+    
+    if (requiresRenewal && onSubscriptionRenew) {
+      console.log('💳 Profile completion blocked - subscription renewal required');
+      onSubscriptionRenew();
+      return;
+    }
+    
     if (onCompleteProfile) {
       onCompleteProfile();
     }
   };
 
+  const handleStepPress = (stepId) => {
+    if (onStepPress) {
+      onStepPress(stepId);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} key={`profile-completion-${JSON.stringify(completedSteps)}`}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -85,7 +129,7 @@ const ProfileCompletionCard = ({
         </View>
       </View>
 
-      {/* Progress Steps */}
+      {/* Progress Steps - Click on any step to navigate */}
       <View style={styles.progressContainer}>
         <ScrollView 
           horizontal 
@@ -99,7 +143,12 @@ const ProfileCompletionCard = ({
 
           {/* Steps */}
           {updatedSteps.map((step, index) => (
-            <View key={step.id} style={styles.stepContainer}>
+            <TouchableOpacity 
+              key={step.id} 
+              style={styles.stepContainer}
+              onPress={() => handleStepPress(step.id)}
+              activeOpacity={0.7}
+            >
               <View style={[
                 styles.stepCircle,
                 step.completed && styles.stepCircleCompleted,
@@ -107,6 +156,8 @@ const ProfileCompletionCard = ({
               ]}>
                 {step.completed ? (
                   <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                ) : step.isCurrent ? (
+                  <Ionicons name="crown" size={16} color="#FFFFFF" />
                 ) : (
                   <Text style={[
                     styles.stepNumber,
@@ -123,7 +174,7 @@ const ProfileCompletionCard = ({
               ]}>
                 {step.title}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
 
           {/* Navigation Arrow Right */}
@@ -131,6 +182,21 @@ const ProfileCompletionCard = ({
             <Ionicons name="chevron-forward" size={16} color={theme.colors.text.secondary} />
           </TouchableOpacity>
         </ScrollView>
+      </View>
+
+      {/* Progress Bar */}
+      <View style={styles.progressBarContainer}>
+        <View style={styles.progressBarBackground}>
+          <View 
+            style={[
+              styles.progressBarFill, 
+              { width: `${progressPercentage}%` }
+            ]} 
+          />
+        </View>
+        <Text style={styles.progressText}>
+          {Math.round(progressPercentage)}% complété
+        </Text>
       </View>
 
       {/* Profile Section */}
@@ -147,13 +213,19 @@ const ProfileCompletionCard = ({
         onPress={handleCompleteProfile}
       >
         <LinearGradient
-          colors={[theme.colors.primary, '#0056b3']}
+          colors={isComplete ? ['#4CAF50', '#45a049'] : [theme.colors.primary, '#0056b3']}
           style={styles.completeButtonGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
         >
-          <Ionicons name="person-add" size={20} color="#FFFFFF" />
-          <Text style={styles.completeButtonText}>Compléter mon profil</Text>
+          <Ionicons 
+            name={isComplete ? "checkmark-circle" : "person-add"} 
+            size={20} 
+            color="#FFFFFF" 
+          />
+          <Text style={styles.completeButtonText}>
+            {isComplete ? "Profil Complété" : "Compléter mon profil"}
+          </Text>
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -204,6 +276,28 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     marginBottom: 16,
+  },
+  progressBarContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  progressBarBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
   },
   stepsContainer: {
     alignItems: 'center',

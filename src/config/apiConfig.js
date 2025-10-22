@@ -18,7 +18,8 @@ export const API_CONFIG = {
       register: '/auth/register',
       refreshToken: '/auth/refresh-token',
       forgotPassword: '/auth/forgot-password',
-      resetPassword: '/auth/reset-password',
+      verifyResetToken: '/auth/verify-reset-token',
+      completeResetPassword: '/auth/complete-reset-password',
     },
 
     // Profile endpoints
@@ -29,17 +30,51 @@ export const API_CONFIG = {
       avatar: '/profile/avatar',
     },
 
+    // User endpoints
+    user: {
+      progress: '/users/progress',
+    },
+
+    // Progress endpoints
+    progress: {
+      overview: '/progress/overview',
+      detailed: '/progress/detailed',
+      historical: '/progress/historical',
+      photos: '/progress-photos',
+    },
     // Onboarding endpoints
     onboarding: {
       progress: '/onboarding/progress',
-      steps: '/onboarding/steps',
+      step: (stepId) => `/onboarding/steps/${stepId}`,
+      updateStep: (stepId) => `/onboarding/steps/${stepId}`,
       complete: '/onboarding/complete',
-      measurements: {
-        get: '/onboarding/measurements',
-        create: '/onboarding/measurements',
-        update: '/onboarding/measurements',
-      },
+      measurements: '/onboarding/measurements',
     },
+    // Achievements endpoints
+    achievements: {
+      summary: '/achievements/summary',
+      badges: '/achievements/badges',
+      points: '/achievements/points',
+      allBadges: '/achievements/badges/all',
+    },
+
+    // Challenges endpoints
+    challenges: {
+      getAll: '/challenges?status=all',
+      assign: (challengeId) => `/challenges/${challengeId}/assign-to-user`,
+      leave: (challengeId) => `/challenges/${challengeId}/leave`,
+      validation: (challengeId) => `/challenges/${challengeId}/validation`,
+      submitText: (challengeId) => `/challenges/${challengeId}/submit-text`,
+      uploadPhoto: (challengeId) => `/challenges/${challengeId}/upload-photo`,
+      submitQuiz: (challengeId) => `/challenges/${challengeId}/quiz/submit`,
+      complete: (challengeId) => `/challenges/${challengeId}/complete`,
+    },
+
+    // Badges endpoints
+    badges: {
+      progress: '/badges/progress/user',
+    },
+
 
     // T.A.S.C.C. Progress endpoints
     tascc: {
@@ -47,6 +82,8 @@ export const API_CONFIG = {
       levels: '/tascc/levels',
       points: '/tascc/points',
       achievements: '/tascc/achievements',
+      leaderboardOverall: '/tascc/leaderboard/overall',
+      leaderboardPosition: '/tascc/leaderboard/position',
     },
 
     // Measurements endpoints
@@ -84,68 +121,135 @@ export const API_CONFIG = {
       get: '/notifications',
       markRead: '/notifications/:id/read',
       markAllRead: '/notifications/read-all',
-      preferences: '/notifications/preferences',
+      settings: '/notifications/settings',
     },
 
-    // Achievements endpoints
-    achievements: {
-      get: '/achievements',
-      badges: '/achievements/badges',
-      leaderboard: '/achievements/leaderboard',
+    // Subscription endpoints
+    subscription: {
+      status: '/subscription/status',
+      plans: '/subscription/plans',
+      subscribe: '/subscription/subscribe',
+      cancel: '/subscription/cancel',
+      renew: '/subscription/renew',
     },
 
-    // Agenda/Calendar endpoints
-    agenda: {
-      sessions: '/agenda/sessions',
-      events: '/agenda/events',
-      book: '/agenda/book',
-      get: '/content/agenda',
-      complete: '/content/{contentId}/complete',
-    },
-
-    // Health check
+    // Health check endpoint
     health: '/health',
   },
 
-  // Default headers
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
+  // HTTP Status Codes
+  statusCodes: {
+    OK: 200,
+    CREATED: 201,
+    NO_CONTENT: 204,
+    BAD_REQUEST: 400,
+    UNAUTHORIZED: 401,
+    FORBIDDEN: 403,
+    NOT_FOUND: 404,
+    CONFLICT: 409,
+    UNPROCESSABLE_ENTITY: 422,
+    LOCKED: 423,
+    TOO_MANY_REQUESTS: 429,
+    INTERNAL_SERVER_ERROR: 500,
+    BAD_GATEWAY: 502,
+    SERVICE_UNAVAILABLE: 503,
   },
 
-  // Error messages
+  // Error Messages
   errorMessages: {
-    network: 'Erreur de connexion. Vérifiez votre connexion internet.',
-    server: 'Erreur du serveur. Veuillez réessayer plus tard.',
-    unauthorized: 'Session expirée. Veuillez vous reconnecter.',
-    forbidden: 'Accès interdit.',
-    notFound: 'Ressource non trouvée.',
-    timeout: 'Délai de connexion dépassé.',
-    unknown: 'Une erreur inattendue s\'est produite.',
+    NETWORK_ERROR: 'Erreur de connexion réseau',
+    TIMEOUT_ERROR: 'Délai de connexion dépassé',
+    SERVER_ERROR: 'Erreur du serveur',
+    UNAUTHORIZED: 'Non autorisé',
+    FORBIDDEN: 'Accès interdit',
+    NOT_FOUND: 'Ressource introuvable',
+    VALIDATION_ERROR: 'Erreur de validation',
+    CONFLICT: 'Conflit de données',
+    RATE_LIMIT: 'Trop de requêtes',
+  },
+
+  // Request Headers
+  headers: {
+    CONTENT_TYPE: 'Content-Type',
+    AUTHORIZATION: 'Authorization',
+    ACCEPT: 'Accept',
+    USER_AGENT: 'User-Agent',
+  },
+
+  // Content Types
+  contentTypes: {
+    JSON: 'application/json',
+    FORM_DATA: 'multipart/form-data',
+    URL_ENCODED: 'application/x-www-form-urlencoded',
+  },
+
+  // Authentication
+  auth: {
+    TOKEN_PREFIX: 'Bearer',
+    REFRESH_THRESHOLD: 5 * 60 * 1000, // 5 minutes before expiry
+    MAX_RETRY_ATTEMPTS: 3,
+  },
+
+  // File Upload
+  upload: {
+    MAX_FILE_SIZE: 2 * 1024 * 1024, // 2MB
+    ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif'],
+    ALLOWED_DOCUMENT_TYPES: ['application/pdf', 'application/msword'],
+  },
+
+  // Pagination
+  pagination: {
+    DEFAULT_PAGE_SIZE: 20,
+    MAX_PAGE_SIZE: 100,
+  },
+
+  // Cache
+  cache: {
+    DEFAULT_TTL: 5 * 60 * 1000, // 5 minutes
+    USER_PROFILE_TTL: 30 * 60 * 1000, // 30 minutes
+    STATIC_DATA_TTL: 24 * 60 * 60 * 1000, // 24 hours
   },
 };
 
 /**
- * Helper function to build full URL
+ * Get full URL for an endpoint
  * @param {string} endpoint - The endpoint path
  * @returns {string} Full URL
  */
-export const buildUrl = (endpoint) => {
+export const getFullUrl = (endpoint) => {
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 };
 
 /**
- * Helper function to replace parameters in endpoint URLs
- * @param {string} endpoint - The endpoint with parameters (e.g., '/users/:id')
- * @param {Object} params - Object with parameter values
- * @returns {string} Endpoint with replaced parameters
+ * Get authentication header
+ * @param {string} token - Access token
+ * @returns {Object} Authorization header
  */
-export const replaceParams = (endpoint, params = {}) => {
-  let result = endpoint;
-  Object.keys(params).forEach(key => {
-    result = result.replace(`:${key}`, params[key]);
-  });
-  return result;
+export const getAuthHeader = (token) => {
+  return {
+    [API_CONFIG.headers.AUTHORIZATION]: `${API_CONFIG.auth.TOKEN_PREFIX} ${token}`,
+  };
+};
+
+/**
+ * Get default headers
+ * @returns {Object} Default headers
+ */
+export const getDefaultHeaders = () => {
+  return {
+    [API_CONFIG.headers.CONTENT_TYPE]: API_CONFIG.contentTypes.JSON,
+    [API_CONFIG.headers.ACCEPT]: API_CONFIG.contentTypes.JSON,
+  };
+};
+
+/**
+ * Get form data headers
+ * @returns {Object} Form data headers
+ */
+export const getFormDataHeaders = () => {
+  return {
+    [API_CONFIG.headers.ACCEPT]: API_CONFIG.contentTypes.JSON,
+  };
 };
 
 export default API_CONFIG; 

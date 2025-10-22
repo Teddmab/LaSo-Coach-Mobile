@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": ["lasocoach", "com.laso.coach"],
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
@@ -14,8 +15,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.laso.coach",
-      "icon": "./assets/icon.png"
+      "bundleIdentifier": "com.afrotouch.lasocoach",
+      "icon": "./assets/icon.png",
+      "associatedDomains": ["applinks:app.lasocoach.com"]
     },
     "android": {
       "adaptiveIcon": {
@@ -23,16 +25,39 @@
         "backgroundColor": "#8BC34A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.laso.coach",
-      "icon": "./assets/icon.png"
+      "package": "com.afrotouch.lasocoach",
+      "icon": "./assets/icon.png",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "lasocoach"
+            },
+            {
+              "scheme": "com.laso.coach"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "notification": {
+      "icon": "./assets/icon.png",
+      "color": "#8BC34A",
+      "iosDisplayInForeground": true,
+      "androidMode": "default",
+      "androidCollapsedTitle": "#{unread_notifications} new notifications"
+    },
     "extra": {
       "eas": {
-        "projectId": "your-project-id"
+        "projectId": "6f5af143-a419-447d-a44e-3b3e230cf397"
       }
-    }
+    },
+    "owner": "teddmabulay"
   }
 }

@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
+import Avatar from '../components/Avatar';
 
 const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selectedPostId, onPostPress }) => {
   const [commentText, setCommentText] = useState('');
@@ -148,7 +149,12 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
     <View key={post.id} style={styles.postContainer}>
       {/* Post Header */}
       <View style={styles.postHeader}>
-        <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} />
+        <Avatar 
+          source={{ uri: post.author.avatar }} 
+          size={40}
+          style={styles.authorAvatar}
+          fallbackText={post.author.name?.charAt(0)}
+        />
         <View style={styles.authorInfo}>
           <Text style={styles.authorName}>{post.author.name}</Text>
           <Text style={styles.postTime}>{post.author.timeAgo}</Text>
@@ -197,7 +203,12 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
       {/* Comment Section */}
       <View style={styles.commentSection}>
         <View style={styles.commentInputContainer}>
-          <Image source={{ uri: user?.avatar || 'https://via.placeholder.com/32' }} style={styles.commentAvatar} />
+          <Avatar 
+            source={{ uri: user?.avatar }} 
+            size={32}
+            style={styles.commentAvatar}
+            fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+          />
           <TextInput
             style={styles.commentInput}
             placeholder="Ajouter un commentaire... Emojis supportés !"
@@ -230,7 +241,12 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
         <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
           {/* User Info */}
           <View style={styles.modalUserInfo}>
-            <Image source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} style={styles.modalUserAvatar} />
+            <Avatar 
+              source={{ uri: user?.avatar }} 
+              size={40}
+              style={styles.modalUserAvatar}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+            />
             <Text style={styles.modalUserName}>Teddy Tresor</Text>
           </View>
 
@@ -315,7 +331,12 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
       >
         {/* Community Intro */}
         <TouchableOpacity style={styles.introCard} onPress={handleCreatePost}>
-          <Image source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} style={styles.introAvatar} />
+                      <Avatar 
+              source={{ uri: user?.avatar }} 
+              size={40}
+              style={styles.introAvatar}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+            />
           <Text style={styles.introText}>
             Partagez votre progression et motivez la communauté...
           </Text>

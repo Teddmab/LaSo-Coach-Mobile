@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { 
   View, 
   Text, 
@@ -20,15 +21,22 @@ import { theme } from '../constants/theme';
 import BottomNavigation from '../components/BottomNavigation';
 import ProgressCard from '../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../components/dashboard/ProfileCompletionCard';
+import AchievementsCard from '../components/dashboard/AchievementsCard';
 import AgoraContentCard from '../components/dashboard/AgoraContentCard';
 import LAgoraCard from '../components/dashboard/LAgoraCard';
+import NutritionCard from '../components/dashboard/NutritionCard';
 import AgoraIcon from '../components/icons/AgoraIcon';
+import Avatar from '../components/Avatar';
+import NotificationBadge from '../components/NotificationBadge';
 import SubscriptionAlert from '../components/SubscriptionAlert';
+import SubscriptionTopAlert from '../components/SubscriptionTopAlert';
+import BlurredCard from '../components/BlurredCard';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import DashboardService from '../services/dashboardService';
-import AgendaApi from '../services/agendaApi';
+import { AgendaApi } from '../services/agendaApi';
 import CommunityApi from '../services/communityApi';
 import SubscriptionService, { SUBSCRIPTION_STATUS } from '../services/subscriptionService';
+import { ProfileApi } from '../services/profileApi';
 import ProgressScreen from './ProgressScreen';
 import NutritionScreen from './NutritionScreen';
 import AchievementsScreen from './AchievementsScreen';
@@ -40,14 +48,17 @@ import MoreMenu from '../components/MoreMenu';
 import SettingsScreen from './SettingsScreen';
 import ProfileScreen from './ProfileScreen';
 
-const DashboardScreen = ({ user, onLogout }) => {
+const DashboardScreen = ({ user, onLogout, navigation }) => {
+  const { logout: authLogout } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('home'); // home, chat, community, agenda, notifications, settings, profile, etc.
   const [initialProfileStep, setInitialProfileStep] = useState(1); // Track which step to start on
   const [dashboardData, setDashboardData] = useState(null);
+  const [achievementsData, setAchievementsData] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
+
   const [showCompleteDayModal, setShowCompleteDayModal] = useState(false);
   const [selectedMeals, setSelectedMeals] = useState([]);
   const [totalPoints, setTotalPoints] = useState(0);
@@ -60,16 +71,15 @@ const DashboardScreen = ({ user, onLogout }) => {
   // Subscription state
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(false);
+  const [showTopAlert, setShowTopAlert] = useState(false);
   const [subscriptionAlertType, setSubscriptionAlertType] = useState(null);
   const [subscriptionDaysRemaining, setSubscriptionDaysRemaining] = useState(0);
   const requiresRenewal = subscriptionData?.requiresRenewal || false;
 
-  // Check if profile is complete
-  const isProfileComplete = dashboardData?.profile && 
-    dashboardData.profile.initialWeight && 
-    dashboardData.profile.targetWeight && 
-    dashboardData.profile.initialWaistSize && 
-    dashboardData.profile.targetWaistSize;
+  // Check if profile is complete based on onboarding progress
+  const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
+    (dashboardData?.onboarding?.data?.completedSteps && 
+     dashboardData.onboarding.data.completedSteps.length >= 6);
 
   useEffect(() => {
     // Fetch data on initial mount when starting on home tab
@@ -83,10 +93,26 @@ const DashboardScreen = ({ user, onLogout }) => {
   useEffect(() => {
     console.log('🏠 Component mounted - initial data fetch');
     fetchDashboardData();
+    fetchAchievementsData();
     fetchAgendaData();
     fetchCommunityPosts();
     checkSubscriptionStatus();
   }, []);
+
+  // Refresh data when screen comes into focus (when navigating back to dashboard)
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener?.('focus', () => {
+      console.log('🏠 Dashboard screen focused - refreshing data');
+      if (activeTab === 'home' && currentScreen === 'home') {
+        fetchDashboardData();
+        fetchAgendaData();
+        fetchCommunityPosts();
+        checkSubscriptionStatus();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, activeTab, currentScreen]);
 
   // Check subscription status
   const checkSubscriptionStatus = async () => {
@@ -102,15 +128,17 @@ const DashboardScreen = ({ user, onLogout }) => {
         daysRemaining: data.daysRemaining
       });
       
-      // Show alert if subscription needs attention
+      // Show top alert if subscription needs attention
       if (data.isExpired) {
         setSubscriptionAlertType('expired');
         setSubscriptionDaysRemaining(data.daysRemaining);
-        setShowSubscriptionAlert(true);
+        setShowTopAlert(true);
+        setShowSubscriptionAlert(false); // Don't show modal
       } else if (data.isExpiringSoon) {
         setSubscriptionAlertType('expiring_soon');
         setSubscriptionDaysRemaining(data.daysRemaining);
-        setShowSubscriptionAlert(true);
+        setShowTopAlert(true);
+        setShowSubscriptionAlert(false); // Don't show modal
       }
       
     } catch (error) {
@@ -124,20 +152,69 @@ const DashboardScreen = ({ user, onLogout }) => {
         requiresRenewal: true
       });
       setSubscriptionAlertType('expired');
-      setShowSubscriptionAlert(true);
+      setShowTopAlert(true);
+      setShowSubscriptionAlert(false); // Don't show modal
     }
   };
 
   const fetchDashboardData = async () => {
     try {
       console.log('🏠 Dashboard: Fetching data for home tab...');
-      const data = await DashboardService.getDashboardData();
-      setDashboardData(data);
-      console.log('🏠 Dashboard: Data loaded successfully');
+      
+      // Fetch dashboard data and profile data in parallel
+      const [dashboardData, profileData] = await Promise.all([
+        DashboardService.getDashboardData(),
+        ProfileApi.getProfile()
+      ]);
+      
+      // Merge profile data with dashboard data to ensure we have the latest avatar
+      const enhancedData = {
+        ...dashboardData,
+        profile: {
+          ...dashboardData?.profile,
+          ...profileData,
+          avatar: profileData?.avatar || dashboardData?.profile?.avatar
+        }
+      };
+      
+      setDashboardData(enhancedData);
+      console.log('🏠 Dashboard: Data loaded successfully with latest profile info');
+      console.log('🏠 Dashboard: Avatar source:', enhancedData?.profile?.avatar);
     } catch (error) {
       console.error('❌ Dashboard: Error fetching data:', error);
+      // Fallback to just dashboard data if profile fetch fails
+      try {
+        const data = await DashboardService.getDashboardData();
+        setDashboardData(data);
+        console.log('🏠 Dashboard: Fallback data loaded successfully');
+      } catch (fallbackError) {
+        console.error('❌ Dashboard: Fallback data fetch also failed:', fallbackError);
+      }
     }
   };
+
+  const fetchAchievementsData = async () => {
+    try {
+      console.log('🏆 Dashboard: Fetching achievements data...');
+      
+      const data = await DashboardService.getAchievementsSummary();
+      console.log('✅ Dashboard: Achievements data fetched successfully:', data);
+      
+      setAchievementsData(data);
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching achievements data:', error);
+    }
+  };
+
+  // Auto-refresh achievements data every 30 seconds (BadgeProgressWidget requirement)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refreshing achievements data (30s interval)');
+      fetchAchievementsData();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchAgendaData = async () => {
     try {
@@ -218,6 +295,32 @@ const DashboardScreen = ({ user, onLogout }) => {
         data: error.response?.data
       });
       Alert.alert('Erreur', 'Impossible de marquer le contenu comme terminé.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      console.log('🚪 Dashboard: Starting logout process...');
+      
+      // Call the parent onLogout function if it exists
+      if (onLogout && typeof onLogout === 'function') {
+        onLogout();
+      } else {
+        console.log('🚪 Dashboard: Using AuthContext logout');
+        // Use the AuthContext's logout function which handles everything
+        await authLogout();
+      }
+      
+      console.log('🚪 Dashboard: Logout completed successfully');
+    } catch (error) {
+      console.error('❌ Dashboard: Error during logout:', error);
+      
+      // Even if there's an error, try to logout using AuthContext
+      try {
+        await authLogout();
+      } catch (logoutError) {
+        console.error('❌ Dashboard: Error with AuthContext logout:', logoutError);
+      }
     }
   };
 
@@ -335,6 +438,13 @@ const DashboardScreen = ({ user, onLogout }) => {
     setCurrentScreen('home');
     setInitialProfileStep(1); // Reset to step 1 for next time
     console.log('Profile closed, returning to dashboard');
+    
+    // Refresh data when returning from profile screen to show updated avatar and data
+    console.log('🔄 Refreshing dashboard data after profile completion');
+    fetchDashboardData();
+    fetchAgendaData();
+    fetchCommunityPosts();
+    checkSubscriptionStatus();
   };
 
   const onRefresh = async () => {
@@ -347,14 +457,15 @@ const DashboardScreen = ({ user, onLogout }) => {
       setAgendaData([]);
       setCommunityPosts([]); // Clear community posts on refresh
       
-      // Fetch fresh data
+      // Fetch fresh data including profile data
       await Promise.all([
         fetchDashboardData(),
         fetchAgendaData(),
-        fetchCommunityPosts()
+        fetchCommunityPosts(),
+        checkSubscriptionStatus() // Also refresh subscription status
       ]);
       
-      console.log('🔄 Refresh completed successfully');
+      console.log('🔄 Refresh completed successfully with all data including profile');
     } catch (error) {
       console.error('❌ Refresh failed:', error);
     } finally {
@@ -365,6 +476,29 @@ const DashboardScreen = ({ user, onLogout }) => {
   const handleProgressRefresh = () => {
     console.log('📊 Progress card refresh triggered');
     fetchDashboardData();
+  };
+
+  // Function to refresh profile data specifically (for avatar updates)
+  const refreshProfileData = async () => {
+    console.log('👤 Refreshing profile data specifically');
+    try {
+      const profileData = await ProfileApi.getProfile();
+      
+      // Update dashboard data with latest profile information
+      setDashboardData(prevData => ({
+        ...prevData,
+        profile: {
+          ...prevData?.profile,
+          ...profileData,
+          avatar: profileData?.avatar || prevData?.profile?.avatar
+        }
+      }));
+      
+      console.log('👤 Profile data refreshed successfully');
+      console.log('👤 New avatar source:', profileData?.avatar);
+    } catch (error) {
+      console.error('❌ Error refreshing profile data:', error);
+    }
   };
 
   const handleMealSelection = (meal) => {
@@ -453,9 +587,15 @@ const DashboardScreen = ({ user, onLogout }) => {
     handleSubscriptionRenew();
   };
 
+  const handleTopAlertDismiss = () => {
+    console.log('💳 Top alert dismissed');
+    setShowTopAlert(false);
+  };
+
   const handleSubscriptionRenew = () => {
     console.log('🔄 Navigating to subscription renewal page');
     setShowSubscriptionAlert(false);
+    setShowTopAlert(false);
     
     // Navigate to subscription page (step 5 of profile) with subscription tab selected
     setCurrentScreen('profile');
@@ -477,13 +617,20 @@ const DashboardScreen = ({ user, onLogout }) => {
     setInitialProfileStep(1); // Start at step 1 - Mon Profile
   };
 
+  // Profile step navigation handler
+  const handleProfileStepPress = (stepId) => {
+    console.log('👤 Navigating to profile step:', stepId);
+    setCurrentScreen('profile');
+    setInitialProfileStep(stepId);
+  };
+
   // If notifications screen is active, show NotificationsScreen
   if (currentScreen === 'notifications') {
     return (
       <>
         <NotificationsScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleNotificationsClose}
@@ -503,7 +650,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <AgendaScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleAgendaClose}
@@ -523,7 +670,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <CommunityScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleCommunityClose}
@@ -545,7 +692,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <ChatScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleChatClose}
@@ -565,7 +712,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <ProgressScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
@@ -585,7 +732,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <NutritionScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
@@ -605,7 +752,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <AchievementsScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
@@ -625,11 +772,12 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <ProfileScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleProfileClose}
           initialStep={initialProfileStep}
+          navigation={navigation}
         />
         <MoreMenu 
           visible={showMoreMenu}
@@ -646,7 +794,7 @@ const DashboardScreen = ({ user, onLogout }) => {
       <>
         <SettingsScreen 
           user={user} 
-          onLogout={onLogout} 
+          onLogout={handleLogout} 
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={handleSettingsClose}
@@ -667,35 +815,47 @@ const DashboardScreen = ({ user, onLogout }) => {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tableau de bord</Text>
+        <Image 
+          source={require('../../assets/logo.png')} 
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.helpButton}>
             <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
           
-          {/* Debug Button */}
-          <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={() => setShowDebugModal(true)}
-          >
-            <Ionicons name="bug" size={20} color="#FF9800" />
-          </TouchableOpacity>
+
           
-          <TouchableOpacity style={styles.notificationButton}>
+          <TouchableOpacity style={styles.notificationButton} onPress={() => setCurrentScreen('notifications')}>
             <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>6</Text>
-            </View>
+            <NotificationBadge />
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.profileButton} onPress={() => setCurrentScreen('settings')}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+            {console.log('🏠 Dashboard avatar debug:', {
+              dashboardDataProfile: dashboardData?.profile?.avatar,
+              userAvatar: user?.avatar,
+              finalAvatar: dashboardData?.profile?.avatar || user?.avatar
+            })}
+            <Avatar 
+              source={{ uri: dashboardData?.profile?.avatar || user?.avatar }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
             />
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Subscription Top Alert */}
+      <SubscriptionTopAlert
+        visible={showTopAlert}
+        type={subscriptionAlertType}
+        daysRemaining={subscriptionDaysRemaining}
+        onRenew={handleSubscriptionRenew}
+        onDismiss={handleTopAlertDismiss}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -711,28 +871,23 @@ const DashboardScreen = ({ user, onLogout }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Achievement Banner */}
-        <LinearGradient
-          colors={['#1a1a1a', '#2d2d2d']}
-          style={styles.achievementBanner}
-        >
-          <View style={styles.achievementContent}>
-            <Ionicons name="trophy" size={24} color="#FFD700" />
-            <View style={styles.achievementText}>
-              <Text style={styles.achievementTitle}>Plus que 50pts pour avoir le badge</Text>
-              <Text style={styles.achievementSubtitle}>Mpiko</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.challengeButton}>
-            <Text style={styles.challengeButtonText}>Voir les défis</Text>
-          </TouchableOpacity>
-        </LinearGradient>
 
         {/* Profile Completion Card or Progress Section */}
+        {console.log('🏠 Dashboard debug - Profile completion check:', {
+          isProfileComplete,
+          onboardingData: dashboardData?.onboarding,
+          completedSteps: dashboardData?.onboarding?.data?.completedSteps,
+          completedStepsLength: dashboardData?.onboarding?.data?.completedSteps?.length,
+          isComplete: dashboardData?.onboarding?.data?.isComplete
+        })}
         {!isProfileComplete ? (
           <ProfileCompletionCard 
+            key={`profile-completion-${dashboardData?.onboarding?.data?.completedSteps?.length || 0}-${dashboardData?.fetchedAt || 'initial'}`}
             onboardingData={dashboardData?.onboarding}
             onCompleteProfile={handleCompleteProfile}
+            onStepPress={handleProfileStepPress}
+            subscriptionData={subscriptionData}
+            onSubscriptionRenew={handleSubscriptionRenew}
           />
         ) : (
           <ProgressCard 
@@ -741,8 +896,35 @@ const DashboardScreen = ({ user, onLogout }) => {
             subscriptionData={subscriptionData}
             onRefresh={handleProgressRefresh}
             onSubscriptionRenew={handleSubscriptionRenew}
+            onProgressPress={handleTabPress}
           />
         )}
+
+        {/* Achievements Card */}
+        <AchievementsCard
+          key={achievementsData?.fetchedAt || 'initial'}
+          badgesData={achievementsData}
+          onPress={() => handleTabPress('achievements')}
+          subscriptionData={subscriptionData}
+          onSubscriptionRenew={handleSubscriptionRenew}
+        />
+
+        {/* Nutrition Card */}
+        <BlurredCard
+          isBlurred={requiresRenewal}
+          onPress={handleSubscriptionRenew}
+          blurMessage="Menu du jour disponible avec un abonnement actif"
+        >
+          <NutritionCard 
+            onPress={() => {
+              if (requiresRenewal) {
+                handleSubscriptionRenew();
+              } else {
+                setShowCompleteDayModal(true);
+              }
+            }}
+          />
+        </BlurredCard>
 
         {/* L'Agora Section */}
         <View style={styles.agoraSection}>
@@ -777,107 +959,6 @@ const DashboardScreen = ({ user, onLogout }) => {
               </View>
             )}
           </ScrollView>
-        </View>
-
-        {/* Menu du jour Section */}
-        <View style={[
-          styles.menuSection,
-          requiresRenewal && styles.menuSectionDisabled
-        ]}>
-          <View style={styles.menuHeader}>
-            <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-            <Text style={styles.menuTitle}>Menu du jour</Text>
-            <Text style={styles.menuDate}>samedi 19 juillet 2025</Text>
-          </View>
-          
-          <View style={styles.phaseBanner}>
-            <Text style={styles.phaseText}>Phase actuelle: Test</Text>
-          </View>
-          
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.datePickerContainer}
-          >
-            {['17 Jeu', '18 Ven', '19 Sam', '20 Dim', '21 Lun', '22 Mar', '23 Mer'].map((date, index) => (
-              <TouchableOpacity 
-                key={index}
-                style={[
-                  styles.datePickerItem,
-                  index === 2 && styles.datePickerItemActive
-                ]}
-                disabled={requiresRenewal}
-              >
-                <Text style={[
-                  styles.datePickerText,
-                  index === 2 && styles.datePickerTextActive
-                ]}>
-                  {date}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          
-          <View style={styles.mealsContainer}>
-            {/* Petit-Déj */}
-            <View style={[styles.mealCard, styles.mealCardBreakfast]}>
-              <View style={styles.mealHeader}>
-                <Ionicons name="restaurant" size={16} color="#8BC34A" />
-                <Text style={styles.mealTitle}>Petit-Déj</Text>
-                <Ionicons name="sunny" size={16} color="#FFD700" />
-              </View>
-              <Text style={styles.mealStatus}>Aucun plat</Text>
-              <Text style={styles.mealTime}>entre 7h30-9h00</Text>
-            </View>
-
-            {/* Déjeuner */}
-            <View style={[styles.mealCard, styles.mealCardLunch]}>
-              <View style={styles.mealHeader}>
-                <Ionicons name="restaurant" size={16} color="#FF9800" />
-                <Text style={styles.mealTitle}>Déjeuner</Text>
-                <Ionicons name="fast-food" size={16} color="#FF9800" />
-              </View>
-              <Text style={styles.mealStatus}>Aucun plat</Text>
-              <Text style={styles.mealTime}>entre 12h00-14h00</Text>
-            </View>
-
-            {/* Souper */}
-            <View style={[styles.mealCard, styles.mealCardDinner]}>
-              <View style={styles.mealHeader}>
-                <Ionicons name="restaurant" size={16} color="#9C27B0" />
-                <Text style={styles.mealTitle}>Souper</Text>
-                <Ionicons name="moon" size={16} color="#2196F3" />
-              </View>
-              <Text style={styles.mealStatus}>Aucun plat</Text>
-              <Text style={styles.mealTime}>entre 19h00-21h00</Text>
-            </View>
-
-            {/* Bonus */}
-            <View style={[styles.mealCard, styles.mealCardBonus]}>
-              <View style={styles.mealHeader}>
-                <Ionicons name="restaurant" size={16} color="#FFD700" />
-                <Text style={styles.mealTitle}>Bonus</Text>
-                <Ionicons name="star" size={16} color="#FFD700" />
-              </View>
-              <Text style={styles.mealStatus}>Aucun plat</Text>
-              <Text style={styles.mealTime}></Text>
-            </View>
-
-            {/* Mark Day as Completed Button */}
-            <TouchableOpacity 
-              style={[
-                styles.completeDayButton,
-                requiresRenewal && styles.completeDayButtonDisabled
-              ]}
-              onPress={() => setShowCompleteDayModal(true)}
-              disabled={requiresRenewal}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-              <Text style={styles.completeDayButtonText}>
-                {requiresRenewal ? 'Renouveler l\'abonnement' : 'Marquer le jour comme terminé'}
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* L'Agora Community Posts */}
@@ -1042,7 +1123,7 @@ const DashboardScreen = ({ user, onLogout }) => {
                   try {
                     console.log('📅 Agenda API Test - Starting...');
                     
-                    const AgendaApi = (await import('../services/agendaApi')).default;
+                    const { AgendaApi } = await import('../services/agendaApi');
                     console.log('📅 AgendaApi imported successfully');
                     
                     const data = await AgendaApi.getAgenda();
@@ -1074,9 +1155,9 @@ const DashboardScreen = ({ user, onLogout }) => {
         onRequestClose={() => setShowCompleteDayModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.debugModal}>
-            <View style={styles.debugModalHeader}>
-              <Text style={styles.debugModalTitle}>Marquer le jour comme terminé</Text>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Marquer le jour comme terminé</Text>
               <TouchableOpacity 
                 style={styles.closeButton}
                 onPress={() => setShowCompleteDayModal(false)}
@@ -1085,46 +1166,46 @@ const DashboardScreen = ({ user, onLogout }) => {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.debugModalContent}>
+            <ScrollView style={styles.modalContent}>
               <Text style={{ fontSize: 16, marginBottom: 20, color: theme.colors.text.primary }}>
                 Sélectionnez les repas que vous avez terminés aujourd'hui :
               </Text>
               
               {['Petit-Déj', 'Déjeuner', 'Souper', 'Bonus'].map((meal, index) => (
-                <TouchableOpacity 
-                  key={index}
-                  style={[
-                    styles.debugButton,
-                    selectedMeals.includes(meal) && { backgroundColor: '#E8F5E9' }
-                  ]}
-                  onPress={() => {
-                    if (selectedMeals.includes(meal)) {
-                      setSelectedMeals(selectedMeals.filter(m => m !== meal));
-                      setTotalPoints(prev => prev - 10);
-                    } else {
-                      setSelectedMeals([...selectedMeals, meal]);
-                      setTotalPoints(prev => prev + 10);
-                    }
-                  }}
-                >
-                  <View style={styles.debugButtonContent}>
-                    <Ionicons 
-                      name={selectedMeals.includes(meal) ? "checkmark-circle" : "ellipse-outline"} 
-                      size={20} 
-                      color={selectedMeals.includes(meal) ? "#4CAF50" : theme.colors.text.secondary} 
-                    />
-                    <Text style={styles.debugButtonText}>{meal}</Text>
-                  </View>
-                </TouchableOpacity>
+                                  <TouchableOpacity 
+                    key={index}
+                    style={[
+                      styles.modalButton,
+                      selectedMeals.includes(meal) && { backgroundColor: '#E8F5E9' }
+                    ]}
+                    onPress={() => {
+                      if (selectedMeals.includes(meal)) {
+                        setSelectedMeals(selectedMeals.filter(m => m !== meal));
+                        setTotalPoints(prev => prev - 10);
+                      } else {
+                        setSelectedMeals([...selectedMeals, meal]);
+                        setTotalPoints(prev => prev + 10);
+                      }
+                    }}
+                  >
+                    <View style={styles.modalButtonContent}>
+                      <Ionicons 
+                        name={selectedMeals.includes(meal) ? "checkmark-circle" : "ellipse-outline"} 
+                        size={20} 
+                        color={selectedMeals.includes(meal) ? "#4CAF50" : theme.colors.text.secondary} 
+                      />
+                      <Text style={styles.modalButtonText}>{meal}</Text>
+                    </View>
+                  </TouchableOpacity>
               ))}
               
               <TouchableOpacity 
-                style={[styles.debugButton, { backgroundColor: '#007BFF', marginTop: 20 }]}
+                style={[styles.modalButton, { backgroundColor: '#007BFF', marginTop: 20 }]}
                 onPress={handleCompleteDay}
               >
-                <View style={styles.debugButtonContent}>
+                <View style={styles.modalButtonContent}>
                   <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                  <Text style={[styles.debugButtonText, { color: '#FFFFFF' }]}>
+                  <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
                     Terminer le jour ({totalPoints} points)
                   </Text>
                 </View>
@@ -1163,6 +1244,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: theme.colors.text.primary,
   },
+  headerLogo: {
+    height: 48,
+    width: 180,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1171,28 +1256,10 @@ const styles = StyleSheet.create({
   helpButton: {
     padding: 4,
   },
-  debugButton: {
-    padding: 4,
-  },
+
   notificationButton: {
     position: 'relative',
     padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   profileButton: {
     padding: 2,
@@ -1461,6 +1528,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    padding: 20,
+    margin: 20,
+    width: '90%',
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  modalContent: {
+    padding: 15,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  modalButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  modalButtonText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: theme.colors.text.primary,
   },
   debugModal: {
     backgroundColor: '#FFFFFF',

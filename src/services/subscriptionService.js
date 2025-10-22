@@ -1,5 +1,4 @@
 import api, { debugResponse } from './api';
-import { API_CONFIG } from '../config/apiConfig';
 import Config from '../config/env';
 
 /**
@@ -66,8 +65,8 @@ export class SubscriptionService {
         };
       }
 
-      console.log('🌐 Making API call to:', API_CONFIG.endpoints.profile.get);
-      const response = await api.get(API_CONFIG.endpoints.profile.get);
+      console.log('🌐 Making API call to:', '/profile');
+      const response = await api.get('/profile');
       
       // Debug response
       debugResponse(response, 'Subscription Status');

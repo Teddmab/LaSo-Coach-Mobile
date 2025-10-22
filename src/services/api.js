@@ -95,46 +95,23 @@ const mockAPI = {
 api.interceptors.request.use(
   async (config) => {
     try {
-      console.log('🔍 ===== REQUEST INTERCEPTOR START =====');
-      console.log(`🚀 Making API request: ${config.method?.toUpperCase()} ${config.url}`);
-      console.log('🔍 Request interceptor - starting token retrieval...');
+      if (__DEV__) {
+        console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
+      }
       
       const { token } = await TokenManager.getTokens();
-      console.log('🔑 Token retrieved for request:', token ? `${token.substring(0, 20)}...` : 'null');
-      console.log('🔑 Token length:', token ? token.length : 'null');
-      console.log('🔑 Token type:', typeof token);
       
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('✅ Authorization header set:', `Bearer ${token.substring(0, 20)}...`);
-        console.log('📋 Final headers:', JSON.stringify(config.headers, null, 2));
-      } else {
+        if (__DEV__) {
+          console.log('✅ Authorization header set');
+        }
+      } else if (__DEV__) {
         console.warn('⚠️ No token available - request will be unauthorized');
-        console.log('📋 Headers without auth:', JSON.stringify(config.headers, null, 2));
       }
-      
-      console.log('🔍 ===== REQUEST DETAILS =====');
-      console.log('📤 Method:', config.method?.toUpperCase());
-      console.log('📤 URL:', config.url);
-      console.log('📤 Base URL:', config.baseURL);
-      console.log('📤 Full URL:', `${config.baseURL}${config.url}`);
-      console.log('📤 Headers:', JSON.stringify(config.headers, null, 2));
-      console.log('📤 Has Authorization header:', !!config.headers.Authorization);
-      console.log('📤 Authorization value:', config.headers.Authorization ? config.headers.Authorization.substring(0, 30) + '...' : 'null');
-      console.log('🔍 ===== REQUEST INTERCEPTOR END =====');
       
     } catch (error) {
       console.error('❌ Error adding auth header:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
-    }
-    
-    // Log request in development
-    if (Config.DEBUG_MODE) {
-      console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
-      console.log('📤 Request headers:', config.headers);
     }
     
     return config;
@@ -150,100 +127,21 @@ api.interceptors.request.use(
  */
 api.interceptors.response.use(
   (response) => {
-    console.log('🔍 ===== RESPONSE INTERCEPTOR START =====');
-    console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response status text:', response.statusText);
-    console.log('📥 Response headers:', JSON.stringify(response.headers, null, 2));
-    console.log('📥 Request headers that were sent:', JSON.stringify(response.config.headers, null, 2));
-    console.log('📥 Has Authorization header in request:', !!response.config.headers.Authorization);
-    
-    // Log response data details
-    console.log('📥 Response data type:', typeof response.data);
-    console.log('📥 Response data keys:', response.data ? Object.keys(response.data) : 'null');
-    console.log('📥 Response data:', JSON.stringify(response.data, null, 2));
-    
-    // Additional response debugging
-    if (response.data) {
-      console.log('📥 Response data structure:', {
-        isObject: typeof response.data === 'object',
-        isArray: Array.isArray(response.data),
-        hasData: 'data' in response.data,
-        hasMessage: 'message' in response.data,
-        hasError: 'error' in response.data,
-        keys: Object.keys(response.data)
-      });
-    }
-    
-    // Make response visible to debugger network tab
+    // Only log in development mode
     if (__DEV__) {
-      // This creates a network request that debuggers can see
-      const debugUrl = `${response.config.baseURL}${response.config.url}`;
-      console.log(`🔍 DEBUGGER_NETWORK_REQUEST: ${response.config.method?.toUpperCase()} ${debugUrl}`);
-      console.log(`🔍 DEBUGGER_NETWORK_RESPONSE:`, {
-        url: debugUrl,
-        method: response.config.method?.toUpperCase(),
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-        data: response.data,
-        requestHeaders: response.config.headers
-      });
-      
-      // Also log as a special format that some debuggers recognize
-      console.log(`🔍 NETWORK_DEBUG_${response.config.method?.toUpperCase()}_${response.status}:`, {
-        request: {
-          url: debugUrl,
-          method: response.config.method?.toUpperCase(),
-          headers: response.config.headers
-        },
-        response: {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-          data: response.data
-        }
-      });
-    }
-    
-    console.log('🔍 ===== RESPONSE INTERCEPTOR END =====');
-    
-    // Log successful responses in development
-    if (Config.DEBUG_MODE) {
       console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
     }
     return response;
   },
   async (error) => {
-    console.log('🔍 ===== ERROR INTERCEPTOR START =====');
-    console.log('❌ API Error occurred:');
-    console.log('📤 Request URL:', error.config?.url);
-    console.log('📤 Request method:', error.config?.method);
-    console.log('📤 Request headers:', JSON.stringify(error.config?.headers, null, 2));
-    console.log('📤 Has Authorization header:', !!error.config?.headers?.Authorization);
-    console.log('📥 Response status:', error.response?.status);
-    console.log('📥 Response status text:', error.response?.statusText);
-    console.log('📥 Response headers:', JSON.stringify(error.response?.headers, null, 2));
-    
-    // Log detailed error response data
-    if (error.response?.data) {
-      console.log('📥 Error response data type:', typeof error.response.data);
-      console.log('📥 Error response data:', JSON.stringify(error.response.data, null, 2));
-    }
-    
-    // Log raw response text if available
-    if (error.response?.data) {
-      try {
-        const responseText = typeof error.response.data === 'string' 
-          ? error.response.data 
-          : JSON.stringify(error.response.data);
-        console.log('📥 Raw error response text:', responseText);
-      } catch (parseError) {
-        console.log('📥 Could not parse error response data:', parseError.message);
+    // Log errors with appropriate detail level
+    if (__DEV__) {
+      console.log('❌ API Error:', error.config?.method?.toUpperCase(), error.config?.url);
+      console.log('Status:', error.response?.status, error.response?.statusText);
+      if (error.response?.data) {
+        console.log('Error data:', error.response.data);
       }
     }
-    
-    console.log('🔍 ===== ERROR INTERCEPTOR END =====');
     
     const originalRequest = error.config;
 
@@ -290,17 +188,6 @@ api.interceptors.response.use(
       }
     }
 
-    // Log errors in development
-    if (Config.DEBUG_MODE) {
-      console.error('❌ API Error:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        status: error.response?.status,
-        message: error.response?.data?.message || error.message,
-        code: error.code,
-      });
-    }
-
     return Promise.reject(error);
   }
 );
@@ -311,56 +198,151 @@ api.interceptors.response.use(
  * @returns {string} User-friendly error message
  */
 export const handleAuthError = (error) => {
+  // Debug error structure only in dev
+  if (__DEV__) {
+    console.log('🔍 handleAuthError:', error.response?.status || error.code || error.message);
+  }
+
+  // Check for network errors first (most common)
+  if (!error.response) {
+    // Network error - no response from server
+    if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+      return 'Impossible de se connecter au serveur. Vérifiez votre connexion internet et réessayez.';
+    }
+    
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      return 'Délai de connexion dépassé. Vérifiez votre connexion internet et réessayez.';
+    }
+    
+    if (error.code === 'ECONNREFUSED' || error.message?.includes('refused')) {
+      return 'Connexion refusée. Le serveur n\'est peut-être pas disponible. Réessayez plus tard.';
+    }
+    
+    if (error.code === 'ENOTFOUND' || error.message?.includes('not found')) {
+      return 'Serveur introuvable. Vérifiez votre connexion internet.';
+    }
+    
+    // Generic network error
+    return 'Erreur de connexion. Vérifiez votre connexion internet et réessayez.';
+  }
+
   // Check for CORS errors
   if (error.message?.includes('CORS') || error.message?.includes('Origin')) {
     return 'Erreur CORS: Le serveur n\'autorise pas les requêtes depuis cette origine. Contactez l\'administrateur.';
   }
 
-  // Check for network/connection errors
-  if (!error.response && (error.code === 'ECONNABORTED' || error.message.includes('timeout'))) {
-    return 'Délai de connexion dépassé. Vérifiez votre connexion internet.';
-  }
-
-  if (!error.response && (error.code === 'ECONNREFUSED' || error.message.includes('refused'))) {
-    return 'Connexion refusée. Le serveur n\'est peut-être pas démarré.';
-  }
-
-  if (!error.response && (error.code === 'ENOTFOUND' || error.message.includes('not found'))) {
-    return 'Serveur introuvable. Vérifiez l\'URL de l\'API.';
-  }
-
-  if (!error.response) {
-    return `Erreur de connexion: ${error.message}. Vérifiez votre connexion internet.`;
-  }
-
   const status = error.response.status;
-  const message = error.response.data?.message;
+  const message = error.response.data?.message || error.response.data?.error;
 
   switch (status) {
     case 400:
-      return message || 'Données invalides. Veuillez vérifier vos informations.';
+      if (message?.includes('validation') || message?.includes('invalid')) {
+        return 'Données invalides. Veuillez vérifier vos informations et réessayer.';
+      }
+      return message || 'Requête invalide. Veuillez vérifier vos informations.';
+      
     case 401:
+      // Check for specific error messages from backend
+      if (message?.includes('No account found')) {
+        return 'Aucun compte trouvé avec cet email. Vérifiez votre email ou cliquez sur "Inscrivez-vous" pour créer un compte.';
+      }
+      if (message?.includes('Invalid credentials') || message?.includes('incorrect')) {
+        return 'Email ou mot de passe incorrect. Vérifiez vos identifiants et réessayez.';
+      }
+      if (message?.includes('token') || message?.includes('expired')) {
+        return 'Session expirée. Veuillez vous reconnecter.';
+      }
+      // If we have a specific message from the backend, use it
+      if (message) {
+        return message;
+      }
       return 'Email ou mot de passe incorrect.';
+      
     case 403:
       if (message?.includes('CORS')) {
         return 'Erreur CORS: Origine non autorisée par le serveur.';
       }
+      if (message?.includes('forbidden') || message?.includes('access denied')) {
+        return 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
+      }
       return message || 'Accès interdit.';
+      
     case 404:
-      return 'Aucun compte trouvé avec cet email.';
+      if (message?.includes('account') || message?.includes('user')) {
+        return 'Aucun compte trouvé avec cet email.';
+      }
+      return 'Ressource introuvable.';
+      
     case 409:
-      return 'Un compte avec cet e-mail existe déjà.';
+      if (message?.includes('already exists') || message?.includes('duplicate')) {
+        return 'Un compte avec cet e-mail existe déjà.';
+      }
+      return 'Conflit de données. Veuillez réessayer.';
+      
     case 422:
-      return message || 'Données de validation incorrectes.';
+      if (message?.includes('validation')) {
+        return 'Données de validation incorrectes. Veuillez vérifier vos informations.';
+      }
+      return message || 'Données invalides. Veuillez vérifier vos informations.';
+      
     case 429:
-      return 'Trop de tentatives. Veuillez réessayer plus tard.';
+      return 'Trop de tentatives. Veuillez attendre quelques minutes avant de réessayer.';
+      
     case 500:
+      return 'Erreur interne du serveur. Veuillez réessayer plus tard.';
+      
     case 502:
+      return 'Serveur temporairement indisponible. Veuillez réessayer dans quelques minutes.';
+      
     case 503:
-      return 'Erreur du serveur. Veuillez réessayer plus tard.';
+      return 'Service temporairement indisponible. Veuillez réessayer plus tard.';
+      
     default:
+      if (status >= 500) {
+        return 'Erreur du serveur. Veuillez réessayer plus tard.';
+      }
+      if (status >= 400) {
+        return message || 'Erreur de requête. Veuillez réessayer.';
+      }
       return message || 'Une erreur inattendue s\'est produite.';
   }
+};
+
+/**
+ * Retry mechanism for network requests
+ * @param {Function} requestFn - Function that returns a promise
+ * @param {number} maxRetries - Maximum number of retries
+ * @param {number} delay - Delay between retries in ms
+ * @returns {Promise} Promise that resolves with the request result
+ */
+export const retryRequest = async (requestFn, maxRetries = 3, delay = 1000) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      
+      // Retry on network errors and timeouts
+      const shouldRetry = !error.response && error.code && 
+        ['ERR_NETWORK', 'ECONNABORTED', 'ECONNREFUSED', 'ETIMEDOUT'].includes(error.code);
+      
+      if (!shouldRetry) {
+        throw error; // Don't retry non-network errors
+      }
+      
+      if (attempt < maxRetries) {
+        if (__DEV__) {
+          console.log(`🔄 Retry attempt ${attempt}/${maxRetries} after ${delay}ms`);
+        }
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+      }
+    }
+  }
+  
+  throw lastError;
 };
 
 /**
@@ -568,18 +550,43 @@ export const authAPI = {
   /**
    * User registration
    * @param {RegisterData} userData 
-   * @returns {Promise<ApiResponse>}
+   * @returns {Promise<RegisterResponse>}
    */
   async register(userData) {
     if (Config.OFFLINE_MODE) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true, message: 'User registered successfully' };
+      return { 
+        success: true, 
+        message: 'User registered successfully',
+        data: {
+          user: {
+            id: 'mock_user_123',
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            email: userData.email,
+            phoneNumber: userData.phoneNumber,
+            address: userData.address,
+            region: userData.region,
+            language: userData.language,
+            status: 'ACTIVE',
+            isVerified: false,
+            onboardingCompleted: false,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          token: 'mock_token_123',
+          refreshToken: 'mock_refresh_token_456',
+        }
+      };
     }
 
+    // Match the webapp's API format
     const response = await api.post('/auth/register', {
-      ...userData,
       email: userData.email.toLowerCase().trim(),
-      role: userData.role || 'USER',
+      name: userData.name,
+      password: userData.password,
+      phone: userData.phone,
+      role: 'USER',
     });
     return response.data;
   },
@@ -593,8 +600,77 @@ export const authAPI = {
       return await mockAPI.getProfile();
     }
 
-    const response = await api.get('/profile');
+    // Use longer timeout for initial profile fetch during app initialization
+    const response = await api.get('/profile', {
+      timeout: Config.AUTH_INIT_TIMEOUT || 90000, // 90 seconds
+    });
+    
+    if (__DEV__) {
+      console.log('🔐 getProfile response received');
+    }
+    
+    // Handle different response structures
+    if (response.data.data) {
+      return response.data.data;
+    } else if (response.data) {
+      return response.data;
+    } else {
+      throw new Error('Invalid profile response format');
+    }
+  },
+
+  /**
+   * Update user profile
+   * @param {ProfileUpdateData} profileData 
+   * @returns {Promise<User>}
+   */
+  async updateProfile(profileData) {
+    if (Config.OFFLINE_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        id: 'mock_user_123',
+        firstName: profileData.firstName || 'Test',
+        lastName: profileData.lastName || 'User',
+        email: 'test@example.com',
+        phoneNumber: profileData.phoneNumber || '',
+        address: profileData.address || '',
+        region: profileData.region || '',
+        language: profileData.language || 'fr',
+        status: 'ACTIVE',
+        isVerified: false,
+        onboardingCompleted: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    const response = await api.patch('/profile', profileData);
     return response.data.data;
+  },
+
+  /**
+   * Upload user avatar
+   * @param {FormData} formData 
+   * @returns {Promise<{avatarUrl: string}>}
+   */
+  async uploadAvatar(formData) {
+    if (Config.OFFLINE_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        message: 'Avatar uploaded successfully',
+        data: {
+          avatarUrl: 'https://laso-coach-uploads.s3.eu-north-1.amazonaws.com/avatars/mock-avatar.jpg'
+        }
+      };
+    }
+
+    const response = await api.patch('/profile/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
   },
 
   /**
@@ -608,7 +684,10 @@ export const authAPI = {
     }
 
     try {
-      await api.post('/auth/logout');
+      // Simple POST request without body - the token is in the Authorization header
+      const response = await api.post('/auth/logout');
+      console.log('🚪 Logout API response:', response.data);
+      return response.data;
     } catch (error) {
       console.error('Logout API error:', error);
       // Continue with local logout even if API fails
@@ -618,12 +697,18 @@ export const authAPI = {
   /**
    * Request password reset
    * @param {string} email 
-   * @returns {Promise<ApiResponse>}
+   * @returns {Promise<ForgotPasswordResponse>}
    */
   async forgotPassword(email) {
     if (Config.OFFLINE_MODE) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return { success: true, message: 'Password reset email sent' };
+      return { 
+        success: true, 
+        message: 'Password reset email sent successfully',
+        data: {
+          emailSent: true
+        }
+      };
     }
 
     const response = await api.post('/auth/forgot-password', {
@@ -635,9 +720,21 @@ export const authAPI = {
   /**
    * Verify password reset token
    * @param {string} token 
-   * @returns {Promise<ApiResponse>}
+   * @returns {Promise<VerifyResetTokenResponse>}
    */
   async verifyResetToken(token) {
+    if (Config.OFFLINE_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        success: true,
+        message: 'Token is valid',
+        data: {
+          isValid: true,
+          email: 'test@example.com'
+        }
+      };
+    }
+
     const response = await api.post('/auth/verify-reset-token', { token });
     return response.data;
   },
@@ -646,13 +743,50 @@ export const authAPI = {
    * Complete password reset
    * @param {string} token 
    * @param {string} newPassword 
-   * @returns {Promise<ApiResponse>}
+   * @returns {Promise<ResetPasswordResponse>}
    */
   async resetPassword(token, newPassword) {
+    if (Config.OFFLINE_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        success: true,
+        message: 'Password reset successfully',
+        data: {
+          user: {
+            id: 'mock_user_123',
+            email: 'test@example.com',
+            updatedAt: new Date().toISOString(),
+          }
+        }
+      };
+    }
+
     const response = await api.post('/auth/complete-reset-password', {
       token,
       newPassword,
     });
+    return response.data;
+  },
+
+  /**
+   * Refresh access token
+   * @param {string} refreshToken 
+   * @returns {Promise<RefreshTokenResponse>}
+   */
+  async refreshToken(refreshToken) {
+    if (Config.OFFLINE_MODE) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return {
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          token: 'new_mock_token_123',
+          refreshToken: 'new_mock_refresh_token_456',
+        }
+      };
+    }
+
+    const response = await api.post('/auth/refresh-token', { refreshToken });
     return response.data;
   },
 };

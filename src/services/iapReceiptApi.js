@@ -1,0 +1,239 @@
+import api from './api';
+import { Platform } from 'react-native';
+
+/**
+ * IAP Receipt Validation API
+ * Handles server-side receipt validation for App Store and Play Store purchases
+ * 
+ * CRITICAL: All purchases MUST be validated server-side before granting access
+ * This prevents fraud and ensures subscription integrity
+ */
+class IAPReceiptApi {
+  /**
+   * Validate iOS App Store receipt
+   * @param {Object} receiptData - Receipt data from iOS purchase
+   * @returns {Promise<Object>} Validation response
+   */
+  static async validateiOSReceipt(receiptData) {
+    try {
+      console.log('🧾 Validating iOS receipt...');
+      
+      const response = await api.post('/payments/validate-ios-receipt', {
+        receiptData: receiptData.transactionReceipt,
+        transactionId: receiptData.transactionId,
+        productId: receiptData.productId,
+        originalTransactionId: receiptData.originalTransactionId,
+      });
+
+      console.log('✅ iOS receipt validated successfully');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error validating iOS receipt:', error);
+      throw this.handleValidationError(error);
+    }
+  }
+
+  /**
+   * Validate Android Play Store receipt
+   * @param {Object} receiptData - Receipt data from Android purchase
+   * @returns {Promise<Object>} Validation response
+   */
+  static async validateAndroidReceipt(receiptData) {
+    try {
+      console.log('🧾 Validating Android receipt...');
+      
+      const response = await api.post('/payments/validate-android-receipt', {
+        purchaseToken: receiptData.purchaseToken,
+        productId: receiptData.productId,
+        orderId: receiptData.orderId,
+        packageName: receiptData.packageName,
+        transactionReceipt: receiptData.transactionReceipt,
+      });
+
+      console.log('✅ Android receipt validated successfully');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error validating Android receipt:', error);
+      throw this.handleValidationError(error);
+    }
+  }
+
+  /**
+   * Validate receipt (automatically detects platform)
+   * @param {Object} receiptData - Receipt data from purchase
+   * @returns {Promise<Object>} Validation response
+   */
+  static async validateReceipt(receiptData) {
+    try {
+      console.log('🧾 Starting receipt validation for platform:', receiptData.platform);
+      
+      if (receiptData.platform === 'ios') {
+        return await this.validateiOSReceipt(receiptData);
+      } else if (receiptData.platform === 'android') {
+        return await this.validateAndroidReceipt(receiptData);
+      } else {
+        throw new Error('Unsupported platform for receipt validation');
+      }
+    } catch (error) {
+      console.error('❌ Receipt validation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check subscription status from native store
+   * Used to sync subscription status with backend
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Subscription status
+   */
+  static async syncSubscriptionStatus(userId) {
+    try {
+      console.log('🔄 Syncing subscription status with backend...');
+      
+      const response = await api.post('/payments/sync-subscription-status', {
+        userId,
+        platform: Platform.OS,
+      });
+
+      console.log('✅ Subscription status synced');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error syncing subscription status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restore purchases from native store
+   * Validates all previous purchases and updates backend
+   * @param {Array} purchases - Array of purchase objects
+   * @returns {Promise<Object>} Restore result
+   */
+  static async restorePurchases(purchases) {
+    try {
+      console.log('🔄 Restoring purchases on backend...');
+      
+      // Extract receipt data from each purchase
+      const receipts = purchases.map(purchase => ({
+        platform: Platform.OS,
+        productId: purchase.productId,
+        transactionId: purchase.transactionId,
+        transactionReceipt: purchase.transactionReceipt,
+        originalTransactionId: purchase.originalTransactionIdentifierIOS,
+        purchaseToken: purchase.purchaseToken,
+        orderId: purchase.orderId,
+        packageName: purchase.packageNameAndroid,
+      }));
+
+      const response = await api.post('/payments/restore-purchases', {
+        receipts,
+        platform: Platform.OS,
+      });
+
+      console.log('✅ Purchases restored successfully');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error restoring purchases:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle validation errors and provide user-friendly messages
+   * @param {Error} error - Error object
+   * @returns {Error} Enhanced error with user message
+   */
+  static handleValidationError(error) {
+    let userMessage = 'Erreur lors de la validation de l\'achat';
+
+    if (error.response) {
+      const status = error.response.status;
+      const data = error.response.data;
+
+      switch (status) {
+        case 400:
+          userMessage = 'Reçu invalide. Veuillez réessayer.';
+          break;
+        case 404:
+          userMessage = 'Achat introuvable. Contactez le support.';
+          break;
+        case 409:
+          userMessage = 'Cet achat a déjà été validé.';
+          break;
+        case 422:
+          userMessage = data?.message || 'Validation échouée. Vérifiez votre achat.';
+          break;
+        case 500:
+          userMessage = 'Erreur serveur. Réessayez plus tard.';
+          break;
+        default:
+          userMessage = data?.message || 'Erreur lors de la validation';
+      }
+    } else if (error.message?.includes('Network')) {
+      userMessage = 'Erreur réseau. Vérifiez votre connexion.';
+    }
+
+    const enhancedError = new Error(userMessage);
+    enhancedError.originalError = error;
+    return enhancedError;
+  }
+
+  /**
+   * Create subscription via native IAP
+   * This endpoint creates a subscription record after successful receipt validation
+   * @param {string} productId - Product ID (SKU)
+   * @param {Object} receiptData - Validated receipt data
+   * @returns {Promise<Object>} Subscription data
+   */
+  static async createNativeSubscription(productId, receiptData) {
+    try {
+      console.log('💳 Creating native subscription...');
+      
+      const response = await api.post('/subscriptions/create-native', {
+        productId,
+        platform: Platform.OS,
+        receiptData,
+      });
+
+      console.log('✅ Native subscription created');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error creating native subscription:', error);
+      throw this.handleValidationError(error);
+    }
+  }
+
+  /**
+   * Get native subscription products
+   * Returns mapping between backend plans and store product IDs
+   * @returns {Promise<Object>} Product mapping
+   */
+  static async getNativeProducts() {
+    try {
+      console.log('💳 Fetching native product mapping...');
+      
+      const response = await api.get('/subscriptions/native-products');
+
+      console.log('✅ Native products fetched');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching native products:', error);
+      
+      // Return default mapping as fallback
+      return {
+        success: true,
+        data: {
+          products: [
+            { planId: 'premium_monthly', productId: 'com.laso.coach.premium_monthly' },
+            { planId: 'premium_yearly', productId: 'com.laso.coach.premium_yearly' },
+            { planId: 'basic_monthly', productId: 'com.laso.coach.basic_monthly' },
+            { planId: 'flexy_monthly', productId: 'com.laso.coach.flexy_monthly' },
+          ]
+        }
+      };
+    }
+  }
+}
+
+export default IAPReceiptApi;
+

@@ -13,16 +13,31 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
+import Avatar from '../components/Avatar';
+import { ProfileApi } from '../services/profileApi';
 
 const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   const [expandedSections, setExpandedSections] = useState({
     profile: false
   });
   const [subscriptionData, setSubscriptionData] = useState(null);
+  const [profileData, setProfileData] = useState(null);
 
   useEffect(() => {
     checkSubscriptionStatus();
+    fetchProfileData();
   }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      console.log('👤 Settings: Fetching profile data...');
+      const data = await ProfileApi.getProfile();
+      setProfileData(data);
+      console.log('✅ Settings: Profile data fetched successfully');
+    } catch (error) {
+      console.error('❌ Settings: Error fetching profile data:', error);
+    }
+  };
 
   const checkSubscriptionStatus = async () => {
     try {
@@ -153,9 +168,11 @@ const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+            <Avatar 
+              source={{ uri: profileData?.avatar || user?.avatar }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
             />
           </TouchableOpacity>
         </View>

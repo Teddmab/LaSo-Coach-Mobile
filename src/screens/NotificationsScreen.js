@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -8,11 +8,18 @@ import {
   Image,
   StatusBar,
   Modal,
-  Switch
+  Switch,
+  RefreshControl,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
+import Avatar from '../components/Avatar';
+import notificationsAPI, { NotificationWebSocketManager } from '../services/notificationsApi';
+import { useNotifications } from '../context/NotificationContext';
+import Toast from 'react-native-toast-message';
 
 const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   const [selectedTab, setSelectedTab] = useState('all'); // all, unread, messages, content, payments, system
@@ -25,63 +32,135 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
     marketing: false
   });
 
-  const notifications = [
-    {
-      id: 1,
-      type: 'content',
-      title: 'Nouveau Contenu Assigné',
-      description: 'Vous avez été assigné(e) au contenu "an other test content" à compléter.',
-      time: 'il y a 5 jours • 13/07/2025 à 20:39',
-      isRead: false,
-      category: 'Contenu',
-      isNew: true
-    },
-    {
-      id: 2,
-      type: 'content',
-      title: 'Nouveau Contenu Assigné',
-      description: 'Vous avez été assigné(e) au contenu "test content" à compléter.',
-      time: 'il y a 5 jours • 13/07/2025 à 20:08',
-      isRead: false,
-      category: 'Contenu',
-      isNew: true
-    },
-    {
-      id: 3,
-      type: 'system',
-      title: 'Challenge Completed!',
-      description: 'Congratulations! You have completed the "Test Challenge" challenge!',
-      time: 'il y a 5 jours • 13/07/2025 à 20:04',
-      isRead: false,
-      category: 'Système',
-      isNew: true
-    },
-    {
-      id: 4,
-      type: 'system',
-      title: 'Challenge Assigned',
-      description: 'New challenge has been assigned to you.',
-      time: 'il y a 5 jours • 13/07/2025 à 20:02',
-      isRead: false,
-      category: 'Système',
-      isNew: true
+  // Use global notification context
+  const { unreadCount, markAsRead: globalMarkAsRead, markAllAsRead: globalMarkAllAsRead, testNotification, checkNotificationStatus } = useNotifications();
+
+  // Local state for this screen
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    hasMore: true
+  });
+
+  // API Functions
+  const fetchNotifications = async (page = 1, refresh = false) => {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else if (page === 1) {
+        setLoading(true);
+      }
+
+      const params = {
+        page,
+        limit: pagination.limit,
+        ...(selectedTab === 'unread' && { unreadOnly: true })
+      };
+
+      const response = await notificationsAPI.getNotifications(params);
+      
+      if (response.status === 'success') {
+        const newNotifications = response.data.notifications || [];
+        
+        if (refresh || page === 1) {
+          setNotifications(newNotifications);
+        } else {
+          setNotifications(prev => [...prev, ...newNotifications]);
+        }
+
+        setPagination(prev => ({
+          ...prev,
+          page,
+          hasMore: response.data.pagination && page < response.data.pagination.pages
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Error fetching notifications:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de charger les notifications'
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  ];
+  };
+
+  const markNotificationAsRead = async (notificationId) => {
+    const success = await globalMarkAsRead(notificationId);
+    
+    if (success) {
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === notificationId 
+            ? { ...notification, read: true }
+            : notification
+        )
+      );
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Notification marquée comme lue'
+      });
+    } else {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de marquer comme lu'
+      });
+    }
+  };
+
+  const markAllAsRead = async () => {
+    const success = await globalMarkAllAsRead();
+    
+    if (success) {
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, read: true }))
+      );
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Toutes les notifications marquées comme lues'
+      });
+    } else {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de marquer toutes comme lues'
+      });
+    }
+  };
+
+  // useEffect hooks
+  useEffect(() => {
+    fetchNotifications(1, true);
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications(1, true);
+  }, [selectedTab]);
 
   const getTabCount = (tabType) => {
     switch (tabType) {
       case 'all':
-        return 7;
+        return notifications.length;
       case 'unread':
-        return 4;
+        return unreadCount;
       case 'messages':
-        return 0;
+        return notifications.filter(n => n.type === 'chat_message').length;
       case 'content':
-        return 2;
+        return notifications.filter(n => n.type === 'content_assigned').length;
       case 'payments':
-        return 0;
+        return notifications.filter(n => n.type === 'payment').length;
       case 'system':
-        return 5;
+        return notifications.filter(n => n.type === 'system').length;
       default:
         return 0;
     }
@@ -90,30 +169,99 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
   const getFilteredNotifications = () => {
     switch (selectedTab) {
       case 'unread':
-        return notifications.filter(n => !n.isRead);
+        return notifications.filter(n => !n.read);
       case 'content':
-        return notifications.filter(n => n.type === 'content');
+        return notifications.filter(n => n.type === 'content_assigned');
       case 'system':
         return notifications.filter(n => n.type === 'system');
       case 'messages':
-        return notifications.filter(n => n.type === 'messages');
+        return notifications.filter(n => n.type === 'chat_message');
       case 'payments':
-        return notifications.filter(n => n.type === 'payments');
+        return notifications.filter(n => n.type === 'payment');
       default:
         return notifications;
     }
   };
 
   const handleMarkAsRead = (notificationId) => {
-    console.log('Mark as read:', notificationId);
+    markNotificationAsRead(notificationId);
   };
 
   const handleDelete = (notificationId) => {
-    console.log('Delete notification:', notificationId);
+    Alert.alert(
+      'Supprimer la notification',
+      'Êtes-vous sûr de vouloir supprimer cette notification ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            // TODO: Implement delete notification API
+            setNotifications(prev => prev.filter(n => n.id !== notificationId));
+            Toast.show({
+              type: 'success',
+              text1: 'Notification supprimée'
+            });
+          }
+        }
+      ]
+    );
   };
 
   const handleMarkAllAsRead = () => {
-    console.log('Mark all as read');
+    markAllAsRead();
+  };
+
+  const handleRefresh = () => {
+    fetchNotifications(1, true);
+  };
+
+  const handleLoadMore = () => {
+    if (pagination.hasMore && !loading) {
+      fetchNotifications(pagination.page + 1, false);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'chat_message':
+        return { name: 'chatbubble-ellipses', color: '#2196F3' };
+      case 'content_assigned':
+        return { name: 'document-text', color: '#4CAF50' };
+      case 'session':
+        return { name: 'calendar', color: '#FF9800' };
+      case 'system':
+        return { name: 'settings', color: '#9C27B0' };
+      case 'payment':
+        return { name: 'card', color: '#F44336' };
+      default:
+        return { name: 'information-circle', color: '#2196F3' };
+    }
+  };
+
+  const formatNotificationTime = (createdAt) => {
+    if (!createdAt) return 'Récemment';
+    
+    const now = new Date();
+    const notificationDate = new Date(createdAt);
+    const diffInMinutes = Math.floor((now - notificationDate) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'À l\'instant';
+    if (diffInMinutes < 60) return `Il y a ${diffInMinutes} min`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `Il y a ${diffInHours}h`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `Il y a ${diffInDays} jour${diffInDays > 1 ? 's' : ''}`;
+    
+    return notificationDate.toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const togglePreference = (type) => {
@@ -223,59 +371,84 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
     </Modal>
   );
 
-  const renderNotification = (notification) => (
-    <View key={notification.id} style={styles.notificationItem}>
-      <View style={styles.notificationIcon}>
-        <Ionicons 
-          name="information-circle" 
-          size={24} 
-          color="#2196F3" 
-        />
-      </View>
+  const renderNotification = (notification) => {
+    const icon = getNotificationIcon(notification.type);
+    
+    return (
+      <View key={notification.id} style={[
+        styles.notificationItem,
+        !notification.read && styles.unreadNotification
+      ]}>
+        <View style={styles.notificationIcon}>
+          <Ionicons 
+            name={icon.name} 
+            size={24} 
+            color={icon.color} 
+          />
+        </View>
 
-      <View style={styles.notificationContent}>
-        <View style={styles.notificationHeader}>
-          <Text style={styles.notificationTitle}>{notification.title}</Text>
-          <View style={styles.notificationBadges}>
-            <View style={[
-              styles.categoryBadge,
-              notification.type === 'content' && styles.contentBadge,
-              notification.type === 'system' && styles.systemBadge
+        <View style={styles.notificationContent}>
+          <View style={styles.notificationHeader}>
+            <Text style={[
+              styles.notificationTitle,
+              !notification.read && styles.unreadTitle
             ]}>
-              <Text style={styles.categoryText}>{notification.category}</Text>
-            </View>
-            {notification.isNew && (
-              <View style={styles.newBadge}>
-                <Text style={styles.newText}>Nouveau</Text>
+              {notification.title}
+            </Text>
+            <View style={styles.notificationBadges}>
+              <View style={[
+                styles.categoryBadge,
+                notification.type === 'content_assigned' && styles.contentBadge,
+                notification.type === 'system' && styles.systemBadge,
+                notification.type === 'chat_message' && styles.messageBadge,
+                notification.type === 'session' && styles.sessionBadge,
+                notification.type === 'payment' && styles.paymentBadge
+              ]}>
+                <Text style={styles.categoryText}>
+                  {notification.type === 'content_assigned' ? 'Contenu' :
+                   notification.type === 'chat_message' ? 'Message' :
+                   notification.type === 'session' ? 'Session' :
+                   notification.type === 'payment' ? 'Paiement' :
+                   notification.type === 'system' ? 'Système' : 'Notification'}
+                </Text>
               </View>
-            )}
+              {!notification.read && (
+                <View style={styles.newBadge}>
+                  <Text style={styles.newText}>Nouveau</Text>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
 
-        <Text style={styles.notificationDescription}>
-          {notification.description}
-        </Text>
+          <Text style={styles.notificationDescription}>
+            {notification.message || notification.description}
+          </Text>
 
-        <View style={styles.notificationFooter}>
-          <Text style={styles.notificationTime}>{notification.time}</Text>
-          <View style={styles.notificationActions}>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => handleMarkAsRead(notification.id)}
-            >
-              <Text style={styles.actionText}>Marquer comme lu</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => handleDelete(notification.id)}
-            >
-              <Text style={[styles.actionText, styles.deleteText]}>Supprimer</Text>
-            </TouchableOpacity>
+          <View style={styles.notificationFooter}>
+            <Text style={styles.notificationTime}>
+              {formatNotificationTime(notification.createdAt)}
+            </Text>
+            <View style={styles.notificationActions}>
+              {!notification.read && (
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={() => handleMarkAsRead(notification.id)}
+                >
+                  <Text style={styles.actionText}>Marquer comme lu</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={() => handleDelete(notification.id)}
+              >
+                <Text style={[styles.actionText, styles.deleteText]}>Supprimer</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -291,15 +464,14 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
           
           <TouchableOpacity style={styles.notificationButton}>
             <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>5</Text>
-            </View>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+            <Avatar 
+              source={{ uri: user?.avatar }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
             />
           </TouchableOpacity>
         </View>
@@ -323,6 +495,14 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
             
             <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllAsRead}>
               <Text style={styles.markAllText}>Tout marquer comme lu</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.testButton} onPress={testNotification}>
+              <Text style={styles.testButtonText}>Test Notification</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.debugButton} onPress={checkNotificationStatus}>
+              <Text style={styles.debugButtonText}>Debug Status</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -363,13 +543,51 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
         </View>
 
         {/* Notifications List */}
-        <ScrollView 
-          style={styles.notificationsList} 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.notificationsContent}
-        >
-          {getFilteredNotifications().map(notification => renderNotification(notification))}
-        </ScrollView>
+        {loading && notifications.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>Chargement des notifications...</Text>
+          </View>
+        ) : (
+          <ScrollView 
+            style={styles.notificationsList} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.notificationsContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={[theme.colors.primary]}
+                tintColor={theme.colors.primary}
+              />
+            }
+            onScrollEndDrag={handleLoadMore}
+          >
+            {getFilteredNotifications().length > 0 ? (
+              getFilteredNotifications().map(notification => renderNotification(notification))
+            ) : (
+              <View style={styles.emptyState}>
+                <Ionicons name="notifications-outline" size={64} color="#E0E0E0" />
+                <Text style={styles.emptyStateTitle}>Aucune notification</Text>
+                <Text style={styles.emptyStateText}>
+                  {selectedTab === 'unread' 
+                    ? 'Vous n\'avez aucune notification non lue'
+                    : selectedTab === 'all'
+                    ? 'Vous n\'avez aucune notification'
+                    : `Aucune notification de type ${selectedTab}`
+                  }
+                </Text>
+              </View>
+            )}
+            
+            {loading && notifications.length > 0 && (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={styles.loadingMoreText}>Chargement...</Text>
+              </View>
+            )}
+          </ScrollView>
+        )}
       </View>
 
       {/* Bottom Navigation */}
@@ -393,6 +611,9 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
 
       {/* Preferences Modal */}
       {renderPreferencesModal()}
+      
+      {/* Toast */}
+      <Toast />
     </SafeAreaView>
   );
 };
@@ -498,6 +719,28 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   markAllText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  testButton: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  testButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  debugButton: {
+    backgroundColor: '#9C27B0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  debugButtonText: {
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
@@ -718,6 +961,66 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     flex: 1,
     marginLeft: 12,
+  },
+  // New styles for API integration
+  unreadNotification: {
+    backgroundColor: '#F8F9FF',
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  unreadTitle: {
+    fontWeight: 'bold',
+  },
+  messageBadge: {
+    backgroundColor: '#E3F2FD',
+  },
+  sessionBadge: {
+    backgroundColor: '#FFF3E0',
+  },
+  paymentBadge: {
+    backgroundColor: '#FFEBEE',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
+  loadingMore: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

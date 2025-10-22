@@ -16,7 +16,10 @@ const Config = {
   
   // API Configuration - Always use production URL
   API_BASE_URL: API_BASE_URL || 'https://laso-coach-backend.onrender.com/api/v1',
-  API_TIMEOUT: parseInt(API_TIMEOUT) || 30000,
+  // Increased timeout for better resilience with slower networks
+  API_TIMEOUT: parseInt(API_TIMEOUT) || 60000, // 60 seconds (was 30s)
+  // Timeout specifically for auth initialization (more lenient)
+  AUTH_INIT_TIMEOUT: 90000, // 90 seconds for initial auth check
   
   // App Configuration
   APP_NAME: APP_NAME || 'LasoCoach',

@@ -1,18 +1,22 @@
 /**
  * @typedef {Object} User
  * @property {string} id
- * @property {string} name
  * @property {string} email
+ * @property {string} name
+ * @property {string} role
+ * @property {string} status
+ * @property {boolean} isActive
+ * @property {boolean} isVerified
+ * @property {string} [avatar]
  * @property {string} [firstName]
  * @property {string} [lastName]
- * @property {string} [phone]
- * @property {string} [avatar]
- * @property {string[]} [dietaryRestrictions]
- * @property {boolean} onboardingCompleted
- * @property {string} [currentStep] - "Test" | "Attaque" | "Croisière" | "Stabilisation" | "Consolidation" | "Confirmation"
- * @property {UserProfile} [profile]
+ * @property {string} [phoneNumber]
+ * @property {string} [address]
+ * @property {string} [region]
+ * @property {string} [language]
  * @property {string} createdAt
  * @property {string} updatedAt
+ * @property {UserProfile} [profile]
  */
 
 /**
@@ -41,24 +45,83 @@
 
 /**
  * @typedef {Object} RegisterData
- * @property {string} name
+ * @property {string} firstName
+ * @property {string} lastName
  * @property {string} email
  * @property {string} password
- * @property {string} [role]
+ * @property {string} [phoneNumber]
+ * @property {string} [address]
+ * @property {string} [region]
+ * @property {string} [language]
  */
 
 /**
  * @typedef {Object} LoginResponse
- * @property {string} token
- * @property {string} refreshToken
  * @property {string} id
- * @property {string} name
  * @property {string} email
+ * @property {string} name
+ * @property {string} role
+ * @property {string} token
+ * @property {string} status
+ * @property {boolean} isActive
+ * @property {boolean} isVerified
+ * @property {string} createdAt
+ * @property {string} updatedAt
+ * @property {UserProfile} [profile]
+ */
+
+/**
+ * @typedef {Object} RegisterResponse
+ * @property {boolean} success
+ * @property {string} message
+ * @property {Object} data
+ * @property {User} data.user
+ * @property {string} data.token
+ * @property {string} data.refreshToken
+ */
+
+/**
+ * @typedef {Object} ForgotPasswordResponse
+ * @property {boolean} success
+ * @property {string} message
+ * @property {Object} data
+ * @property {boolean} data.emailSent
+ */
+
+/**
+ * @typedef {Object} VerifyResetTokenResponse
+ * @property {boolean} success
+ * @property {string} message
+ * @property {Object} data
+ * @property {boolean} data.isValid
+ * @property {string} data.email
+ */
+
+/**
+ * @typedef {Object} ResetPasswordResponse
+ * @property {boolean} success
+ * @property {string} message
+ * @property {Object} data
+ * @property {User} data.user
+ */
+
+/**
+ * @typedef {Object} RefreshTokenResponse
+ * @property {boolean} success
+ * @property {string} message
+ * @property {Object} data
+ * @property {string} data.token
+ * @property {string} data.refreshToken
+ */
+
+/**
+ * @typedef {Object} ProfileUpdateData
  * @property {string} [firstName]
  * @property {string} [lastName]
- * @property {string} [avatar]
- * @property {boolean} onboardingCompleted
- * @property {string} [currentStep]
+ * @property {string} [phoneNumber]
+ * @property {string} [address]
+ * @property {string} [region]
+ * @property {string} [language]
  */
 
 /**
@@ -79,6 +142,9 @@
  * @property {(userData: RegisterData) => Promise<void>} register
  * @property {() => Promise<User | null>} refreshProfile
  * @property {(email: string) => Promise<void>} forgotPassword
+ * @property {(token: string) => Promise<VerifyResetTokenResponse>} verifyResetToken
+ * @property {(token: string, newPassword: string) => Promise<void>} resetPassword
+ * @property {(profileData: ProfileUpdateData) => Promise<User>} updateProfile
  */
 
 export {}; 

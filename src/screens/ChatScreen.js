@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
+import Avatar from '../components/Avatar';
 
 const ChatScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   const [searchText, setSearchText] = useState('');
@@ -237,9 +238,11 @@ const ChatScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+            <Avatar 
+              source={{ uri: user?.avatar }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
             />
           </TouchableOpacity>
         </View>

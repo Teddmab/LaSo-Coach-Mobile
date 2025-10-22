@@ -10,86 +10,589 @@ import {
   Dimensions,
   Modal,
   TextInput,
-  Alert
+  Alert,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../constants/theme';
-import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
+import Avatar from '../components/Avatar';
+import ProgressChart from '../components/ProgressChart';
+import BottomNavigation from '../components/BottomNavigation';
+import AchievementsCard from '../components/dashboard/AchievementsCard';
+import NotificationBadge from '../components/NotificationBadge';
+import { ProfileApi } from '../services/profileApi';
+import api from '../services/api';
+import { API_CONFIG } from '../config/apiConfig';
+import ProgressPhotosApi from '../services/progressPhotosApi';
 
 const { width } = Dimensions.get('window');
 
 const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew }) => {
-  const [activeToggle, setActiveToggle] = useState('measures');
-  const [showAddPhotoModal, setShowAddPhotoModal] = useState(false);
-  const [newPhotoWeight, setNewPhotoWeight] = useState('');
-  const [newPhotoNotes, setNewPhotoNotes] = useState('');
-  const [progressPhotos, setProgressPhotos] = useState([
-    // Sample photo data
-    {
-      id: 1,
-      date: '29/06/2025',
-      weight: '70kg',
-      notes: 'Photo de départ',
-      image: 'https://via.placeholder.com/150x200/4CAF50/FFFFFF?text=Avant'
-    }
-  ]);
+  // Main state
+  const [activeTabState, setActiveTabState] = useState('measurements');
+  const [profile, setProfile] = useState(null);
+  const [initialMeasurements, setInitialMeasurements] = useState(null);
+  const [measurements, setMeasurements] = useState([]);
+  const [progressPhotos, setProgressPhotos] = useState([]);
   const [subscriptionData, setSubscriptionData] = useState(null);
-  const [showBlurOverlay, setShowBlurOverlay] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Modal states
+  const [showMeasurementModal, setShowMeasurementModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+
+  // Form states
+  const [measurementForm, setMeasurementForm] = useState({
+    weight: '',
+    waistSize: '',
+    notes: '',
+    error: '',
+    saving: false
+  });
+
+  const [photoForm, setPhotoForm] = useState({
+    weight: '',
+    notes: '',
+    selectedPhoto: null,
+    preview: null,
+    uploading: false,
+    error: ''
+  });
 
   useEffect(() => {
+    fetchAllData();
     checkSubscriptionStatus();
   }, []);
+
+  // Add pull-to-refresh functionality
+  const handleRefresh = async () => {
+    console.log('🔄 Progress: Pull-to-refresh triggered');
+    setRefreshing(true);
+    await fetchAllData();
+    setRefreshing(false);
+  };
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      console.log('📊 Progress: Fetching all data...');
+      console.log('📊 Progress: API Base URL:', api.defaults.baseURL);
+      
+      // Try to fetch from the progress overview endpoint first (original approach)
+      try {
+        console.log('📊 Progress: Trying progress overview endpoint: /progress/overview');
+        const progressRes = await api.get('/progress/overview');
+        console.log('📊 Progress: Progress overview data:', progressRes.data);
+        
+        if (progressRes.data?.success && progressRes.data?.data) {
+          const data = progressRes.data.data;
+          setProfile(data.profile?.profile || data.profile);
+          setMeasurements(data.measurements || []);
+          setProgressPhotos(data.progressPhotos || []);
+          
+          // Set initial measurements from profile
+          const profileData = data.profile?.profile || data.profile;
+          if (profileData) {
+            setInitialMeasurements({
+              weight: profileData.initialWeight,
+              waistSize: profileData.initialWaistSize,
+              date: profileData.createdAt || new Date().toISOString()
+            });
+          }
+          
+          console.log('✅ Progress: Data fetched from progress overview endpoint');
+          return;
+        }
+      } catch (progressError) {
+        console.log('⚠️ Progress: Progress overview endpoint failed, trying individual endpoints:', progressError.message);
+      }
+      
+      // Fallback to individual endpoints
+      console.log('📊 Progress: Trying individual endpoints...');
+      const [profileRes, measurementsRes, photosRes] = await Promise.allSettled([
+        ProfileApi.getProfile(),
+        api.get('/onboarding/measurements'),
+        ProgressPhotosApi.getProgressPhotos()
+      ]);
+
+      console.log('📊 Progress: Individual API responses:', {
+        profile: profileRes.status === 'fulfilled' ? profileRes.value : profileRes.reason?.message,
+        measurements: measurementsRes.status === 'fulfilled' ? measurementsRes.value.data : measurementsRes.reason?.message,
+        photos: photosRes.status === 'fulfilled' ? photosRes.value.data : photosRes.reason?.message
+      });
+
+      // Extract and set data with proper fallbacks
+      const profileData = profileRes.status === 'fulfilled' 
+        ? profileRes.value
+        : null;
+      
+      const measurementsData = measurementsRes.status === 'fulfilled'
+        ? (measurementsRes.value.data?.data?.measurements || measurementsRes.value.data?.measurements || [])
+        : [];
+      
+      const photosData = photosRes.status === 'fulfilled'
+        ? (photosRes.value.success ? photosRes.value.data : [])
+        : [];
+
+      setProfile(profileData);
+      setMeasurements(measurementsData);
+      setProgressPhotos(photosData);
+      
+      // Debug logging
+      console.log('📊 Progress: Final data set:', {
+        profile: profileData,
+        measurements: measurementsData,
+        photos: photosData,
+        initialMeasurements: profileData ? {
+          weight: profileData.initialWeight,
+          waistSize: profileData.initialWaistSize,
+          date: profileData.createdAt
+        } : null
+      });
+
+      // Set initial measurements from profile
+      if (profileData) {
+        setInitialMeasurements({
+          weight: profileData.initialWeight,
+          waistSize: profileData.initialWaistSize,
+          date: profileData.createdAt || new Date().toISOString()
+        });
+      } else {
+        // If no profile data, set minimal fallback
+        setProfile({
+          initialWeight: null,
+          weight: null,
+          goalWeight: null,
+          initialWaistSize: null,
+          waistSize: null,
+          completedChallenges: 0,
+          collectedBadges: 0
+        });
+        setInitialMeasurements(null);
+      }
+
+      console.log('✅ Progress: Data fetched from individual endpoints');
+    } catch (error) {
+      console.error('❌ Progress: Error fetching data:', error);
+      // Set minimal fallback data - no hardcoded values
+      setProfile({
+        initialWeight: null,
+        weight: null,
+        goalWeight: null,
+        initialWaistSize: null,
+        waistSize: null,
+        completedChallenges: 0,
+        collectedBadges: 0
+      });
+      setInitialMeasurements(null);
+      setMeasurements([]);
+      setProgressPhotos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkSubscriptionStatus = async () => {
     try {
       console.log('💳 Progress: Checking subscription status...');
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
-      
-      if (data.requiresRenewal) {
-        setShowBlurOverlay(true);
-      }
-      
     } catch (error) {
       console.error('❌ Progress: Error checking subscription status:', error);
-      // Default to expired status on error
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,
         requiresRenewal: true
       });
-      setShowBlurOverlay(true);
     }
   };
 
   const handleSubscriptionRenew = () => {
     console.log('🔄 Progress: Navigating to subscription renewal page');
-    setShowBlurOverlay(false);
     if (onSubscriptionRenew) {
       onSubscriptionRenew();
     }
   };
 
-  const handleAddPhoto = () => {
-    // In a real app, you would handle image picking here
-    const newPhoto = {
-      id: Date.now(),
-      date: new Date().toLocaleDateString('fr-FR'),
-      weight: newPhotoWeight || 'Non spécifié',
-      notes: newPhotoNotes || 'Aucune note',
-      image: 'https://via.placeholder.com/150x200/2196F3/FFFFFF?text=Nouvelle'
+  // Calculate current weight with priority order as per specification
+  const getCurrentWeight = () => {
+    const sortedMeasurements = [...measurements].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    const latestMeasurement = sortedMeasurements[0];
+    const currentWeight = latestMeasurement?.weight ?? profile?.profile?.weight ?? '-';
+    console.log('📊 Progress: Current weight calculation:', {
+      latestMeasurement: latestMeasurement?.weight,
+      profileWeight: profile?.profile?.weight,
+      finalWeight: currentWeight
+    });
+    return currentWeight;
+  };
+
+  // Calculate current waist size with priority order as per specification
+  const getCurrentWaistSize = () => {
+    const sortedMeasurements = [...measurements].sort((a, b) => 
+      new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    const latestMeasurement = sortedMeasurements[0];
+    const currentWaist = latestMeasurement?.waistSize ?? profile?.profile?.waistSize ?? '-';
+    console.log('📊 Progress: Current waist calculation:', {
+      latestMeasurement: latestMeasurement?.waistSize,
+      profileWaist: profile?.profile?.waistSize,
+      finalWaist: currentWaist
+    });
+    return currentWaist;
+  };
+
+  // Generate chart data from real measurements
+  const generateChartData = () => {
+    const chartData = [];
+    
+    // Add initial measurement if available
+    if (initialMeasurements) {
+      const weight = parseFloat(initialMeasurements.weight);
+      const waistSize = parseFloat(initialMeasurements.waistSize);
+      
+      if (!isNaN(weight) && !isNaN(waistSize)) {
+        chartData.push({
+          date: initialMeasurements.date,
+          weight: weight,
+          waistSize: waistSize,
+          notes: 'Mesure initiale',
+          isInitial: true
+        });
+      }
+    }
+    
+    // Add user measurements (sorted by date, oldest first for chart)
+    const sortedMeasurements = [...measurements].sort((a, b) => 
+      new Date(a.createdAt) - new Date(b.createdAt)
+    );
+    
+    sortedMeasurements.forEach(measurement => {
+      const weight = parseFloat(measurement.weight);
+      const waistSize = parseFloat(measurement.waistSize);
+      
+      if (!isNaN(weight) && !isNaN(waistSize)) {
+        chartData.push({
+          date: measurement.createdAt,
+          weight: weight,
+          waistSize: waistSize,
+          notes: measurement.notes || '',
+          isInitial: false
+        });
+      }
+    });
+    
+    console.log('📊 ProgressScreen: Generated chart data:', chartData);
+    return chartData;
+  };
+
+  // Calculate chart Y-axis range and labels
+  const getChartYAxisData = () => {
+    const chartData = generateChartData();
+    
+    if (chartData.length === 0) {
+      return {
+        weightRange: { min: 0, max: 100 },
+        waistRange: { min: 0, max: 100 },
+        weightLabels: [100, 75, 50, 25, 0],
+        waistLabels: [100, 75, 50, 25, 0]
+      };
+    }
+    
+    const weights = chartData.map(d => d.weight).filter(w => w != null);
+    const waists = chartData.map(d => d.waistSize).filter(w => w != null);
+    
+    const weightMin = Math.min(...weights);
+    const weightMax = Math.max(...weights);
+    const waistMin = Math.min(...waists);
+    const waistMax = Math.max(...waists);
+    
+    // Add some padding to the range
+    const weightPadding = (weightMax - weightMin) * 0.1 || 5;
+    const waistPadding = (waistMax - waistMin) * 0.1 || 5;
+    
+    const weightRange = {
+      min: Math.max(0, weightMin - weightPadding),
+      max: weightMax + weightPadding
     };
     
-    setProgressPhotos([...progressPhotos, newPhoto]);
-    setNewPhotoWeight('');
-    setNewPhotoNotes('');
-    setShowAddPhotoModal(false);
-    Alert.alert('Succès', 'Photo ajoutée avec succès!');
+    const waistRange = {
+      min: Math.max(0, waistMin - waistPadding),
+      max: waistMax + waistPadding
+    };
+    
+    // Generate 5 labels for each axis
+    const weightLabels = [];
+    const waistLabels = [];
+    
+    for (let i = 4; i >= 0; i--) {
+      const weightValue = weightRange.min + (weightRange.max - weightRange.min) * (i / 4);
+      const waistValue = waistRange.min + (waistRange.max - waistRange.min) * (i / 4);
+      weightLabels.push(Math.round(weightValue));
+      waistLabels.push(Math.round(waistValue));
+    }
+    
+    return {
+      weightRange,
+      waistRange,
+      weightLabels,
+      waistLabels
+    };
   };
+
+
+
+  // Format date to French locale
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('fr-FR');
+  };
+
+  // Handle measurement form submission
+  const handleMeasurementSubmit = async () => {
+    try {
+      setMeasurementForm(prev => ({ ...prev, saving: true, error: '' }));
+
+      // Validation
+      const weight = parseFloat(measurementForm.weight);
+      const waistSize = parseFloat(measurementForm.waistSize);
+
+      if (!weight || weight < 10 || weight > 300) {
+        setMeasurementForm(prev => ({ ...prev, error: 'Le poids doit être entre 10 et 300 kg.' }));
+        return;
+      }
+
+      if (!waistSize || waistSize < 10 || waistSize > 300) {
+        setMeasurementForm(prev => ({ ...prev, error: 'Le tour de taille doit être entre 10 et 300 cm.' }));
+        return;
+      }
+
+      // Submit measurement
+      const response = await api.post('/onboarding/measurements', {
+        weight,
+        waistSize,
+        notes: measurementForm.notes
+      });
+
+      console.log('✅ Progress: Measurement added successfully:', response.data);
+
+      // Refresh data
+      await fetchAllData();
+
+      // Reset form and close modal
+      setMeasurementForm({
+        weight: '',
+        waistSize: '',
+        notes: '',
+        error: '',
+        saving: false
+      });
+      setShowMeasurementModal(false);
+
+      Alert.alert('Succès', 'Mesure ajoutée avec succès!');
+    } catch (error) {
+      console.error('❌ Progress: Error adding measurement:', error);
+      setMeasurementForm(prev => ({ 
+        ...prev, 
+        error: 'Erreur lors de l\'ajout de la mesure',
+        saving: false 
+      }));
+    }
+  };
+
+  // Handle photo form submission
+  const handlePhotoSubmit = async () => {
+    try {
+      setPhotoForm(prev => ({ ...prev, uploading: true, error: '' }));
+
+      if (!photoForm.selectedPhoto) {
+        setPhotoForm(prev => ({ ...prev, error: 'Veuillez sélectionner une photo' }));
+        return;
+      }
+
+      // Validate photo
+      const validation = ProgressPhotosApi.validatePhoto(photoForm.selectedPhoto);
+      if (!validation.isValid) {
+        setPhotoForm(prev => ({ 
+          ...prev, 
+          error: validation.errors.join(', '),
+          uploading: false 
+        }));
+        return;
+      }
+
+      // Create form data using the service
+      const formData = ProgressPhotosApi.createFormData(photoForm.selectedPhoto, {
+        weight: photoForm.weight,
+        notes: photoForm.notes
+      });
+
+      // Submit photo using the service
+      const result = await ProgressPhotosApi.addProgressPhoto(formData);
+
+      if (result.success) {
+        console.log('✅ Progress: Photo added successfully:', result.data);
+
+        // Refresh data
+        await fetchAllData();
+
+        // Reset form and close modal
+        setPhotoForm({
+          weight: '',
+          notes: '',
+          selectedPhoto: null,
+          preview: null,
+          uploading: false,
+          error: ''
+        });
+        setShowPhotoModal(false);
+
+        Alert.alert('Succès', 'Photo ajoutée avec succès!');
+      } else {
+        setPhotoForm(prev => ({ 
+          ...prev, 
+          error: result.error || 'Erreur lors de l\'ajout de la photo',
+          uploading: false 
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Progress: Error adding photo:', error);
+      
+      let errorMessage = 'Erreur lors de l\'ajout de la photo';
+      
+      if (error.response) {
+        // Server responded with error status
+        console.error('❌ Server error response:', error.response.data);
+        errorMessage = error.response.data?.message || errorMessage;
+      } else if (error.request) {
+        // Request was made but no response received
+        console.error('❌ No response received:', error.request);
+        errorMessage = 'Problème de connexion. Vérifiez votre internet.';
+      } else {
+        // Something else happened
+        console.error('❌ Error setting up request:', error.message);
+        errorMessage = error.message || errorMessage;
+      }
+      
+      setPhotoForm(prev => ({ 
+        ...prev, 
+        error: errorMessage,
+        uploading: false 
+      }));
+    }
+  };
+
+  // Handle photo selection
+  const handlePhotoSelection = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setPhotoForm(prev => ({
+          ...prev,
+          selectedPhoto: asset,
+          preview: asset.uri
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Progress: Error selecting photo:', error);
+      Alert.alert('Erreur', 'Erreur lors de la sélection de la photo');
+    }
+  };
+
+  // Handle measurement deletion
+  const handleDeleteMeasurement = async (measurementId) => {
+    Alert.alert(
+      'Supprimer la mesure',
+      'Êtes-vous sûr de vouloir supprimer cette mesure ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/onboarding/measurements/${measurementId}`);
+              await fetchAllData();
+              Alert.alert('Succès', 'Mesure supprimée avec succès!');
+            } catch (error) {
+              console.error('❌ Progress: Error deleting measurement:', error);
+              Alert.alert('Erreur', 'Erreur lors de la suppression de la mesure');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Handle photo deletion
+  const handleDeletePhoto = async (photoId) => {
+    Alert.alert(
+      'Supprimer la photo',
+      'Êtes-vous sûr de vouloir supprimer cette photo ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/progress-photos/${photoId}`);
+              await fetchAllData();
+              Alert.alert('Succès', 'Photo supprimée avec succès!');
+            } catch (error) {
+              console.error('❌ Progress: Error deleting photo:', error);
+              Alert.alert('Erreur', 'Erreur lors de la suppression de la photo');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Get photo URL (handle both relative and absolute URLs)
+  const getPhotoUrl = (photo) => {
+    if (!photo.url) return null;
+    return photo.url.startsWith('http') 
+      ? photo.url 
+      : `${API_CONFIG.baseURL?.replace('/api/v1', '')}${photo.url}`;
+  };
+
+  // Get avatar URL (handle both relative and absolute URLs)
+  const getAvatarUrl = (avatarPath) => {
+    if (!avatarPath) return null;
+    return avatarPath.startsWith('http') 
+      ? avatarPath 
+      : `${API_CONFIG.baseURL?.replace('/api/v1', '')}${avatarPath}`;
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -105,15 +608,27 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
           
           <TouchableOpacity style={styles.notificationButton}>
             <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>6</Text>
-            </View>
+            <NotificationBadge />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Image 
-              source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+          <TouchableOpacity style={styles.profileButton} onPress={() => {
+            console.log('📊 Progress: Avatar clicked, navigating to more/settings');
+            if (onTabPress) {
+              onTabPress('more');
+            }
+          }}>
+            {console.log('📊 Progress avatar debug:', {
+              profileAvatar: profile?.avatar,
+              userAvatar: user?.avatar,
+              finalAvatar: profile?.avatar || user?.avatar,
+              profileExists: !!profile,
+              userExists: !!user
+            })}
+            <Avatar 
+              source={{ uri: getAvatarUrl(profile?.avatar || user?.avatar) }} 
+              size={40}
               style={styles.profileImage}
+              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
             />
           </TouchableOpacity>
         </View>
@@ -129,228 +644,276 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
-        {/* Toggle Tabs */}
-        <View style={styles.toggleContainer}>
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity 
-            style={[styles.toggleTab, activeToggle === 'measures' && styles.activeToggleTab]}
-            onPress={() => setActiveToggle('measures')}
+            style={[styles.tab, activeTabState === 'measurements' && styles.activeTab]}
+            onPress={() => setActiveTabState('measurements')}
           >
-            <Ionicons name="analytics-outline" size={20} color={activeToggle === 'measures' ? theme.colors.primary : theme.colors.text.secondary} />
-            <Text style={[styles.toggleText, activeToggle === 'measures' && styles.activeToggleText]}>
+            <Ionicons 
+              name="trending-up" 
+              size={20} 
+              color={activeTabState === 'measurements' ? '#FFFFFF' : theme.colors.text.secondary} 
+            />
+            <Text style={[styles.tabText, activeTabState === 'measurements' && styles.activeTabText]}>
               Mesures & Statistiques
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.toggleTab, activeToggle === 'photos' && styles.activeToggleTab]}
-            onPress={() => setActiveToggle('photos')}
+            style={[styles.tab, activeTabState === 'photos' && styles.activeTab]}
+            onPress={() => setActiveTabState('photos')}
           >
-            <Ionicons name="camera-outline" size={20} color={activeToggle === 'photos' ? theme.colors.primary : theme.colors.text.secondary} />
-            <Text style={[styles.toggleText, activeToggle === 'photos' && styles.activeToggleText]}>
+            <Ionicons 
+              name="image" 
+              size={20} 
+              color={activeTabState === 'photos' ? '#FFFFFF' : theme.colors.text.secondary} 
+            />
+            <Text style={[styles.tabText, activeTabState === 'photos' && styles.activeTabText]}>
               Photos de progression
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Weight & Stats Section - Always visible */}
-        <View style={styles.statsSection}>
-          <View style={styles.weightCard}>
-            <View style={styles.weightInfo}>
-              <Text style={styles.weightLabel}>Poids Initial</Text>
-              <Text style={styles.weightValue}>70</Text>
-              <Text style={styles.weightUnit}>kg</Text>
+        {/* Progress Card - Combined Weight and Waist */}
+        <View style={styles.progressCardsSection}>
+          {console.log('📊 Progress: Profile data for cards:', {
+            profile: profile,
+            initialWeight: profile?.initialWeight,
+            profileInitialWeight: profile?.profile?.initialWeight,
+            targetWeight: profile?.targetWeight,
+            profileTargetWeight: profile?.profile?.targetWeight,
+            initialWaistSize: profile?.initialWaistSize,
+            profileInitialWaistSize: profile?.profile?.initialWaistSize,
+            targetWaistSize: profile?.targetWaistSize,
+            profileTargetWaistSize: profile?.profile?.targetWaistSize
+          })}
+          
+          <View style={styles.combinedProgressCard}>
+            {/* Poids Section */}
+            <View style={styles.measurementSection}>
+              <Text style={styles.measurementTitle}>Poids</Text>
+              <View style={styles.measurementRow}>
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Initial</Text>
+                  <Text style={styles.measurementValue}>
+                    {profile?.initialWeight ?? profile?.profile?.initialWeight ?? '-'}
+                  </Text>
+                  <Text style={styles.measurementUnit}>kg</Text>
+                </View>
+                
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Actuel</Text>
+                  <Text style={[
+                    styles.measurementValue, 
+                    getCurrentWeight() !== '-' && styles.currentWeightValue
+                  ]}>
+                    {getCurrentWeight()}
+                  </Text>
+                  <Text style={[
+                    styles.measurementUnit, 
+                    getCurrentWeight() !== '-' && styles.currentWeightUnit
+                  ]}>
+                    kg
+                  </Text>
+                </View>
+                
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Objectif</Text>
+                  <Text style={styles.measurementValue}>
+                    {profile?.targetWeight ?? profile?.profile?.targetWeight ?? '-'}
+                  </Text>
+                  <Text style={styles.measurementUnit}>kg</Text>
+                </View>
+              </View>
             </View>
-            
-            <View style={styles.currentWeight}>
-              <Text style={styles.weightLabel}>Poids Actuel</Text>
-              <Text style={styles.currentWeightValue}>67</Text>
-              <Text style={styles.currentWeightUnit}>kg · kg</Text>
-            </View>
-            
-            <View style={styles.targetWeight}>
-              <Text style={styles.weightLabel}>Objectif Poids</Text>
-              <Text style={styles.targetWeightValue}>60kg</Text>
-            </View>
-          </View>
 
-          <View style={styles.achievementStats}>
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Défis complétés</Text>
-              <Text style={styles.statValue}>0/125</Text>
-            </View>
-            
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Badges collectés</Text>
-              <Text style={styles.statValue}>0/100</Text>
+            {/* Divider */}
+            <View style={styles.sectionDivider} />
+
+            {/* Tour de taille Section */}
+            <View style={styles.measurementSection}>
+              <Text style={styles.measurementTitle}>Tour de taille</Text>
+              <View style={styles.measurementRow}>
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Initial</Text>
+                  <Text style={styles.measurementValue}>
+                    {profile?.initialWaistSize ?? profile?.profile?.initialWaistSize ?? '-'}
+                  </Text>
+                  <Text style={styles.measurementUnit}>cm</Text>
+                </View>
+                
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Actuel</Text>
+                  <Text style={[
+                    styles.measurementValue, 
+                    getCurrentWaistSize() !== '-' && styles.currentWaistValue
+                  ]}>
+                    {getCurrentWaistSize()}
+                  </Text>
+                  <Text style={[
+                    styles.measurementUnit, 
+                    getCurrentWaistSize() !== '-' && styles.currentWaistUnit
+                  ]}>
+                    cm
+                  </Text>
+                </View>
+                
+                <View style={styles.measurementItem}>
+                  <Text style={styles.measurementLabel}>Objectif</Text>
+                  <Text style={styles.measurementValue}>
+                    {profile?.targetWaistSize ?? profile?.profile?.targetWaistSize ?? '-'}
+                  </Text>
+                  <Text style={styles.measurementUnit}>cm</Text>
+                </View>
+              </View>
             </View>
           </View>
         </View>
 
-        {activeToggle === 'measures' ? (
+        {activeTabState === 'measurements' ? (
           <>
             {/* Chart Section */}
-            <View style={styles.chartSection}>
-              <Text style={styles.chartTitle}>Historique des mesures</Text>
-              <Text style={styles.chartSubtitle}>Mesures initiales: 70 kg, 80 cm (le 29/06/2025)</Text>
-              
-              {/* Simple Chart Placeholder */}
-              <View style={styles.chartContainer}>
-                <View style={styles.chartBackground}>
-                  {/* Y-axis labels */}
-                  <View style={styles.yAxisLabels}>
-                    <Text style={styles.axisLabel}>80</Text>
-                    <Text style={styles.axisLabel}>60</Text>
-                    <Text style={styles.axisLabel}>40</Text>
-                    <Text style={styles.axisLabel}>20</Text>
-                    <Text style={styles.axisLabel}>0</Text>
+            <ProgressChart 
+              chartData={generateChartData()}
+              initialMeasurements={initialMeasurements}
+              measurements={measurements}
+              onDataPointPress={(dataPoint, index) => {
+                console.log('📊 Chart: Data point pressed:', dataPoint, index);
+              }}
+              onDeleteMeasurement={handleDeleteMeasurement}
+              onAddMeasurement={() => setShowMeasurementModal(true)}
+            />
+
+            {/* Achievement Card */}
+            <AchievementsCard />
+
+            {/* Défis complétés / Badges collectés Card */}
+            <View style={styles.progressCard}>
+              <Text style={styles.cardTitle}>Défis complétés / Badges collectés</Text>
+              <View style={styles.challengesBadgesRow}>
+                <View style={styles.challengeBadgeSection}>
+                  <Text style={styles.challengeBadgeNumber}>
+                    {profile?.completedChallenges || 0}
+                  </Text>
+                  <Text style={styles.challengeBadgeLabel}>Défis complétés</Text>
+                  <Text style={styles.challengeBadgeTotal}>/ 125</Text>
+                </View>
+                <View style={styles.challengeBadgeSection}>
+                  <Text style={styles.challengeBadgeNumber}>
+                    {profile?.collectedBadges || 0}
+                  </Text>
+                  <Text style={styles.challengeBadgeLabel}>Badges collectés</Text>
+                  <Text style={styles.challengeBadgeTotal}>/ 100</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Progression T.A.S.C.C Card */}
+            <View style={styles.progressCard}>
+              <Text style={styles.cardTitle}>Progression T.A.S.C.C</Text>
+              <View style={styles.tasccContainer}>
+                {/* Test Phase */}
+                <View style={styles.tasccRow}>
+                  <Text style={styles.tasccPhaseName}>Test</Text>
+                  <View style={styles.tasccProgressBarContainer}>
+                    <View style={[styles.tasccProgressBarFill, { width: '100%' }]} />
                   </View>
-                  
-                  {/* Chart area */}
-                  <View style={styles.chartArea}>
-                    {/* Grid lines */}
-                    <View style={styles.gridLine} />
-                    <View style={styles.gridLine} />
-                    <View style={styles.gridLine} />
-                    <View style={styles.gridLine} />
-                    
-                    {/* Sample data points */}
-                    <View style={[styles.dataPoint, { backgroundColor: '#4CAF50', top: 60, left: 20 }]} />
-                    <View style={[styles.dataPoint, { backgroundColor: '#4CAF50', top: 65, left: 80 }]} />
-                    <View style={[styles.dataPoint, { backgroundColor: '#4CAF50', top: 70, left: 140 }]} />
-                    <View style={[styles.dataPoint, { backgroundColor: '#2196F3', top: 50, left: 20 }]} />
-                    <View style={[styles.dataPoint, { backgroundColor: '#2196F3', top: 55, left: 80 }]} />
-                    <View style={[styles.dataPoint, { backgroundColor: '#2196F3', top: 60, left: 140 }]} />
-                  </View>
-                  
-                  {/* Right Y-axis */}
-                  <View style={styles.rightYAxisLabels}>
-                    <Text style={styles.axisLabel}>100</Text>
-                    <Text style={styles.axisLabel}>75</Text>
-                    <Text style={styles.axisLabel}>50</Text>
-                    <Text style={styles.axisLabel}>25</Text>
-                    <Text style={styles.axisLabel}>0</Text>
-                  </View>
+                  <Text style={styles.tasccPercentage}>100%</Text>
                 </View>
                 
-                {/* Legend */}
-                <View style={styles.chartLegend}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-                    <Text style={styles.legendText}>Poids (kg)</Text>
+                {/* Attaque Phase */}
+                <View style={styles.tasccRow}>
+                  <Text style={styles.tasccPhaseName}>Attaque</Text>
+                  <View style={styles.tasccProgressBarContainer}>
+                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
                   </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: '#2196F3' }]} />
-                    <Text style={styles.legendText}>Tour de taille (cm)</Text>
+                  <Text style={styles.tasccPercentage}>0%</Text>
+                </View>
+                
+                {/* Stabilisation Phase */}
+                <View style={styles.tasccRow}>
+                  <Text style={styles.tasccPhaseName}>Stabilisation</Text>
+                  <View style={styles.tasccProgressBarContainer}>
+                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
                   </View>
+                  <Text style={styles.tasccPercentage}>0%</Text>
                 </View>
-              </View>
-            </View>
-
-            {/* Current Phase Section */}
-            <View style={styles.phaseSection}>
-              <Text style={styles.phaseLabel}>Phase en cours :</Text>
-              <Text style={styles.phaseTitle}>TEST</Text>
-              <View style={styles.progressBar}>
-                <View style={styles.progressFill} />
-              </View>
-              <Text style={styles.daysRemaining}>Jours restants : 2</Text>
-            </View>
-
-            {/* T.A.S.C.C Progression */}
-            <View style={styles.tasccSection}>
-              <Text style={styles.tasccTitle}>Progression T.A.S.C.C</Text>
-              <View style={styles.tasccSteps}>
-                <View style={styles.tasccStep}>
-                  <View style={[styles.stepDot, styles.activeStepDot]} />
-                  <Text style={styles.stepLabel}>Test</Text>
+                
+                {/* Consolidation Phase */}
+                <View style={styles.tasccRow}>
+                  <Text style={styles.tasccPhaseName}>Consolidation</Text>
+                  <View style={styles.tasccProgressBarContainer}>
+                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
+                  </View>
+                  <Text style={styles.tasccPercentage}>0%</Text>
                 </View>
-                <View style={styles.tasccStep}>
-                  <View style={styles.stepDot} />
-                  <Text style={styles.stepLabel}>Attaque</Text>
-                </View>
-                <View style={styles.tasccStep}>
-                  <View style={styles.stepDot} />
-                  <Text style={styles.stepLabel}>Stabilisation</Text>
-                </View>
-                <View style={styles.tasccStep}>
-                  <View style={styles.stepDot} />
-                  <Text style={styles.stepLabel}>Consolidation</Text>
-                </View>
-                <View style={styles.tasccStep}>
-                  <View style={styles.stepDot} />
-                  <Text style={styles.stepLabel}>Confirmation</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Points Section */}
-            <View style={styles.pointsSection}>
-              <View style={styles.pointsBadge}>
-                <Text style={styles.pointsText}>1300pts</Text>
-              </View>
-              
-              <View style={styles.energyBar}>
-                <View style={styles.energyIcon}>
-                  <Text>⚡</Text>
-                </View>
-                <View style={styles.energyProgress}>
-                  <View style={styles.energyFill} />
-                </View>
-                <View style={styles.mpikoIcon}>
-                  <Text>🏆</Text>
-                </View>
-              </View>
-              
-              <Text style={styles.pointsTitle}>Vous avez 1300 Points</Text>
-              <Text style={styles.pointsSubtitle}>Niveau : 1 | Streak actuel : 0 jours</Text>
-              
-              <TouchableOpacity style={styles.challengesButton}>
-                <Text style={styles.challengesButtonText}>Voir les défis</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Next Action */}
-            <View style={styles.nextActionSection}>
-              <View style={styles.nextActionCard}>
-                <View style={styles.nextActionIcon}>
-                  <Text style={styles.nextActionEmoji}>🥗</Text>
-                </View>
-                <View style={styles.nextActionContent}>
-                  <Text style={styles.nextActionTitle}>Prochaine action</Text>
-                  <Text style={styles.nextActionDescription}>Plus que 2 Repas pour passer à la Phase Attaque</Text>
+                
+                {/* Confirmation Phase */}
+                <View style={styles.tasccRow}>
+                  <Text style={styles.tasccPhaseName}>Confirmation</Text>
+                  <View style={styles.tasccProgressBarContainer}>
+                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
+                  </View>
+                  <Text style={styles.tasccPercentage}>0%</Text>
                 </View>
               </View>
             </View>
           </>
         ) : (
-          /* Photos Section */
-          <View style={styles.chartSection}>
-            <Text style={styles.chartTitle}>Photos de progression</Text>
-            <Text style={styles.chartSubtitle}>Suivez visuellement votre transformation avec des photos de progression.</Text>
+          /* Photos Tab */
+          <View style={styles.photosSection}>
+            <Text style={styles.photosTitle}>Photos de progression</Text>
+            <Text style={styles.photosSubtitle}>Suivez visuellement votre transformation avec des photos de progression.</Text>
             
-            {/* Add Photo Button */}
-            <TouchableOpacity 
-              style={styles.addPhotoButton}
-              onPress={() => setShowAddPhotoModal(true)}
-            >
-              <View style={styles.addPhotoContainer}>
-                <View style={styles.addPhotoIcon}>
-                  <Ionicons name="add" size={40} color="#999" />
-                </View>
-                <Text style={styles.addPhotoText}>Ajouter une photo</Text>
-              </View>
-            </TouchableOpacity>
-
             {/* Photos Grid */}
             <View style={styles.photosGrid}>
+              {/* Add Photo Button - Always first */}
+              <TouchableOpacity 
+                style={styles.addPhotoButton}
+                onPress={() => setShowPhotoModal(true)}
+              >
+                <View style={styles.addPhotoContainer}>
+                  <Ionicons name="add" size={48} color="#9CA3AF" />
+                  <Text style={styles.addPhotoText}>Ajouter une photo</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Photo Cards */}
               {progressPhotos.map((photo) => (
                 <View key={photo.id} style={styles.photoCard}>
-                  <Image source={{ uri: photo.image }} style={styles.photoImage} />
+                  <Image 
+                    source={{ uri: getPhotoUrl(photo) }} 
+                    style={styles.photoImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.photoOverlay}>
+                    <TouchableOpacity 
+                      style={styles.photoDeleteButton}
+                      onPress={() => handleDeletePhoto(photo.id)}
+                    >
+                      <Ionicons name="trash" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.photoInfo}>
-                    <Text style={styles.photoDate}>{photo.date}</Text>
-                    <Text style={styles.photoWeight}>{photo.weight}</Text>
-                    <Text style={styles.photoNotes}>{photo.notes}</Text>
+                    <Text style={styles.photoDate}>{formatDate(photo.date || photo.createdAt)}</Text>
+                    {photo.weight && (
+                      <View style={styles.photoWeightBadge}>
+                        <Text style={styles.photoWeightText}>{photo.weight} kg</Text>
+                      </View>
+                    )}
+                    {photo.notes && (
+                      <Text style={styles.photoNotes} numberOfLines={2}>{photo.notes}</Text>
+                    )}
                   </View>
                 </View>
               ))}
@@ -359,30 +922,169 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         )}
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('home')}>
-          <Ionicons name="home" size={24} color={activeTab === 'home' ? theme.colors.primary : theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navTab, styles.activeNavTab]} onPress={() => onTabPress('progress')}>
-          <Ionicons name="trending-up-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('nutrition')}>
-          <Ionicons name="restaurant" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('achievements')}>
-          <Ionicons name="trophy-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('more')}>
-          <Ionicons name="add-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-      </View>
+      {/* Add Measurement Modal */}
+      <Modal
+        visible={showMeasurementModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMeasurementModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Ajouter une nouvelle mesure</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Poids (kg) *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={measurementForm.weight}
+                onChangeText={(text) => setMeasurementForm(prev => ({ ...prev, weight: text }))}
+                placeholder="Ex: 75.5"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
 
-      {/* Blur Overlay for Expired Subscription */}
-      <BlurOverlay
-        visible={showBlurOverlay}
-        onRenew={handleSubscriptionRenew}
-      />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Tour de taille (cm) *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={measurementForm.waistSize}
+                onChangeText={(text) => setMeasurementForm(prev => ({ ...prev, waistSize: text }))}
+                placeholder="Ex: 85.0"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Notes (optionnel)</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                value={measurementForm.notes}
+                onChangeText={(text) => setMeasurementForm(prev => ({ ...prev, notes: text }))}
+                placeholder="Notes..."
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {measurementForm.error ? (
+              <Text style={styles.errorText}>{measurementForm.error}</Text>
+            ) : null}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowMeasurementModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.submitButton, measurementForm.saving && styles.submitButtonDisabled]}
+                onPress={handleMeasurementSubmit}
+                disabled={measurementForm.saving}
+              >
+                <LinearGradient
+                  colors={['#16a34a', '#3b82f6']}
+                  style={styles.submitButtonGradient}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {measurementForm.saving ? 'Sauvegarde...' : 'Ajouter'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Photo Modal */}
+      <Modal
+        visible={showPhotoModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Ajouter une photo de progression</Text>
+            
+            {/* Photo Upload */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Photo *</Text>
+              <TouchableOpacity 
+                style={styles.photoSelector}
+                onPress={handlePhotoSelection}
+              >
+                {photoForm.preview ? (
+                  <Image source={{ uri: photoForm.preview }} style={styles.photoPreview} />
+                ) : (
+                  <Text style={styles.photoSelectorText}>Sélectionner une photo</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Poids actuel (optionnel)</Text>
+              <TextInput
+                style={styles.textInput}
+                value={photoForm.weight}
+                onChangeText={(text) => setPhotoForm(prev => ({ ...prev, weight: text }))}
+                placeholder="Ex: 75.5"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Notes (optionnel)</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                value={photoForm.notes}
+                onChangeText={(text) => setPhotoForm(prev => ({ ...prev, notes: text }))}
+                placeholder="Comment vous sentez-vous aujourd'hui ?"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {photoForm.error ? (
+              <Text style={styles.errorText}>{photoForm.error}</Text>
+            ) : null}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.cancelButton}
+                onPress={() => setShowPhotoModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.submitButton, photoForm.uploading && styles.submitButtonDisabled]}
+                onPress={handlePhotoSubmit}
+                disabled={photoForm.uploading || !photoForm.selectedPhoto}
+              >
+                <LinearGradient
+                  colors={photoForm.uploading ? ['#BDBDBD', '#9E9E9E'] : ['#8BC34A', '#689F38']}
+                  style={styles.submitButtonGradient}
+                >
+                  <Text style={styles.submitButtonText}>
+                    {photoForm.uploading ? 'Téléchargement...' : 'Ajouter'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };
@@ -391,6 +1093,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
   },
   header: {
     flexDirection: 'row',
@@ -447,7 +1159,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
-  toggleContainer: {
+  tabContainer: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     margin: 20,
@@ -459,7 +1171,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  toggleTab: {
+  tab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,24 +1180,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
   },
-  activeToggleTab: {
-    backgroundColor: theme.colors.primaryLight,
+  activeTab: {
+    backgroundColor: theme.colors.primary,
   },
-  toggleText: {
+  tabText: {
     fontSize: 14,
     color: theme.colors.text.secondary,
     marginLeft: 8,
     fontWeight: '500',
   },
-  activeToggleText: {
-    color: theme.colors.primary,
+  activeTabText: {
+    color: '#FFFFFF',
     fontWeight: '600',
   },
-  statsSection: {
-    backgroundColor: '#FFFFFF',
+  progressCardsSection: {
     margin: 20,
     marginTop: 0,
-    padding: 20,
+  },
+  combinedProgressCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -493,390 +1207,185 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  weightCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  measurementSection: {
     marginBottom: 20,
   },
-  weightInfo: {
-    alignItems: 'center',
-  },
-  weightLabel: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginBottom: 4,
-  },
-  weightValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  weightUnit: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-  },
-  currentWeight: {
-    alignItems: 'center',
-  },
-  currentWeightValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  currentWeightUnit: {
-    fontSize: 14,
-    color: '#4CAF50',
-  },
-  targetWeight: {
-    alignItems: 'center',
-  },
-  targetWeightValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-  },
-  achievementStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    marginBottom: 4,
-  },
-  statValue: {
+  measurementTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  chartSection: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  chartTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: 8,
-  },
-  chartSubtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: 20,
-  },
-  chartContainer: {
-    height: 200,
-  },
-  chartBackground: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  yAxisLabels: {
-    width: 30,
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-  },
-  rightYAxisLabels: {
-    width: 30,
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    alignItems: 'flex-end',
-  },
-  axisLabel: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-  },
-  chartArea: {
-    flex: 1,
-    position: 'relative',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    margin: 10,
-  },
-  gridLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: '#E0E0E0',
-  },
-  dataPoint: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  chartLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 16,
-    gap: 20,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  legendText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-  },
-  phaseSection: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  phaseLabel: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: 8,
-  },
-  phaseTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    color: '#111827',
     marginBottom: 16,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    width: '85%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
-  },
-  daysRemaining: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-  },
-  tasccSection: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  tasccTitle: {
-    fontSize: 16,
-    color: theme.colors.text.secondary,
-    marginBottom: 16,
-  },
-  tasccSteps: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  tasccStep: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#E0E0E0',
-    marginBottom: 8,
-  },
-  activeStepDot: {
-    backgroundColor: '#4CAF50',
-  },
-  stepLabel: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
     textAlign: 'center',
   },
-  pointsSection: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  pointsBadge: {
-    backgroundColor: '#E8F5E8',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  pointsText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4CAF50',
-  },
-  energyBar: {
+  measurementRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
   },
-  energyIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFF3E0',
+  measurementItem: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  energyProgress: {
     flex: 1,
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginHorizontal: 12,
-    overflow: 'hidden',
   },
-  energyFill: {
-    height: '100%',
-    width: '60%',
-    backgroundColor: '#FF9800',
-    borderRadius: 4,
+  measurementLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 8,
+    fontWeight: '500',
   },
-  mpikoIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFF3E0',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pointsTitle: {
-    fontSize: 18,
+  measurementValue: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: theme.colors.text.primary,
+    color: '#111827',
     marginBottom: 4,
   },
-  pointsSubtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: 16,
+  currentWeightValue: {
+    color: '#10b981',
   },
-  challengesButton: {
-    backgroundColor: '#E1BEE7',
-    borderRadius: 24,
+  currentWaistValue: {
+    color: '#60a5fa',
+  },
+  measurementUnit: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  currentWeightUnit: {
+    color: '#10b981',
+  },
+  currentWaistUnit: {
+    color: '#60a5fa',
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginVertical: 20,
+  },
+  addMeasurementButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dcfce7',
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  challengesButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#7B1FA2',
-  },
-  nextActionSection: {
+    paddingHorizontal: 20,
+    borderRadius: 8,
     margin: 20,
     marginTop: 0,
+    gap: 8,
   },
-  nextActionCard: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  nextActionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  nextActionEmoji: {
-    fontSize: 24,
-  },
-  nextActionContent: {
-    flex: 1,
-  },
-  nextActionTitle: {
+  addMeasurementText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  nextActionDescription: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    color: '#166534',
   },
   photosSection: {
     backgroundColor: '#FFFFFF',
     margin: 20,
-    padding: 40,
+    marginTop: 0,
+    padding: 20,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  placeholderText: {
-    fontSize: 16,
+  photosTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  photosSubtitle: {
+    fontSize: 14,
     color: theme.colors.text.secondary,
+    marginBottom: 20,
   },
-  bottomNav: {
+  photosGrid: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 16,
   },
-  navTab: {
-    flex: 1,
+  addPhotoButton: {
+    width: (width - 72) / 2,
+    height: 192,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    backgroundColor: '#f9fafb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addPhotoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
   },
-  activeNavTab: {
-    backgroundColor: theme.colors.primaryLight,
+  addPhotoText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  photoCard: {
+    width: (width - 72) / 2,
+    height: 192,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F0F0F0',
+    position: 'relative',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+    padding: 8,
+  },
+  photoDeleteButton: {
+    backgroundColor: 'rgba(244, 67, 54, 0.8)',
+    borderRadius: 16,
+    padding: 8,
+  },
+  photoInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 12,
+  },
+  photoDate: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  photoWeightBadge: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  photoWeightText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  photoNotes: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.9,
   },
   modalOverlay: {
     flex: 1,
@@ -888,22 +1397,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 24,
-    width: '80%',
-    alignItems: 'center',
+    width: '90%',
+    maxWidth: 384,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: theme.colors.text.primary,
+    color: '#2C340E',
     marginBottom: 20,
+    textAlign: 'center',
   },
   inputGroup: {
-    width: '100%',
     marginBottom: 16,
   },
   inputLabel: {
     fontSize: 14,
-    color: theme.colors.text.secondary,
+    fontWeight: 'bold',
+    color: '#2C340E',
     marginBottom: 8,
   },
   textInput: {
@@ -914,6 +1424,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: theme.colors.text.primary,
+    minHeight: 48,
   },
   textArea: {
     minHeight: 100,
@@ -924,30 +1435,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: theme.colors.text.primary,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
   },
   photoSelectorText: {
     fontSize: 16,
     color: theme.colors.text.secondary,
   },
-  photoSelectorPlaceholder: {
+  photoPreview: {
+    width: 128,
+    height: 128,
+    borderRadius: 8,
+  },
+  errorText: {
     fontSize: 14,
-    color: '#999',
+    color: '#F44336',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
+    justifyContent: 'space-between',
     marginTop: 20,
+    gap: 12,
   },
   cancelButton: {
+    flex: 1,
     backgroundColor: '#E0E0E0',
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -955,94 +1473,99 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#757575',
   },
-  addButton: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  photosGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    marginTop: 16,
-  },
-  photoCard: {
-    width: '48%', // Two photos per row
-    aspectRatio: 1.2, // Adjust as needed for photo aspect
-    backgroundColor: '#F0F0F0',
+  submitButton: {
+    flex: 1,
     borderRadius: 12,
-    marginBottom: 16,
     overflow: 'hidden',
-    elevation: 2,
   },
-  photoImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
-  photoInfo: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 10,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-  },
-  photoDate: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  photoWeight: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  photoNotes: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.8,
-  },
-  addPhotoButton: {
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingVertical: 40,
-    paddingHorizontal: 24,
+  submitButtonGradient: {
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    backgroundColor: '#FAFAFA',
   },
-  addPhotoContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPhotoIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addPhotoText: {
+  submitButtonText: {
     fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // New card styles
+  progressCard: {
+    backgroundColor: '#FFFFFF',
+    margin: 20,
+    marginTop: 0,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  // Défis complétés / Badges collectés styles
+  challengesBadgesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  challengeBadgeSection: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  challengeBadgeNumber: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  challengeBadgeLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 2,
+  },
+  challengeBadgeTotal: {
+    fontSize: 14,
+    color: '#9ca3af',
+  },
+  // T.A.S.C.C styles
+  tasccContainer: {
+    gap: 12, // 12px gap between rows
+  },
+  tasccRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 32,
+  },
+  tasccPhaseName: {
+    width: 64, // Fixed width for phase name
+    fontSize: 14,
     fontWeight: '500',
-    color: '#757575',
-    marginTop: 8,
+    color: '#111827',
+  },
+  tasccProgressBarContainer: {
+    flex: 1, // Flexible width for progress bar
+    height: 8,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 4,
+    marginHorizontal: 12,
+  },
+  tasccProgressBarFill: {
+    height: '100%',
+    backgroundColor: '#10b981',
+    borderRadius: 4,
+  },
+  tasccPercentage: {
+    width: 32, // Fixed width for percentage
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
   },
 });
 
-export default ProgressScreen; 
+export default ProgressScreen;
