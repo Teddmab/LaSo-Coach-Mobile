@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { TokenManager } from '../services/tokenManager';
 import { authAPI, handleAuthError, retryRequest } from '../services/api';
+import { retryRequestWithNetworkAwareness, addNetworkListener } from '../services/networkManager';
 import Toast from 'react-native-toast-message';
 
 /**
@@ -93,6 +94,30 @@ export function AuthProvider({ children }) {
    * Initialize authentication state on app launch
    */
   useEffect(() => {
+    // Setup network state monitoring
+    const unsubscribeNetwork = addNetworkListener((isConnected) => {
+      if (isConnected && state.user === null && state.token) {
+        console.log('🌐 Network reconnected, attempting to fetch user profile...');
+        // Try to fetch user profile when network reconnects
+        retryRequestWithNetworkAwareness(
+          () => authAPI.getProfile(),
+          {
+            maxRetries: 3,
+            initialDelay: 1000,
+            networkRetryDelay: 2000,
+            queueOnDisconnect: false
+          }
+        ).then(user => {
+          if (user) {
+            console.log('✅ User profile fetched after network reconnection');
+            dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+          }
+        }).catch(error => {
+          console.log('❌ Failed to fetch profile after network reconnection:', error.message);
+        });
+      }
+    });
+
     const initializeAuth = async () => {
       console.log('🔐 Starting auth initialization...');
       
@@ -118,13 +143,17 @@ export function AuthProvider({ children }) {
           });
           console.log('🔐 Tokens stored in state');
 
-          // Fetch user profile with retry logic
+          // Fetch user profile with enhanced network-aware retry logic
           try {
             console.log('🔐 Fetching user profile...');
-            const user = await retryRequest(
+            const user = await retryRequestWithNetworkAwareness(
               () => authAPI.getProfile(),
-              3, // max retries
-              2000 // initial delay (2 seconds)
+              {
+                maxRetries: 5,
+                initialDelay: 1000,
+                networkRetryDelay: 2000,
+                queueOnDisconnect: true
+              }
             );
             console.log('🔐 User profile fetched:', user?.email);
             
@@ -163,6 +192,11 @@ export function AuthProvider({ children }) {
     };
 
     initializeAuth();
+
+    // Cleanup network listener on unmount
+    return () => {
+      unsubscribeNetwork();
+    };
   }, []);
 
   /**

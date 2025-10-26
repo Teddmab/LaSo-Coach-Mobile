@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { TokenManager } from './tokenManager';
 import Config from '../config/env';
+import { retryRequestWithNetworkAwareness } from './networkManager';
 
 // Create axios instance with environment-based configuration
 const api = axios.create({
@@ -309,40 +310,19 @@ export const handleAuthError = (error) => {
 };
 
 /**
- * Retry mechanism for network requests
+ * Enhanced retry mechanism for network requests with network awareness
  * @param {Function} requestFn - Function that returns a promise
  * @param {number} maxRetries - Maximum number of retries
  * @param {number} delay - Delay between retries in ms
  * @returns {Promise} Promise that resolves with the request result
  */
 export const retryRequest = async (requestFn, maxRetries = 3, delay = 1000) => {
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await requestFn();
-    } catch (error) {
-      lastError = error;
-      
-      // Retry on network errors and timeouts
-      const shouldRetry = !error.response && error.code && 
-        ['ERR_NETWORK', 'ECONNABORTED', 'ECONNREFUSED', 'ETIMEDOUT'].includes(error.code);
-      
-      if (!shouldRetry) {
-        throw error; // Don't retry non-network errors
-      }
-      
-      if (attempt < maxRetries) {
-        if (__DEV__) {
-          console.log(`🔄 Retry attempt ${attempt}/${maxRetries} after ${delay}ms`);
-        }
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
-      }
-    }
-  }
-  
-  throw lastError;
+  return retryRequestWithNetworkAwareness(requestFn, {
+    maxRetries,
+    initialDelay: delay,
+    networkRetryDelay: 2000,
+    queueOnDisconnect: true
+  });
 };
 
 /**

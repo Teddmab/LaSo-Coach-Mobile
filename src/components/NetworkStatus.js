@@ -1,28 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 
 const NetworkStatus = () => {
   const [isConnected, setIsConnected] = useState(true);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener(state => {
+      const wasConnected = isConnected;
       setIsConnected(state.isConnected);
+      
+      // Show reconnecting state briefly when network comes back
+      if (!wasConnected && state.isConnected) {
+        setIsReconnecting(true);
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+        
+        setTimeout(() => {
+          setIsReconnecting(false);
+          Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }).start();
+        }, 2000);
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isConnected, fadeAnim]);
 
-  if (isConnected) {
+  if (isConnected && !isReconnecting) {
     return null; // Don't show anything when connected
   }
 
   return (
-    <View style={styles.container}>
-      <Ionicons name="wifi-outline" size={16} color="#FFFFFF" />
-      <Text style={styles.text}>Pas de connexion internet</Text>
-    </View>
+    <Animated.View style={[
+      isReconnecting ? reconnectionStyles.container : styles.container, 
+      { opacity: fadeAnim }
+    ]}>
+      <Ionicons 
+        name={isReconnecting ? "checkmark-circle" : "wifi-outline"} 
+        size={16} 
+        color="#FFFFFF" 
+      />
+      <Text style={styles.text}>
+        {isReconnecting ? "Connexion rétablie" : "Pas de connexion internet"}
+      </Text>
+    </Animated.View>
   );
 };
 
@@ -45,6 +76,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
+  },
+});
+
+// Add reconnection success style
+const reconnectionStyles = StyleSheet.create({
+  container: {
+    ...styles.container,
+    backgroundColor: '#4CAF50', // Green for success
   },
 });
 
