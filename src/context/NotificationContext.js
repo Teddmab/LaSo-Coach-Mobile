@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import notificationsAPI, { NotificationWebSocketManager } from '../services/notificationsApi';
+import { getFirebaseApp } from '../config/firebaseApp';
 
 // Configure notification handling
 Notifications.setNotificationHandler({
@@ -56,6 +57,8 @@ export const NotificationProvider = ({ children }) => {
   const initializePushNotifications = async () => {
     try {
       console.log('📱 Initializing push notifications...');
+      // Ensure Firebase is initialized before accessing Expo push token
+      getFirebaseApp();
       
       // Check if device is physical device
       if (!Device.isDevice) {

@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Platform } from 'react-native';
-import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,18 +22,47 @@ export const useGoogleAuth = () => {
     projectNameForProxy: '@teddmabulay/laso-coach',
   });
 
-  const [request, , promptAsync] = Google.useIdTokenAuthRequest({
-    androidClientId: firebaseOAuthClientIds.android,
-    iosClientId: firebaseOAuthClientIds.ios,
-    webClientId: firebaseOAuthClientIds.web,
-    expoClientId: firebaseOAuthClientIds.web,
+  const authRequestConfig = {
     scopes: ['openid', 'email', 'profile'],
     redirectUri,
+  };
+
+  if (firebaseOAuthClientIds.android) {
+    authRequestConfig.androidClientId = firebaseOAuthClientIds.android;
+  }
+  if (firebaseOAuthClientIds.ios) {
+    authRequestConfig.iosClientId = firebaseOAuthClientIds.ios;
+  }
+  if (firebaseOAuthClientIds.web) {
+    authRequestConfig.webClientId = firebaseOAuthClientIds.web;
+    authRequestConfig.expoClientId = firebaseOAuthClientIds.web;
+  }
+
+  const [request, , promptAsync] = Google.useIdTokenAuthRequest({
+    ...authRequestConfig,
   });
 
   console.log('🔐 Google auth redirect URI:', request?.redirectUri);
+  console.log('🔐 Google client IDs configured:', {
+    android: !!firebaseOAuthClientIds.android,
+    ios: !!firebaseOAuthClientIds.ios,
+    web: !!firebaseOAuthClientIds.web,
+  });
 
   const signInWithGoogle = useCallback(async () => {
+    const missingClientId = Platform.select({
+      ios: !firebaseOAuthClientIds.ios,
+      android: !firebaseOAuthClientIds.android,
+      default: !firebaseOAuthClientIds.web,
+    });
+
+    if (missingClientId) {
+      return {
+        user: null,
+        error: "Connexion Google indisponible. Identifiants OAuth manquants pour cette plateforme.",
+      };
+    }
+
     if (!request) {
       return {
         user: null,
@@ -74,7 +103,13 @@ export const useGoogleAuth = () => {
 
   return {
     signInWithGoogle,
-    isAvailable: !!request,
+    isAvailable:
+      !!request &&
+      !!Platform.select({
+        ios: firebaseOAuthClientIds.ios,
+        android: firebaseOAuthClientIds.android,
+        default: firebaseOAuthClientIds.web,
+      }),
     isPrompting,
   };
 };
