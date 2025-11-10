@@ -137,7 +137,8 @@
  * @property {boolean} loading
  * @property {boolean} isAuthenticated
  * @property {boolean} authReady
- * @property {(email: string, password: string) => Promise<User>} login
+ * @property {(email: string, password: string) => Promise<{user: User | null, error: string | null}>} login
+ * @property {(idToken: string) => Promise<{user: User | null, error: string | null}>} loginWithGoogle
  * @property {() => Promise<void>} logout
  * @property {(userData: RegisterData) => Promise<void>} register
  * @property {() => Promise<User | null>} refreshProfile

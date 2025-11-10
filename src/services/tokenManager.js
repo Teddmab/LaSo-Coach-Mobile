@@ -1,24 +1,8 @@
-import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEYCHAIN_SERVICE = 'LasoCoachTokens';
 const TOKEN_KEY = '@LasoCoach:authToken';
 const REFRESH_TOKEN_KEY = '@LasoCoach:refreshToken';
-
-// Check if Keychain is available
-const isKeychainAvailable = () => {
-  try {
-    return (
-      Keychain && 
-      Keychain.getInternetCredentials &&
-      typeof Keychain.getInternetCredentials === 'function' &&
-      typeof Keychain.setInternetCredentials === 'function'
-    );
-  } catch (error) {
-    console.log('🔑 Keychain not available:', error.message);
-    return false;
-  }
-};
+const AUTH_PROVIDER_KEY = '@LasoCoach:authProvider';
 
 /**
  * Token Manager for secure token storage
@@ -29,16 +13,18 @@ export const TokenManager = {
    * @param {string} token - Access token
    * @param {string} refreshToken - Refresh token
    */
-  async storeTokens(token, refreshToken) {
+  async storeTokens(token, refreshToken, provider = 'credentials') {
     try {
       console.log('🔑 TokenManager: Storing tokens...');
       console.log('🔑 Token length:', token ? token.length : 'null');
       console.log('🔑 RefreshToken length:', refreshToken ? refreshToken.length : 'null');
+      console.log('🔑 Auth provider:', provider);
       
       // Force AsyncStorage only for now
       console.log('💾 Storing in AsyncStorage...');
       await AsyncStorage.setItem(TOKEN_KEY, token);
       await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken || '');
+      await AsyncStorage.setItem(AUTH_PROVIDER_KEY, provider);
       console.log('✅ Tokens stored in AsyncStorage');
     } catch (error) {
       console.error('❌ Error storing tokens:', error);
@@ -59,9 +45,11 @@ export const TokenManager = {
       console.log('🔄 Using AsyncStorage only...');
       const token = await AsyncStorage.getItem(TOKEN_KEY);
       const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      const provider = await AsyncStorage.getItem(AUTH_PROVIDER_KEY);
       
       console.log('🔑 AsyncStorage token found:', token ? `${token.substring(0, 10)}...` : 'null');
       console.log('🔑 AsyncStorage refreshToken found:', refreshToken ? `${refreshToken.substring(0, 10)}...` : 'null');
+      console.log('🔑 AsyncStorage provider found:', provider || 'none');
       console.log('🔑 Token length:', token ? token.length : 'null');
       console.log('🔑 RefreshToken length:', refreshToken ? refreshToken.length : 'null');
       console.log('🔑 Token type:', typeof token);
@@ -70,11 +58,11 @@ export const TokenManager = {
       // Return tokens even if refreshToken is null - main token is what we need for API calls
       if (token) {
         console.log('✅ Token retrieved from AsyncStorage');
-        return { token, refreshToken: refreshToken || null };
+        return { token, refreshToken: refreshToken || null, provider: provider || 'credentials' };
       }
       
       console.log('ℹ️ No token found in AsyncStorage');
-      return { token: null, refreshToken: null };
+      return { token: null, refreshToken: null, provider: null };
       
     } catch (error) {
       console.error('❌ Error retrieving tokens:', error);
@@ -82,7 +70,7 @@ export const TokenManager = {
         message: error.message,
         stack: error.stack
       });
-      return { token: null, refreshToken: null };
+      return { token: null, refreshToken: null, provider: null };
     }
   },
 
@@ -94,7 +82,7 @@ export const TokenManager = {
       console.log('🔑 TokenManager: Clearing tokens...');
       
       // Clear AsyncStorage
-      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY]);
+      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, AUTH_PROVIDER_KEY]);
       console.log('✅ Tokens cleared from AsyncStorage');
       
     } catch (error) {
@@ -108,7 +96,7 @@ export const TokenManager = {
    * @returns {Promise<boolean>}
    */
   async hasValidTokens() {
-    const { token, refreshToken } = await this.getTokens();
-    return !!(token && refreshToken);
+    const { token } = await this.getTokens();
+    return !!token;
   }
 }; 

@@ -3,6 +3,7 @@ import { TokenManager } from '../services/tokenManager';
 import { authAPI, handleAuthError, retryRequest } from '../services/api';
 import { retryRequestWithNetworkAwareness, addNetworkListener } from '../services/networkManager';
 import Toast from 'react-native-toast-message';
+import { signInWithFirebaseIdToken, signOutFromFirebase } from '../services/googleAuthService';
 
 /**
  * @typedef {import('../types/auth.js').AuthContextType} AuthContextType
@@ -231,7 +232,7 @@ export function AuthProvider({ children }) {
       const token = response.token;
       
       console.log('🔐 Storing token and user data...');
-      await TokenManager.storeTokens(token, null); // No refresh token in this response
+      await TokenManager.storeTokens(token, null, 'credentials'); // No refresh token in this response
       dispatch({ type: AUTH_ACTIONS.SET_TOKENS, payload: { token, refreshToken: null } });
       dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
       
@@ -255,6 +256,72 @@ export function AuthProvider({ children }) {
   };
 
   /**
+   * Complete Google login using an ID token returned from AuthSession
+   * @param {string} googleIdToken
+   * @returns {Promise<{user: User | null, error: string | null}>}
+   */
+  const loginWithGoogle = async (googleIdToken) => {
+    try {
+      if (!googleIdToken) {
+        return { user: null, error: 'Jeton Google manquant.' };
+      }
+
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+
+      const { firebaseIdToken, firebaseUser } = await signInWithFirebaseIdToken(googleIdToken);
+
+      const response = await authAPI.loginWithGoogle(firebaseIdToken);
+
+      const user = {
+        id: response.id,
+        email: response.email,
+        name: response.name,
+        firstName: response.firstName ?? firebaseUser?.displayName?.split(' ')?.[0] ?? '',
+        lastName: response.lastName ?? firebaseUser?.displayName?.split(' ')?.slice(1).join(' ') ?? '',
+        avatar: response.avatar || firebaseUser?.photoURL,
+        role: response.role,
+      };
+
+      const token = response.token || firebaseIdToken;
+      const refreshToken = response.refreshToken || null;
+
+      await TokenManager.storeTokens(token, refreshToken, 'google');
+      dispatch({ type: AUTH_ACTIONS.SET_TOKENS, payload: { token, refreshToken } });
+      dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Connexion Google réussie',
+        text2: `Bienvenue ${user.firstName || user.name}!`,
+      });
+
+      return { user, error: null };
+    } catch (error) {
+      console.error('❌ Google login error:', error);
+
+      let errorMessage = 'Impossible de se connecter avec Google. Veuillez réessayer.';
+
+      if (error?.code === 'GOOGLE_SIGN_IN_CANCELLED') {
+        errorMessage = 'Connexion Google annulée.';
+      } else if (error?.response || error?.request) {
+        errorMessage = handleAuthError(error);
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de connexion',
+        text2: errorMessage,
+      });
+
+      return { user: null, error: errorMessage };
+    } finally {
+      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+    }
+  };
+
+  /**
    * Register new user
    * @param {RegisterData} userData 
    * @returns {Promise<void>}
@@ -270,7 +337,7 @@ export function AuthProvider({ children }) {
       const token = response.token;
       
       // Store tokens
-      await TokenManager.storeTokens(token, null); // No refresh token in this response
+      await TokenManager.storeTokens(token, null, 'credentials'); // No refresh token in this response
       dispatch({ type: AUTH_ACTIONS.SET_TOKENS, payload: { token, refreshToken: null } });
       dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
       Toast.show({ type: 'success', text1: 'Inscription réussie', text2: 'Votre compte a été créé avec succès' });
@@ -301,6 +368,7 @@ export function AuthProvider({ children }) {
 
       // Clear tokens
       await TokenManager.clearTokens();
+      await signOutFromFirebase();
 
       // Update state
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
@@ -479,6 +547,7 @@ export function AuthProvider({ children }) {
     authReady: state.authReady,
     login,
     logout,
+    loginWithGoogle,
     register,
     refreshProfile,
     updateProfile,

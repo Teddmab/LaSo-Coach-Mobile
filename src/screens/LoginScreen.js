@@ -15,12 +15,13 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/AuthContext';
+import useGoogleAuth from '../hooks/useGoogleAuth';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -56,6 +57,22 @@ export default function LoginScreen({ navigation, route }) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
   const { login, forgotPassword, loading } = useAuth();
+  const {
+    signInWithGoogle: triggerGoogleSignIn,
+    isAvailable: isGoogleAvailable,
+    isPrompting: isGooglePrompting,
+  } = useGoogleAuth();
+  /**
+   * Handle Google login
+   */
+  const handleGoogleLogin = async () => {
+    setErrors({});
+    const result = await triggerGoogleSignIn();
+    if (result?.error) {
+      setErrors({ general: result.error });
+    }
+  };
+
   const flatListRef = useRef(null);
   const hasUserTyped = useRef(false);
 
@@ -192,17 +209,6 @@ export default function LoginScreen({ navigation, route }) {
   const handleRegister = () => {
     console.log('Navigate to register screen');
     navigation.navigate('Register');
-  };
-
-  /**
-   * Handle "Already subscribed? Login" - Reader App Exception
-   * This allows users who subscribed on web to access premium features
-   */
-  const handleAlreadySubscribed = () => {
-    // This is the same as regular login - the backend will check subscription status
-    // and unlock premium features if the user has an active web subscription
-    console.log('🔐 User clicked "Already subscribed? Login"');
-    // The existing login flow will handle subscription status checking
   };
 
   /**
@@ -524,6 +530,34 @@ export default function LoginScreen({ navigation, route }) {
                     )}
                   </TouchableOpacity>
 
+                  {/* Google Login Button */}
+                  <TouchableOpacity
+                    style={[styles.googleButton, loading && styles.loginButtonDisabled]}
+                    onPress={handleGoogleLogin}
+                    disabled={loading || isGooglePrompting || !isGoogleAvailable}
+                    activeOpacity={0.8}
+                  >
+                    {loading || isGooglePrompting ? (
+                      <View style={styles.buttonContent}>
+                        <ActivityIndicator
+                          size="small"
+                          color="#000"
+                          style={styles.spinner}
+                        />
+                        <Text style={styles.googleButtonText}>Connexion...</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.buttonContent}>
+                        <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
+                        <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {errors.general && (
+                    <Text style={styles.generalErrorText}>{errors.general}</Text>
+                  )}
+
                   {/* Forgot Password */}
                   <TouchableOpacity
                     style={styles.forgotPasswordButton}
@@ -541,17 +575,6 @@ export default function LoginScreen({ navigation, route }) {
                       disabled={loading}
                     >
                       <Text style={styles.registerLink}>Inscrivez-vous</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Already Subscribed Link - Reader App Exception */}
-                  <View style={styles.subscribedContainer}>
-                    <Text style={styles.subscribedText}>Déjà abonné ? </Text>
-                    <TouchableOpacity
-                      onPress={handleAlreadySubscribed}
-                      disabled={loading}
-                    >
-                      <Text style={styles.subscribedLink}>Connectez-vous</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -761,6 +784,30 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 20,
   },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginBottom: 20,
+  },
+  googleButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  generalErrorText: {
+    color: COLORS.error,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   forgotPasswordText: {
     color: '#000',
     fontSize: 16,
@@ -778,23 +825,6 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     color: '#FF9800',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  subscribedContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    marginTop: 8,
-    marginBottom: 0,
-  },
-  subscribedText: {
-    color: '#999',
-    fontSize: 16,
-  },
-  subscribedLink: {
-    color: '#4CAF50',
     fontSize: 16,
     fontWeight: '600',
   },

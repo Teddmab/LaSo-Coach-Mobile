@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": ["lasocoach", "com.laso.coach"],
+    "scheme": [
+      "lasocoach",
+      "com.laso.coach"
+    ],
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
@@ -17,7 +20,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
       "icon": "./assets/icon.png",
-      "associatedDomains": ["applinks:app.lasocoach.com"]
+      "associatedDomains": [
+        "applinks:app.lasocoach.com"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +44,10 @@
               "scheme": "com.laso.coach"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -58,6 +66,9 @@
         "projectId": "6f5af143-a419-447d-a44e-3b3e230cf397"
       }
     },
-    "owner": "teddmabulay"
+    "owner": "teddmabulay",
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

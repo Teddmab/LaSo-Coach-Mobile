@@ -13,11 +13,12 @@ import {
   Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/AuthContext';
+import useGoogleAuth from '../hooks/useGoogleAuth';
 
 export default function RegisterScreen({ navigation }) {
   const [formData, setFormData] = useState({
@@ -32,11 +33,17 @@ export default function RegisterScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [generalError, setGeneralError] = useState(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
 
   const { register, loading } = useAuth();
+  const {
+    signInWithGoogle: triggerGoogleSignIn,
+    isAvailable: isGoogleAvailable,
+    isPrompting: isGooglePrompting,
+  } = useGoogleAuth();
 
   /**
    * Update form data
@@ -99,9 +106,22 @@ export default function RegisterScreen({ navigation }) {
   };
 
   /**
+   * Handle Google registration (sign-in)
+   */
+  const handleGoogleSignup = async () => {
+    setGeneralError(null);
+    const result = await triggerGoogleSignIn();
+    if (result?.error) {
+      setGeneralError(result.error);
+    }
+  };
+
+  /**
    * Handle user registration
    */
   const handleRegister = async () => {
+    setGeneralError(null);
+
     if (!validateForm()) {
       return;
     }
@@ -500,6 +520,34 @@ export default function RegisterScreen({ navigation }) {
                     )}
                   </TouchableOpacity>
 
+                  {/* Google Signup Button */}
+                  <TouchableOpacity
+                    style={[styles.googleButton, loading && styles.registerButtonDisabled]}
+                    onPress={handleGoogleSignup}
+                    disabled={loading || isGooglePrompting || !isGoogleAvailable}
+                    activeOpacity={0.8}
+                  >
+                    {loading || isGooglePrompting ? (
+                      <View style={styles.buttonContent}>
+                        <ActivityIndicator
+                          size="small"
+                          color="#000"
+                          style={styles.spinner}
+                        />
+                        <Text style={styles.googleButtonText}>Connexion...</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.buttonContent}>
+                        <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
+                        <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {generalError && (
+                    <Text style={styles.generalErrorText}>{generalError}</Text>
+                  )}
+
                   {/* Login Link */}
                   <View style={styles.loginContainer}>
                     <Text style={styles.loginText}>Vous avez déjà un compte ? </Text>
@@ -653,6 +701,30 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 18,
     fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginBottom: 20,
+  },
+  googleButtonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  generalErrorText: {
+    color: COLORS.error,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   loginContainer: {
     flexDirection: 'row',

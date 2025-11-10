@@ -2,6 +2,7 @@ import axios from 'axios';
 import { TokenManager } from './tokenManager';
 import Config from '../config/env';
 import { retryRequestWithNetworkAwareness } from './networkManager';
+import { getFreshFirebaseIdToken } from './googleAuthService';
 
 // Create axios instance with environment-based configuration
 const api = axios.create({
@@ -100,10 +101,21 @@ api.interceptors.request.use(
         console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
       }
       
-      const { token } = await TokenManager.getTokens();
+      const { token, provider } = await TokenManager.getTokens();
+      let authToken = token;
+
+      if (provider === 'google') {
+        const firebaseToken = await getFreshFirebaseIdToken();
+        if (firebaseToken) {
+          authToken = firebaseToken;
+          if (token !== firebaseToken) {
+            await TokenManager.storeTokens(firebaseToken, null, 'google');
+          }
+        }
+      }
       
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      if (authToken) {
+        config.headers.Authorization = `Bearer ${authToken}`;
         if (__DEV__) {
           console.log('✅ Authorization header set');
         }
@@ -524,6 +536,16 @@ export const authAPI = {
       email: email.toLowerCase().trim(),
       password,
     });
+    return response.data;
+  },
+
+  /**
+   * Login using Firebase ID token (Google sign-in)
+   * @param {string} idToken
+   * @returns {Promise<LoginResponse>}
+   */
+  async loginWithGoogle(idToken) {
+    const response = await api.post('/auth/login', { idToken });
     return response.data;
   },
 

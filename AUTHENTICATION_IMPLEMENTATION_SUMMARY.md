@@ -152,7 +152,7 @@ The current `App.js` has a simple authentication flow. You may want to:
 ### 3. **Optional Enhancements**
 1. **Add biometric authentication** (fingerprint/face ID)
 2. **Implement deep linking** for password reset emails
-3. **Add social login** (Google, Apple, Facebook)
+3. **Add social login** (Google ✅, Apple, Facebook)
 4. **Add email verification** flow
 5. **Implement account deletion** functionality
 
@@ -185,6 +185,21 @@ export default {
 };
 ```
 
+Add these Firebase keys to `.env` (same project as the web app):
+
+```
+FIREBASE_API_KEY=...
+FIREBASE_AUTH_DOMAIN=...
+FIREBASE_PROJECT_ID=...
+FIREBASE_STORAGE_BUCKET=...
+FIREBASE_MESSAGING_SENDER_ID=...
+FIREBASE_APP_ID=...
+FIREBASE_MEASUREMENT_ID=...
+FIREBASE_WEB_CLIENT_ID=...
+FIREBASE_IOS_CLIENT_ID=...
+FIREBASE_ANDROID_CLIENT_ID=...
+```
+
 ### Navigation Setup
 ```javascript
 // Add to your navigation stack
@@ -207,6 +222,7 @@ The authentication system is now **fully implemented** and matches the API speci
 - ✅ **Complete registration flow** with all required fields
 - ✅ **Complete login flow** with proper validation
 - ✅ **Complete password reset flow** with 3-step process
+- ✅ **Google authentication** via Firebase ID token (mobile + backend handshake)
 - ✅ **Token management** with automatic refresh
 - ✅ **Profile management** with update capabilities
 - ✅ **Avatar upload** functionality
