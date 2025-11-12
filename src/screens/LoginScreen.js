@@ -20,7 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuth from '../hooks/useGoogleAuth';
 
 const { width: screenWidth } = Dimensions.get('window');

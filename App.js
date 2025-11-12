@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { initializeTokenManager } from './src/services/api';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
@@ -155,6 +156,13 @@ function AppContent() {
 
 export default function App() {
   console.log('📱 LaSo Coach App starting...');
+  
+  // Initialize TokenManager at app startup
+  // This ensures AsyncStorage is ready before any API requests
+  useEffect(() => {
+    console.log('🔐 [Startup] Initializing app dependencies...');
+    initializeTokenManager();
+  }, []);
   
   return (
     <ErrorBoundary>

@@ -4,7 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/FirebaseAuthContext';
 
 WebBrowser.maybeCompleteAuthSession();
 

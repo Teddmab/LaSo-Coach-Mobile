@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validatePassword, getPasswordStrength } from '../constants/utils';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/FirebaseAuthContext';
 
 export default function PasswordResetScreen({ navigation, route }) {
   const [step, setStep] = useState(1); // 1: email, 2: token verification, 3: new password

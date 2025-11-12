@@ -1,8 +1,6 @@
 import axios from 'axios';
-import { TokenManager } from './tokenManager';
 import Config from '../config/env';
-import { retryRequestWithNetworkAwareness } from './networkManager';
-import { getFreshFirebaseIdToken } from './googleAuthService';
+import firebaseAuthService from './firebaseAuthServiceNew';
 
 // Create axios instance with environment-based configuration
 const api = axios.create({
@@ -16,6 +14,31 @@ const api = axios.create({
 
 // Store reference to navigation for redirects
 let navigationRef = null;
+
+/**
+ * Warm up Firebase auth so the initial ID token is available for interceptors.
+ * Called once during app startup (before any API calls)
+ */
+const ensureFirebaseAuthInitialized = async () => {
+  try {
+    console.log('🔐 [Init] Checking Firebase auth state for initial ID token...');
+    const token = await firebaseAuthService.getIdToken();
+    if (token) {
+      console.log('✅ [Init] Firebase ID token available - auth ready');
+    } else {
+      console.log('ℹ️ [Init] No Firebase ID token yet (user not logged in)');
+    }
+  } catch (error) {
+    console.warn('⚠️ [Init] Firebase auth warmup failed:', error?.message);
+  }
+};
+
+/**
+ * Export function to keep compatibility with previous initialization hook
+ */
+export const initializeTokenManager = async () => {
+  await ensureFirebaseAuthInitialized();
+};
 
 /**
  * Set navigation reference for auto-redirect on auth failure
@@ -92,7 +115,8 @@ const mockAPI = {
 };
 
 /**
- * Request interceptor to add authentication headers
+ * Request interceptor to add Firebase ID tokens to every call (aligned with web app flow).
+ * If the user is not authenticated yet, the request proceeds without Authorization header.
  */
 api.interceptors.request.use(
   async (config) => {
@@ -100,34 +124,25 @@ api.interceptors.request.use(
       if (__DEV__) {
         console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
       }
-      
-      const { token, provider } = await TokenManager.getTokens();
-      let authToken = token;
 
-      if (provider === 'google') {
-        const firebaseToken = await getFreshFirebaseIdToken();
-        if (firebaseToken) {
-          authToken = firebaseToken;
-          if (token !== firebaseToken) {
-            await TokenManager.storeTokens(firebaseToken, null, 'google');
-          }
-        }
-      }
-      
-      if (authToken) {
-        config.headers.Authorization = `Bearer ${authToken}`;
+      const idToken = await firebaseAuthService.getIdToken();
+      if (idToken) {
+        config.headers.Authorization = `Bearer ${idToken}`;
         if (__DEV__) {
-          console.log('✅ Authorization header set');
+          console.log('✅ Authorization header set with Firebase ID token');
         }
       } else if (__DEV__) {
-        console.warn('⚠️ No token available - request will be unauthorized');
+        console.warn('ℹ️ No Firebase ID token available for request');
       }
-      
+
+      return config;
     } catch (error) {
-      console.error('❌ Error adding auth header:', error);
+      console.error('❌ Error in request interceptor while retrieving Firebase token:', error?.message);
+      if (__DEV__) {
+        console.error('Debug:', error);
+      }
+      return config;
     }
-    
-    return config;
   },
   (error) => {
     console.error('❌ Request interceptor error:', error);
@@ -159,39 +174,36 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // Handle 401 errors (unauthorized)
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401) {
+      if (originalRequest?._retry) {
+        return Promise.reject(error);
+      }
+
+      // Avoid retrying auth endpoints
+      if (originalRequest?.url?.includes('/auth/')) {
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
 
       try {
-        console.log('🔄 Attempting token refresh...');
-        const { refreshToken } = await TokenManager.getTokens();
-        
-        if (refreshToken) {
-          // Attempt to refresh token
-          const refreshResponse = await axios.post(
-            `${Config.API_BASE_URL}/auth/refresh-token`,
-            { refreshToken },
-            { headers: { 'Content-Type': 'application/json' } }
-          );
+        console.log('🔄 Attempting Firebase ID token refresh...');
+        const newIdToken = await firebaseAuthService.getIdToken(true);
 
-          const { token: newToken, refreshToken: newRefreshToken } = refreshResponse.data;
-          
-          // Store new tokens
-          await TokenManager.storeTokens(newToken, newRefreshToken);
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          console.log('✅ Token refreshed successfully');
-          
+        if (newIdToken) {
+          originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
+          console.log('✅ Firebase ID token refreshed successfully');
           return api(originalRequest);
         }
       } catch (refreshError) {
-        console.error('❌ Token refresh failed:', refreshError);
-        
-        // Clear invalid tokens
-        await TokenManager.clearTokens();
-        
-        // Redirect to login screen
+        console.error('❌ Firebase token refresh failed:', refreshError);
+
+        try {
+          await firebaseAuthService.logout();
+        } catch (logoutError) {
+          console.warn('⚠️ Logout after token refresh failure also failed:', logoutError?.message);
+        }
+
         if (navigationRef) {
           navigationRef.reset({
             index: 0,
@@ -322,19 +334,39 @@ export const handleAuthError = (error) => {
 };
 
 /**
- * Enhanced retry mechanism for network requests with network awareness
+ * Retry a request with exponential backoff
  * @param {Function} requestFn - Function that returns a promise
  * @param {number} maxRetries - Maximum number of retries
  * @param {number} delay - Delay between retries in ms
  * @returns {Promise} Promise that resolves with the request result
  */
 export const retryRequest = async (requestFn, maxRetries = 3, delay = 1000) => {
-  return retryRequestWithNetworkAwareness(requestFn, {
-    maxRetries,
-    initialDelay: delay,
-    networkRetryDelay: 2000,
-    queueOnDisconnect: true
-  });
+  let lastError;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      
+      // Don't retry if it's the last attempt
+      if (attempt === maxRetries) {
+        break;
+      }
+      
+      // Don't retry on client errors (4xx)
+      if (error.response && error.response.status >= 400 && error.response.status < 500) {
+        break;
+      }
+      
+      // Wait before retrying with exponential backoff
+      const waitTime = delay * Math.pow(2, attempt);
+      console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  
+  throw lastError;
 };
 
 /**
@@ -545,6 +577,12 @@ export const authAPI = {
    * @returns {Promise<LoginResponse>}
    */
   async loginWithGoogle(idToken) {
+    // DEBUG: temporarily log outgoing body to diagnose missing idToken issues
+    try {
+      console.log('DEBUG outgoing POST /auth/login body (unmasked) - idToken length:', idToken ? idToken.length : 'null');
+    } catch (e) {
+      // ignore
+    }
     const response = await api.post('/auth/login', { idToken });
     return response.data;
   },

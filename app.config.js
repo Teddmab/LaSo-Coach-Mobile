@@ -13,6 +13,7 @@ const {
   FIREBASE_ANDROID_CLIENT_ID,
   FIREBASE_WEB_CLIENT_ID,
   API_BASE_URL,
+  API_BASE_URL_DEV,
   API_TIMEOUT,
   APP_NAME,
   APP_VERSION,
@@ -57,6 +58,7 @@ export default ({ config }) => ({
       env: {
         nodeEnv: NODE_ENV || DEFAULT_ENV.nodeEnv,
         apiBaseUrl: API_BASE_URL || DEFAULT_ENV.apiBaseUrl,
+        apiBaseUrlDev: API_BASE_URL_DEV, // Development API URL
         apiTimeout: API_TIMEOUT || DEFAULT_ENV.apiTimeout,
         debugMode:
           typeof DEBUG_MODE !== 'undefined'

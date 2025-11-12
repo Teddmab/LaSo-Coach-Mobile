@@ -141,6 +141,14 @@ export class NotificationWebSocketManager {
         console.log('✅ WebSocket connected successfully');
         this.reconnectAttempts = 0;
         
+        // Send initial auth payload expected by backend and subscribe
+        try {
+          const authMessage = JSON.stringify({ action: 'auth', auth: { token } });
+          this.ws.send(authMessage);
+          console.log('📡 Sent WebSocket auth payload (masked):', token ? `${token.substring(0,6)}...${token.slice(-6)}` : 'null');
+        } catch (err) {
+          console.warn('⚠️ Failed to send WS auth payload:', err?.message);
+        }
         // Subscribe to notifications
         this.subscribe();
       };

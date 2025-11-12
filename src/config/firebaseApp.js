@@ -1,5 +1,4 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
 import Constants from 'expo-constants';
 import {
   FIREBASE_API_KEY,
@@ -26,20 +25,69 @@ const firebaseConfig = {
   measurementId: firebaseExtra.measurementId || FIREBASE_MEASUREMENT_ID,
 };
 
+// Validate configuration
+if (!firebaseConfig.apiKey || !firebaseConfig.appId) {
+  throw new Error('Firebase configuration is missing required values.');
+}
+
+// Initialize Firebase app ONLY (not auth yet)
 let firebaseApp;
-export const getFirebaseApp = () => {
-  if (!firebaseApp) {
-    if (!firebaseConfig.apiKey || !firebaseConfig.appId) {
-      throw new Error('Firebase configuration is missing required values.');
-    }
-    firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+let firebaseAuthInstance = null;
+let authInitializationPromise = null;
+
+// Check if Firebase is already initialized
+const existingApps = getApps();
+
+if (existingApps.length === 0) {
+  // First time initialization
+  console.log('🔥 Initializing Firebase App...');
+  firebaseApp = initializeApp(firebaseConfig);
+  console.log('✅ Firebase App initialized:', firebaseApp.name);
+} else {
+  // Firebase already initialized (hot reload scenario)
+  console.log('♻️ Firebase App already initialized');
+  firebaseApp = existingApps[0];
+}
+
+// Lazy initialization of Firebase Auth to avoid "runtime not ready" error
+const initializeAuthLazy = async () => {
+  if (firebaseAuthInstance) {
+    return firebaseAuthInstance;
   }
+
+  if (authInitializationPromise) {
+    return authInitializationPromise;
+  }
+
+  authInitializationPromise = new Promise((resolve, reject) => {
+    try {
+      // Delay to ensure Hermes runtime is ready
+      setTimeout(() => {
+        try {
+          console.log('🔐 Initializing Firebase Auth (lazy)...');
+          const { getAuth } = require('firebase/auth');
+          firebaseAuthInstance = getAuth(firebaseApp);
+          console.log('✅ Firebase Auth initialized successfully');
+          resolve(firebaseAuthInstance);
+        } catch (error) {
+          console.error('❌ Firebase Auth initialization failed:', error);
+          reject(error);
+        }
+      }, 100); // 100ms delay to ensure runtime is ready
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+  return authInitializationPromise;
+};
+
+export const getFirebaseApp = () => {
   return firebaseApp;
 };
 
-export const getFirebaseAuth = () => {
-  const app = getFirebaseApp();
-  return getAuth(app);
+export const getFirebaseAuth = async () => {
+  return await initializeAuthLazy();
 };
 
 export const firebaseOAuthClientIds = {

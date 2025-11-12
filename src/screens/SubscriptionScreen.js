@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/FirebaseAuthContext';
 import SubscriptionApi from '../services/subscriptionApi';
 import ProfileApi from '../services/profileApi';
 import IAPService from '../services/iapService';

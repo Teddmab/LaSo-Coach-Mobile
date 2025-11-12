@@ -17,7 +17,7 @@ import { Ionicons, AntDesign } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuth from '../hooks/useGoogleAuth';
 
 export default function RegisterScreen({ navigation }) {
@@ -129,6 +129,8 @@ export default function RegisterScreen({ navigation }) {
     try {
       // Prepare the registration payload according to the API specification
       const registrationData = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email.trim(),
         password: formData.password,
