@@ -13,6 +13,7 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import NetworkStatus from './src/components/NetworkStatus';
+import AuthInitDebug from './src/components/AuthInitDebug';
 import { Linking } from 'react-native';
 
 
@@ -169,6 +170,8 @@ export default function App() {
       <AuthProvider>
         <NotificationProvider>
           <NetworkStatus />
+          {/* Debug component to log Firebase Auth initialization state; remove once stable */}
+          <AuthInitDebug />
           <AppContent />
         </NotificationProvider>
       </AuthProvider>

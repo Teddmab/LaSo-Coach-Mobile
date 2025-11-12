@@ -41,31 +41,32 @@ class FirebaseAuthService {
     });
 
     // Initialize Firebase Auth asynchronously
-    this.authInitPromise = this._initializeAuth();
+    // With simplified getAuth init, we attempt to capture the instance immediately.
+    try {
+      this.firebaseAuth = getFirebaseAuth();
+      if (this.firebaseAuth) {
+        console.log('✅ Firebase Auth Service ready (simple getAuth)');
+        this.initializeInterceptors();
+        this.initializeAuthStateListener();
+      } else {
+        console.warn('⚠️ Firebase Auth instance not available at service construction');
+      }
+    } catch (e) {
+      console.error('❌ Firebase Auth Service construction error:', e);
+    }
+    this.authInitPromise = Promise.resolve(this.firebaseAuth);
   }
 
   async _initializeAuth() {
-    try {
-      console.log('🔥 Firebase Auth Service initializing...');
-      this.firebaseAuth = await getFirebaseAuth();
-      console.log('✅ Firebase Auth Service ready');
-      
-      // Initialize interceptors and auth state listener after auth is ready
-      this.initializeInterceptors();
-      this.initializeAuthStateListener();
-      
-      return this.firebaseAuth;
-    } catch (error) {
-      console.error('❌ Error getting Firebase Auth instance:', error);
-      this.firebaseAuth = null;
-      throw error;
-    }
+    // No longer used: retained for compatibility; returns existing instance.
+    return this.firebaseAuth;
   }
 
   async ensureAuth() {
     if (!this.firebaseAuth) {
-      await this.authInitPromise;
+      this.firebaseAuth = getFirebaseAuth();
     }
+    if (!this.firebaseAuth) throw new Error('Firebase Auth is not initialized.');
     return this.firebaseAuth;
   }
 
@@ -255,9 +256,12 @@ class FirebaseAuthService {
    */
   async login(credentials) {
     try {
+      // Ensure Firebase Auth is initialized before attempting login
+      const auth = await this.ensureAuth();
+      
       // 1. Sign in with Firebase using email/password to get ID token
       const userCredential = await signInWithEmailAndPassword(
-        this.getAuth(),
+        auth,
         credentials.email,
         credentials.password
       );
@@ -292,6 +296,9 @@ class FirebaseAuthService {
    */
   async register(credentials) {
     try {
+      // Ensure Firebase Auth is initialized before registration
+      const auth = await this.ensureAuth();
+      
       // 1. Register user via backend (backend handles Firebase user creation)
       const response = await this.backendApi.post(API_CONFIG.endpoints.auth.register, {
         email: credentials.email.toLowerCase().trim(),
@@ -310,7 +317,7 @@ class FirebaseAuthService {
       }
 
       // 2. Sign in with Firebase custom token returned by backend
-      const userCredential = await signInWithCustomToken(this.getAuth(), firebaseCustomToken);
+      const userCredential = await signInWithCustomToken(auth, firebaseCustomToken);
 
       // 3. Ensure Firebase display name is up-to-date
       const displayName = `${credentials.firstName} ${credentials.lastName || ''}`.trim();
@@ -340,6 +347,9 @@ class FirebaseAuthService {
    */
   async loginWithGoogle(googleIdToken) {
     try {
+      // Ensure Firebase Auth is initialized before Google login
+      const auth = await this.ensureAuth();
+      
       // Send Google ID token to backend
       const response = await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
         googleIdToken: googleIdToken
@@ -351,7 +361,7 @@ class FirebaseAuthService {
       }
 
       // Get custom token from backend and sign in with Firebase
-      const userCredential = await signInWithCustomToken(this.getAuth(), firebaseToken);
+      const userCredential = await signInWithCustomToken(auth, firebaseToken);
       const userData = response.data.data || response.data || {};
       const profile = await this.getUserProfile();
 

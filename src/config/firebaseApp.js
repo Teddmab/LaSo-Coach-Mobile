@@ -1,3 +1,4 @@
+import 'firebase/auth'; // Ensure auth component registers
 import { initializeApp, getApps } from 'firebase/app';
 import Constants from 'expo-constants';
 import {
@@ -33,7 +34,6 @@ if (!firebaseConfig.apiKey || !firebaseConfig.appId) {
 // Initialize Firebase app ONLY (not auth yet)
 let firebaseApp;
 let firebaseAuthInstance = null;
-let authInitializationPromise = null;
 
 // Check if Firebase is already initialized
 const existingApps = getApps();
@@ -49,46 +49,23 @@ if (existingApps.length === 0) {
   firebaseApp = existingApps[0];
 }
 
-// Lazy initialization of Firebase Auth to avoid "runtime not ready" error
-const initializeAuthLazy = async () => {
-  if (firebaseAuthInstance) {
-    return firebaseAuthInstance;
-  }
-
-  if (authInitializationPromise) {
-    return authInitializationPromise;
-  }
-
-  authInitializationPromise = new Promise((resolve, reject) => {
-    try {
-      // Delay to ensure Hermes runtime is ready
-      setTimeout(() => {
-        try {
-          console.log('🔐 Initializing Firebase Auth (lazy)...');
-          const { getAuth } = require('firebase/auth');
-          firebaseAuthInstance = getAuth(firebaseApp);
-          console.log('✅ Firebase Auth initialized successfully');
-          resolve(firebaseAuthInstance);
-        } catch (error) {
-          console.error('❌ Firebase Auth initialization failed:', error);
-          reject(error);
-        }
-      }, 100); // 100ms delay to ensure runtime is ready
-    } catch (error) {
-      reject(error);
-    }
-  });
-
-  return authInitializationPromise;
-};
+// Simple, immediate auth initialization using getAuth for React Native Expo Go environment.
+// Using initializeAuth + persistence caused repeated component registration errors in Expo Go.
+// We fall back to plain getAuth; persistence will be memory-only until a dev build is used.
+const { getAuth } = require('firebase/auth');
+try {
+  firebaseAuthInstance = getAuth(firebaseApp);
+  console.log('✅ Firebase Auth (simple getAuth) initialized');
+} catch (e) {
+  console.error('❌ Simple getAuth initialization failed:', e);
+  firebaseAuthInstance = null;
+}
 
 export const getFirebaseApp = () => {
   return firebaseApp;
 };
 
-export const getFirebaseAuth = async () => {
-  return await initializeAuthLazy();
-};
+export const getFirebaseAuth = () => firebaseAuthInstance;
 
 export const firebaseOAuthClientIds = {
   ios: firebaseExtra.iosClientId || FIREBASE_IOS_CLIENT_ID,
