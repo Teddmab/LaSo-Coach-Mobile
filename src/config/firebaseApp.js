@@ -1,5 +1,8 @@
-import 'firebase/auth'; // Ensure auth component registers
+import 'firebase/auth'; // Ensure auth component registers (side-effect)
 import { initializeApp, getApps } from 'firebase/app';
+// Fallback React Native auth initialization imports
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import Constants from 'expo-constants';
 import {
   FIREBASE_API_KEY,
@@ -49,17 +52,37 @@ if (existingApps.length === 0) {
   firebaseApp = existingApps[0];
 }
 
-// Simple, immediate auth initialization using getAuth for React Native Expo Go environment.
-// Using initializeAuth + persistence caused repeated component registration errors in Expo Go.
-// We fall back to plain getAuth; persistence will be memory-only until a dev build is used.
+// Attempt simple getAuth first; if component registration error occurs, fallback to initializeAuth
+// with explicit React Native persistence (AsyncStorage). This fallback is necessary in some Expo Go
+// environments where auth component registration races the app initialization.
 const { getAuth } = require('firebase/auth');
 try {
   firebaseAuthInstance = getAuth(firebaseApp);
   console.log('✅ Firebase Auth (simple getAuth) initialized');
 } catch (e) {
   console.error('❌ Simple getAuth initialization failed:', e);
-  firebaseAuthInstance = null;
+  // Detect specific component registration issue to trigger fallback
+  const msg = String(e?.message || '');
+  if (msg.includes('Component auth has not been registered')) {
+    console.log('🛟 Fallback: attempting initializeAuth with React Native persistence...');
+    try {
+      firebaseAuthInstance = initializeAuth(firebaseApp, {
+        persistence: getReactNativePersistence(AsyncStorage),
+      });
+      console.log('✅ Firebase Auth fallback initializeAuth succeeded');
+    } catch (fallbackErr) {
+      console.error('❌ Fallback initializeAuth also failed:', fallbackErr);
+      firebaseAuthInstance = null;
+    }
+  }
 }
+
+// Helper to expose debug status (used by AuthInitDebug or other diagnostics)
+export const debugFirebaseAuthStatus = () => ({
+  hasInstance: !!firebaseAuthInstance,
+  currentUser: firebaseAuthInstance?.currentUser ?? null,
+  persistence: firebaseAuthInstance?._getPersistence?.() ? 'custom' : 'memory',
+});
 
 export const getFirebaseApp = () => {
   return firebaseApp;
