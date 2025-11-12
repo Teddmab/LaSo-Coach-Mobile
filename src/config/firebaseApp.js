@@ -1,8 +1,11 @@
-import 'firebase/auth'; // Ensure auth component registers (side-effect)
 import { initializeApp, getApps } from 'firebase/app';
-// Fallback React Native auth initialization imports
+// Use the dedicated React Native entrypoint to ensure proper component registration
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import {
+  initializeAuth,
+  getReactNativePersistence,
+  getAuth,
+} from 'firebase/auth/react-native';
 import Constants from 'expo-constants';
 import {
   FIREBASE_API_KEY,
@@ -55,25 +58,20 @@ if (existingApps.length === 0) {
 // Attempt simple getAuth first; if component registration error occurs, fallback to initializeAuth
 // with explicit React Native persistence (AsyncStorage). This fallback is necessary in some Expo Go
 // environments where auth component registration races the app initialization.
-const { getAuth } = require('firebase/auth');
 try {
-  firebaseAuthInstance = getAuth(firebaseApp);
-  console.log('✅ Firebase Auth (simple getAuth) initialized');
+  // Preferred path: initializeAuth with AsyncStorage persistence (React Native entrypoint)
+  firebaseAuthInstance = initializeAuth(firebaseApp, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+  console.log('✅ Firebase Auth (initializeAuth + AsyncStorage) initialized');
 } catch (e) {
-  console.error('❌ Simple getAuth initialization failed:', e);
-  // Detect specific component registration issue to trigger fallback
-  const msg = String(e?.message || '');
-  if (msg.includes('Component auth has not been registered')) {
-    console.log('🛟 Fallback: attempting initializeAuth with React Native persistence...');
-    try {
-      firebaseAuthInstance = initializeAuth(firebaseApp, {
-        persistence: getReactNativePersistence(AsyncStorage),
-      });
-      console.log('✅ Firebase Auth fallback initializeAuth succeeded');
-    } catch (fallbackErr) {
-      console.error('❌ Fallback initializeAuth also failed:', fallbackErr);
-      firebaseAuthInstance = null;
-    }
+  console.error('❌ initializeAuth failed, attempting plain getAuth:', e);
+  try {
+    firebaseAuthInstance = getAuth(firebaseApp);
+    console.log('✅ Firebase Auth (plain getAuth fallback) initialized');
+  } catch (fallbackErr) {
+    console.error('❌ Plain getAuth fallback also failed:', fallbackErr);
+    firebaseAuthInstance = null;
   }
 }
 

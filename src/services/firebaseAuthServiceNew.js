@@ -14,7 +14,7 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
-} from 'firebase/auth';
+} from 'firebase/auth/react-native';
 
 /**
  * Firebase Authentication Service for React Native
@@ -45,7 +45,7 @@ class FirebaseAuthService {
     try {
       this.firebaseAuth = getFirebaseAuth();
       if (this.firebaseAuth) {
-        console.log('✅ Firebase Auth Service ready (simple getAuth)');
+  console.log('✅ Firebase Auth Service ready');
         this.initializeInterceptors();
         this.initializeAuthStateListener();
       } else {
