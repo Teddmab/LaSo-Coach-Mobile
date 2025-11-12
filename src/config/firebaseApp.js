@@ -1,11 +1,7 @@
+import 'firebase/auth'; // side-effect: registers auth component definitions
 import { initializeApp, getApps } from 'firebase/app';
-// Use the dedicated React Native entrypoint to ensure proper component registration
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  initializeAuth,
-  getReactNativePersistence,
-  getAuth,
-} from 'firebase/auth/react-native';
+import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
 import Constants from 'expo-constants';
 import {
   FIREBASE_API_KEY,
@@ -58,21 +54,32 @@ if (existingApps.length === 0) {
 // Attempt simple getAuth first; if component registration error occurs, fallback to initializeAuth
 // with explicit React Native persistence (AsyncStorage). This fallback is necessary in some Expo Go
 // environments where auth component registration races the app initialization.
-try {
-  // Preferred path: initializeAuth with AsyncStorage persistence (React Native entrypoint)
-  firebaseAuthInstance = initializeAuth(firebaseApp, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-  console.log('✅ Firebase Auth (initializeAuth + AsyncStorage) initialized');
-} catch (e) {
-  console.error('❌ initializeAuth failed, attempting plain getAuth:', e);
+// Attempt initializeAuth with persistence; if component registration race occurs, schedule retries.
+function attemptAuthInit(stage) {
+  if (firebaseAuthInstance) return;
   try {
-    firebaseAuthInstance = getAuth(firebaseApp);
-    console.log('✅ Firebase Auth (plain getAuth fallback) initialized');
-  } catch (fallbackErr) {
-    console.error('❌ Plain getAuth fallback also failed:', fallbackErr);
-    firebaseAuthInstance = null;
+    firebaseAuthInstance = initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+    console.log(`✅ Firebase Auth initialized (initializeAuth + AsyncStorage) [stage=${stage}]`);
+  } catch (e) {
+    console.error(`❌ initializeAuth failed at stage=${stage}:`, e.message);
   }
+}
+
+attemptAuthInit('immediate');
+if (!firebaseAuthInstance) {
+  setTimeout(() => attemptAuthInit('timeout-50ms'), 50);
+  setTimeout(() => {
+    if (!firebaseAuthInstance) {
+      try {
+        firebaseAuthInstance = getAuth(firebaseApp);
+        console.log('✅ Firebase Auth fallback getAuth initialized after delays');
+      } catch (finalErr) {
+        console.error('❌ Final fallback getAuth failed:', finalErr.message);
+      }
+    }
+  }, 300);
 }
 
 // Helper to expose debug status (used by AuthInitDebug or other diagnostics)
