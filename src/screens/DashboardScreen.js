@@ -29,7 +29,6 @@ import AgoraIcon from '../components/icons/AgoraIcon';
 import Avatar from '../components/Avatar';
 import NotificationBadge from '../components/NotificationBadge';
 import SubscriptionAlert from '../components/SubscriptionAlert';
-import SubscriptionTopAlert from '../components/SubscriptionTopAlert';
 import BlurredCard from '../components/BlurredCard';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import DashboardService from '../services/dashboardService';
@@ -71,9 +70,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
   // Subscription state
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(false);
-  const [showTopAlert, setShowTopAlert] = useState(false);
   const [subscriptionAlertType, setSubscriptionAlertType] = useState(null);
-  const [subscriptionDaysRemaining, setSubscriptionDaysRemaining] = useState(0);
   const requiresRenewal = subscriptionData?.requiresRenewal || false;
 
   // Check if profile is complete based on onboarding progress
@@ -125,20 +122,18 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         status: data.status,
         isExpired: data.isExpired,
         isExpiringSoon: data.isExpiringSoon,
-        daysRemaining: data.daysRemaining
+        daysRemaining: data.daysRemaining,
+        isTrial: data.isTrial
       });
       
-      // Show top alert if subscription needs attention
-      if (data.isExpired) {
+      // Show modal ONLY if status is EXPIRED, INACTIVE, or CANCELLED (automatically on dashboard load)
+      const statusRequiresModal = data.status === 'EXPIRED' || data.status === 'CANCELLED' || data.status === 'INACTIVE';
+      
+      if (statusRequiresModal) {
         setSubscriptionAlertType('expired');
-        setSubscriptionDaysRemaining(data.daysRemaining);
-        setShowTopAlert(true);
-        setShowSubscriptionAlert(false); // Don't show modal
-      } else if (data.isExpiringSoon) {
-        setSubscriptionAlertType('expiring_soon');
-        setSubscriptionDaysRemaining(data.daysRemaining);
-        setShowTopAlert(true);
-        setShowSubscriptionAlert(false); // Don't show modal
+        setShowSubscriptionAlert(true);
+      } else {
+        setShowSubscriptionAlert(false);
       }
       
     } catch (error) {
@@ -152,8 +147,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         requiresRenewal: true
       });
       setSubscriptionAlertType('expired');
-      setShowTopAlert(true);
-      setShowSubscriptionAlert(false); // Don't show modal
+      setShowSubscriptionAlert(true); // Show modal on expired
     }
   };
 
@@ -587,15 +581,9 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     handleSubscriptionRenew();
   };
 
-  const handleTopAlertDismiss = () => {
-    console.log('💳 Top alert dismissed');
-    setShowTopAlert(false);
-  };
-
   const handleSubscriptionRenew = () => {
     console.log('🔄 Navigating to subscription renewal page');
     setShowSubscriptionAlert(false);
-    setShowTopAlert(false);
     
     // Navigate to subscription page (step 5 of profile) with subscription tab selected
     setCurrentScreen('profile');
@@ -848,16 +836,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         </View>
       </View>
 
-      {/* Subscription Top Alert */}
-      <SubscriptionTopAlert
-        visible={showTopAlert}
-        type={subscriptionAlertType}
-        daysRemaining={subscriptionDaysRemaining}
-        onRenew={handleSubscriptionRenew}
-        onDismiss={handleTopAlertDismiss}
-      />
-
-      {/* Subscription Banner */}
+      {/* Subscription Banner - Shows when expired/cancelled/inactive OR ≤3 days (paid) or ≤1 day (trial) */}
       <SubscriptionBanner 
         subscriptionData={subscriptionData}
         onRenew={handleSubscriptionRenew}
@@ -982,11 +961,11 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         onMenuItemPress={handleMoreMenuItemPress}
       />
 
-      {/* Subscription Alert */}
+      {/* Subscription Modal - Shows ONLY when status is EXPIRED, INACTIVE, or CANCELLED */}
       <SubscriptionAlert
         visible={showSubscriptionAlert}
         type={subscriptionAlertType}
-        daysRemaining={subscriptionDaysRemaining}
+        daysRemaining={subscriptionData?.daysRemaining}
         onRenew={handleSubscriptionRenew}
       />
 

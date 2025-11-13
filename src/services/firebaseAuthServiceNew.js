@@ -18,6 +18,7 @@ class FirebaseAuthService {
     this.authStateListeners = [];
     this.firebaseAuth = null;
     this.authInitPromise = null;
+    this._authStateListenerAttached = false; // Track if we've attached the Firebase onAuthStateChanged listener
     
     // Log which API endpoint is being used
     console.log('🔥 Firebase Auth Service initialized with API:', API_CONFIG.BASE_URL);
@@ -40,7 +41,7 @@ class FirebaseAuthService {
         this.initializeInterceptors();
         this.initializeAuthStateListener();
       } else {
-        console.warn('⚠️ Firebase Auth instance not available at service construction');
+        console.warn('⚠️ Firebase Auth instance not available at service construction (will retry in ensureAuth())');
       }
     } catch (e) {
       console.error('❌ Firebase Auth Service construction error:', e);
@@ -54,8 +55,21 @@ class FirebaseAuthService {
   }
 
   async ensureAuth() {
+    // Attempt to obtain the Firebase Auth instance if we don't have it yet
     if (!this.firebaseAuth) {
       this.firebaseAuth = getFirebaseAuth();
+      if (this.firebaseAuth) {
+        console.log('🔁 ensureAuth(): Firebase Auth became available');
+        // Initialize interceptors only once
+        if (!this._interceptorsInitialized) {
+          this.initializeInterceptors();
+          this._interceptorsInitialized = true;
+        }
+        // Attach the auth state listener if not already
+        if (!this._authStateListenerAttached) {
+          this.initializeAuthStateListener();
+        }
+      }
     }
     if (!this.firebaseAuth) throw new Error('Firebase Auth is not initialized.');
     return this.firebaseAuth;
@@ -167,30 +181,62 @@ class FirebaseAuthService {
    * Initialize Firebase auth state listener
    */
   initializeAuthStateListener() {
-    const auth = this.getAuth();
+    if (this._authStateListenerAttached) return; // Guard against double registration
+    let auth;
+    try {
+      auth = this.getAuth();
+    } catch (e) {
+      console.error('❌ Firebase Auth not available for state listener (will retry via ensureAuth):', e.message);
+      return;
+    }
     if (!auth) {
       console.error('❌ Firebase Auth not available for state listener');
       return;
     }
     const useCompat = isCompatAuth();
     const listener = async (firebaseUser) => {
+      console.log('🔐 [AuthStateListener] Firebase user changed:', firebaseUser ? firebaseUser.email : 'null');
+      
       if (firebaseUser) {
-        try {
-          const profile = await this.getUserProfile();
-          if (profile) {
-            this.currentUser = {
-              ...profile,
-              uid: firebaseUser.uid,
-              emailVerified: firebaseUser.emailVerified,
-            };
+        // IMMEDIATE: Set basic user data and notify listeners to prevent timeout
+        this.currentUser = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || 'User',
+          emailVerified: firebaseUser.emailVerified,
+        };
+        
+        // Notify immediately to clear auth timeout
+        console.log('🔐 [AuthStateListener] Notifying listeners immediately (basic user)');
+        this.authStateListeners.forEach(cb => cb(this.currentUser));
+        
+        // ASYNC: Fetch full profile in background and update
+        (async () => {
+          try {
+            // Wait a moment for the token to be available in interceptors
+            await new Promise(resolve => setTimeout(resolve, 150));
+            
+            const profile = await this.getUserProfile();
+            if (profile) {
+              this.currentUser = {
+                ...profile,
+                uid: firebaseUser.uid,
+                emailVerified: firebaseUser.emailVerified,
+              };
+              console.log('🔐 [AuthStateListener] User profile loaded, updating listeners');
+              // Notify again with full profile
+              this.authStateListeners.forEach(cb => cb(this.currentUser));
+            }
+          } catch (error) {
+            console.log('⚠️ [AuthStateListener] Could not fetch user profile:', error.message);
+            // Keep basic user data already set
           }
-        } catch (error) {
-          console.log('Could not fetch user profile on auth state change:', error);
-        }
+        })();
       } else {
         this.currentUser = null;
+        console.log('🔐 [AuthStateListener] User signed out');
+        this.authStateListeners.forEach(cb => cb(this.currentUser));
       }
-      this.authStateListeners.forEach(cb => cb(this.currentUser));
     };
     if (useCompat) {
       auth.onAuthStateChanged(listener);
@@ -198,6 +244,8 @@ class FirebaseAuthService {
       const { onAuthStateChanged } = require('firebase/auth');
       onAuthStateChanged(auth, listener);
     }
+    this._authStateListenerAttached = true;
+    console.log('✅ Auth state listener attached');
   }
 
   /**
@@ -257,26 +305,24 @@ class FirebaseAuthService {
         userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
       }
       
-      // 2. Get Firebase ID token
+      // Get Firebase ID token and verify with backend
       const idToken = await userCredential.user.getIdToken();
+      console.log('🔐 [Login] Firebase sign-in successful, verifying with backend...');
 
-      // 3. Send Firebase ID token to backend for verification
-      const response = await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
+      // Send Firebase ID token to backend for verification and user sync
+      await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
         idToken: idToken
       });
+      console.log('🔐 [Login] Backend verification successful');
 
-      // 4. Wait a brief moment for interceptors to be fully ready with the new token
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 5. Extract user data from backend response and fetch full profile
-      const userData = response.data?.data || response.data || {};
-      const profile = await this.getUserProfile();
-
+      // Return minimal user data - the auth state listener will fetch full profile
       this.currentUser = {
-        ...(profile || userData),
         uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        name: userCredential.user.displayName || 'User',
         emailVerified: userCredential.user.emailVerified,
       };
+      console.log('🔐 [Login] Returning user, auth state listener will load full profile');
       
       return this.currentUser;
     } catch (error) {

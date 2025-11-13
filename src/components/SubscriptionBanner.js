@@ -13,14 +13,30 @@ const SubscriptionBanner = ({
   subscriptionData,
   onRenew 
 }) => {
-  // Don't show banner if no subscription data or if subscription is active
-  if (!subscriptionData || (!subscriptionData.isExpired && !subscriptionData.isExpiringSoon)) {
+  // Don't show banner if no subscription data
+  if (!subscriptionData) {
     return null;
   }
 
-  // Check if subscription is expiring soon (≤7 days)
-  const isExpiringSoon = subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 7;
-  const isExpired = subscriptionData.isExpired || (subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 0);
+  // Show banner if:
+  // 1. Status is EXPIRED, CANCELLED, or INACTIVE
+  // 2. OR ≤3 days remaining (paid) or ≤1 day (free trial)
+  const statusRequiresAlert = subscriptionData.status === 'EXPIRED' || 
+                               subscriptionData.status === 'CANCELLED' || 
+                               subscriptionData.status === 'INACTIVE';
+  
+  const daysThreshold = subscriptionData.isTrial ? 1 : 3;
+  const daysRequireAlert = subscriptionData.daysRemaining !== undefined && 
+                           subscriptionData.daysRemaining > 0 && 
+                           subscriptionData.daysRemaining <= daysThreshold;
+  
+  // Don't show if subscription is active and not expiring soon
+  if (!statusRequiresAlert && !daysRequireAlert) {
+    return null;
+  }
+
+  const isExpired = statusRequiresAlert || (subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 0);
+  const isExpiringSoon = !isExpired && daysRequireAlert;
 
   const getBannerConfig = () => {
     if (isExpired) {

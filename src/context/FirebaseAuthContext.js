@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import Toast from 'react-native-toast-message';
 
 /**
@@ -88,6 +88,8 @@ import firebaseAuthService from '../services/firebaseAuthServiceNew';
  */
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  // Track whether we've already received the first auth state event to safely clear fallback timeout
+  const initialAuthResolvedRef = useRef(false);
 
   /**
    * Initialize authentication state on app launch
@@ -95,6 +97,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     console.log('🔐 Starting Firebase auth initialization...');
     let unsubscribe = () => {};
+    let fallbackTimeout; // will hold timeout id
 
     const initAuth = async () => {
       try {
@@ -105,6 +108,15 @@ export function AuthProvider({ children }) {
         // Listen to Firebase auth state changes
         unsubscribe = firebaseAuthService.onAuthStateChange((user) => {
           console.log('🔐 Firebase auth state changed:', user ? `User: ${user.email}` : 'No user');
+          // First event received: clear fallback timeout so it doesn't wrongly log us out
+          if (!initialAuthResolvedRef.current) {
+            initialAuthResolvedRef.current = true;
+            if (fallbackTimeout) {
+              clearTimeout(fallbackTimeout);
+              fallbackTimeout = null;
+              console.log('🛑 Cleared auth fallback timeout after first auth event');
+            }
+          }
           
           if (user) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
@@ -127,15 +139,19 @@ export function AuthProvider({ children }) {
     initAuth();
 
     // Set a fallback timeout to ensure authReady gets set even if Firebase fails
-    const fallbackTimeout = setTimeout(() => {
-      console.log('⚠️ Firebase auth initialization timeout - setting authReady to true');
+    fallbackTimeout = setTimeout(() => {
+      if (initialAuthResolvedRef.current) {
+        // Listener already fired; no action needed.
+        return;
+      }
+      console.log('⚠️ Firebase auth initialization timeout (no auth event) - marking authReady, staying logged out');
       dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
-      dispatch({ type: AUTH_ACTIONS.LOGOUT }); // Ensure we're in logged out state
+      dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }, 5000); // 5 second timeout
 
     return () => {
       unsubscribe();
-      clearTimeout(fallbackTimeout);
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
     };
   }, []);
 
@@ -158,6 +174,12 @@ export function AuthProvider({ children }) {
         text1: 'Connexion réussie', 
         text2: `Bienvenue ${user.firstName || user.name}!` 
       });
+      // Fallback: in case the auth state listener hasn't attached yet (race after delayed Firebase init), optimistically set user now
+      if (!state.isAuthenticated) {
+        console.log('⚙️ Fallback user dispatch after login (listener may not have fired yet)');
+        dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
+        dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
+      }
       
       return { user, error: null };
     } catch (error) {

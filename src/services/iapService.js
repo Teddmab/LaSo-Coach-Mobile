@@ -44,6 +44,14 @@ class IAPService {
       return true;
     } catch (error) {
       console.error('❌ Error initializing IAP:', error);
+      
+      // E_IAP_NOT_AVAILABLE is expected on unsupported platforms (web, Windows, simulators without IAP configured)
+      // This is NOT a fatal error - the app should continue with limited functionality
+      if (error.code === 'E_IAP_NOT_AVAILABLE') {
+        console.log('ℹ️ IAP not available on this platform - continuing without native purchases');
+        return false;
+      }
+      
       return false;
     }
   }
@@ -66,7 +74,10 @@ class IAPService {
       this.isInitialized = false;
       console.log('✅ IAP connection closed');
     } catch (error) {
-      console.error('❌ Error closing IAP connection:', error);
+      // E_IAP_NOT_AVAILABLE during disconnect is expected and safe to ignore
+      if (error.code !== 'E_IAP_NOT_AVAILABLE') {
+        console.error('❌ Error closing IAP connection:', error);
+      }
     }
   }
 
@@ -80,7 +91,11 @@ class IAPService {
       console.log('💳 Fetching available products:', productIds);
       
       if (!this.isInitialized) {
-        await this.initialize();
+        const initialized = await this.initialize();
+        if (!initialized) {
+          console.log('ℹ️ IAP not initialized - returning empty products');
+          return [];
+        }
       }
 
       const products = await getProducts({ skus: productIds });
@@ -89,6 +104,13 @@ class IAPService {
       return products;
     } catch (error) {
       console.error('❌ Error fetching products:', error);
+      
+      // Return empty array instead of throwing for E_IAP_NOT_AVAILABLE
+      if (error.code === 'E_IAP_NOT_AVAILABLE') {
+        console.log('ℹ️ IAP not available - returning empty products');
+        return [];
+      }
+      
       throw error;
     }
   }
@@ -136,45 +158,57 @@ class IAPService {
    * @param {Function} onPurchaseError - Callback for purchase error
    */
   setupPurchaseListeners(onPurchaseSuccess, onPurchaseError) {
-    // Remove existing listeners if any
-    if (this.purchaseUpdateSubscription) {
-      this.purchaseUpdateSubscription.remove();
-    }
-    if (this.purchaseErrorSubscription) {
-      this.purchaseErrorSubscription.remove();
-    }
+    try {
+      // Remove existing listeners if any
+      if (this.purchaseUpdateSubscription) {
+        this.purchaseUpdateSubscription.remove();
+      }
+      if (this.purchaseErrorSubscription) {
+        this.purchaseErrorSubscription.remove();
+      }
 
-    // Listen for successful purchases
-    this.purchaseUpdateSubscription = purchaseUpdatedListener(async (purchase) => {
-      console.log('💳 Purchase updated:', purchase);
-      
-      try {
-        const receipt = purchase.transactionReceipt;
+      // Listen for successful purchases
+      this.purchaseUpdateSubscription = purchaseUpdatedListener(async (purchase) => {
+        console.log('💳 Purchase updated:', purchase);
         
-        if (receipt) {
-          // Call success callback with purchase data
-          if (onPurchaseSuccess) {
-            await onPurchaseSuccess(purchase);
-          }
+        try {
+          const receipt = purchase.transactionReceipt;
+          
+          if (receipt) {
+            // Call success callback with purchase data
+            if (onPurchaseSuccess) {
+              await onPurchaseSuccess(purchase);
+            }
 
-          // Acknowledge/finish the purchase
-          await this.acknowledgePurchase(purchase);
+            // Acknowledge/finish the purchase
+            await this.acknowledgePurchase(purchase);
+          }
+        } catch (error) {
+          console.error('❌ Error processing purchase update:', error);
+          if (onPurchaseError) {
+            onPurchaseError(error);
+          }
         }
-      } catch (error) {
-        console.error('❌ Error processing purchase update:', error);
+      });
+
+      // Listen for purchase errors
+      this.purchaseErrorSubscription = purchaseErrorListener((error) => {
+        console.error('❌ Purchase error:', error);
         if (onPurchaseError) {
           onPurchaseError(error);
         }
+      });
+      
+      console.log('✅ IAP purchase listeners attached');
+    } catch (error) {
+      // E_IAP_NOT_AVAILABLE or other initialization errors
+      if (error.code !== 'E_IAP_NOT_AVAILABLE') {
+        console.error('❌ Error setting up purchase listeners:', error);
+      } else {
+        console.log('ℹ️ IAP listeners not available (platform not supported)');
       }
-    });
-
-    // Listen for purchase errors
-    this.purchaseErrorSubscription = purchaseErrorListener((error) => {
-      console.error('❌ Purchase error:', error);
-      if (onPurchaseError) {
-        onPurchaseError(error);
-      }
-    });
+      // Don't throw - allow app to continue without IAP
+    }
   }
 
   /**

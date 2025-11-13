@@ -612,9 +612,13 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.profileButton} onPress={() => {
-            console.log('📊 Progress: Avatar clicked, navigating to more/settings');
-            if (onTabPress) {
-              onTabPress('more');
+            console.log('📊 Progress: Avatar clicked, navigating to settings');
+            if (onTabPress && typeof onTabPress === 'function') {
+              onTabPress('settings');
+            } else if (navigation && typeof navigation.navigate === 'function') {
+              navigation.navigate('Settings');
+            } else {
+              console.log('📊 Progress: No navigation handler available for settings');
             }
           }}>
             {console.log('📊 Progress avatar debug:', {

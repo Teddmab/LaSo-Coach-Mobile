@@ -20,20 +20,42 @@ import SubscriptionApi from '../services/subscriptionApi';
 import ProfileApi from '../services/profileApi';
 import IAPService from '../services/iapService';
 import IAPReceiptApi from '../services/iapReceiptApi';
+import firebaseAuthService from '../services/firebaseAuthServiceNew';
 import { theme } from '../constants/theme';
 
 /**
- * COMPLIANT SubscriptionScreen
+ * COMPLIANT SubscriptionScreen - Reader App Exception Implementation
+ * 
+ * Apple App Store Guidelines 3.1.3(a) Compliance:
+ * ================================================
+ * 
+ * PRIMARY METHOD: Native In-App Purchase (IAP)
+ * - All subscriptions MUST go through App Store/Google Play by default
+ * - IAP is the prominent, primary payment method
+ * - Receipt validation prevents fraud
+ * 
+ * READER APP EXCEPTION: External Link (Secondary, Discreet)
+ * - Per 3.1.3(a): Apps that provide access to previously purchased content
+ * - Link must be small, text-only, non-promotional
+ * - No buttons, no pricing information, no calls-to-action
+ * - Cannot steer users away from IAP
+ * - Passes authentication token for seamless web login
+ * - Auto-refreshes subscription status after web visit
  * 
  * Compliance Features:
- * 1. Native IAP/GPB as PRIMARY payment method
- * 2. External link relegated to "Reader App" style (discreet, non-promotional)
- * 3. No payment steering away from native IAP
- * 4. Receipt validation before unlocking content
- * 5. Proper platform-specific handling (iOS App Store / Google Play)
+ * 1. ✅ Native IAP/GPB as PRIMARY payment method (default flow)
+ * 2. ✅ External link relegated to "Reader App" style (discreet, compliant text)
+ * 3. ✅ No payment steering (external link is minimal, at bottom)
+ * 4. ✅ Receipt validation before unlocking content
+ * 5. ✅ Proper platform-specific handling (iOS App Store / Google Play)
+ * 6. ✅ Subscription sync (checks for web purchases on return)
+ * 
+ * IMPORTANT: Do NOT make external link more prominent or add pricing/promotions
+ * Any violation of Reader App guidelines will result in app rejection.
  */
 export default function SubscriptionScreen({ navigation }) {
   const { user, refreshProfile } = useAuth();
+  const [webAuthToken, setWebAuthToken] = useState(null);
   
   // State management
   const [loading, setLoading] = useState(true);
@@ -53,7 +75,14 @@ export default function SubscriptionScreen({ navigation }) {
     
     // Cleanup IAP connection when component unmounts
     return () => {
-      IAPService.disconnect();
+      try {
+        IAPService.disconnect();
+      } catch (error) {
+        // Disconnect errors are non-critical during cleanup
+        if (error?.code !== 'E_IAP_NOT_AVAILABLE') {
+          console.error('⚠️ Error during IAP cleanup:', error);
+        }
+      }
     };
   }, []);
 
@@ -62,12 +91,37 @@ export default function SubscriptionScreen({ navigation }) {
    */
   useEffect(() => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      IAPService.setupPurchaseListeners(
-        handlePurchaseSuccess,
-        handlePurchaseError
-      );
+      try {
+        IAPService.setupPurchaseListeners(
+          handlePurchaseSuccess,
+          handlePurchaseError
+        );
+      } catch (error) {
+        // IAP listener setup failure is non-critical (e.g., E_IAP_NOT_AVAILABLE)
+        if (error?.code !== 'E_IAP_NOT_AVAILABLE') {
+          console.error('⚠️ Error setting up IAP listeners:', error);
+        }
+      }
     }
   }, []);
+
+  /**
+   * Refresh subscription on screen focus (Reader App compliance)
+   * User may have purchased on web and returned to app
+   */
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', async () => {
+      console.log('🔄 Subscription screen focused - checking for web purchases');
+      try {
+        await refreshSubscriptionData();
+        await refreshProfile();
+      } catch (error) {
+        console.log('⚠️ Error refreshing on focus:', error);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   /**
    * Initialize screen data
@@ -77,9 +131,29 @@ export default function SubscriptionScreen({ navigation }) {
       setLoading(true);
       console.log('💳 Initializing subscription screen...');
 
-      // Initialize IAP connection
+      // Get Firebase ID token for web authentication (Reader App compliance)
+      try {
+        const token = await firebaseAuthService.getIdToken();
+        if (token) {
+          setWebAuthToken(token);
+          console.log('✅ Firebase ID token retrieved for web auth');
+        }
+      } catch (tokenError) {
+        console.log('⚠️ Could not get Firebase token for web auth:', tokenError);
+      }
+
+      // Initialize IAP connection (non-critical - continue if fails)
       if (IAPService.isAvailable()) {
-        await IAPService.initialize();
+        try {
+          await IAPService.initialize();
+        } catch (iapError) {
+          // IAP initialization failure is not fatal - continue with limited functionality
+          if (iapError.code === 'E_IAP_NOT_AVAILABLE') {
+            console.log('ℹ️ IAP not available - continuing with backend-only mode');
+          } else {
+            console.error('⚠️ IAP initialization failed:', iapError);
+          }
+        }
       }
 
       // Fetch subscription data
@@ -91,9 +165,14 @@ export default function SubscriptionScreen({ navigation }) {
       setPlans(plansData);
       setCurrentSubscription(subscriptionData);
 
-      // Fetch native IAP products if available
+      // Fetch native IAP products if available (non-critical)
       if (IAPService.isAvailable() && plansData.length > 0) {
-        await fetchIAPProducts(plansData);
+        try {
+          await fetchIAPProducts(plansData);
+        } catch (iapProductError) {
+          // Product fetch failure is not fatal
+          console.log('ℹ️ Could not fetch IAP products - continuing with backend prices');
+        }
       }
 
       console.log('✅ Subscription screen initialized');
@@ -536,32 +615,58 @@ export default function SubscriptionScreen({ navigation }) {
 
   /**
    * Render COMPLIANT external link (Reader App style)
-   * Must be discreet and non-promotional
+   * Per Apple Guidelines 3.1.3(a): Must be discreet, text-only, non-promotional
+   * No buttons, no pricing, no calls-to-action
    */
-  const renderExternalAccountLink = () => (
-    <View style={styles.externalLinkContainer}>
-      <TouchableOpacity 
-        style={styles.externalLinkButton}
-        onPress={() => {
-          Alert.alert(
-            'Gérer votre abonnement',
-            'Vous serez redirigé vers notre site web pour gérer votre abonnement.',
-            [
-              { text: 'Annuler', style: 'cancel' },
-              { 
-                text: 'Continuer', 
-                onPress: () => Linking.openURL('https://app.lasocoach.com/account')
-              }
-            ]
-          );
-        }}
-      >
-        <Text style={styles.externalLinkText}>
-          Déjà abonné ? Gérer votre compte
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderExternalAccountLink = () => {
+    // Build web URL with authentication token for seamless login
+    const buildWebUrl = () => {
+      const baseUrl = 'https://app.lasocoach.com/subscription';
+      if (webAuthToken) {
+        // Pass token as query parameter for automatic authentication
+        return `${baseUrl}?token=${encodeURIComponent(webAuthToken)}`;
+      }
+      return baseUrl;
+    };
+
+    const handleExternalLink = async () => {
+      try {
+        const url = buildWebUrl();
+        console.log('🌐 Opening external subscription page (Reader App compliance)');
+        
+        // Open URL in device browser
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+          
+          // After returning from browser, refresh subscription status
+          // User may have purchased/changed subscription on web
+          setTimeout(async () => {
+            console.log('🔄 Refreshing subscription status after external visit');
+            await refreshSubscriptionData();
+            await refreshProfile();
+          }, 2000);
+        } else {
+          console.error('Cannot open URL:', url);
+        }
+      } catch (error) {
+        console.error('Error opening external link:', error);
+      }
+    };
+
+    return (
+      <View style={styles.externalLinkContainer}>
+        <TouchableOpacity 
+          style={styles.externalLinkButton}
+          onPress={handleExternalLink}
+        >
+          <Text style={styles.externalLinkText}>
+            Gérer votre compte
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   /**
    * Render restore purchases button (iOS requirement)
@@ -848,21 +953,22 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     marginLeft: 8,
   },
+  // Reader App Exception - MUST be discreet per Apple Guidelines 3.1.3(a)
   externalLinkContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#F8F9FA',
-  },
-  externalLinkButton: {
     paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E8E8E8',
+    backgroundColor: '#FAFAFA',
     alignItems: 'center',
   },
+  externalLinkButton: {
+    paddingVertical: 8,
+  },
   externalLinkText: {
-    fontSize: 14,
-    color: '#666',
-    textDecorationLine: 'underline',
+    fontSize: 12, // Small, discreet text
+    color: '#999', // Muted gray color
+    textAlign: 'center',
   },
   complianceNotice: {
     paddingHorizontal: 20,
