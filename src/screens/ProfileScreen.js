@@ -2095,74 +2095,186 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
     </>
   );
 
-  const renderAppointmentForm = () => (
-    <>
-      {rendezvousLoading ? (
-        <View style={styles.formSection}>
-          <ActivityIndicator size="large" color="#8BC34A" />
-          <Text style={styles.loadingText}>Chargement du rendez-vous...</Text>
-        </View>
-      ) : rendezvousData ? (
-        <>
-          {/* Existing Appointment Display */}
-          <View style={styles.appointmentCard}>
-            <Text style={styles.appointmentCardTitle}>Rendez-vous programmé</Text>
-            <View style={styles.appointmentStatus}>
-              <Text style={styles.appointmentStatusText}>
-                {getRendezvousStatusText(rendezvousData.status)}
-              </Text>
-            </View>
-            
-            <View style={styles.appointmentDetails}>
-              <Text style={styles.appointmentDetailLabel}>Date:</Text>
-              <Text style={styles.appointmentDetailValue}>
-                {new Date(rendezvousData.scheduledAt).toLocaleString('fr-FR')}
-              </Text>
-            </View>
-            
-            <View style={styles.appointmentDetails}>
-              <Text style={styles.appointmentDetailLabel}>Durée:</Text>
-              <Text style={styles.appointmentDetailValue}>{rendezvousData.duration} minutes</Text>
-            </View>
-            
-            <View style={styles.appointmentDetails}>
-              <Text style={styles.appointmentDetailLabel}>Sujet:</Text>
-              <Text style={styles.appointmentDetailValue}>{rendezvousData.subject}</Text>
-            </View>
-            
-            {rendezvousData.notes && (
-              <View style={styles.appointmentDetails}>
-                <Text style={styles.appointmentDetailLabel}>Notes:</Text>
-                <Text style={styles.appointmentDetailValue}>{rendezvousData.notes}</Text>
-              </View>
-            )}
-            
-            {rendezvousData.assignedCoach && (
-              <View style={styles.appointmentDetails}>
-                <Text style={styles.appointmentDetailLabel}>Coach:</Text>
-                <Text style={styles.appointmentDetailValue}>{rendezvousData.assignedCoach.name}</Text>
-              </View>
-            )}
-            
-            {/* Only show reschedule button if status allows it */}
-            {rendezvousData.status !== 'ACCEPTED' && rendezvousData.status !== 'COMPLETED' && (
-              <TouchableOpacity style={styles.rescheduleButton} onPress={handleRescheduleAppointment}>
-                <Text style={styles.rescheduleButtonText}>Reprogrammer le rendez-vous</Text>
-              </TouchableOpacity>
-            )}
+  const renderAppointmentForm = () => {
+    const formatRendezvousDate = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const options = { weekday: 'short', day: 'numeric', month: 'short' };
+      return date.toLocaleDateString('fr-FR', options);
+    };
+
+    const formatRendezvousTime = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getDaysRemaining = (dateString) => {
+      if (!dateString) return 0;
+      const targetDate = new Date(dateString);
+      const today = new Date();
+      const diffTime = targetDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    };
+
+    return (
+      <>
+        {rendezvousLoading ? (
+          <View style={styles.formSection}>
+            <ActivityIndicator size="large" color="#8BC34A" />
+            <Text style={styles.loadingText}>Chargement du rendez-vous...</Text>
           </View>
-        </>
-      ) : (
-        <View style={styles.formSection}>
-          <TouchableOpacity style={styles.bookAppointmentButton} onPress={handleBookAppointment}>
-            <Text style={styles.bookAppointmentButtonText}>Prendre RDV avec Sonia</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        ) : rendezvousData ? (
+          <>
+            {/* Confirmation Message Banner */}
+            <View style={styles.confirmationBanner}>
+              <Text style={styles.confirmationText}>
+                Votre session est confirmée pour le {formatRendezvousDate(rendezvousData.scheduledAt)} à {formatRendezvousTime(rendezvousData.scheduledAt)}. {getDaysRemaining(rendezvousData.scheduledAt)} jours restants. Ajoutez un rappel dans votre agenda.
+              </Text>
+            </View>
 
+            {/* Main Appointment Card */}
+            <View style={styles.confirmedAppointmentCard}>
+              {/* Header with Status Badge */}
+              <View style={styles.confirmedHeader}>
+                <View style={styles.confirmedIconContainer}>
+                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.success} />
+                </View>
+                <View style={styles.confirmedHeaderText}>
+                  <Text style={styles.confirmedTitle}>Rendez-vous confirmé</Text>
+                  <Text style={styles.confirmedSubtitle}>Tout est prêt pour votre session.</Text>
+                </View>
+                <View style={styles.confirmedBadge}>
+                  <Text style={styles.confirmedBadgeText}>CONFIRMÉ</Text>
+                </View>
+              </View>
 
-    </>
-  );
+              {/* Message */}
+              <Text style={styles.appointmentMessage}>
+                Ajoutez l'événement à votre agenda et soyez prêt à vivre une session riche en conseils personnalisés.
+              </Text>
+
+              {/* Timeline Flow */}
+              <View style={styles.timelineContainer}>
+                {/* Today */}
+                <View style={styles.timelineStep}>
+                  <Text style={styles.timelineLabel}>AUJOURD'HUI</Text>
+                  <Text style={styles.timelineDate}>{formatRendezvousDate(new Date())}</Text>
+                </View>
+
+                <View style={styles.timelineArrow}>
+                  <Ionicons name="arrow-forward" size={20} color="#9CA3AF" />
+                </View>
+
+                {/* Coach Assigned */}
+                <View style={[styles.timelineStep, styles.timelineStepHighlight]}>
+                  <Text style={styles.timelineLabel}>COACH ASSIGNÉ</Text>
+                  <Text style={styles.timelineName}>
+                    {rendezvousData.assignedCoach?.name || 'Admin Eddy'}
+                  </Text>
+                </View>
+
+                <View style={styles.timelineArrow}>
+                  <Ionicons name="arrow-forward" size={20} color="#9CA3AF" />
+                </View>
+
+                {/* Rendezvous Date */}
+                <View style={[styles.timelineStep, styles.timelineStepFinal]}>
+                  <Text style={styles.timelineLabel}>RENDEZ-VOUS</Text>
+                  <Text style={styles.timelineDate}>
+                    {formatRendezvousDate(rendezvousData.scheduledAt)}
+                  </Text>
+                  <View style={styles.timelineTime}>
+                    <Ionicons name="time-outline" size={14} color={theme.colors.success} />
+                    <Text style={styles.timelineTimeText}>
+                      {formatRendezvousTime(rendezvousData.scheduledAt)}
+                    </Text>
+                  </View>
+                  <Text style={styles.timelineRemaining}>
+                    {getDaysRemaining(rendezvousData.scheduledAt)} jours restants
+                  </Text>
+                </View>
+              </View>
+
+              {/* Subject Section */}
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionLabel}>SUJET</Text>
+                <Text style={styles.detailSectionValue}>{rendezvousData.subject || 'Progress Review & Adjustments'}</Text>
+              </View>
+
+              {/* Coach Info Section */}
+              <View style={styles.coachInfoSection}>
+                <View style={styles.coachInfoRow}>
+                  <View style={styles.coachInfoLeft}>
+                    <Text style={styles.coachInfoLabel}>COACH ASSIGNÉ</Text>
+                    <Text style={styles.coachInfoName}>
+                      {rendezvousData.assignedCoach?.name || 'Admin Eddy'}
+                    </Text>
+                    <Text style={styles.coachInfoEmail}>
+                      {rendezvousData.assignedCoach?.email || 'eddy@admin.com'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.coachInfoRight}>
+                    <Text style={styles.coachInfoLabel}>LIEN DE RÉUNION</Text>
+                    {rendezvousData.meetingLink ? (
+                      <>
+                        <TouchableOpacity onPress={() => rendezvousData.meetingLink && Linking.openURL(rendezvousData.meetingLink)}>
+                          <Text style={styles.meetingLink} numberOfLines={2}>
+                            {rendezvousData.meetingLink}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={styles.meetingProviderBadge}>
+                          <Text style={styles.meetingProviderText}>Google Meet</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <Text style={styles.meetingLinkPending}>Lien à venir</Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+
+              {/* User Notes Section */}
+              {rendezvousData.notes && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionLabel}>SOPHIE</Text>
+                  <Text style={styles.detailSectionValue}>{rendezvousData.notes}</Text>
+                </View>
+              )}
+
+              {/* Coach Message Section */}
+              <View style={styles.detailSection}>
+                <Text style={styles.detailSectionLabel}>COACH ADMIN EDDY</Text>
+                <Text style={styles.detailSectionValue}>Parfait, rendez vous confimer</Text>
+              </View>
+
+              {/* Date and Duration Footer */}
+              <View style={styles.appointmentFooter}>
+                <View style={styles.footerItem}>
+                  <Text style={styles.footerLabel}>DATE</Text>
+                  <Text style={styles.footerValue}>
+                    {formatRendezvousDate(rendezvousData.scheduledAt)} · {formatRendezvousTime(rendezvousData.scheduledAt)}
+                  </Text>
+                </View>
+                <View style={styles.footerItem}>
+                  <Text style={styles.footerLabel}>DURÉE</Text>
+                  <Text style={styles.footerValue}>{rendezvousData.duration || 60} minutes</Text>
+                </View>
+              </View>
+            </View>
+          </>
+        ) : (
+          <View style={styles.formSection}>
+            <TouchableOpacity style={styles.bookAppointmentButton} onPress={handleBookAppointment}>
+              <Text style={styles.bookAppointmentButtonText}>Prendre RDV avec Sonia</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </>
+    );
+  };
 
   const renderSubscriptionForm = () => (
     <>
@@ -3529,6 +3641,235 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  // New Confirmed Appointment Styles (matching web design)
+  confirmationBanner: {
+    backgroundColor: '#D1FAE5',
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.success,
+    padding: 16,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+  },
+  confirmationText: {
+    fontSize: 14,
+    color: '#065F46',
+    lineHeight: 20,
+  },
+  confirmedAppointmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  confirmedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  confirmedIconContainer: {
+    marginRight: 12,
+  },
+  confirmedHeaderText: {
+    flex: 1,
+  },
+  confirmedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  confirmedSubtitle: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+  },
+  confirmedBadge: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  confirmedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#065F46',
+    letterSpacing: 0.5,
+  },
+  appointmentMessage: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  timelineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  timelineStep: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  timelineStepHighlight: {
+    backgroundColor: '#D1FAE5',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  timelineStepFinal: {
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  timelineLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6B7280',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  timelineDate: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  timelineName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.success,
+  },
+  timelineTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  timelineTimeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.success,
+    marginLeft: 4,
+  },
+  timelineRemaining: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+  },
+  timelineArrow: {
+    marginHorizontal: 4,
+  },
+  detailSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  detailSectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  detailSectionValue: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
+  },
+  coachInfoSection: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  coachInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  coachInfoLeft: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  coachInfoRight: {
+    flex: 1,
+    paddingLeft: 12,
+  },
+  coachInfoLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  coachInfoName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  coachInfoEmail: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+  },
+  meetingLink: {
+    fontSize: 12,
+    color: '#3B82F6',
+    textDecorationLine: 'underline',
+    marginBottom: 6,
+  },
+  meetingLinkPending: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  meetingProviderBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  meetingProviderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1E40AF',
+  },
+  appointmentFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  footerItem: {
+    flex: 1,
+  },
+  footerLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  footerValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
   },
   currentSubscriptionCard: {
     backgroundColor: '#FFFFFF',
