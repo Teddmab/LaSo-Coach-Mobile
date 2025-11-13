@@ -319,6 +319,27 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     }
   };
 
+  // Check if a date is outside subscription coverage
+  const isDateOutsideSubscription = (date) => {
+    if (!subscriptionData) return false;
+    
+    // If subscription is EXPIRED or INACTIVE, all dates are outside
+    if (subscriptionData.status === 'EXPIRED' || subscriptionData.status === 'INACTIVE') {
+      return true;
+    }
+    
+    // Check if date is after subscription end date
+    if (subscriptionData.endDate) {
+      const endDate = new Date(subscriptionData.endDate);
+      endDate.setHours(23, 59, 59, 999); // End of day
+      if (date > endDate) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
   // Generate week days centered around current date
   const generateWeekDays = () => {
     const weekDays = [];
@@ -334,7 +355,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
         day: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][date.getDay()],
         dayOfWeek: date.getDay() || 7, // Convert Sunday (0) to 7
         date: date,
-        isToday: date.toDateString() === today.toDateString()
+        isToday: date.toDateString() === today.toDateString(),
+        isOutsideSubscription: isDateOutsideSubscription(date)
       });
     }
     return weekDays;
@@ -728,27 +750,57 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                 style={[
                   styles.calendarDay,
                   day.isToday && styles.todayDay,
-                  selectedDay === day.dayOfWeek && styles.selectedDay
+                  selectedDay === day.dayOfWeek && styles.selectedDay,
+                  day.isOutsideSubscription && styles.outsideSubscriptionDay
                 ]}
                 onPress={() => {
-                  setSelectedDay(day.dayOfWeek);
-                  setSelectedDate(day.number);
+                  if (day.isOutsideSubscription) {
+                    // Show alert for dates outside subscription
+                    Alert.alert(
+                      '⚠️ Hors Abonnement',
+                      'Cette date est en dehors de votre période d\'abonnement. Renouvelez votre abonnement pour accéder aux menus.',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        { 
+                          text: 'Renouveler', 
+                          onPress: () => {
+                            if (onSubscriptionRenew) {
+                              onSubscriptionRenew();
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  } else {
+                    setSelectedDay(day.dayOfWeek);
+                    setSelectedDate(day.number);
+                  }
                 }}
               >
                 <Text style={[
                   styles.dayNumber,
                   day.isToday && styles.todayDayNumber,
-                  selectedDay === day.dayOfWeek && styles.selectedDayNumber
+                  selectedDay === day.dayOfWeek && styles.selectedDayNumber,
+                  day.isOutsideSubscription && styles.outsideSubscriptionText
                 ]}>
                   {day.number}
                 </Text>
                 <Text style={[
                   styles.dayName,
                   day.isToday && styles.todayDayName,
-                  selectedDay === day.dayOfWeek && styles.selectedDayName
+                  selectedDay === day.dayOfWeek && styles.selectedDayName,
+                  day.isOutsideSubscription && styles.outsideSubscriptionText
                 ]}>
                   {day.day}
                 </Text>
+                {day.isOutsideSubscription && (
+                  <Ionicons 
+                    name="warning" 
+                    size={12} 
+                    color="#F44336" 
+                    style={styles.warningIcon}
+                  />
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -1017,6 +1069,21 @@ const styles = StyleSheet.create({
   },
   selectedDayName: {
     color: '#FFFFFF',
+  },
+  outsideSubscriptionDay: {
+    backgroundColor: '#FFEBEE',
+    borderWidth: 2,
+    borderColor: '#F44336',
+    opacity: 0.7,
+  },
+  outsideSubscriptionText: {
+    color: '#F44336',
+    fontWeight: '600',
+  },
+  warningIcon: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
   },
   completionStatusCard: {
     backgroundColor: '#FFFFFF',
