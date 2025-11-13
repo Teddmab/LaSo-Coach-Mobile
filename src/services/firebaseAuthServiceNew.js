@@ -265,7 +265,10 @@ class FirebaseAuthService {
         idToken: idToken
       });
 
-      // 4. Extract user data from backend response
+      // 4. Wait a brief moment for interceptors to be fully ready with the new token
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 5. Extract user data from backend response and fetch full profile
       const userData = response.data?.data || response.data || {};
       const profile = await this.getUserProfile();
 
