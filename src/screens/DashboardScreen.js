@@ -71,6 +71,9 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(false);
   const [subscriptionAlertType, setSubscriptionAlertType] = useState(null);
+  
+  // Only blur MenuDuJour when status is EXPIRED or INACTIVE (not just expiring soon)
+  const shouldBlurMenu = subscriptionData?.status === 'EXPIRED' || subscriptionData?.status === 'INACTIVE';
   const requiresRenewal = subscriptionData?.requiresRenewal || false;
 
   // Check if profile is complete based on onboarding progress
@@ -890,13 +893,13 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
 
         {/* Nutrition Card */}
         <BlurredCard
-          isBlurred={requiresRenewal}
+          isBlurred={shouldBlurMenu}
           onPress={handleSubscriptionRenew}
           blurMessage="Menu du jour disponible avec un abonnement actif"
         >
           <NutritionCard 
             onPress={() => {
-              if (requiresRenewal) {
+              if (shouldBlurMenu) {
                 handleSubscriptionRenew();
               } else {
                 setShowCompleteDayModal(true);

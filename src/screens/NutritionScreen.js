@@ -117,7 +117,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
         const subscription = subscriptionRes.value;
         setSubscriptionData(subscription);
         
-        if (subscription?.requiresRenewal || subscription?.status === 'EXPIRED') {
+        // Only blur when status is EXPIRED or INACTIVE (not just expiring soon)
+        if (subscription?.status === 'EXPIRED' || subscription?.status === 'INACTIVE') {
           setShowBlurOverlay(true);
         }
         console.log('✅ Nutrition: Subscription data loaded');
