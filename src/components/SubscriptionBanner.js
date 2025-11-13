@@ -118,7 +118,8 @@ const SubscriptionBanner = ({
 const styles = StyleSheet.create({
   banner: {
     marginHorizontal: 20,
-    marginTop: 10,
+    marginTop: 16,
+    marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
