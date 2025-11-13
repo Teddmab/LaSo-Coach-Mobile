@@ -1,5 +1,4 @@
 // IMPORTANT: Import firebaseApp FIRST to ensure proper initialization order
-import { getFirebaseAuth } from '../config/firebaseApp';
 import { getFirebaseAuth, isCompatAuth } from '../config/firebaseApp';
 import { API_CONFIG } from '../config/apiConfig';
 import axios from 'axios';
