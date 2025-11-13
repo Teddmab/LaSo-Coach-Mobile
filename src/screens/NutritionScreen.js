@@ -11,7 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  TextInput
+  TextInput,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -505,10 +506,27 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
             />
             
             {/* Video Button Overlay */}
-            <TouchableOpacity style={styles.videoButton}>
-              <Ionicons name="play" size={20} color="#FFFFFF" />
-              <Text style={styles.videoButtonText}>Voir la vidéo de la recette</Text>
-            </TouchableOpacity>
+            {selectedMeal.youtubeUrl && (
+              <TouchableOpacity 
+                style={styles.videoButton}
+                onPress={() => {
+                  if (selectedMeal.youtubeUrl) {
+                    Linking.openURL(selectedMeal.youtubeUrl)
+                      .catch(err => {
+                        console.error('Failed to open YouTube URL:', err);
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Erreur',
+                          text2: 'Impossible d\'ouvrir la vidéo'
+                        });
+                      });
+                  }
+                }}
+              >
+                <Ionicons name="play" size={20} color="#FFFFFF" />
+                <Text style={styles.videoButtonText}>Voir la vidéo de la recette</Text>
+              </TouchableOpacity>
+            )}
             
             {/* Image Icon */}
             <View style={styles.imageIcon}>
@@ -1029,11 +1047,12 @@ const styles = StyleSheet.create({
   },
   calendarContent: {
     paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   calendarDay: {
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginHorizontal: 4,
