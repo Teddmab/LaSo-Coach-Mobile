@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -322,10 +322,14 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
 
   // Check if a date is outside subscription coverage
   const isDateOutsideSubscription = (date) => {
-    if (!subscriptionData) return false;
+    if (!subscriptionData) {
+      console.log('🗓️ No subscription data available');
+      return false;
+    }
     
     // If subscription is EXPIRED or INACTIVE, all dates are outside
     if (subscriptionData.status === 'EXPIRED' || subscriptionData.status === 'INACTIVE') {
+      console.log('🗓️ Date outside: Subscription is EXPIRED/INACTIVE');
       return true;
     }
     
@@ -333,7 +337,13 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     if (subscriptionData.endDate) {
       const endDate = new Date(subscriptionData.endDate);
       endDate.setHours(23, 59, 59, 999); // End of day
-      if (date > endDate) {
+      const dateToCheck = new Date(date);
+      dateToCheck.setHours(0, 0, 0, 0); // Start of day
+      
+      const isOutside = dateToCheck > endDate;
+      console.log(`🗓️ Checking date ${dateToCheck.toDateString()} vs end date ${endDate.toDateString()}: ${isOutside ? 'OUTSIDE' : 'INSIDE'}`);
+      
+      if (isOutside) {
         return true;
       }
     }
@@ -363,7 +373,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     return weekDays;
   };
 
-  const weekDays = generateWeekDays();
+  // Recalculate weekDays whenever subscriptionData changes
+  const weekDays = useMemo(() => generateWeekDays(), [subscriptionData]);
 
   const formatDate = (date) => {
     const months = [
