@@ -247,8 +247,9 @@ const ProgressCard = ({
           <TouchableOpacity 
             style={styles.addMetricButton}
             onPress={() => setShowMetricsModal(true)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="add" size={20} color={theme.colors.primary} />
+            <Ionicons name="add" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -298,8 +299,9 @@ const ProgressCard = ({
           <TouchableOpacity 
             style={styles.addMetricButton}
             onPress={() => setShowMetricsModal(true)}
+            activeOpacity={0.7}
           >
-            <Ionicons name="add" size={20} color={theme.colors.primary} />
+            <Ionicons name="add" size={24} color={theme.colors.primary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -539,14 +541,19 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   addMetricButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F0F8FF',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: theme.colors.primary + '30',
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   enSavoirPlusButton: {
     flexDirection: 'row',
