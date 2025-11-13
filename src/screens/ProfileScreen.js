@@ -2245,10 +2245,14 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
               )}
 
               {/* Coach Message Section */}
-              <View style={styles.detailSection}>
-                <Text style={styles.detailSectionLabel}>COACH ADMIN EDDY</Text>
-                <Text style={styles.detailSectionValue}>Parfait, rendez vous confimer</Text>
-              </View>
+              {rendezvousData.coachMessage && (
+                <View style={styles.detailSection}>
+                  <Text style={styles.detailSectionLabel}>
+                    COACH {(rendezvousData.assignedCoach?.name || 'ADMIN EDDY').toUpperCase()}
+                  </Text>
+                  <Text style={styles.detailSectionValue}>{rendezvousData.coachMessage}</Text>
+                </View>
+              )}
 
               {/* Date and Duration Footer */}
               <View style={styles.appointmentFooter}>

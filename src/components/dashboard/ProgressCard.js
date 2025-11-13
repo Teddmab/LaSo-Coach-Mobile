@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
+  Pressable
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +23,10 @@ const ProgressCard = ({
   const isSubscriptionExpired = subscriptionData?.isExpired || false;
   const isSubscriptionExpiringSoon = subscriptionData?.isExpiringSoon || false;
   const requiresRenewal = subscriptionData?.requiresRenewal || false;
+
+  // State for metrics modal
+  const [showMetricsModal, setShowMetricsModal] = useState(false);
+  const [selectedMetrics, setSelectedMetrics] = useState(['weight', 'waist', 'points']); // Default metrics
 
   const handleEnSavoirPlus = () => {
     if (requiresRenewal) {
@@ -129,16 +135,121 @@ const ProgressCard = ({
 
   const progressData = getProgressData();
 
+  // Available metrics
+  const availableMetrics = [
+    { 
+      id: 'weight', 
+      label: 'Poids', 
+      icon: 'scale',
+      color: '#4CAF50',
+      getData: () => ({
+        progress: progressData.weightProgress,
+        current: progressData.currentWeight,
+        target: progressData.targetWeight,
+        initial: progressData.initialWeight,
+        unit: 'kg'
+      })
+    },
+    { 
+      id: 'waist', 
+      label: 'Tour de taille', 
+      icon: 'resize',
+      color: '#2196F3',
+      getData: () => ({
+        progress: progressData.waistProgress,
+        current: progressData.currentWaistSize,
+        target: progressData.targetWaistSize,
+        initial: progressData.initialWaistSize,
+        unit: 'cm'
+      })
+    },
+    { 
+      id: 'points', 
+      label: 'Points', 
+      icon: 'trophy',
+      color: '#FF9800',
+      getData: () => ({
+        progress: progressData.pointsProgress,
+        current: formatPoints(progressData.currentPoints),
+        target: formatPoints(progressData.maxPoints),
+        initial: 0,
+        unit: ''
+      })
+    },
+    { 
+      id: 'length', 
+      label: 'Longueur', 
+      icon: 'analytics',
+      color: '#9C27B0',
+      getData: () => {
+        // Get length data from dashboardData if available
+        const lengthData = dashboardData?.measurements?.length || {};
+        return {
+          progress: lengthData.progress || 0,
+          current: lengthData.current || 0,
+          target: lengthData.target || 0,
+          initial: lengthData.initial || 0,
+          unit: 'cm'
+        };
+      }
+    },
+    { 
+      id: 'agora', 
+      label: 'Agora', 
+      icon: 'people',
+      color: '#FF5722',
+      getData: () => {
+        // Get Agora participation data from dashboardData if available
+        const agoraData = dashboardData?.agora || {};
+        return {
+          progress: agoraData.participationRate || 0,
+          current: agoraData.totalPosts || 0,
+          target: agoraData.targetPosts || 100,
+          initial: 0,
+          unit: 'posts'
+        };
+      }
+    }
+  ];
+
+  // Toggle metric selection
+  const toggleMetric = (metricId) => {
+    if (selectedMetrics.includes(metricId)) {
+      // Ensure at least one metric remains selected
+      if (selectedMetrics.length > 1) {
+        setSelectedMetrics(selectedMetrics.filter(id => id !== metricId));
+      }
+    } else {
+      // Limit to maximum 3 metrics
+      if (selectedMetrics.length < 3) {
+        setSelectedMetrics([...selectedMetrics, metricId]);
+      }
+    }
+  };
+
+  // Get the selected metrics to display
+  const getDisplayMetrics = () => {
+    return availableMetrics.filter(metric => selectedMetrics.includes(metric.id));
+  };
+
   // Show fallback content when profile data is missing
   if (!progressData.hasProfileData) {
     return (
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Ionicons name="trending-up" size={20} color={theme.colors.text.primary} />
-            <Text style={styles.title}>Progression</Text>
-          </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Ionicons name="trending-up" size={20} color={theme.colors.text.primary} />
+          <Text style={styles.title}>Progression</Text>
+        </View>
+        
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.addMetricButton}
+            onPress={() => setShowMetricsModal(true)}
+          >
+            <Ionicons name="add" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.enSavoirPlusButton}
@@ -148,8 +259,7 @@ const ProgressCard = ({
             <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
-
-        {/* Fallback Content */}
+      </View>        {/* Fallback Content */}
         <View style={styles.fallbackContainer}>
           <Ionicons name="person-circle-outline" size={48} color={theme.colors.text.secondary} />
           <Text style={styles.fallbackTitle}>Profil incomplet</Text>
@@ -184,26 +294,35 @@ const ProgressCard = ({
           <Text style={styles.title}>Progression</Text>
         </View>
         
-        <TouchableOpacity 
-          style={[
-            styles.enSavoirPlusButton,
-            requiresRenewal && styles.enSavoirPlusButtonDisabled
-          ]}
-          onPress={handleEnSavoirPlus}
-          disabled={requiresRenewal}
-        >
-          <Text style={[
-            styles.enSavoirPlusText,
-            requiresRenewal && styles.enSavoirPlusTextDisabled
-          ]}>
-            {requiresRenewal ? 'Renouveler' : 'En savoir +'}
-          </Text>
-          <Ionicons 
-            name={requiresRenewal ? "card" : "arrow-forward"} 
-            size={16} 
-            color={requiresRenewal ? theme.colors.text.secondary : theme.colors.primary} 
-          />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.addMetricButton}
+            onPress={() => setShowMetricsModal(true)}
+          >
+            <Ionicons name="add" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[
+              styles.enSavoirPlusButton,
+              requiresRenewal && styles.enSavoirPlusButtonDisabled
+            ]}
+            onPress={handleEnSavoirPlus}
+            disabled={requiresRenewal}
+          >
+            <Text style={[
+              styles.enSavoirPlusText,
+              requiresRenewal && styles.enSavoirPlusTextDisabled
+            ]}>
+              {requiresRenewal ? 'Renouveler' : 'En savoir +'}
+            </Text>
+            <Ionicons 
+              name={requiresRenewal ? "card" : "arrow-forward"} 
+              size={16} 
+              color={requiresRenewal ? theme.colors.text.secondary : theme.colors.primary} 
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Progress Content */}
@@ -215,44 +334,25 @@ const ProgressCard = ({
           </View>
         ) : (
           <>
-            {/* Three Progress Circles */}
+            {/* Dynamic Progress Circles */}
             <View style={styles.progressSection}>
               <View style={styles.progressCircles}>
-                {/* Weight Circle */}
-                <CircularProgress
-                  progress={progressData.weightProgress}
-                  size={80}
-                  strokeWidth={6}
-                  initial={progressData.initialWeight}
-                  current={progressData.currentWeight}
-                  target={progressData.targetWeight}
-                  unit="kg"
-                  label="Poids"
-                />
-                
-                {/* Waist Circle */}
-                <CircularProgress
-                  progress={progressData.waistProgress}
-                  size={80}
-                  strokeWidth={6}
-                  initial={progressData.initialWaistSize}
-                  current={progressData.currentWaistSize}
-                  target={progressData.targetWaistSize}
-                  unit="cm"
-                  label="Tour de taille"
-                />
-                
-                {/* Points Circle */}
-                <CircularProgress
-                  progress={progressData.pointsProgress}
-                  size={80}
-                  strokeWidth={6}
-                  initial={0}
-                  current={formatPoints(progressData.currentPoints)}
-                  target={formatPoints(progressData.maxPoints)}
-                  unit=""
-                  label="Points"
-                />
+                {getDisplayMetrics().map((metric) => {
+                  const data = metric.getData();
+                  return (
+                    <CircularProgress
+                      key={metric.id}
+                      progress={data.progress}
+                      size={80}
+                      strokeWidth={6}
+                      initial={data.initial}
+                      current={data.current}
+                      target={data.target}
+                      unit={data.unit}
+                      label={metric.label}
+                    />
+                  );
+                })}
               </View>
             </View>
 
@@ -320,6 +420,86 @@ const ProgressCard = ({
           </>
         )}
       </View>
+
+      {/* Metrics Selection Modal */}
+      <Modal
+        visible={showMetricsModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMetricsModal(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowMetricsModal(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choisir les métriques</Text>
+              <TouchableOpacity onPress={() => setShowMetricsModal(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Subtitle */}
+            <Text style={styles.modalSubtitle}>
+              Sélectionnez jusqu'à 3 métriques à afficher
+            </Text>
+
+            {/* Metrics List */}
+            <View style={styles.metricsList}>
+              {availableMetrics.map((metric) => {
+                const isSelected = selectedMetrics.includes(metric.id);
+                const isDisabled = !isSelected && selectedMetrics.length >= 3;
+
+                return (
+                  <TouchableOpacity
+                    key={metric.id}
+                    style={[
+                      styles.metricItem,
+                      isSelected && styles.metricItemSelected,
+                      isDisabled && styles.metricItemDisabled
+                    ]}
+                    onPress={() => toggleMetric(metric.id)}
+                    disabled={isDisabled}
+                  >
+                    <View style={styles.metricItemLeft}>
+                      <View style={[styles.metricIcon, { backgroundColor: metric.color + '20' }]}>
+                        <Ionicons name={metric.icon} size={24} color={metric.color} />
+                      </View>
+                      <Text style={[
+                        styles.metricItemLabel,
+                        isDisabled && styles.metricItemLabelDisabled
+                      ]}>
+                        {metric.label}
+                      </Text>
+                    </View>
+                    
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Done Button */}
+            <TouchableOpacity
+              style={styles.modalDoneButton}
+              onPress={() => setShowMetricsModal(false)}
+            >
+              <LinearGradient
+                colors={[theme.colors.primary, '#0056b3']}
+                style={styles.modalDoneButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalDoneButtonText}>Terminé</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -348,10 +528,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+  },
+  addMetricButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0F8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
   },
   enSavoirPlusButton: {
     flexDirection: 'row',
@@ -496,6 +691,98 @@ const styles = StyleSheet.create({
     color: '#E65100',
     fontWeight: '500',
     flex: 1,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  metricsList: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  metricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  metricItemSelected: {
+    backgroundColor: '#E3F2FD',
+    borderColor: theme.colors.primary,
+  },
+  metricItemDisabled: {
+    opacity: 0.4,
+  },
+  metricItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  metricIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricItemLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  metricItemLabelDisabled: {
+    color: theme.colors.text.secondary,
+  },
+  modalDoneButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalDoneButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalDoneButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 
