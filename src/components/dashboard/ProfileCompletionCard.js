@@ -1,246 +1,404 @@
-// Clean rewritten implementation (previous file had duplicated / malformed content)
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity,
+  ScrollView
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../constants/theme';
 
-// Step definitions & static points (web spec parity)
-const STEP_DEFS = [
-  { id: 1, key: 'profile_setup', label: 'Mon Profil', points: 100 },
-  { id: 2, key: 'goals_setup', label: 'Mes Objectifs', points: 30 },
-  { id: 3, key: 'recommendations', label: 'Recommandations', points: 20 },
-  { id: 4, key: 'rendezvous', label: 'Rendez-vous', points: 25 },
-];
-const TOTAL_POINTS = 175; // 100 + 30 + 20 + 25
-
-/**
- * ProfileCompletionCard
- * Props kept for backwards compatibility with DashboardScreen usage; some are unused.
- */
-const ProfileCompletionCard = ({
+const ProfileCompletionCard = ({ 
   onboardingData,
-  onStepPress,
-  rendezvousStatus, // null | PENDING | ASSIGNED | CONFIRMED
-  rendezvousScheduledAt,
-  // unused but accepted to avoid prop warnings
   onCompleteProfile,
+  onStepPress,
   subscriptionData,
-  onSubscriptionRenew,
+  onSubscriptionRenew
 }) => {
-  if (!onboardingData) return null;
-  if (rendezvousStatus === 'CONFIRMED') return null; // Hidden entirely when confirmed
+  // Force re-render when onboarding data changes
+  React.useEffect(() => {
+    console.log('🎯 ProfileCompletionCard - Onboarding data changed:', {
+      onboardingData,
+      completedSteps: onboardingData?.data?.completedSteps,
+      currentStep: onboardingData?.data?.currentStep
+    });
+  }, [onboardingData]);
+  console.log('🎯 ProfileCompletionCard - Received props:', {
+    onboardingData,
+    hasOnboardingData: !!onboardingData,
+    onboardingDataType: typeof onboardingData
+  });
+  const steps = [
+    { id: 1, title: 'Mon Profil', completed: true, points: 250 },
+    { id: 2, title: 'Mes Objectifs', completed: false, points: 200 },
+    { id: 3, title: 'Recommandations', completed: false, points: 150 },
+    { id: 4, title: 'Rendez-vous', completed: false, points: 100 },
+    { id: 5, title: 'Mon Abonnement', completed: false, points: 100 },
+    { id: 6, title: 'Confirmation', completed: false, points: 50 }
+  ];
 
-  const completedStepsRaw = onboardingData?.data?.completedSteps || [];
-  const normalizedCompleted = completedStepsRaw.map(s => (s === 'appointment' ? 'rendezvous' : s));
-  const currentStep = onboardingData?.data?.currentStep || 'profile_setup';
+  // Ensure we have valid onboarding data with fallbacks
+  const onboardingDataSafe = onboardingData || {};
+  const completedSteps = onboardingDataSafe?.data?.completedSteps || [];
+  const currentStep = onboardingDataSafe?.data?.currentStep || 'profile_setup';
 
-  const steps = useMemo(
-    () =>
-      STEP_DEFS.map(def => {
-        const isRendezvous = def.key === 'rendezvous';
-        const baseCompleted = normalizedCompleted.includes(def.key);
-        let status = 'default';
-        if (isRendezvous) {
-          if (rendezvousStatus === 'PENDING') status = 'pending';
-          else if (rendezvousStatus === 'ASSIGNED') status = 'assigned';
-          else if (baseCompleted) status = 'completed';
-        } else if (baseCompleted) status = 'completed';
-        else if (currentStep === def.key) status = 'active';
-        return { ...def, status };
-      }),
-    [normalizedCompleted, currentStep, rendezvousStatus]
+  console.log('🎯 ProfileCompletionCard - Step data:', {
+    completedSteps,
+    currentStep,
+    completedStepsLength: completedSteps.length
+  });
+
+  // Update step completion status based on onboarding data
+  const updatedSteps = steps.map(step => {
+    let completed = false;
+    let isCurrent = false;
+
+    switch (step.id) {
+      case 1: // Mon Profil
+        completed = completedSteps.includes('profile_setup');
+        isCurrent = currentStep === 'profile_setup';
+        break;
+      case 2: // Mes Objectifs
+        completed = completedSteps.includes('goals_setup');
+        isCurrent = currentStep === 'goals_setup';
+        break;
+      case 3: // Recommandations
+        completed = completedSteps.includes('recommendations');
+        isCurrent = currentStep === 'recommendations';
+        break;
+      case 4: // Rendez-vous
+        completed = completedSteps.includes('appointment');
+        isCurrent = currentStep === 'appointment';
+        break;
+      case 5: // Mon Abonnement
+        completed = completedSteps.includes('subscription');
+        isCurrent = currentStep === 'subscription';
+        break;
+      case 6: // Confirmation
+        completed = completedSteps.includes('confirmation');
+        isCurrent = currentStep === 'confirmation';
+        break;
+    }
+
+    return { ...step, completed, isCurrent };
+  });
+
+  const totalPoints = updatedSteps.reduce((sum, step) => 
+    step.completed ? sum + step.points : sum, 0
   );
 
-  const [selectedStepKey, setSelectedStepKey] = useState(null);
-  const toggleSelect = stepKey =>
-    setSelectedStepKey(prev => (prev === stepKey ? null : stepKey));
+  // Calculate progress percentage
+  const completedStepsCount = updatedSteps.filter(step => step.completed).length;
+  const progressPercentage = (completedStepsCount / updatedSteps.length) * 100;
+  const isComplete = completedStepsCount === updatedSteps.length;
 
-  const handleTilePress = step => {
-    toggleSelect(step.key);
-    if (onStepPress) onStepPress(step.id);
+  const handleCompleteProfile = () => {
+    // Check subscription status before proceeding
+    const requiresRenewal = subscriptionData?.requiresRenewal || false;
+    
+    if (requiresRenewal && onSubscriptionRenew) {
+      console.log('💳 Profile completion blocked - subscription renewal required');
+      onSubscriptionRenew();
+      return;
+    }
+    
+    if (onCompleteProfile) {
+      onCompleteProfile();
+    }
   };
 
-  const rendezvousMessage = () => {
-    if (rendezvousStatus === 'PENDING')
-      return 'Votre rendez-vous est en attente. Un coach confirmera bientôt la date.';
-    if (rendezvousStatus === 'ASSIGNED') {
-      if (rendezvousScheduledAt) {
-        try {
-          const d = new Date(rendezvousScheduledAt);
-          return `Un coach a été assigné pour le ${d.toLocaleDateString()}. Préparez vos questions.`;
-        } catch {
-          return 'Un coach a été assigné à votre rendez-vous. Préparez vos questions.';
-        }
-      }
-      return 'Un coach a été assigné à votre rendez-vous. Préparez vos questions.';
+  const handleStepPress = (stepId) => {
+    if (onStepPress) {
+      onStepPress(stepId);
     }
-    return 'Planifiez votre rendez-vous pour débloquer 25 points supplémentaires.';
   };
-
-  const baseMessage = 'Terminez les 4 étapes pour activer votre coaching personnalisé.';
-  const helperText = (() => {
-    const key = selectedStepKey;
-    if (!key) return baseMessage;
-    if (key === 'rendezvous') return rendezvousMessage();
-    switch (key) {
-      case 'profile_setup':
-        return 'Complétez votre profil pour commencer votre parcours.';
-      case 'goals_setup':
-        return 'Définissez vos objectifs pour personnaliser votre coaching.';
-      case 'recommendations':
-        return 'Découvrez vos recommandations adaptées.';
-      default:
-        return baseMessage;
-    }
-  })();
 
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <Ionicons name="person-circle" size={18} color={theme.colors.primary} style={{ marginRight: 6 }} />
-        <Text style={styles.title}>Complétez votre profil</Text>
+    <View style={styles.container} key={`profile-completion-${JSON.stringify(completedSteps)}`}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Ionicons name="person-circle" size={20} color={theme.colors.primary} />
+          <Text style={styles.title}>Complétez votre Profil</Text>
+        </View>
+        
+        <View style={styles.pointsBadge}>
+          <Text style={styles.pointsText}>+{totalPoints}pts</Text>
+        </View>
       </View>
-      <View style={styles.stepsRow}>
-        {steps.map(step => {
-          const isRendezvous = step.key === 'rendezvous';
-            const tileStyles = [styles.stepTile];
-            if (step.status === 'completed') tileStyles.push(styles.stepTileCompleted);
-            else if (step.status === 'active') tileStyles.push(styles.stepTileActive);
-            else if (step.status === 'pending') tileStyles.push(styles.stepTilePending);
-            else if (step.status === 'assigned') tileStyles.push(styles.stepTileAssigned);
 
-          let badgeContent = null;
-          if (isRendezvous && (step.status === 'pending' || step.status === 'assigned')) {
-            badgeContent = (
-              <ActivityIndicator
-                size="small"
-                color={step.status === 'pending' ? '#C39200' : '#D46A00'}
-              />
-            );
-          } else if (step.status === 'completed') {
-            badgeContent = <Ionicons name="checkmark" size={18} color="#FFFFFF" />;
-          } else if (step.status === 'active') {
-            badgeContent = <Ionicons name="radio-button-on" size={18} color={theme.colors.primary} />;
-          } else {
-            badgeContent = (
-              <Ionicons
-                name="ellipse-outline"
-                size={18}
-                color={theme.colors.text.secondary}
-              />
-            );
-          }
+      {/* Progress Steps - Click on any step to navigate */}
+      <View style={styles.progressContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.stepsContainer}
+        >
+          {/* Navigation Arrow Left */}
+          <TouchableOpacity style={styles.navArrow}>
+            <Ionicons name="chevron-back" size={16} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
 
-          return (
-            <TouchableOpacity
-              key={step.key}
-              style={tileStyles}
-              onPress={() => handleTilePress(step)}
-              activeOpacity={0.75}
+          {/* Steps */}
+          {updatedSteps.map((step, index) => (
+            <TouchableOpacity 
+              key={step.id} 
+              style={styles.stepContainer}
+              onPress={() => handleStepPress(step.id)}
+              activeOpacity={0.7}
             >
-              <View style={styles.badgeWrapper}>
-                <View style={[styles.badge, step.status === 'completed' && styles.badgeCompleted]}>
-                  {badgeContent}
-                </View>
+              <View style={[
+                styles.stepCircle,
+                step.completed && styles.stepCircleCompleted,
+                step.isCurrent && styles.stepCircleCurrent
+              ]}>
+                {step.completed ? (
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                ) : step.isCurrent ? (
+                  <Ionicons name="crown" size={16} color="#FFFFFF" />
+                ) : (
+                  <Text style={[
+                    styles.stepNumber,
+                    step.isCurrent && styles.stepNumberCurrent
+                  ]}>
+                    {step.id}
+                  </Text>
+                )}
               </View>
-              <Text style={styles.stepNumber}>{`ÉTAPE ${step.id}`}</Text>
-              <Text
-                style={[styles.stepLabel, step.status === 'completed' && styles.stepLabelCompleted]}
-                numberOfLines={2}
-              >
-                {step.label}
+              <Text style={[
+                styles.stepTitle,
+                step.completed && styles.stepTitleCompleted,
+                step.isCurrent && styles.stepTitleCurrent
+              ]}>
+                {step.title}
               </Text>
-              <View
-                style={[
-                  styles.pointsPill,
-                  isRendezvous &&
-                    (step.status === 'pending' || step.status === 'assigned') &&
-                    styles.pointsPillWarn,
-                ]}
-              >
-                <Text style={styles.pointsPillText}>+{step.points} pts</Text>
-              </View>
             </TouchableOpacity>
-          );
-        })}
+          ))}
+
+          {/* Navigation Arrow Right */}
+          <TouchableOpacity style={styles.navArrow}>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.text.secondary} />
+          </TouchableOpacity>
+        </ScrollView>
       </View>
-      <Text style={styles.helperText}>{helperText}</Text>
-      <View style={styles.incentiveWrapper}>
-        <Text style={styles.incentivePill}>{TOTAL_POINTS} points offerts</Text>
+
+      {/* Progress Bar */}
+      <View style={styles.progressBarContainer}>
+        <View style={styles.progressBarBackground}>
+          <View 
+            style={[
+              styles.progressBarFill, 
+              { width: `${progressPercentage}%` }
+            ]} 
+          />
+        </View>
+        <Text style={styles.progressText}>
+          {Math.round(progressPercentage)}% complété
+        </Text>
       </View>
+
+      {/* Profile Section */}
+      <View style={styles.profileSection}>
+        <Text style={styles.profileTitle}>Mon Profil</Text>
+        <View style={styles.profilePointsBadge}>
+          <Text style={styles.profilePointsText}>+250pts</Text>
+        </View>
+      </View>
+
+      {/* Complete Profile Button */}
+      <TouchableOpacity 
+        style={styles.completeButton}
+        onPress={handleCompleteProfile}
+      >
+        <LinearGradient
+          colors={isComplete ? ['#4CAF50', '#45a049'] : [theme.colors.primary, '#0056b3']}
+          style={styles.completeButtonGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Ionicons 
+            name={isComplete ? "checkmark-circle" : "person-add"} 
+            size={20} 
+            color="#FFFFFF" 
+          />
+          <Text style={styles.completeButtonText}>
+            {isComplete ? "Profil Complété" : "Compléter mon profil"}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
+  container: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 16,
-    padding: 18,
+    padding: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F1F2F4',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  title: { fontSize: 18, fontWeight: '600', color: theme.colors.text.primary },
-  stepsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  stepTile: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E3E7EA',
-    borderRadius: 12,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  pointsBadge: {
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
-    marginRight: 12,
-    position: 'relative',
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
   },
-  stepTileCompleted: { backgroundColor: 'rgba(76,175,80,0.12)', borderColor: theme.colors.success },
-  stepTileActive: { borderColor: theme.colors.primary, backgroundColor: 'rgba(76,175,80,0.05)' },
-  stepTilePending: { backgroundColor: 'rgba(255,193,7,0.15)', borderColor: '#FFC107' },
-  stepTileAssigned: { backgroundColor: 'rgba(255,152,0,0.18)', borderColor: '#FF9800' },
-  badgeWrapper: { position: 'absolute', top: -10, left: 12, zIndex: 2 },
-  badge: {
+  pointsText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressBarContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  progressBarBackground: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: theme.colors.primary,
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  stepsContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 10,
+  },
+  navArrow: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#E6E9EC',
-    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
   },
-  badgeCompleted: { backgroundColor: theme.colors.success },
-  stepNumber: { marginTop: 22, fontSize: 11, fontWeight: '600', color: '#1A1D21', letterSpacing: 0.5 },
-  stepLabel: { marginTop: 4, fontSize: 13, fontWeight: '600', color: theme.colors.text.primary, minHeight: 34 },
-  stepLabelCompleted: { color: theme.colors.success },
-  pointsPill: {
-    marginTop: 8,
-    backgroundColor: 'rgba(76,175,80,0.12)',
+  stepContainer: {
+    alignItems: 'center',
+    marginHorizontal: 8,
+    minWidth: 60,
+  },
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stepCircleCompleted: {
+    backgroundColor: '#4CAF50',
+  },
+  stepCircleCurrent: {
+    backgroundColor: theme.colors.primary,
+  },
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.text.secondary,
+  },
+  stepNumberCurrent: {
+    color: '#FFFFFF',
+  },
+  stepTitle: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  stepTitleCompleted: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  stepTitleCurrent: {
+    color: theme.colors.primary,
+    fontWeight: 'bold',
+  },
+  profileSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+  },
+  profileTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  profilePointsBadge: {
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
   },
-  pointsPillWarn: { backgroundColor: 'rgba(255,152,0,0.18)' },
-  pointsPillText: { fontSize: 11, fontWeight: '600', color: theme.colors.success },
-  helperText: { marginTop: 18, fontSize: 13, color: theme.colors.text.secondary },
-  incentiveWrapper: { marginTop: 14 },
-  incentivePill: {
-    backgroundColor: 'rgba(205,230,150,0.9)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-    borderRadius: 18,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2F4A00',
+  profilePointsText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+  completeButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  completeButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  completeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 
-export default ProfileCompletionCard;
+export default ProfileCompletionCard; 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -7,12 +7,17 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
-  Dimensions
+  Dimensions,
+  ActivityIndicator,
+  TextInput,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
+import { ProfileApi } from '../services/profileApi';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +25,20 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedMonth, setSelectedMonth] = useState(7); // July = 7
   const [selectedDate, setSelectedDate] = useState(18);
+  
+  // Rendezvous state
+  const [rendezvousLoading, setRendezvousLoading] = useState(true);
+  const [rendezvousData, setRendezvousData] = useState(null);
+  const [showRendezvousForm, setShowRendezvousForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    scheduledAt: '',
+    subject: 'Session de lancement',
+    duration: 60,
+    notes: '',
+  });
 
   const months = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -27,6 +46,205 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   ];
 
   const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+  // Fetch rendezvous on mount
+  useEffect(() => {
+    fetchRendezvous();
+  }, []);
+
+  const fetchRendezvous = useCallback(async () => {
+    try {
+      setRendezvousLoading(true);
+      const data = await ProfileApi.getCurrentRendezvous();
+      setRendezvousData(data);
+      setShowRendezvousForm(!data);
+    } catch (error) {
+      console.log('No existing rendezvous found');
+      setRendezvousData(null);
+      setShowRendezvousForm(true);
+    } finally {
+      setRendezvousLoading(false);
+    }
+  }, []);
+
+  // Status metadata
+  const getStatusMeta = (status) => {
+    switch (status) {
+      case 'PENDING':
+        return {
+          badge: 'En attente du coach',
+          badgeColor: '#9E9E9E',
+          bgColor: 'rgba(158,158,158,0.1)',
+          icon: 'time-outline',
+          message: 'Votre coach examine votre demande. Préparez vos questions.',
+        };
+      case 'ASSIGNED':
+        return {
+          badge: 'Coach assigné',
+          badgeColor: '#FF9800',
+          bgColor: 'rgba(255,152,0,0.1)',
+          icon: 'checkmark-circle-outline',
+          message: 'Votre coach est réservé. Préparez vos questions.',
+        };
+      case 'CONFIRMED':
+        return {
+          badge: 'Confirmé',
+          badgeColor: theme.colors.success,
+          bgColor: 'rgba(76,175,80,0.1)',
+          icon: 'checkmark-circle',
+          message: 'Votre session est confirmée. Ajoutez un rappel à votre calendrier.',
+        };
+      default:
+        return {
+          badge: 'Non programmé',
+          badgeColor: '#757575',
+          bgColor: '#F5F5F5',
+          icon: 'calendar-outline',
+          message: 'Planifiez votre premier rendez-vous pour commencer votre coaching.',
+        };
+    }
+  };
+
+  const formatDateLabel = (date) => {
+    if (!date) return '';
+    const options = { weekday: 'short', day: 'numeric', month: 'short' };
+    return date.toLocaleDateString('fr-FR', options);
+  };
+
+  const formatTimeLabel = (date) => {
+    if (!date) return '';
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getDaysUntil = (targetDate) => {
+    if (!targetDate) return '';
+    const now = new Date();
+    const diff = targetDate - now;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days < 0) return `Passé depuis ${Math.abs(days)} jour${Math.abs(days) > 1 ? 's' : ''}`;
+    if (days === 0) return "C'est aujourd'hui !";
+    if (days === 1) return 'Dans 1 jour';
+    return `${days} jours restants`;
+  };
+
+  const getMeetingProviderLabel = (provider) => {
+    const labels = {
+      GOOGLE_MEET: 'Google Meet',
+      ZOOM: 'Zoom',
+      TEAMS: 'Microsoft Teams',
+      PHONE: 'Appel téléphonique',
+    };
+    return labels[provider] || provider;
+  };
+
+  const handleSubmitRendezvous = async () => {
+    if (!formData.scheduledAt) {
+      Toast.show({
+        type: 'error',
+        text1: 'Date requise',
+        text2: 'Veuillez sélectionner une date et heure',
+      });
+      return;
+    }
+
+    const selectedDate = new Date(formData.scheduledAt);
+    const minDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    if (selectedDate < minDate) {
+      Toast.show({
+        type: 'error',
+        text1: 'Date invalide',
+        text2: 'Le rendez-vous doit être prévu au moins 24h à l\'avance',
+      });
+      return;
+    }
+
+    if (!formData.subject || formData.subject.length > 500) {
+      Toast.show({
+        type: 'error',
+        text1: 'Sujet requis',
+        text2: 'Le sujet est obligatoire (max 500 caractères)',
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const payload = {
+        scheduledAt: new Date(formData.scheduledAt).toISOString(),
+        subject: formData.subject,
+        duration: parseInt(formData.duration),
+        notes: formData.notes,
+      };
+
+      await ProfileApi.createRendezvous(payload);
+      await ProfileApi.updateProgress({
+        step: 'rendezvous',
+        completed: true,
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Rendez-vous enregistré',
+        text2: 'Votre demande a été envoyée avec succès',
+      });
+
+      await fetchRendezvous();
+      setShowRendezvousForm(false);
+    } catch (error) {
+      console.error('Error creating rendezvous:', error);
+      
+      if (error.response?.status === 409) {
+        Toast.show({
+          type: 'error',
+          text1: 'Créneau indisponible',
+          text2: 'Ce créneau n\'est plus disponible.',
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: 'Impossible de créer le rendez-vous.',
+        });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReschedule = () => {
+    if (rendezvousData?.status === 'CONFIRMED') {
+      Toast.show({
+        type: 'info',
+        text1: 'Rendez-vous confirmé',
+        text2: 'Contactez le support pour modifier',
+      });
+      return;
+    }
+
+    setFormData({
+      scheduledAt: rendezvousData?.scheduledAt || '',
+      subject: rendezvousData?.subject || 'Session de lancement',
+      duration: rendezvousData?.duration || 60,
+      notes: rendezvousData?.notes || '',
+    });
+    setShowRendezvousForm(true);
+  };
+
+  const handleOpenMeetingLink = async () => {
+    if (!rendezvousData?.meetingLink) return;
+    
+    try {
+      const supported = await Linking.canOpenURL(rendezvousData.meetingLink);
+      if (supported) {
+        await Linking.openURL(rendezvousData.meetingLink);
+      }
+    } catch (error) {
+      console.error('Error opening meeting link:', error);
+    }
+  };
 
   const programSessions = [
     {
@@ -50,6 +268,186 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
       canDelete: true
     }
   ];
+
+  const renderRendezvousCard = () => {
+    if (rendezvousLoading) {
+      return (
+        <View style={styles.rendezvousCard}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Chargement...</Text>
+        </View>
+      );
+    }
+
+    if (showRendezvousForm) {
+      return (
+        <View style={styles.rendezvousCard}>
+          <Text style={styles.rendezvousTitle}>Planifier un rendez-vous coach</Text>
+          
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Date et heure *</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="2025-11-20T10:30"
+              value={formData.scheduledAt}
+              onChangeText={(val) => setFormData({ ...formData, scheduledAt: val })}
+            />
+            <Text style={styles.formHint}>Format: AAAA-MM-JJTHH:MM</Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Sujet *</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Session de lancement"
+              value={formData.subject}
+              onChangeText={(val) => setFormData({ ...formData, subject: val })}
+              maxLength={500}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Durée</Text>
+            <View style={styles.durationPicker}>
+              {[30, 60, 90].map((dur) => (
+                <TouchableOpacity
+                  key={dur}
+                  style={[
+                    styles.durationOption,
+                    formData.duration === dur && styles.durationOptionActive,
+                  ]}
+                  onPress={() => setFormData({ ...formData, duration: dur })}
+                >
+                  <Text
+                    style={[
+                      styles.durationOptionText,
+                      formData.duration === dur && styles.durationOptionTextActive,
+                    ]}
+                  >
+                    {dur} min
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Notes (optionnel)</Text>
+            <TextInput
+              style={[styles.formInput, styles.formTextarea]}
+              placeholder="Ajoutez des notes..."
+              value={formData.notes}
+              onChangeText={(val) => setFormData({ ...formData, notes: val })}
+              multiline
+              numberOfLines={4}
+              maxLength={1000}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+            onPress={handleSubmitRendezvous}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>Confirmer</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {rendezvousData && (
+            <TouchableOpacity style={styles.cancelButton} onPress={() => setShowRendezvousForm(false)}>
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    if (rendezvousData) {
+      const status = rendezvousData.status;
+      const meta = getStatusMeta(status);
+      const rendezvousDate = rendezvousData.scheduledAt ? new Date(rendezvousData.scheduledAt) : null;
+
+      return (
+        <View style={styles.rendezvousCard}>
+          <View style={styles.rendezvousHeader}>
+            <Text style={styles.rendezvousTitle}>Rendez-vous Coach</Text>
+            <View style={[styles.statusBadge, { backgroundColor: meta.badgeColor }]}>
+              <Text style={styles.statusBadgeText}>{meta.badge}</Text>
+            </View>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Sujet</Text>
+            <Text style={styles.detailValue}>{rendezvousData.subject}</Text>
+          </View>
+
+          {rendezvousDate && (
+            <>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Date</Text>
+                <Text style={styles.detailValue}>{formatDateLabel(rendezvousDate)}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Heure</Text>
+                <Text style={styles.detailValue}>{formatTimeLabel(rendezvousDate)}</Text>
+              </View>
+              <View style={styles.countdownBox}>
+                <Text style={styles.countdownText}>{getDaysUntil(rendezvousDate)}</Text>
+              </View>
+            </>
+          )}
+
+          {rendezvousData.assignedCoach && (
+            <View style={styles.coachCard}>
+              <Avatar
+                source={{ uri: rendezvousData.assignedCoach.avatar }}
+                size={48}
+                fallbackText={rendezvousData.assignedCoach.name?.charAt(0)}
+              />
+              <View style={styles.coachInfo}>
+                <Text style={styles.coachName}>{rendezvousData.assignedCoach.name}</Text>
+                <Text style={styles.coachEmail}>{rendezvousData.assignedCoach.email}</Text>
+              </View>
+            </View>
+          )}
+
+          {rendezvousData.meetingLink && (
+            <View style={styles.meetingSection}>
+              <Text style={styles.meetingLabel}>Lien de réunion</Text>
+              <TouchableOpacity style={styles.meetingLinkButton} onPress={handleOpenMeetingLink}>
+                <Text style={styles.meetingLinkText} numberOfLines={1}>
+                  {rendezvousData.meetingLink}
+                </Text>
+                <Ionicons name="open-outline" size={18} color={theme.colors.primary} />
+              </TouchableOpacity>
+              {rendezvousData.meetingProvider && (
+                <View style={styles.providerBadge}>
+                  <Text style={styles.providerBadgeText}>
+                    {getMeetingProviderLabel(rendezvousData.meetingProvider)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {status !== 'CONFIRMED' && (
+            <TouchableOpacity style={styles.rescheduleButton} onPress={handleReschedule}>
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.primary} />
+              <Text style={styles.rescheduleButtonText}>Modifier</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    return null;
+  };
 
   const getDaysInMonth = (month, year) => {
     return new Date(year, month, 0).getDate();
@@ -174,6 +572,9 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Rendezvous Card */}
+        {renderRendezvousCard()}
+
         {/* Program Week Info */}
         <View style={styles.programInfo}>
           <Text style={styles.programWeek}>Semaine actuelle du programme : Semaine 4</Text>
@@ -594,6 +995,229 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     borderRadius: 12,
+  },
+  // Rendezvous styles
+  rendezvousCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+    padding: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  rendezvousHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  rendezvousTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  countdownBox: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: 'rgba(76,175,80,0.1)',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  countdownText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.success,
+  },
+  coachCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+  },
+  coachInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  coachName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  coachEmail: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+  },
+  meetingSection: {
+    marginTop: 16,
+  },
+  meetingLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  meetingLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: 'rgba(76,175,80,0.1)',
+    borderRadius: 12,
+  },
+  meetingLinkText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.primary,
+    marginRight: 8,
+  },
+  providerBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+  },
+  providerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#2196F3',
+  },
+  rescheduleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: 12,
+  },
+  rescheduleButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    backgroundColor: '#FAFAFA',
+  },
+  formTextarea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  formHint: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: 6,
+  },
+  durationPicker: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  durationOption: {
+    flex: 1,
+    padding: 12,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  durationOptionActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  durationOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+  },
+  durationOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  cancelButton: {
+    alignItems: 'center',
+    padding: 14,
+    marginTop: 12,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
   },
 });
 
