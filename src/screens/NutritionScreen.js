@@ -90,10 +90,10 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   }, []);
 
   useEffect(() => {
-    if (currentPlan && selectedDay) {
+    if (currentPlan && subscriptionData) {
       loadDayData();
     }
-  }, [currentPlan, selectedDay]);
+  }, [currentPlan, selectedDate, subscriptionData]);
 
   const fetchAllData = async () => {
     try {
@@ -152,28 +152,56 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     }
   };
 
+  // Calculate which day in the nutrition plan cycle based on selected date
+  const calculateNutritionPlanDay = (selectedDate) => {
+    if (!subscriptionData?.subscription?.startDate || !currentPlan?.numDays) {
+      console.log('⚠️ Missing subscription start date or plan numDays');
+      return 1; // Default to day 1
+    }
+
+    const startDate = new Date(subscriptionData.subscription.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const currentDate = new Date(selectedDate);
+    currentDate.setHours(0, 0, 0, 0);
+    
+    // Calculate days since subscription started (0-indexed)
+    const daysSinceStart = Math.floor((currentDate - startDate) / (1000 * 60 * 60 * 24));
+    
+    // Calculate which day in the plan cycle (1-indexed, repeating)
+    // Example: 3-day plan cycles as 1,2,3,1,2,3...
+    const planDay = (daysSinceStart % currentPlan.numDays) + 1;
+    
+    console.log(`📅 Date: ${currentDate.toDateString()}, Days since start: ${daysSinceStart}, Plan cycle day: ${planDay}/${currentPlan.numDays}`);
+    
+    return planDay;
+  };
+
   const loadDayData = async () => {
     if (!currentPlan?.id) return;
     
     try {
-      console.log(`🥗 Nutrition: Loading data for day ${selectedDay}`);
-      console.log(`🥗 Nutrition: Current plan:`, currentPlan.name);
+      // Calculate which day in the nutrition plan cycle
+      const planDay = calculateNutritionPlanDay(selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today);
+      
+      console.log(`🥗 Nutrition: Loading data for calendar date ${selectedDate}, plan day ${planDay}`);
+      console.log(`🥗 Nutrition: Current plan:`, currentPlan.name, `(${currentPlan.numDays} days)`);
       console.log(`🥗 Nutrition: Plan menus:`, currentPlan.menus);
       
-      // Get meals for selected day
-      const dayMenu = currentPlan.menus?.find(menu => menu.day === selectedDay);
-      console.log(`🥗 Nutrition: Found day menu for day ${selectedDay}:`, dayMenu);
+      // Get meals for the calculated plan day
+      const dayMenu = currentPlan.menus?.find(menu => menu.day === planDay);
+      console.log(`🥗 Nutrition: Found day menu for plan day ${planDay}:`, dayMenu);
       
       if (dayMenu) {
         console.log(`🥗 Nutrition: Day meals:`, dayMenu.meals);
         setDayMeals(dayMenu.meals || []);
       } else {
-        console.log(`🥗 Nutrition: No menu found for day ${selectedDay}`);
+        console.log(`🥗 Nutrition: No menu found for plan day ${planDay}`);
         setDayMeals([]);
       }
 
-      // Get completion status for the day
-      const completionRes = await nutritionAPI.getDayCompletionStatus(currentPlan.id, selectedDay);
+      // Get completion status for the plan day
+      const completionRes = await nutritionAPI.getDayCompletionStatus(currentPlan.id, planDay);
       if (completionRes.status === 'fulfilled') {
         setCompletionStatus(completionRes.value.data);
       }
@@ -787,11 +815,11 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
           >
             {weekDays.map((day) => (
               <TouchableOpacity
-                key={day.dayOfWeek}
+                key={day.number + '-' + day.dayOfWeek}
                 style={[
                   styles.calendarDay,
                   day.isToday && styles.todayDay,
-                  selectedDay === day.dayOfWeek && styles.selectedDay,
+                  selectedDate === day.number && styles.selectedDay,
                   day.isOutsideSubscription && styles.outsideSubscriptionDay
                 ]}
                 onPress={() => {
@@ -813,15 +841,15 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                       ]
                     );
                   } else {
-                    setSelectedDay(day.dayOfWeek);
                     setSelectedDate(day.number);
+                    setSelectedDay(day.dayOfWeek);
                   }
                 }}
               >
                 <Text style={[
                   styles.dayNumber,
                   day.isToday && styles.todayDayNumber,
-                  selectedDay === day.dayOfWeek && styles.selectedDayNumber,
+                  selectedDate === day.number && styles.selectedDayNumber,
                   day.isOutsideSubscription && styles.outsideSubscriptionText
                 ]}>
                   {day.number}
@@ -829,7 +857,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                 <Text style={[
                   styles.dayName,
                   day.isToday && styles.todayDayName,
-                  selectedDay === day.dayOfWeek && styles.selectedDayName,
+                  selectedDate === day.number && styles.selectedDayName,
                   day.isOutsideSubscription && styles.outsideSubscriptionText
                 ]}>
                   {day.day}
