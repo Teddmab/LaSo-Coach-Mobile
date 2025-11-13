@@ -77,6 +77,18 @@ if (!firebaseAuthInstance) {
         console.log('✅ Firebase Auth fallback getAuth initialized after delays');
       } catch (finalErr) {
         console.error('❌ Final fallback getAuth failed:', finalErr.message);
+        // Last resort: compat API fallback
+        try {
+          const compatApp = require('firebase/compat/app');
+          require('firebase/compat/auth');
+          if (!compatApp.apps.length) {
+            compatApp.initializeApp(firebaseConfig);
+          }
+          firebaseAuthInstance = compatApp.auth();
+          console.log('✅ Firebase Auth compat fallback initialized');
+        } catch (compatErr) {
+          console.error('❌ Compat fallback failed:', compatErr.message);
+        }
       }
     }
   }, 300);
@@ -94,6 +106,11 @@ export const getFirebaseApp = () => {
 };
 
 export const getFirebaseAuth = () => firebaseAuthInstance;
+export const isCompatAuth = () => {
+  if (!firebaseAuthInstance) return false;
+  // Compat auth instances have functions as methods instead of modular symbols
+  return typeof firebaseAuthInstance.signInWithEmailAndPassword === 'function';
+};
 
 export const firebaseOAuthClientIds = {
   ios: firebaseExtra.iosClientId || FIREBASE_IOS_CLIENT_ID,

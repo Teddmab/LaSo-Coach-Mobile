@@ -1,20 +1,12 @@
 // IMPORTANT: Import firebaseApp FIRST to ensure proper initialization order
 import { getFirebaseAuth } from '../config/firebaseApp';
+import { getFirebaseAuth, isCompatAuth } from '../config/firebaseApp';
 import { API_CONFIG } from '../config/apiConfig';
 import axios from 'axios';
 // Import Firebase auth functions AFTER our config is initialized
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithCustomToken,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  sendPasswordResetEmail,
-  updatePassword,
-  reauthenticateWithCredential,
-  EmailAuthProvider,
-} from 'firebase/auth';
+// Use compat fallback to avoid component registration issues in Expo Go; require modular funcs only when available.
+import firebaseCompat from 'firebase/compat/app';
+import 'firebase/compat/auth';
 
 /**
  * Firebase Authentication Service for React Native
@@ -176,18 +168,15 @@ class FirebaseAuthService {
    * Initialize Firebase auth state listener
    */
   initializeAuthStateListener() {
-    // Check if Firebase Auth is available before setting up listener
     const auth = this.getAuth();
     if (!auth) {
       console.error('❌ Firebase Auth not available for state listener');
       return;
     }
-
-    // Listen to Firebase auth state changes
-    onAuthStateChanged(auth, async (firebaseUser) => {
+    const useCompat = isCompatAuth();
+    const listener = async (firebaseUser) => {
       if (firebaseUser) {
         try {
-          // Try to get user profile from backend
           const profile = await this.getUserProfile();
           if (profile) {
             this.currentUser = {
@@ -202,10 +191,14 @@ class FirebaseAuthService {
       } else {
         this.currentUser = null;
       }
-      
-      // Notify all listeners
-      this.authStateListeners.forEach(listener => listener(this.currentUser));
-    });
+      this.authStateListeners.forEach(cb => cb(this.currentUser));
+    };
+    if (useCompat) {
+      auth.onAuthStateChanged(listener);
+    } else {
+      const { onAuthStateChanged } = require('firebase/auth');
+      onAuthStateChanged(auth, listener);
+    }
   }
 
   /**
@@ -256,15 +249,14 @@ class FirebaseAuthService {
    */
   async login(credentials) {
     try {
-      // Ensure Firebase Auth is initialized before attempting login
       const auth = await this.ensureAuth();
-      
-      // 1. Sign in with Firebase using email/password to get ID token
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        credentials.email,
-        credentials.password
-      );
+      let userCredential;
+      if (isCompatAuth()) {
+        userCredential = await auth.signInWithEmailAndPassword(credentials.email, credentials.password);
+      } else {
+        const { signInWithEmailAndPassword } = require('firebase/auth');
+        userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
+      }
       
       // 2. Get Firebase ID token
       const idToken = await userCredential.user.getIdToken();
@@ -317,7 +309,13 @@ class FirebaseAuthService {
       }
 
       // 2. Sign in with Firebase custom token returned by backend
-      const userCredential = await signInWithCustomToken(auth, firebaseCustomToken);
+      let userCredential;
+      if (isCompatAuth()) {
+        userCredential = await auth.signInWithCustomToken(firebaseCustomToken);
+      } else {
+        const { signInWithCustomToken } = require('firebase/auth');
+        userCredential = await signInWithCustomToken(auth, firebaseCustomToken);
+      }
 
       // 3. Ensure Firebase display name is up-to-date
       const displayName = `${credentials.firstName} ${credentials.lastName || ''}`.trim();
@@ -361,7 +359,13 @@ class FirebaseAuthService {
       }
 
       // Get custom token from backend and sign in with Firebase
-      const userCredential = await signInWithCustomToken(auth, firebaseToken);
+      let userCredential;
+      if (isCompatAuth()) {
+        userCredential = await auth.signInWithCustomToken(firebaseToken);
+      } else {
+        const { signInWithCustomToken } = require('firebase/auth');
+        userCredential = await signInWithCustomToken(auth, firebaseToken);
+      }
       const userData = response.data.data || response.data || {};
       const profile = await this.getUserProfile();
 
@@ -383,9 +387,13 @@ class FirebaseAuthService {
    */
   async logout() {
     try {
-      // Sign out from Firebase
-      await signOut(this.getAuth());
-      
+      const auth = this.getAuth();
+      if (isCompatAuth()) {
+        await auth.signOut();
+      } else {
+        const { signOut } = require('firebase/auth');
+        await signOut(auth);
+      }
       this.currentUser = null;
     } catch (error) {
       console.error('Logout error:', error);
@@ -470,19 +478,18 @@ class FirebaseAuthService {
    */
   async updatePassword(data) {
     try {
-      if (!this.getAuth().currentUser) {
-        throw new Error('No user logged in');
+      const user = this.getAuth().currentUser;
+      if (!user) throw new Error('No user logged in');
+      if (isCompatAuth()) {
+        const credential = firebaseCompat.auth.EmailAuthProvider.credential(user.email, data.currentPassword);
+        await user.reauthenticateWithCredential(credential);
+        await user.updatePassword(data.newPassword);
+      } else {
+        const { EmailAuthProvider, reauthenticateWithCredential, updatePassword } = require('firebase/auth');
+        const credential = EmailAuthProvider.credential(user.email, data.currentPassword);
+        await reauthenticateWithCredential(user, credential);
+        await updatePassword(user, data.newPassword);
       }
-
-      // Re-authenticate user
-      const credential = EmailAuthProvider.credential(
-        this.getAuth().currentUser.email,
-        data.currentPassword
-      );
-      await reauthenticateWithCredential(this.getAuth().currentUser, credential);
-
-      // Update password
-      await updatePassword(this.getAuth().currentUser, data.newPassword);
     } catch (error) {
       console.error('Password update error:', error);
       throw new Error(this.getErrorMessage(error));
@@ -494,16 +501,10 @@ class FirebaseAuthService {
    */
   async deleteAccount() {
     try {
-      if (!this.getAuth().currentUser) {
-        throw new Error('No user logged in');
-      }
-
-      // Delete user via backend API
+      const user = this.getAuth().currentUser;
+      if (!user) throw new Error('No user logged in');
       await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
-
-      // Delete Firebase user
-      await this.getAuth().currentUser.delete();
-      
+      await user.delete();
       this.currentUser = null;
     } catch (error) {
       console.error('Account deletion error:', error);
