@@ -1193,14 +1193,6 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           </View>
         </View>
       </Modal>
-
-      {/* Subscription Alert */}
-      <SubscriptionAlert
-        visible={showSubscriptionAlert}
-        type={subscriptionAlertType}
-        daysRemaining={subscriptionDaysRemaining}
-        onRenew={handleSubscriptionRenew}
-      />
     </SafeAreaView>
   );
 };
