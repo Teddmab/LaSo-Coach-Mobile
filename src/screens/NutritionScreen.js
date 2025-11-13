@@ -116,6 +116,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
       // Handle subscription data
       if (subscriptionRes.status === 'fulfilled') {
         const subscription = subscriptionRes.value;
+        console.log('🔍 SUBSCRIPTION DATA STRUCTURE:', JSON.stringify(subscription, null, 2));
         setSubscriptionData(subscription);
         
         // Only blur when status is EXPIRED or INACTIVE (not just expiring soon)
@@ -123,6 +124,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
           setShowBlurOverlay(true);
         }
         console.log('✅ Nutrition: Subscription data loaded');
+        console.log('✅ End date from subscription:', subscription?.endDate || subscription?.subscription?.endDate);
       }
 
       // Handle nutrition plans
@@ -327,6 +329,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
       return false;
     }
     
+    console.log('🗓️ Full subscription data:', JSON.stringify(subscriptionData, null, 2));
+    
     // If subscription is EXPIRED or INACTIVE, all dates are outside
     if (subscriptionData.status === 'EXPIRED' || subscriptionData.status === 'INACTIVE') {
       console.log('🗓️ Date outside: Subscription is EXPIRED/INACTIVE');
@@ -334,18 +338,26 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     }
     
     // Check if date is after subscription end date
-    if (subscriptionData.endDate) {
-      const endDate = new Date(subscriptionData.endDate);
+    // endDate might be in subscriptionData.endDate or subscriptionData.subscription.endDate
+    const endDateString = subscriptionData.endDate || subscriptionData.subscription?.endDate;
+    
+    if (endDateString) {
+      console.log('🗓️ End date string from API:', endDateString);
+      
+      const endDate = new Date(endDateString);
       endDate.setHours(23, 59, 59, 999); // End of day
+      
       const dateToCheck = new Date(date);
       dateToCheck.setHours(0, 0, 0, 0); // Start of day
       
       const isOutside = dateToCheck > endDate;
-      console.log(`🗓️ Checking date ${dateToCheck.toDateString()} vs end date ${endDate.toDateString()}: ${isOutside ? 'OUTSIDE' : 'INSIDE'}`);
+      console.log(`🗓️ Checking date ${dateToCheck.toISOString()} (${dateToCheck.toDateString()}) vs end date ${endDate.toISOString()} (${endDate.toDateString()}): ${isOutside ? 'OUTSIDE ❌' : 'INSIDE ✅'}`);
       
       if (isOutside) {
         return true;
       }
+    } else {
+      console.log('🗓️ No end date found in subscription data');
     }
     
     return false;
@@ -1060,15 +1072,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   calendarDay: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: 4,
+    paddingHorizontal: 12,
+    marginHorizontal: 6,
     borderRadius: 12,
-    minWidth: 60,
+    minWidth: 65,
+    flex: 1,
   },
   todayDay: {
     backgroundColor: '#E3F2FD',
