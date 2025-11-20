@@ -130,11 +130,8 @@ const styles = StyleSheet.create({
     padding: 15,
     marginRight: 10,
     width: 280,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
     position: 'relative',
   },
   cardCompleted: {

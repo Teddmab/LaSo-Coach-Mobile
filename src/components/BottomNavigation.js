@@ -9,6 +9,7 @@ const BottomNavigation = ({ activeTab = 'home', onTabPress }) => {
     { id: 'progress', icon: 'trending-up-outline', activeIcon: 'trending-up' },
     { id: 'nutrition', icon: 'restaurant-outline', activeIcon: 'restaurant' },
     { id: 'achievements', icon: 'trophy-outline', activeIcon: 'trophy' },
+    { id: 'defis', icon: 'medal-outline', activeIcon: 'medal' },
     { id: 'more', icon: 'add-outline', activeIcon: 'add' }
   ];
 

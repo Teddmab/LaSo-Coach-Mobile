@@ -23,6 +23,7 @@ import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import ProgressChart from '../components/ProgressChart';
 import BottomNavigation from '../components/BottomNavigation';
 import AchievementsCard from '../components/dashboard/AchievementsCard';
@@ -34,10 +35,11 @@ import ProgressPhotosApi from '../services/progressPhotosApi';
 
 const { width } = Dimensions.get('window');
 
-const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew }) => {
+const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
   // Main state
   const [activeTabState, setActiveTabState] = useState('measurements');
   const [profile, setProfile] = useState(null);
+  const [profileData, setProfileData] = useState(null); // Separate state for avatar from GET /profile
   const [initialMeasurements, setInitialMeasurements] = useState(null);
   const [measurements, setMeasurements] = useState([]);
   const [progressPhotos, setProgressPhotos] = useState([]);
@@ -67,6 +69,21 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
     error: ''
   });
 
+  // Fetch profile data separately for avatar (like ChatScreen)
+  useEffect(() => {
+    const fetchProfileForAvatar = async () => {
+      try {
+        const data = await ProfileApi.getProfile();
+        setProfileData(data);
+        console.log('[ProgressScreen] 📊 Profile data fetched for avatar:', data);
+        console.log('[ProgressScreen] 📊 Avatar from profileData:', data?.avatar);
+      } catch (error) {
+        console.error('[ProgressScreen] ❌ Error fetching profile for avatar:', error);
+      }
+    };
+    fetchProfileForAvatar();
+  }, []);
+
   useEffect(() => {
     fetchAllData();
     checkSubscriptionStatus();
@@ -74,7 +91,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 
   // Add pull-to-refresh functionality
   const handleRefresh = async () => {
-    console.log('🔄 Progress: Pull-to-refresh triggered');
+    console.log('[ProgressScreen] 🔄 Pull-to-refresh triggered');
     setRefreshing(true);
     await fetchAllData();
     setRefreshing(false);
@@ -83,14 +100,14 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      console.log('📊 Progress: Fetching all data...');
-      console.log('📊 Progress: API Base URL:', api.defaults.baseURL);
+      console.log('[ProgressScreen] 📊 Fetching all data...');
+      console.log('[ProgressScreen] 📊 API Base URL:', api.defaults.baseURL);
       
       // Try to fetch from the progress overview endpoint first (original approach)
       try {
-        console.log('📊 Progress: Trying progress overview endpoint: /progress/overview');
+        console.log('[ProgressScreen] 📊 Trying progress overview endpoint: /progress/overview');
         const progressRes = await api.get('/progress/overview');
-        console.log('📊 Progress: Progress overview data:', progressRes.data);
+        console.log('[ProgressScreen] 📊 Progress overview data:', progressRes.data);
         
         if (progressRes.data?.success && progressRes.data?.data) {
           const data = progressRes.data.data;
@@ -108,22 +125,35 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
             });
           }
           
-          console.log('✅ Progress: Data fetched from progress overview endpoint');
+          console.log('[ProgressScreen] ✅ Data fetched from progress overview endpoint');
           return;
         }
       } catch (progressError) {
-        console.log('⚠️ Progress: Progress overview endpoint failed, trying individual endpoints:', progressError.message);
+        console.log('[ProgressScreen] ⚠️ Progress overview endpoint failed, trying individual endpoints:', progressError.message);
       }
       
       // Fallback to individual endpoints
-      console.log('📊 Progress: Trying individual endpoints...');
+      console.log('[ProgressScreen] 📊 Trying individual endpoints...');
       const [profileRes, measurementsRes, photosRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
         api.get('/onboarding/measurements'),
         ProgressPhotosApi.getProgressPhotos()
       ]);
 
-      console.log('📊 Progress: Individual API responses:', {
+      // Log the full GET /Profile response structure
+      if (profileRes.status === 'fulfilled') {
+        console.log('[ProgressScreen] 📊 GET /Profile full response:', JSON.stringify(profileRes.value, null, 2));
+        console.log('[ProgressScreen] 📊 GET /Profile avatar paths:', {
+          'profileRes.value.avatar': profileRes.value?.avatar,
+          'profileRes.value.profile?.avatar': profileRes.value?.profile?.avatar,
+          'profileRes.value.data?.avatar': profileRes.value?.data?.avatar,
+          'profileRes.value.data?.profile?.avatar': profileRes.value?.data?.profile?.avatar,
+        });
+      } else {
+        console.error('[ProgressScreen] ❌ GET /Profile failed:', profileRes.reason?.message);
+      }
+
+      console.log('[ProgressScreen] 📊 Individual API responses:', {
         profile: profileRes.status === 'fulfilled' ? profileRes.value : profileRes.reason?.message,
         measurements: measurementsRes.status === 'fulfilled' ? measurementsRes.value.data : measurementsRes.reason?.message,
         photos: photosRes.status === 'fulfilled' ? photosRes.value.data : photosRes.reason?.message
@@ -147,7 +177,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
       setProgressPhotos(photosData);
       
       // Debug logging
-      console.log('📊 Progress: Final data set:', {
+      console.log('[ProgressScreen] 📊 Final data set:', {
         profile: profileData,
         measurements: measurementsData,
         photos: photosData,
@@ -179,9 +209,9 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         setInitialMeasurements(null);
       }
 
-      console.log('✅ Progress: Data fetched from individual endpoints');
+      console.log('[ProgressScreen] ✅ Data fetched from individual endpoints');
     } catch (error) {
-      console.error('❌ Progress: Error fetching data:', error);
+      console.error('[ProgressScreen] ❌ Error fetching data:', error);
       // Set minimal fallback data - no hardcoded values
       setProfile({
         initialWeight: null,
@@ -202,11 +232,11 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 
   const checkSubscriptionStatus = async () => {
     try {
-      console.log('💳 Progress: Checking subscription status...');
+      console.log('[ProgressScreen] 💳 Checking subscription status...');
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
     } catch (error) {
-      console.error('❌ Progress: Error checking subscription status:', error);
+      console.error('[ProgressScreen] ❌ Error checking subscription status:', error);
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,
@@ -216,7 +246,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   };
 
   const handleSubscriptionRenew = () => {
-    console.log('🔄 Progress: Navigating to subscription renewal page');
+    console.log('[ProgressScreen] 🔄 Navigating to subscription renewal page');
     if (onSubscriptionRenew) {
       onSubscriptionRenew();
     }
@@ -229,7 +259,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
     );
     const latestMeasurement = sortedMeasurements[0];
     const currentWeight = latestMeasurement?.weight ?? profile?.profile?.weight ?? '-';
-    console.log('📊 Progress: Current weight calculation:', {
+    console.log('[ProgressScreen] 📊 Current weight calculation:', {
       latestMeasurement: latestMeasurement?.weight,
       profileWeight: profile?.profile?.weight,
       finalWeight: currentWeight
@@ -244,7 +274,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
     );
     const latestMeasurement = sortedMeasurements[0];
     const currentWaist = latestMeasurement?.waistSize ?? profile?.profile?.waistSize ?? '-';
-    console.log('📊 Progress: Current waist calculation:', {
+    console.log('[ProgressScreen] 📊 Current waist calculation:', {
       latestMeasurement: latestMeasurement?.waistSize,
       profileWaist: profile?.profile?.waistSize,
       finalWaist: currentWaist
@@ -292,7 +322,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
       }
     });
     
-    console.log('📊 ProgressScreen: Generated chart data:', chartData);
+    console.log('[ProgressScreen] 📊 Generated chart data:', chartData);
     return chartData;
   };
 
@@ -385,7 +415,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         notes: measurementForm.notes
       });
 
-      console.log('✅ Progress: Measurement added successfully:', response.data);
+      console.log('[ProgressScreen] ✅ Measurement added successfully:', response.data);
 
       // Refresh data
       await fetchAllData();
@@ -402,7 +432,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 
       Alert.alert('Succès', 'Mesure ajoutée avec succès!');
     } catch (error) {
-      console.error('❌ Progress: Error adding measurement:', error);
+      console.error('[ProgressScreen] ❌ Error adding measurement:', error);
       setMeasurementForm(prev => ({ 
         ...prev, 
         error: 'Erreur lors de l\'ajout de la mesure',
@@ -442,7 +472,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
       const result = await ProgressPhotosApi.addProgressPhoto(formData);
 
       if (result.success) {
-        console.log('✅ Progress: Photo added successfully:', result.data);
+        console.log('[ProgressScreen] ✅ Photo added successfully:', result.data);
 
         // Refresh data
         await fetchAllData();
@@ -467,21 +497,21 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         }));
       }
     } catch (error) {
-      console.error('❌ Progress: Error adding photo:', error);
+      console.error('[ProgressScreen] ❌ Error adding photo:', error);
       
       let errorMessage = 'Erreur lors de l\'ajout de la photo';
       
       if (error.response) {
         // Server responded with error status
-        console.error('❌ Server error response:', error.response.data);
+        console.error('[ProgressScreen] ❌ Server error response:', error.response.data);
         errorMessage = error.response.data?.message || errorMessage;
       } else if (error.request) {
         // Request was made but no response received
-        console.error('❌ No response received:', error.request);
+        console.error('[ProgressScreen] ❌ No response received:', error.request);
         errorMessage = 'Problème de connexion. Vérifiez votre internet.';
       } else {
         // Something else happened
-        console.error('❌ Error setting up request:', error.message);
+        console.error('[ProgressScreen] ❌ Error setting up request:', error.message);
         errorMessage = error.message || errorMessage;
       }
       
@@ -512,7 +542,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         }));
       }
     } catch (error) {
-      console.error('❌ Progress: Error selecting photo:', error);
+      console.error('[ProgressScreen] ❌ Error selecting photo:', error);
       Alert.alert('Erreur', 'Erreur lors de la sélection de la photo');
     }
   };
@@ -533,7 +563,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
               await fetchAllData();
               Alert.alert('Succès', 'Mesure supprimée avec succès!');
             } catch (error) {
-              console.error('❌ Progress: Error deleting measurement:', error);
+              console.error('[ProgressScreen] ❌ Error deleting measurement:', error);
               Alert.alert('Erreur', 'Erreur lors de la suppression de la mesure');
             }
           }
@@ -558,7 +588,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
               await fetchAllData();
               Alert.alert('Succès', 'Photo supprimée avec succès!');
             } catch (error) {
-              console.error('❌ Progress: Error deleting photo:', error);
+              console.error('[ProgressScreen] ❌ Error deleting photo:', error);
               Alert.alert('Erreur', 'Erreur lors de la suppression de la photo');
             }
           }
@@ -578,9 +608,10 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   // Get avatar URL (handle both relative and absolute URLs)
   const getAvatarUrl = (avatarPath) => {
     if (!avatarPath) return null;
-    return avatarPath.startsWith('http') 
-      ? avatarPath 
-      : `${API_CONFIG.baseURL?.replace('/api/v1', '')}${avatarPath}`;
+    if (avatarPath.startsWith('http')) return avatarPath;
+    const base = API_CONFIG.BASE_URL || '';
+    const root = base.replace(/\/api\/v1$/, '');
+    return `${root}${avatarPath.startsWith('/') ? '' : '/'}${avatarPath}`;
   };
 
   if (loading) {
@@ -598,45 +629,62 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Progression</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
+      {/* Header - aligned with Dashboard */}
+      <AppHeader
+        title="Progression"
+        onHelpPress={() => {
+          if (onFAQPress) {
+            onFAQPress();
+          } else if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          console.log('📊 Progress: Avatar clicked, navigating to settings');
+          if (onTabPress && typeof onTabPress === 'function') {
+            onTabPress('settings');
+          } else if (navigation && typeof navigation.navigate === 'function') {
+            navigation.navigate('Settings');
+          } else {
+            console.log('📊 Progress: No navigation handler available for settings');
+          }
+        }}
+        avatarSource={(() => {
+          // Get avatar from profileData first (from GET /profile), then fallback to profile and user
+          // This matches the pattern used in ChatScreen, NutritionScreen, etc.
+          const rawAvatar = profileData?.avatar 
+            || profile?.avatar 
+            || profile?.profile?.avatar 
+            || user?.avatar;
           
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <NotificationBadge />
-          </TouchableOpacity>
+          // Debug logging
+          console.log('[ProgressScreen] 📊 Avatar sources:', {
+            'profileData?.avatar': profileData?.avatar,
+            'profile?.avatar': profile?.avatar,
+            'profile?.profile?.avatar': profile?.profile?.avatar,
+            'user?.avatar': user?.avatar,
+            'rawAvatar': rawAvatar,
+            'profileData structure': profileData ? Object.keys(profileData) : null,
+            'profile structure': profile ? Object.keys(profile) : null
+          });
           
-          <TouchableOpacity style={styles.profileButton} onPress={() => {
-            console.log('📊 Progress: Avatar clicked, navigating to settings');
-            if (onTabPress && typeof onTabPress === 'function') {
-              onTabPress('settings');
-            } else if (navigation && typeof navigation.navigate === 'function') {
-              navigation.navigate('Settings');
-            } else {
-              console.log('📊 Progress: No navigation handler available for settings');
-            }
-          }}>
-            {console.log('📊 Progress avatar debug:', {
-              profileAvatar: profile?.avatar,
-              userAvatar: user?.avatar,
-              finalAvatar: profile?.avatar || user?.avatar,
-              profileExists: !!profile,
-              userExists: !!user
-            })}
-            <Avatar 
-              source={{ uri: getAvatarUrl(profile?.avatar || user?.avatar) }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+          // Process avatar URL if it exists
+          if (rawAvatar) {
+            const processedAvatar = getAvatarUrl(rawAvatar);
+            console.log('[ProgressScreen] 📊 Processed avatar URL:', processedAvatar);
+            return processedAvatar;
+          }
+          
+          console.log('[ProgressScreen] 📊 No avatar found, using fallback');
+          return null;
+        })()}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -690,7 +738,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 
         {/* Progress Card - Combined Weight and Waist */}
         <View style={styles.progressCardsSection}>
-          {console.log('📊 Progress: Profile data for cards:', {
+          {console.log('[ProgressScreen] 📊 Profile data for cards:', {
             profile: profile,
             initialWeight: profile?.initialWeight,
             profileInitialWeight: profile?.profile?.initialWeight,
@@ -792,7 +840,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
               initialMeasurements={initialMeasurements}
               measurements={measurements}
               onDataPointPress={(dataPoint, index) => {
-                console.log('📊 Chart: Data point pressed:', dataPoint, index);
+                console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);
               }}
               onDeleteMeasurement={handleDeleteMeasurement}
               onAddMeasurement={() => setShowMeasurementModal(true)}
@@ -800,78 +848,6 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 
             {/* Achievement Card */}
             <AchievementsCard />
-
-            {/* Défis complétés / Badges collectés Card */}
-            <View style={styles.progressCard}>
-              <Text style={styles.cardTitle}>Défis complétés / Badges collectés</Text>
-              <View style={styles.challengesBadgesRow}>
-                <View style={styles.challengeBadgeSection}>
-                  <Text style={styles.challengeBadgeNumber}>
-                    {profile?.completedChallenges || 0}
-                  </Text>
-                  <Text style={styles.challengeBadgeLabel}>Défis complétés</Text>
-                  <Text style={styles.challengeBadgeTotal}>/ 125</Text>
-                </View>
-                <View style={styles.challengeBadgeSection}>
-                  <Text style={styles.challengeBadgeNumber}>
-                    {profile?.collectedBadges || 0}
-                  </Text>
-                  <Text style={styles.challengeBadgeLabel}>Badges collectés</Text>
-                  <Text style={styles.challengeBadgeTotal}>/ 100</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Progression T.A.S.C.C Card */}
-            <View style={styles.progressCard}>
-              <Text style={styles.cardTitle}>Progression T.A.S.C.C</Text>
-              <View style={styles.tasccContainer}>
-                {/* Test Phase */}
-                <View style={styles.tasccRow}>
-                  <Text style={styles.tasccPhaseName}>Test</Text>
-                  <View style={styles.tasccProgressBarContainer}>
-                    <View style={[styles.tasccProgressBarFill, { width: '100%' }]} />
-                  </View>
-                  <Text style={styles.tasccPercentage}>100%</Text>
-                </View>
-                
-                {/* Attaque Phase */}
-                <View style={styles.tasccRow}>
-                  <Text style={styles.tasccPhaseName}>Attaque</Text>
-                  <View style={styles.tasccProgressBarContainer}>
-                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
-                  </View>
-                  <Text style={styles.tasccPercentage}>0%</Text>
-                </View>
-                
-                {/* Stabilisation Phase */}
-                <View style={styles.tasccRow}>
-                  <Text style={styles.tasccPhaseName}>Stabilisation</Text>
-                  <View style={styles.tasccProgressBarContainer}>
-                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
-                  </View>
-                  <Text style={styles.tasccPercentage}>0%</Text>
-                </View>
-                
-                {/* Consolidation Phase */}
-                <View style={styles.tasccRow}>
-                  <Text style={styles.tasccPhaseName}>Consolidation</Text>
-                  <View style={styles.tasccProgressBarContainer}>
-                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
-                  </View>
-                  <Text style={styles.tasccPercentage}>0%</Text>
-                </View>
-                
-                {/* Confirmation Phase */}
-                <View style={styles.tasccRow}>
-                  <Text style={styles.tasccPhaseName}>Confirmation</Text>
-                  <View style={styles.tasccProgressBarContainer}>
-                    <View style={[styles.tasccProgressBarFill, { width: '0%' }]} />
-                  </View>
-                  <Text style={styles.tasccPercentage}>0%</Text>
-                </View>
-              </View>
-            </View>
           </>
         ) : (
           /* Photos Tab */
@@ -1096,7 +1072,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#F0F0F0',
   },
   loadingContainer: {
     flex: 1,
@@ -1107,55 +1083,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: theme.colors.text.secondary,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,
@@ -1169,11 +1096,8 @@ const styles = StyleSheet.create({
     margin: 20,
     borderRadius: 12,
     padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   tab: {
     flex: 1,
@@ -1205,11 +1129,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 24,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   measurementSection: {
     marginBottom: 20,
@@ -1286,11 +1207,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   photosTitle: {
     fontSize: 18,
@@ -1493,82 +1411,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  // New card styles
-  progressCard: {
-    backgroundColor: '#FFFFFF',
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  // Défis complétés / Badges collectés styles
-  challengesBadgesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  challengeBadgeSection: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  challengeBadgeNumber: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  challengeBadgeLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  challengeBadgeTotal: {
-    fontSize: 14,
-    color: '#9ca3af',
-  },
-  // T.A.S.C.C styles
-  tasccContainer: {
-    gap: 12, // 12px gap between rows
-  },
-  tasccRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 32,
-  },
-  tasccPhaseName: {
-    width: 64, // Fixed width for phase name
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#111827',
-  },
-  tasccProgressBarContainer: {
-    flex: 1, // Flexible width for progress bar
-    height: 8,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 4,
-    marginHorizontal: 12,
-  },
-  tasccProgressBarFill: {
-    height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 4,
-  },
-  tasccPercentage: {
-    width: 32, // Fixed width for percentage
-    fontSize: 12,
-    color: '#6b7280',
-    textAlign: 'right',
   },
 });
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import firebaseAuthService from '../services/firebaseAuthServiceNew';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -41,7 +42,36 @@ class ErrorBoundary extends React.Component {
     this.setState({ hasError: true, error });
   }
 
-  handleRetry = () => {
+  handleRetry = async () => {
+    console.log('🔄 ErrorBoundary: Retry triggered - rechecking auth state');
+    
+    try {
+      // Manually trigger Firebase auth state check
+      // This ensures the auth listener in AuthProvider picks up the current Firebase user
+      // even if no state change event was fired
+      await firebaseAuthService.ensureAuth();
+      
+      // Get the current Firebase auth instance
+      const auth = firebaseAuthService.getAuth();
+      if (auth?.currentUser) {
+        console.log('✅ ErrorBoundary: Firebase user found, auth state will be restored');
+        // The auth state listener should pick this up automatically
+        // If not, we can manually trigger it by accessing the current user
+        const currentUser = firebaseAuthService.getCurrentUser();
+        if (!currentUser) {
+          // Force a profile fetch which will trigger the listener
+          console.log('🔄 ErrorBoundary: Fetching user profile to restore state');
+          await firebaseAuthService.getUserProfile();
+        }
+      } else {
+        console.log('ℹ️ ErrorBoundary: No Firebase user found');
+      }
+    } catch (error) {
+      console.error('⚠️ ErrorBoundary: Error checking auth on retry:', error);
+      // Continue with retry anyway
+    }
+    
+    // Clear error state to allow components to re-render
     this.setState({ hasError: false, error: null });
   };
 

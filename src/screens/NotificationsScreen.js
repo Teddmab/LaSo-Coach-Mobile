@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import notificationsAPI, { NotificationWebSocketManager } from '../services/notificationsApi';
 import { useNotifications } from '../context/NotificationContext';
 import Toast from 'react-native-toast-message';
@@ -39,11 +40,27 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [profileData, setProfileData] = useState(null);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
     hasMore: true
   });
+
+  // Fetch profile data for avatar
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const { ProfileApi } = await import('../services/profileApi');
+        const data = await ProfileApi.getProfile();
+        setProfileData(data);
+        console.log('[NotificationsScreen] 📊 Profile data fetched:', data);
+      } catch (error) {
+        console.error('[NotificationsScreen] ❌ Error fetching profile:', error);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // API Functions
   const fetchNotifications = async (page = 1, refresh = false) => {
@@ -455,27 +472,25 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Avatar 
-              source={{ uri: user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        title="Notifications"
+        onHelpPress={() => {
+          if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          // Already on notifications page, do nothing or refresh
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+        showNotificationBadge={false}
+      />
 
       <View style={styles.content}>
         {/* Notifications Header */}
@@ -622,55 +637,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,

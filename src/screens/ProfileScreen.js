@@ -23,10 +23,11 @@ import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import SubscriptionScreen from './SubscriptionScreen';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import NotificationBadge from '../components/NotificationBadge';
 import * as ImagePicker from 'expo-image-picker';
 
-const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation }) => {
+const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress }) => {
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
@@ -2655,46 +2656,40 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {getHeaderTitle()}
-        </Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
+      <AppHeader
+        title={getHeaderTitle()}
+        onHelpPress={() => {
+          if (onFAQPress) {
+            onFAQPress();
+          } else if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          console.log('🔍 ProfileScreen: Header avatar clicked');
+          console.log('🔍 ProfileScreen: onTabPress function:', onTabPress);
+          console.log('🔍 ProfileScreen: onLogout function:', onLogout);
+          console.log('🔍 ProfileScreen: navigation prop:', navigation);
           
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <NotificationBadge />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => {
-            console.log('🔍 ProfileScreen: Header avatar clicked');
-            console.log('🔍 ProfileScreen: onTabPress function:', onTabPress);
-            console.log('🔍 ProfileScreen: onLogout function:', onLogout);
-            console.log('🔍 ProfileScreen: navigation prop:', navigation);
-            
-            if (onTabPress && typeof onTabPress === 'function') {
-              console.log('🔍 ProfileScreen: Calling onTabPress("settings")');
-              onTabPress('settings');
-            } else if (navigation && typeof navigation.navigate === 'function') {
-              console.log('🔍 ProfileScreen: Using navigation.navigate("Settings")');
-              navigation.navigate('Settings');
-            } else {
-              console.log('🔍 ProfileScreen: No navigation method available, doing nothing');
-              // Don't call onLogout - just do nothing
-            }
-          }}>
-            <Avatar 
-              source={{ uri: profileData?.avatar || user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+          if (onTabPress && typeof onTabPress === 'function') {
+            console.log('🔍 ProfileScreen: Calling onTabPress("settings")');
+            onTabPress('settings');
+          } else if (navigation && typeof navigation.navigate === 'function') {
+            console.log('🔍 ProfileScreen: Using navigation.navigate("Settings")');
+            navigation.navigate('Settings');
+          } else {
+            console.log('🔍 ProfileScreen: No navigation method available, doing nothing');
+            // Don't call onLogout - just do nothing
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -2861,38 +2856,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    padding: 4,
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,

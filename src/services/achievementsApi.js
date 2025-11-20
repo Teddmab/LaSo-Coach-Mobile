@@ -13,9 +13,9 @@ class AchievementsApi {
   static async getAchievementsSummary() {
     try {
       console.log('🏆 AchievementsApi: Fetching achievements summary from profile endpoint...');
-      console.log('🌐 API Endpoint:', '/api/v1/profile');
+      console.log('🌐 API Endpoint:', '/profile'); // Base URL already includes /api/v1
       
-      const response = await api.get('/api/v1/profile');
+      const response = await api.get('/profile');
       
       console.log('✅ AchievementsApi: Profile data fetched successfully');
       console.log('📊 Response data:', response.data);

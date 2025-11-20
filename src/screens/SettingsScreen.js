@@ -14,6 +14,7 @@ import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import { ProfileApi } from '../services/profileApi';
 
 const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
@@ -156,27 +157,26 @@ const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Configurations</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Avatar 
-              source={{ uri: profileData?.avatar || user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        title="Configurations"
+        onHelpPress={() => {
+          if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -276,38 +276,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    padding: 4,
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,

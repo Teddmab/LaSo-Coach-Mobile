@@ -18,40 +18,17 @@ import Toast from 'react-native-toast-message';
 import { useAuth } from '../context/FirebaseAuthContext';
 import SubscriptionApi from '../services/subscriptionApi';
 import ProfileApi from '../services/profileApi';
-import IAPService from '../services/iapService';
-import IAPReceiptApi from '../services/iapReceiptApi';
 import firebaseAuthService from '../services/firebaseAuthServiceNew';
 import { theme } from '../constants/theme';
 
 /**
- * COMPLIANT SubscriptionScreen - Reader App Exception Implementation
+ * SubscriptionScreen - Spotify-style Flow
  * 
- * Apple App Store Guidelines 3.1.3(a) Compliance:
- * ================================================
- * 
- * PRIMARY METHOD: Native In-App Purchase (IAP)
- * - All subscriptions MUST go through App Store/Google Play by default
- * - IAP is the prominent, primary payment method
- * - Receipt validation prevents fraud
- * 
- * READER APP EXCEPTION: External Link (Secondary, Discreet)
- * - Per 3.1.3(a): Apps that provide access to previously purchased content
- * - Link must be small, text-only, non-promotional
- * - No buttons, no pricing information, no calls-to-action
- * - Cannot steer users away from IAP
- * - Passes authentication token for seamless web login
- * - Auto-refreshes subscription status after web visit
- * 
- * Compliance Features:
- * 1. ✅ Native IAP/GPB as PRIMARY payment method (default flow)
- * 2. ✅ External link relegated to "Reader App" style (discreet, compliant text)
- * 3. ✅ No payment steering (external link is minimal, at bottom)
- * 4. ✅ Receipt validation before unlocking content
- * 5. ✅ Proper platform-specific handling (iOS App Store / Google Play)
- * 6. ✅ Subscription sync (checks for web purchases on return)
- * 
- * IMPORTANT: Do NOT make external link more prominent or add pricing/promotions
- * Any violation of Reader App guidelines will result in app rejection.
+ * Flow:
+ * - Shows subscription plans
+ * - When user clicks a plan, redirects to web app with token for payment
+ * - No in-app payments (IAP removed)
+ * - Multiple views: Your Premium, Benefits, Manage, Available Plans
  */
 export default function SubscriptionScreen({ navigation }) {
   const { user, refreshProfile } = useAuth();
@@ -62,47 +39,16 @@ export default function SubscriptionScreen({ navigation }) {
   const [plans, setPlans] = useState([]);
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [iapProducts, setIapProducts] = useState([]);
-  const [showManageSubscriptionModal, setShowManageSubscriptionModal] = useState(false);
-  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  
+  // View state: 'premium' | 'benefits' | 'manage' | 'plans'
+  const [currentView, setCurrentView] = useState('premium');
 
   /**
-   * Initialize IAP and fetch subscription data
+   * Initialize screen data
    */
   useEffect(() => {
     initializeScreen();
-    
-    // Cleanup IAP connection when component unmounts
-    return () => {
-      try {
-        IAPService.disconnect();
-      } catch (error) {
-        // Disconnect errors are non-critical during cleanup
-        if (error?.code !== 'E_IAP_NOT_AVAILABLE') {
-          console.error('⚠️ Error during IAP cleanup:', error);
-        }
-      }
-    };
-  }, []);
-
-  /**
-   * Setup IAP purchase listeners
-   */
-  useEffect(() => {
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      try {
-        IAPService.setupPurchaseListeners(
-          handlePurchaseSuccess,
-          handlePurchaseError
-        );
-      } catch (error) {
-        // IAP listener setup failure is non-critical (e.g., E_IAP_NOT_AVAILABLE)
-        if (error?.code !== 'E_IAP_NOT_AVAILABLE') {
-          console.error('⚠️ Error setting up IAP listeners:', error);
-        }
-      }
-    }
   }, []);
 
   /**
@@ -131,7 +77,7 @@ export default function SubscriptionScreen({ navigation }) {
       setLoading(true);
       console.log('💳 Initializing subscription screen...');
 
-      // Get Firebase ID token for web authentication (Reader App compliance)
+      // Get Firebase ID token for web authentication
       try {
         const token = await firebaseAuthService.getIdToken();
         if (token) {
@@ -142,20 +88,6 @@ export default function SubscriptionScreen({ navigation }) {
         console.log('⚠️ Could not get Firebase token for web auth:', tokenError);
       }
 
-      // Initialize IAP connection (non-critical - continue if fails)
-      if (IAPService.isAvailable()) {
-        try {
-          await IAPService.initialize();
-        } catch (iapError) {
-          // IAP initialization failure is not fatal - continue with limited functionality
-          if (iapError.code === 'E_IAP_NOT_AVAILABLE') {
-            console.log('ℹ️ IAP not available - continuing with backend-only mode');
-          } else {
-            console.error('⚠️ IAP initialization failed:', iapError);
-          }
-        }
-      }
-
       // Fetch subscription data
       const [plansData, subscriptionData] = await Promise.all([
         SubscriptionApi.getPlans(),
@@ -164,15 +96,12 @@ export default function SubscriptionScreen({ navigation }) {
 
       setPlans(plansData);
       setCurrentSubscription(subscriptionData);
-
-      // Fetch native IAP products if available (non-critical)
-      if (IAPService.isAvailable() && plansData.length > 0) {
-        try {
-          await fetchIAPProducts(plansData);
-        } catch (iapProductError) {
-          // Product fetch failure is not fatal
-          console.log('ℹ️ Could not fetch IAP products - continuing with backend prices');
-        }
+      
+      // Set initial view based on subscription status
+      if (subscriptionData && subscriptionData.hasSubscription) {
+        setCurrentView('premium');
+      } else {
+        setCurrentView('plans');
       }
 
       console.log('✅ Subscription screen initialized');
@@ -189,97 +118,58 @@ export default function SubscriptionScreen({ navigation }) {
   };
 
   /**
-   * Fetch IAP products from stores
+   * Build web URL with token and plan ID
    */
-  const fetchIAPProducts = async (backendPlans) => {
-    try {
-      console.log('💳 Fetching IAP products from store...');
-      
-      // Convert backend plans to store product IDs
-      const productIds = backendPlans
-        .filter(plan => !plan.isFree) // Free trials don't need store products
-        .map(plan => IAPService.getStoreProductId(plan));
-
-      console.log('💳 Product IDs to fetch:', productIds);
-
-      // Fetch products from App Store / Play Store
-      const products = await IAPService.getAvailableProducts(productIds);
-      setIapProducts(products);
-
-      console.log('✅ IAP products fetched:', products.length);
-    } catch (error) {
-      console.error('❌ Error fetching IAP products:', error);
-      // Continue even if products fail to load - backend plans can still be shown
+  const buildWebUrl = (planId = null) => {
+    const baseUrl = 'https://app.lasocoach.com/subscription';
+    const params = new URLSearchParams();
+    
+    if (webAuthToken) {
+      params.append('token', webAuthToken);
     }
+    
+    if (planId) {
+      params.append('planId', planId);
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `${baseUrl}?${queryString}` : baseUrl;
   };
 
   /**
-   * Handle native IAP purchase success
+   * Redirect to web app for subscription
    */
-  const handlePurchaseSuccess = async (purchase) => {
-    console.log('✅ Purchase successful:', purchase.productId);
-    
+  const redirectToWeb = async (plan) => {
     try {
-      // Extract receipt data
-      const receiptData = IAPService.extractReceiptData(purchase);
-      console.log('🧾 Receipt data:', receiptData);
-
-      // Show processing message
-      Toast.show({
-        type: 'info',
-        text1: 'Validation en cours',
-        text2: 'Vérification de votre achat...',
-      });
-
-      // Validate receipt with backend (CRITICAL - prevents fraud)
-      const validationResult = await IAPReceiptApi.validateReceipt(receiptData);
-      console.log('✅ Receipt validated:', validationResult);
-
-      // Refresh subscription data
-      await refreshSubscriptionData();
-
-      // Refresh user profile
-      await refreshProfile();
-
-      // Show success message
-      Toast.show({
-        type: 'success',
-        text1: 'Abonnement activé',
-        text2: 'Votre abonnement a été activé avec succès!',
-      });
-
-      setProcessingPayment(false);
-    } catch (error) {
-      console.error('❌ Error validating receipt:', error);
+      setRedirecting(true);
+      setSelectedPlan(plan);
       
+      const url = buildWebUrl(plan.id);
+      console.log('🌐 Redirecting to web app:', url);
+      
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        
+        // Show info message
+        Toast.show({
+          type: 'info',
+          text1: 'Redirection...',
+          text2: 'Vous allez être redirigé vers notre site web',
+        });
+      } else {
+        throw new Error('Cannot open URL');
+      }
+    } catch (error) {
+      console.error('❌ Error redirecting to web:', error);
       Toast.show({
         type: 'error',
-        text1: 'Erreur de validation',
-        text2: error.message || 'Impossible de valider votre achat. Contactez le support.',
+        text1: 'Erreur',
+        text2: 'Impossible d\'ouvrir le lien. Veuillez réessayer.',
       });
-
-      setProcessingPayment(false);
+    } finally {
+      setRedirecting(false);
     }
-  };
-
-  /**
-   * Handle native IAP purchase error
-   */
-  const handlePurchaseError = (error) => {
-    console.error('❌ Purchase error:', error);
-    
-    const errorMessage = IAPService.getErrorMessage(error);
-    
-    // Only show error if not user cancelled
-    if (error.code !== 'E_USER_CANCELLED') {
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur d\'achat',
-        text2: errorMessage,
-      });
-    }
-
-    setProcessingPayment(false);
   };
 
   /**
@@ -295,10 +185,9 @@ export default function SubscriptionScreen({ navigation }) {
   };
 
   /**
-   * Handle subscription button press
-   * PRIMARY METHOD: Native IAP
+   * Handle plan selection - redirect to web
    */
-  const handleSubscribe = async (plan) => {
+  const handlePlanSelect = async (plan) => {
     // Check if already subscribed to this plan
     if (!isPlanClickable(plan)) {
       Toast.show({
@@ -309,140 +198,8 @@ export default function SubscriptionScreen({ navigation }) {
       return;
     }
 
-    try {
-      setProcessingPayment(true);
-      setSelectedPlan(plan);
-
-      // Handle free trial (no IAP needed)
-      if (plan.isFree) {
-        await handleFreeTrial(plan);
-        return;
-      }
-
-      // Check if IAP is available on this platform
-      if (!IAPService.isAvailable()) {
-        Alert.alert(
-          'Non disponible',
-          'Les achats intégrés ne sont pas disponibles sur cette plateforme. Visitez notre site web pour vous abonner.',
-          [{ text: 'OK' }]
-        );
-        setProcessingPayment(false);
-        return;
-      }
-
-      // Get store product ID
-      const productId = IAPService.getStoreProductId(plan);
-      console.log('💳 Requesting purchase for:', productId);
-
-      // Show confirmation dialog
-      Alert.alert(
-        'Confirmer l\'abonnement',
-        `Vous allez souscrire à ${plan.name} pour $${plan.price}/${SubscriptionApi.getBillingPeriod(plan.duration)}.`,
-        [
-          { text: 'Annuler', style: 'cancel', onPress: () => setProcessingPayment(false) },
-          { 
-            text: 'Confirmer', 
-            onPress: async () => {
-              try {
-                // Request purchase from native store
-                await IAPService.requestPurchase(productId, true);
-                // Purchase result will be handled by purchaseUpdatedListener
-              } catch (error) {
-                handlePurchaseError(error);
-              }
-            }
-          }
-        ]
-      );
-
-    } catch (error) {
-      console.error('❌ Error initiating purchase:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible d\'initier l\'achat',
-      });
-      setProcessingPayment(false);
-    }
-  };
-
-  /**
-   * Handle free trial activation
-   */
-  const handleFreeTrial = async (plan) => {
-    try {
-      console.log('💳 Activating free trial...');
-      
-      // Call backend to activate trial
-      // (Your existing backend endpoint)
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Essai gratuit activé',
-        text2: 'Votre essai gratuit a été activé',
-      });
-      
-      await refreshSubscriptionData();
-      await refreshProfile();
-      
-    } catch (error) {
-      console.error('❌ Error activating trial:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible d\'activer l\'essai gratuit',
-      });
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
-  /**
-   * Restore previous purchases
-   */
-  const handleRestorePurchases = async () => {
-    try {
-      setShowRestoreModal(false);
-      
-      Toast.show({
-        type: 'info',
-        text1: 'Restauration...',
-        text2: 'Recherche de vos achats précédents',
-      });
-
-      // Get previous purchases from store
-      const purchases = await IAPService.restorePurchases();
-      
-      if (purchases.length === 0) {
-        Toast.show({
-          type: 'info',
-          text1: 'Aucun achat trouvé',
-          text2: 'Aucun achat précédent à restaurer',
-        });
-        return;
-      }
-
-      // Restore purchases with backend
-      await IAPReceiptApi.restorePurchases(purchases);
-
-      // Refresh subscription data
-      await refreshSubscriptionData();
-      await refreshProfile();
-
-      Toast.show({
-        type: 'success',
-        text1: 'Achats restaurés',
-        text2: `${purchases.length} achat(s) restauré(s) avec succès`,
-      });
-
-    } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur de restauration',
-        text2: 'Impossible de restaurer vos achats',
-      });
-    }
+    // Redirect to web app for subscription
+    await redirectToWeb(plan);
   };
 
   /**
@@ -501,253 +258,291 @@ export default function SubscriptionScreen({ navigation }) {
   };
 
   /**
-   * Get store product for plan
-   */
-  const getStoreProduct = (plan) => {
-    if (plan.isFree || iapProducts.length === 0) {
-      return null;
-    }
-
-    const productId = IAPService.getStoreProductId(plan);
-    return iapProducts.find(p => p.productId === productId);
-  };
-
-  /**
-   * Get display price (from store if available, otherwise backend)
+   * Get display price
    */
   const getDisplayPrice = (plan) => {
-    const storeProduct = getStoreProduct(plan);
-    
-    if (storeProduct) {
-      // Use price from App Store / Play Store
-      return storeProduct.localizedPrice || `$${plan.price}`;
+    if (plan.isFree) {
+      return 'Gratuit';
     }
     
-    // Fallback to backend price
-    return plan.isFree ? 'Gratuit' : `$${plan.price}`;
+    // Format price with currency
+    const price = plan.price || 0;
+    const currency = plan.currency || '€';
+    const billingPeriod = plan.duration ? ` / ${SubscriptionApi.getBillingPeriod(plan.duration)}` : '';
+    
+    return `${currency}${price}${billingPeriod}`;
   };
 
   /**
-   * Render subscription plans
+   * Refresh subscription on screen focus
+   * User may have purchased on web and returned to app
    */
-  const renderSubscriptionPlans = () => (
-    <View style={styles.plansContainer}>
-      <Text style={styles.plansTitle}>Choisissez votre plan</Text>
-      
-      {plans.map((plan) => {
-        let backgroundColor = '#4CAF50';
-        let buttonColor = '#45A049';
-        
-        if (plan.name.toLowerCase().includes('premium')) {
-          backgroundColor = '#8B5CF6';
-          buttonColor = '#7C3AED';
-        } else if (plan.name.toLowerCase().includes('flexy')) {
-          backgroundColor = '#FF6B35';
-          buttonColor = '#E55A2B';
-        } else if (plan.name.toLowerCase().includes('basic')) {
-          backgroundColor = '#2196F3';
-          buttonColor = '#1976D2';
-        }
-        
-        const storeProduct = getStoreProduct(plan);
-        
-        return (
-          <View key={plan.id} style={styles.planCard}>
-            <Image 
-              source={{ uri: plan.imageUrl || 'https://via.placeholder.com/300x150?text=Plan' }}
-              style={styles.planImage}
-            />
-            <View style={[styles.planContent, { backgroundColor }]}>
-              <Text style={styles.planTitle}>{plan.name}</Text>
-              
-              <View style={styles.planPricing}>
-                {plan.originalPrice > 0 && plan.originalPrice !== plan.price && (
-                  <Text style={styles.planOldPrice}>${plan.originalPrice}</Text>
-                )}
-                <Text style={styles.planCurrentPrice}>
-                  {getDisplayPrice(plan)}
-                  {!plan.isFree && plan.duration && ` / ${SubscriptionApi.getBillingPeriod(plan.duration)}`}
-                </Text>
-                {plan.isFree && (
-                  <Text style={styles.trialDuration}>({plan.duration} jours)</Text>
-                )}
-              </View>
-
-              <TouchableOpacity 
-                style={[
-                  styles.subscribeButton, 
-                  { 
-                    backgroundColor: isPlanClickable(plan) ? buttonColor : '#CCCCCC',
-                    opacity: isPlanClickable(plan) ? 1 : 0.6
-                  }
-                ]}
-                onPress={() => handleSubscribe(plan)}
-                disabled={processingPayment || !isPlanClickable(plan)}
-              >
-                {processingPayment && selectedPlan?.id === plan.id ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.subscribeButtonText}>{getButtonText(plan)}</Text>
-                )}
-              </TouchableOpacity>
-
-              {storeProduct && (
-                <Text style={styles.planStoreNote}>
-                  Via {Platform.OS === 'ios' ? 'App Store' : 'Google Play'}
-                </Text>
-              )}
-            </View>
-            
-            <View style={styles.planFeatures}>
-              <Text style={styles.featuresTitle}>Inclus dans cette formule :</Text>
-              {plan.features.map((feature, index) => (
-                <View key={index} style={styles.featureItem}>
-                  <Ionicons name="checkmark-circle" size={16} color={backgroundColor} />
-                  <Text style={styles.featureText}>{feature}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-
-  /**
-   * Render COMPLIANT external link (Reader App style)
-   * Per Apple Guidelines 3.1.3(a): Must be discreet, text-only, non-promotional
-   * No buttons, no pricing, no calls-to-action
-   */
-  const renderExternalAccountLink = () => {
-    // Build web URL with authentication token for seamless login
-    const buildWebUrl = () => {
-      const baseUrl = 'https://app.lasocoach.com/subscription';
-      if (webAuthToken) {
-        // Pass token as query parameter for automatic authentication
-        return `${baseUrl}?token=${encodeURIComponent(webAuthToken)}`;
-      }
-      return baseUrl;
-    };
-
-    const handleExternalLink = async () => {
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener('focus', async () => {
+      console.log('🔄 Subscription screen focused - checking for web purchases');
       try {
-        const url = buildWebUrl();
-        console.log('🌐 Opening external subscription page (Reader App compliance)');
+        await refreshSubscriptionData();
+        await refreshProfile();
         
-        // Open URL in device browser
-        const supported = await Linking.canOpenURL(url);
-        if (supported) {
-          await Linking.openURL(url);
-          
-          // After returning from browser, refresh subscription status
-          // User may have purchased/changed subscription on web
-          setTimeout(async () => {
-            console.log('🔄 Refreshing subscription status after external visit');
-            await refreshSubscriptionData();
-            await refreshProfile();
-          }, 2000);
-        } else {
-          console.error('Cannot open URL:', url);
+        // Update view if subscription status changed
+        const subscriptionData = await SubscriptionApi.getCurrentSubscription();
+        if (subscriptionData && subscriptionData.hasSubscription) {
+          setCurrentView('premium');
         }
       } catch (error) {
-        console.error('Error opening external link:', error);
+        console.log('⚠️ Error refreshing on focus:', error);
       }
-    };
+    });
 
-    return (
-      <View style={styles.externalLinkContainer}>
-        <TouchableOpacity 
-          style={styles.externalLinkButton}
-          onPress={handleExternalLink}
-        >
-          <Text style={styles.externalLinkText}>
-            Gérer votre compte
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return unsubscribe;
+  }, [navigation]);
+
+  /**
+   * Get header title based on current view
+   */
+  const getHeaderTitle = () => {
+    switch (currentView) {
+      case 'premium':
+        return 'Your Premium';
+      case 'benefits':
+        return 'Your benefits';
+      case 'manage':
+        return 'Manage subscription';
+      case 'plans':
+        return 'Available plans';
+      default:
+        return 'Subscription';
+    }
   };
 
   /**
-   * Render restore purchases button (iOS requirement)
+   * Render "Your Premium" view - Current subscription overview
    */
-  const renderRestoreButton = () => {
-    if (Platform.OS !== 'ios') return null;
+  const renderYourPremium = () => {
+    if (!currentSubscription || !currentSubscription.hasSubscription) {
+      // If no subscription, show plans instead
+      return renderAvailablePlans();
+    }
+
+    const subscription = currentSubscription.subscription;
+    const planName = subscription?.planName || 'Premium';
+    const planType = subscription?.plan?.name || 'Individual';
 
     return (
-      <TouchableOpacity 
-        style={styles.restoreButton}
-        onPress={() => setShowRestoreModal(true)}
-      >
-        <Ionicons name="refresh-outline" size={20} color="#007AFF" />
-        <Text style={styles.restoreButtonText}>Restaurer les achats</Text>
-      </TouchableOpacity>
-    );
-  };
+      <View style={styles.viewContainer}>
+        {/* Subscription Card */}
+        <View style={styles.premiumCard}>
+          <View style={styles.subscriptionTag}>
+            <Text style={styles.subscriptionTagText}>Subscription</Text>
+          </View>
+          
+          <View style={styles.premiumHeader}>
+            <Text style={styles.premiumLogo}>LaSo Coach</Text>
+            <Text style={styles.premiumText}>Premium</Text>
+          </View>
+          
+          <Text style={styles.planTypeText}>{planType}</Text>
+          
+          <TouchableOpacity 
+            style={styles.manageButtonInline}
+            onPress={() => setCurrentView('manage')}
+          >
+            <Text style={styles.manageButtonInlineText}>Manage</Text>
+          </TouchableOpacity>
+        </View>
 
-  /**
-   * Render restore confirmation modal
-   */
-  const renderRestoreModal = () => (
-    <Modal
-      visible={showRestoreModal}
-      transparent={true}
-      animationType="fade"
-      onRequestClose={() => setShowRestoreModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.confirmModalContainer}>
-          <Text style={styles.confirmModalTitle}>Restaurer les achats</Text>
-          <Text style={styles.confirmModalText}>
-            Cela restaurera tous vos achats précédents effectués avec ce compte Apple/Google.
-          </Text>
-          <View style={styles.confirmModalButtons}>
+        {/* Benefits Snapshot */}
+        <View style={styles.benefitsSnapshot}>
+          <Text style={styles.benefitsSnapshotTitle}>Snapshot of your benefits</Text>
+          
+          <View style={styles.benefitsSnapshotCard}>
+            {subscription?.plan?.features?.slice(0, 6).map((feature, index) => (
+              <View key={index} style={styles.benefitItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <Text style={styles.benefitItemText}>{feature}</Text>
+              </View>
+            ))}
+            
             <TouchableOpacity 
-              style={[styles.confirmModalButton, styles.cancelButton]}
-              onPress={() => setShowRestoreModal(false)}
+              style={styles.exploreBenefitsButton}
+              onPress={() => setCurrentView('benefits')}
             >
-              <Text style={styles.cancelButtonText}>Annuler</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.confirmModalButton, styles.confirmButton]}
-              onPress={handleRestorePurchases}
-            >
-              <Text style={styles.confirmButtonText}>Restaurer</Text>
+              <Text style={styles.exploreBenefitsButtonText}>Explore your benefits</Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
-    </Modal>
-  );
+    );
+  };
 
   /**
-   * Render current subscription info
+   * Render "Your benefits" view
    */
-  const renderSubscriptionInfo = () => {
+  const renderBenefits = () => {
     if (!currentSubscription || !currentSubscription.hasSubscription) {
-      return null;
+      return renderAvailablePlans();
     }
 
+    const subscription = currentSubscription.subscription;
+    const features = subscription?.plan?.features || [];
+
     return (
-      <View style={styles.currentSubscriptionCard}>
-        <Text style={styles.currentSubscriptionTitle}>Votre abonnement</Text>
-        <Text style={styles.currentSubscriptionPlan}>
-          {currentSubscription.subscription?.planName || 'Abonnement actif'}
-        </Text>
-        {currentSubscription.daysRemaining !== undefined && (
-          <Text style={styles.currentSubscriptionDays}>
-            {currentSubscription.daysRemaining} jours restants
-          </Text>
-        )}
+      <View style={styles.viewContainer}>
+        <Text style={styles.sectionTitle}>Included in your subscription</Text>
+        <Text style={styles.sectionSubtitle}>Discover all your premium benefits</Text>
         
+        <View style={styles.benefitsGrid}>
+          {features.map((feature, index) => (
+            <View key={index} style={styles.benefitCard}>
+              <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+              <Text style={styles.benefitCardText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Render "Manage subscription" view
+   */
+  const renderManage = () => {
+    if (!currentSubscription || !currentSubscription.hasSubscription) {
+      return renderAvailablePlans();
+    }
+
+    const subscription = currentSubscription.subscription;
+    const planName = subscription?.planName || 'Premium';
+    const planType = subscription?.plan?.name || 'Individual';
+    const renewalDate = subscription?.nextBillingDate 
+      ? new Date(subscription.nextBillingDate).toLocaleDateString('fr-FR')
+      : '01/01/1970';
+    const price = subscription?.plan?.price || 0;
+    const currency = subscription?.plan?.currency || '€';
+
+    return (
+      <View style={styles.viewContainer}>
+        {/* Subscription Details */}
+        <View style={styles.manageCard}>
+          <View style={styles.manageHeader}>
+            <Text style={styles.manageLogo}>LaSo Coach</Text>
+            <Text style={styles.managePremiumText}>Premium</Text>
+          </View>
+          <Text style={styles.managePlanType}>{planType}</Text>
+          <Text style={styles.manageAccountCount}>1 Premium account</Text>
+        </View>
+
+        {/* Payment Section */}
+        <View style={styles.manageCard}>
+          <Text style={styles.manageSectionTitle}>Payment</Text>
+          <Text style={styles.managePaymentText}>
+            Your plan will automatically renew on {renewalDate}. You'll be charged {currency}{price}/month.
+          </Text>
+        </View>
+
+        {/* Available Plans Section */}
+        <View style={styles.manageCard}>
+          <Text style={styles.manageSectionTitle}>Available plans</Text>
+          <TouchableOpacity 
+            style={styles.explorePlansButton}
+            onPress={() => setCurrentView('plans')}
+          >
+            <Text style={styles.explorePlansTitle}>Explore plans</Text>
+            <Text style={styles.explorePlansSubtitle}>Affordable options for any situation.</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Cancel Subscription */}
         <TouchableOpacity 
-          style={styles.manageButton}
-          onPress={() => setShowManageSubscriptionModal(true)}
+          style={styles.cancelSubscriptionButton}
+          onPress={() => redirectToWeb(null)}
         >
-          <Text style={styles.manageButtonText}>Gérer l'abonnement</Text>
+          <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
         </TouchableOpacity>
       </View>
     );
+  };
+
+  /**
+   * Render "Available plans" view
+   */
+  const renderAvailablePlans = () => {
+    const currentPlanId = currentSubscription?.subscription?.plan?.id;
+
+    return (
+      <View style={styles.viewContainer}>
+        {plans.map((plan) => {
+          const isCurrent = plan.id === currentPlanId;
+          let backgroundColor = '#4CAF50';
+          
+          if (plan.name.toLowerCase().includes('premium')) {
+            backgroundColor = '#8B5CF6';
+          } else if (plan.name.toLowerCase().includes('flexy')) {
+            backgroundColor = '#FF6B35';
+          } else if (plan.name.toLowerCase().includes('basic')) {
+            backgroundColor = '#2196F3';
+          }
+          
+          return (
+            <View key={plan.id} style={styles.planCardSimple}>
+              {isCurrent && (
+                <View style={styles.currentBadge}>
+                  <Text style={styles.currentBadgeText}>Current</Text>
+                </View>
+              )}
+              
+              <View style={styles.planCardHeader}>
+                <Text style={styles.planCardLogo}>LaSo Coach</Text>
+                <Text style={styles.planCardPremium}>Premium</Text>
+              </View>
+              
+              <Text style={[styles.planCardName, { color: backgroundColor }]}>{plan.name}</Text>
+              
+              <Text style={styles.planCardPrice}>{getDisplayPrice(plan)}</Text>
+              
+              <View style={styles.planCardFeatures}>
+                {plan.features?.slice(0, 3).map((feature, index) => (
+                  <Text key={index} style={styles.planCardFeature}>• {feature}</Text>
+                ))}
+                <Text style={styles.planCardFeature}>• Cancel anytime</Text>
+              </View>
+              
+              {!isCurrent && (
+                <TouchableOpacity 
+                  style={[styles.planSelectButton, { backgroundColor }]}
+                  onPress={() => handlePlanSelect(plan)}
+                  disabled={redirecting}
+                >
+                  {redirecting && selectedPlan?.id === plan.id ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.planSelectButtonText}>Select</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  /**
+   * Render current view based on state
+   */
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case 'premium':
+        return renderYourPremium();
+      case 'benefits':
+        return renderBenefits();
+      case 'manage':
+        return renderManage();
+      case 'plans':
+        return renderAvailablePlans();
+      default:
+        return renderAvailablePlans();
+    }
   };
 
   if (loading) {
@@ -763,22 +558,29 @@ export default function SubscriptionScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with back button */}
+      <View style={styles.header}>
+        {(currentView !== 'premium' && currentView !== 'plans') && (
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => {
+              if (currentView === 'benefits' || currentView === 'manage') {
+                setCurrentView('premium');
+              } else {
+                navigation?.goBack();
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        )}
+        <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderSubscriptionInfo()}
-        {renderSubscriptionPlans()}
-        {renderRestoreButton()}
-        {renderExternalAccountLink()}
-        
-        {/* Compliance notice */}
-        <View style={styles.complianceNotice}>
-          <Text style={styles.complianceText}>
-            Les paiements sont traités de manière sécurisée via {Platform.OS === 'ios' ? 'l\'App Store' : 'Google Play'}. 
-            L'abonnement se renouvelle automatiquement sauf si vous l'annulez au moins 24 heures avant la fin de la période en cours.
-          </Text>
-        </View>
+        {renderCurrentView()}
       </ScrollView>
-
-      {renderRestoreModal()}
     </SafeAreaView>
   );
 }
@@ -1032,6 +834,316 @@ const styles = StyleSheet.create({
     backgroundColor: '#4CAF50',
   },
   confirmButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  // Header styles
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  // View container
+  viewContainer: {
+    padding: 20,
+  },
+  // Your Premium view styles
+  premiumCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  subscriptionTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  subscriptionTagText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  premiumHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  premiumLogo: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginRight: 8,
+  },
+  premiumText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  planTypeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B9D',
+    marginBottom: 16,
+  },
+  manageButtonInline: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#F0F0F0',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  manageButtonInlineText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  // Benefits snapshot
+  benefitsSnapshot: {
+    marginTop: 20,
+  },
+  benefitsSnapshotTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  benefitsSnapshotCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  benefitItemText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: theme.colors.text.primary,
+  },
+  exploreBenefitsButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  exploreBenefitsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  // Benefits view
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  benefitsGrid: {
+    marginTop: 20,
+  },
+  benefitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  benefitCardText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  // Manage view
+  manageCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  manageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  manageLogo: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginRight: 8,
+  },
+  managePremiumText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  managePlanType: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  manageAccountCount: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  manageSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  managePaymentText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  explorePlansButton: {
+    marginTop: 8,
+  },
+  explorePlansTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  explorePlansSubtitle: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  cancelSubscriptionButton: {
+    marginTop: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cancelSubscriptionText: {
+    fontSize: 16,
+    color: theme.colors.text.primary,
+    textDecorationLine: 'underline',
+  },
+  // Available plans view
+  planCardSimple: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    position: 'relative',
+  },
+  currentBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#F0F0F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  currentBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+  },
+  planCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  planCardLogo: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginRight: 8,
+  },
+  planCardPremium: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  planCardName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  planCardPrice: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+  },
+  planCardFeatures: {
+    marginBottom: 16,
+  },
+  planCardFeature: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: 4,
+  },
+  planSelectButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  planSelectButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',

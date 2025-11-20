@@ -9,7 +9,11 @@ const Avatar = ({
   showBorder = false,
   fallbackText = null 
 }) => {
-  const hasValidAvatar = source && source.uri && source.uri !== 'https://via.placeholder.com/40';
+  const uri = source?.uri;
+  const isString = typeof uri === 'string';
+  const trimmed = isString ? uri.trim() : '';
+  const invalidPlaceholders = ['https://via.placeholder.com/40', 'null', 'undefined', ''];
+  const hasValidAvatar = !!trimmed && !invalidPlaceholders.includes(trimmed);
   
   if (hasValidAvatar) {
     return (

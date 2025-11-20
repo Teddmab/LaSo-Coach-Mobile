@@ -92,6 +92,43 @@ export function AuthProvider({ children }) {
   const initialAuthResolvedRef = useRef(false);
 
   /**
+   * Check current Firebase auth state and update context
+   * This can be called manually to refresh auth state (e.g., after error recovery)
+   */
+  const refreshAuthState = async () => {
+    try {
+      console.log('🔄 Manually refreshing auth state...');
+      await firebaseAuthService.ensureAuth();
+      const currentUser = firebaseAuthService.getCurrentUser();
+      
+      if (currentUser) {
+        console.log('✅ Auth state refreshed - user found:', currentUser.email);
+        dispatch({ type: AUTH_ACTIONS.SET_USER, payload: currentUser });
+      } else {
+        // Check Firebase directly
+        const auth = firebaseAuthService.getAuth();
+        if (auth?.currentUser) {
+          // Firebase has a user but service doesn't - fetch profile
+          console.log('🔄 Firebase has user, fetching profile...');
+          const profile = await firebaseAuthService.getUserProfile();
+          if (profile) {
+            dispatch({ type: AUTH_ACTIONS.SET_USER, payload: profile });
+            console.log('✅ Auth state refreshed from Firebase');
+          } else {
+            dispatch({ type: AUTH_ACTIONS.LOGOUT });
+          }
+        } else {
+          console.log('ℹ️ No user found in Firebase');
+          dispatch({ type: AUTH_ACTIONS.LOGOUT });
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing auth state:', error);
+      // Don't logout on error - keep current state
+    }
+  };
+
+  /**
    * Initialize authentication state on app launch
    */
   useEffect(() => {
@@ -505,6 +542,7 @@ export function AuthProvider({ children }) {
     loginWithGoogle,
     register,
     refreshProfile,
+    refreshAuthState,
     updateProfile,
     forgotPassword,
     verifyResetToken,

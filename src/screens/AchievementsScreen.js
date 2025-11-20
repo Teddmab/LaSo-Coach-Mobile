@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,11 +23,43 @@ import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import { ProfileApi } from '../services/profileApi';
 import api from '../services/api';
 import { API_CONFIG } from '../config/apiConfig';
+import BadgeApi from '../services/badgeApi';
+import chatSocketService from '../services/chatSocketService';
+import BadgeUnlockModal from '../components/BadgeUnlockModal';
+import FloatingPointsAnimation from '../components/FloatingPointsAnimation';
+
+// Haptics is optional - check if available
+let Haptics = null;
+try {
+  Haptics = require('expo-haptics');
+} catch (e) {
+  console.log('⚠️ expo-haptics not available, haptic feedback disabled');
+}
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Badge name to image mapping
+const getBadgeImage = (badgeName) => {
+  const badgeMap = {
+    'botosi': require('../../assets/badge/Badge-Botosi.png'),
+    'elengi': require('../../assets/badge/Badge-Elengi.png'),
+    'makasi': require('../../assets/badge/Badge-Makasi.png'),
+    'molende': require('../../assets/badge/Badge-Molende.png'),
+    'mopao': require('../../assets/badge/Badge-MOPAO.png'),
+    'moto': require('../../assets/badge/Badge-MOTO.png'),
+    'mpiko': require('../../assets/badge/Badge-Mpiko.png'),
+    'nzuri': require('../../assets/badge/Badge-Nzuri.png'),
+    'safi': require('../../assets/badge/Badge-Safi.png'),
+    'sawa': require('../../assets/badge/Badge-SAWA.png'),
+  };
+  
+  const normalizedName = badgeName?.toLowerCase() || '';
+  return badgeMap[normalizedName] || null;
+};
 
 const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew }) => {
   const [selectedTab, setSelectedTab] = useState('pending'); // pending, my, completed
@@ -48,6 +81,19 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  
+  // Badges state (new mobile badge system)
+  const [badges, setBadges] = useState([]);
+  const [badgesSummary, setBadgesSummary] = useState(null);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+  const [selectedBadge, setSelectedBadge] = useState(null);
+  const [showBadgeDetail, setShowBadgeDetail] = useState(false);
+  const [featuredBadge, setFeaturedBadge] = useState(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockedBadge, setUnlockedBadge] = useState(null);
+  const [showFloatingPoints, setShowFloatingPoints] = useState(false);
+  const [floatingPointsData, setFloatingPointsData] = useState(null);
+  const [socketSubscriptions, setSocketSubscriptions] = useState([]);
 
   useEffect(() => {
     console.log('🚀 Achievements: useEffect triggered');
@@ -57,9 +103,18 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
     fetchUserPosition();
     fetchChallengesData();
     fetchBadgesData();
+    fetchBadges(); // Fetch new mobile badges
     console.log('🎯 Achievements: About to call fetchChallenges');
     fetchChallenges();
     console.log('🎯 Achievements: fetchChallenges called');
+    
+    // Subscribe to WebSocket events
+    setupWebSocketListeners();
+    
+    return () => {
+      // Cleanup WebSocket subscriptions
+      socketSubscriptions.forEach(unsubscribe => unsubscribe());
+    };
   }, []);
 
   // Update hasMoreChallenges when challenges or selectedTab changes
@@ -276,6 +331,139 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
       setSummaryLoading(false);
     }
   };
+
+  const fetchBadges = async () => {
+    try {
+      setBadgesLoading(true);
+      console.log('🏆 Achievements: Fetching mobile badges...');
+      
+      const response = await BadgeApi.getAllBadges();
+      
+      if (response.success && response.data) {
+        const fetchedBadges = response.data.badges || [];
+        setBadges(fetchedBadges);
+        setBadgesSummary(response.data.summary || null);
+        
+        // Set featured badge (first unlocked badge or first badge if none unlocked)
+        const unlockedBadge = fetchedBadges.find(b => b.isUnlocked);
+        const firstBadge = fetchedBadges[0];
+        setFeaturedBadge(unlockedBadge || firstBadge || null);
+        
+        console.log('✅ Achievements: Mobile badges fetched successfully', {
+          badgesCount: fetchedBadges.length,
+          summary: response.data.summary,
+          featuredBadge: unlockedBadge?.name || firstBadge?.name,
+        });
+      } else {
+        console.warn('⚠️ Achievements: Failed to fetch mobile badges:', response.error);
+        setBadges([]);
+        setBadgesSummary(null);
+        setFeaturedBadge(null);
+      }
+    } catch (error) {
+      console.error('❌ Achievements: Error fetching mobile badges:', error);
+      setBadges([]);
+      setBadgesSummary(null);
+    } finally {
+      setBadgesLoading(false);
+    }
+  };
+
+  const setupWebSocketListeners = useCallback(() => {
+    console.log('🔌 Achievements: Setting up WebSocket listeners...');
+    
+    // Check if socket is connected
+    if (!chatSocketService.getConnectionStatus()) {
+      console.log('⚠️ Achievements: Socket not connected, waiting for connection...');
+      // Wait for socket connection
+      const checkConnection = setInterval(() => {
+        if (chatSocketService.getConnectionStatus()) {
+          clearInterval(checkConnection);
+          setupWebSocketListeners();
+        }
+      }, 1000);
+      
+      // Clear interval after 10 seconds
+      setTimeout(() => clearInterval(checkConnection), 10000);
+      return;
+    }
+    
+    const subscriptions = [];
+    
+    // Listen for points updates
+    const unsubscribePoints = chatSocketService.onPointsUpdated((data) => {
+      console.log('💰 Achievements: Points updated via WebSocket:', data);
+      
+      // Update summary if available
+      if (data.newTotalPoints !== undefined) {
+        setBadgesSummary(prev => prev ? {
+          ...prev,
+          totalPointsEarned: data.newTotalPoints,
+        } : null);
+      }
+      
+      // Show floating points animation
+      if (data.pointsAdded && data.pointsAdded > 0) {
+        setFloatingPointsData({
+          points: `+${data.pointsAdded}`,
+          reason: data.reason || 'Points gagnés',
+        });
+        setShowFloatingPoints(true);
+        
+        // Haptic feedback
+        if (Haptics) {
+          try {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          } catch (e) {
+            // Haptics not available, ignore
+          }
+        }
+        
+        // Hide after animation
+        setTimeout(() => setShowFloatingPoints(false), 2000);
+      }
+    });
+    subscriptions.push(unsubscribePoints);
+    
+    // Listen for badge level unlocks
+    const unsubscribeBadgeUnlock = chatSocketService.onBadgeLevelUnlocked((data) => {
+      console.log('🏆 Achievements: Badge level unlocked via WebSocket:', data);
+      
+      // Show unlock modal with celebration
+      setUnlockedBadge(data);
+      setShowUnlockModal(true);
+      
+      // Haptic feedback
+      if (Haptics) {
+        try {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch (e) {
+          // Haptics not available, ignore
+        }
+      }
+      
+      // Refresh badges to get updated state
+      fetchBadges();
+    });
+    subscriptions.push(unsubscribeBadgeUnlock);
+    
+    // Listen for full badge state updates
+    const unsubscribeBadgeUpdate = chatSocketService.onBadgeUpdated((data) => {
+      console.log('🔄 Achievements: Badges updated via WebSocket:', data);
+      
+      // Update badges and summary
+      if (data.badges) {
+        setBadges(data.badges);
+      }
+      if (data.summary) {
+        setBadgesSummary(data.summary);
+      }
+    });
+    subscriptions.push(unsubscribeBadgeUpdate);
+    
+    setSocketSubscriptions(subscriptions);
+    console.log('✅ Achievements: WebSocket listeners setup complete');
+  }, []);
 
     const fetchChallenges = async () => {
     try {
@@ -775,6 +963,276 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
     return points.toString();
   };
 
+  const handleBadgePress = async (badge) => {
+    try {
+      console.log('🏆 Achievements: Badge pressed:', badge.id);
+      const response = await BadgeApi.getBadgeById(badge.id);
+      
+      if (response.success && response.data?.badge) {
+        setSelectedBadge(response.data.badge);
+        setShowBadgeDetail(true);
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: 'Impossible de charger les détails du badge',
+        });
+      }
+    } catch (error) {
+      console.error('❌ Achievements: Error fetching badge details:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de charger les détails du badge',
+      });
+    }
+  };
+
+  const handleCloseBadgeDetail = () => {
+    setShowBadgeDetail(false);
+    setSelectedBadge(null);
+  };
+
+  const handleCloseUnlockModal = () => {
+    setShowUnlockModal(false);
+    setUnlockedBadge(null);
+  };
+
+  const renderFeaturedBadge = () => {
+    if (!featuredBadge) return null;
+
+    const badgeImage = getBadgeImage(featuredBadge.name);
+    const isLocked = !featuredBadge.isUnlocked && featuredBadge.currentLevel === 0;
+    const isAvailable = featuredBadge.isUnlocked || featuredBadge.currentLevel > 0;
+
+    return (
+      <View style={styles.featuredBadgeContainer}>
+        {/* Badge icon on the left */}
+        <View style={styles.featuredBadgeIconContainer}>
+          {badgeImage ? (
+            <Image 
+              source={badgeImage} 
+              style={styles.featuredBadgeIcon}
+              resizeMode="contain"
+            />
+          ) : (
+            <View style={[styles.featuredBadgeIconPlaceholder, { backgroundColor: `${featuredBadge.color || '#3B82F6'}20` }]}>
+              <Ionicons name="trophy" size={64} color={featuredBadge.color || '#3B82F6'} />
+            </View>
+          )}
+          {featuredBadge.currentLevel > 0 && (
+            <View style={styles.badgeLevelIndicator}>
+              <Text style={styles.badgeLevelIndicatorText}>{featuredBadge.currentLevel}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Content on the right */}
+        <View style={styles.featuredBadgeInfo}>
+          <View style={styles.featuredBadgeHeader}>
+            <View style={styles.featuredBadgeTitleContainer}>
+              <Text style={styles.featuredBadgeLabel}>Badge</Text>
+              <Text style={styles.featuredBadgeName}>{featuredBadge.displayName || featuredBadge.name?.toUpperCase()}</Text>
+              {isAvailable && (
+                <TouchableOpacity style={styles.disponibleButton}>
+                  <Text style={styles.disponibleButtonText}>DISPONIBLE</Text>
+                  <View style={styles.disponibleDot} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.featuredBadgeStats}>
+              <Text style={styles.featuredBadgeStat}>
+                Progression : {(featuredBadge.progressPercentage || 0).toFixed(1)}%
+              </Text>
+              <Text style={styles.featuredBadgeStat}>
+                Points gagnés : {featuredBadge.totalPointsEarned || 0}
+              </Text>
+            </View>
+          </View>
+
+          {/* Description */}
+          <Text style={styles.featuredBadgeDescription}>
+            {featuredBadge.description || 'Description du badge'}
+          </Text>
+
+          {/* Level and Progress */}
+          <View style={styles.featuredBadgeProgress}>
+            <Text style={styles.featuredBadgeLevelText}>Niveau {featuredBadge.currentLevel || 1}</Text>
+            <View style={styles.featuredProgressBar}>
+              <View 
+                style={[
+                  styles.featuredProgressFill, 
+                  { 
+                    width: `${featuredBadge.progressPercentage || 0}%`,
+                    backgroundColor: featuredBadge.color || '#3B82F6',
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+
+          {isLocked && (
+            <Text style={styles.featuredLockMessage}>
+              Badge verrouillé - complétez les badges précédents
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderBadgeGridItem = (badge, index) => {
+    const badgeImage = getBadgeImage(badge.name);
+    const isLocked = !badge.isUnlocked && badge.currentLevel === 0;
+
+    return (
+      <TouchableOpacity
+        key={badge.id || index}
+        style={styles.badgeGridItem}
+        onPress={() => handleBadgePress(badge)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.badgeGridIconContainer}>
+          {badgeImage ? (
+            <Image 
+              source={badgeImage} 
+              style={[styles.badgeGridIcon, isLocked && styles.badgeGridIconLocked]}
+              resizeMode="contain"
+            />
+          ) : (
+            <View style={[styles.badgeGridIconPlaceholder, { backgroundColor: `${badge.color || '#3B82F6'}20` }]}>
+              <Ionicons 
+                name="trophy" 
+                size={40} 
+                color={isLocked ? '#CCC' : (badge.color || '#3B82F6')} 
+              />
+            </View>
+          )}
+          
+          {isLocked ? (
+            <View style={styles.badgeGridLock}>
+              <Ionicons name="lock-closed" size={16} color="#FF9800" />
+            </View>
+          ) : badge.currentLevel > 0 ? (
+            <View style={styles.badgeGridLevel}>
+              <Text style={styles.badgeGridLevelText}>{badge.currentLevel}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.badgeGridName, isLocked && styles.badgeGridNameLocked]}>
+          {badge.displayName || badge.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderBadgeGrid = () => {
+    const rows = [];
+    for (let i = 0; i < badges.length; i += 4) {
+      const rowItems = badges.slice(i, i + 4);
+      rows.push(rowItems);
+    }
+
+    return (
+      <View style={styles.badgeGrid}>
+        {rows.map((row, rowIndex) => (
+          <View key={rowIndex} style={styles.badgeGridRow}>
+            {row.map((badge, colIndex) => renderBadgeGridItem(badge, rowIndex * 4 + colIndex))}
+            {rowIndex === rows.length - 1 && row.length < 4 && (
+              Array.from({ length: 4 - row.length }).map((_, emptyIndex) => (
+                <View key={`empty-${emptyIndex}`} style={styles.badgeGridItem} />
+              ))
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderBadgeDetail = () => {
+    if (!selectedBadge) return null;
+
+    return (
+      <Modal
+        visible={showBadgeDetail}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseBadgeDetail}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Détails du badge</Text>
+              <TouchableOpacity onPress={handleCloseBadgeDetail}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.badgeDetailHeader}>
+                <View style={[styles.badgeDetailIconContainer, { backgroundColor: `${selectedBadge.color || '#3B82F6'}20` }]}>
+                  {selectedBadge.icon ? (
+                    <Image 
+                      source={{ uri: selectedBadge.icon }} 
+                      style={styles.badgeDetailIcon}
+                    />
+                  ) : (
+                    <Ionicons name="trophy" size={48} color={selectedBadge.color || '#3B82F6'} />
+                  )}
+                </View>
+                <Text style={styles.badgeDetailName}>{selectedBadge.displayName || selectedBadge.name}</Text>
+                <Text style={styles.badgeDetailLevel}>Niveau {selectedBadge.currentLevel || 0}</Text>
+                <Text style={styles.badgeDetailDescription}>{selectedBadge.description}</Text>
+              </View>
+              
+              <View style={styles.badgeDetailProgress}>
+                <View style={styles.badgeDetailProgressHeader}>
+                  <Text style={styles.badgeDetailProgressTitle}>Progression</Text>
+                  <Text style={styles.badgeDetailProgressValue}>
+                    {selectedBadge.totalPointsEarned || 0} / {selectedBadge.totalPointsRequired || 0} points
+                  </Text>
+                </View>
+                <View style={styles.progressBarBackground}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { 
+                        width: `${selectedBadge.progressPercentage || 0}%`,
+                        backgroundColor: selectedBadge.color || '#3B82F6',
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+              
+              {selectedBadge.levels && selectedBadge.levels.length > 0 && (
+                <View style={styles.badgeDetailLevels}>
+                  <Text style={styles.badgeDetailLevelsTitle}>Niveaux</Text>
+                  {selectedBadge.levels.map((level, index) => (
+                    <View key={index} style={styles.levelItem}>
+                      <View style={styles.levelItemHeader}>
+                        <Text style={styles.levelItemNumber}>Niveau {level.level}</Text>
+                        {level.isUnlocked ? (
+                          <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                        ) : (
+                          <Ionicons name="lock-closed" size={20} color="#CCC" />
+                        )}
+                      </View>
+                      <Text style={styles.levelItemDescription}>{level.description}</Text>
+                      <Text style={styles.levelItemPoints}>
+                        {level.pointsEarned || 0} / {level.pointsRequired || 0} points
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const currentUserRank = userPosition?.rank || 0;
   const totalUsers = userPosition?.totalUsers || 0;
   const userPoints = badgesData?.totalPointsEarned || 0; // Use points from badgeProgress
@@ -1109,30 +1567,26 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
       <StatusBar barStyle="dark-content" backgroundColor="#F8F9FA" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Défis</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>6</Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Avatar 
-              source={{ uri: profileData?.avatar || user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        title="Défis"
+        onHelpPress={() => {
+          if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -1334,6 +1788,38 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
           {renderTabContent()}
           </View>
         </View>
+
+        {/* Badges Section - directly under challenges */}
+        <View style={styles.badgesSection}>
+          <Text style={styles.challengesTitle}>Badges</Text>
+          
+          {badgesLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Chargement des badges...</Text>
+            </View>
+          ) : badges.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="trophy-outline" size={64} color="#CCC" />
+              <Text style={styles.emptyStateText}>Aucun badge disponible</Text>
+            </View>
+          ) : (
+            <>
+              {renderBadgeGrid()}
+              {renderFeaturedBadge()}
+              {badgesSummary && (
+                <View style={styles.progressSummary}>
+                  <Text style={styles.progressSummaryText}>
+                    {badgesSummary.unlockedBadges || 0} badges débloqués sur {badgesSummary.totalBadges || 0}
+                  </Text>
+                  <Text style={styles.progressSummaryText}>
+                    Progression globale : {badgesSummary.overallProgressPercentage?.toFixed(1) || 0}%
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
       </ScrollView>
 
       {/* Bottom Navigation */}
@@ -1363,6 +1849,23 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
         visible={showBlurOverlay}
         onRenew={handleSubscriptionRenew}
       />
+
+      {/* Badge Detail Modal */}
+      {renderBadgeDetail()}
+
+      {/* Badge Unlock Modal */}
+      <BadgeUnlockModal
+        visible={showUnlockModal}
+        badge={unlockedBadge}
+        onClose={handleCloseUnlockModal}
+      />
+
+      {/* Floating Points Animation */}
+      <FloatingPointsAnimation
+        visible={showFloatingPoints}
+        points={floatingPointsData?.points}
+        reason={floatingPointsData?.reason}
+      />
     </SafeAreaView>
   );
 };
@@ -1371,55 +1874,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,
@@ -2151,6 +2605,336 @@ const styles = StyleSheet.create({
   },
   activeNavTab: {
     backgroundColor: theme.colors.primaryLight,
+  },
+  // Badges Section Styles
+  badgesSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginVertical: 8,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  // Featured Badge Styles
+  featuredBadgeContainer: {
+    backgroundColor: '#F3E5F5', // Light purple background
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    marginTop: 20,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  featuredBadgeIconContainer: {
+    width: 120,
+    height: 120,
+    marginRight: 16,
+    marginTop: -8, // Slightly overlaps top edge
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  featuredBadgeIcon: {
+    width: 120,
+    height: 120,
+  },
+  featuredBadgeIconPlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeLevelIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FF69B4',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  badgeLevelIndicatorText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  featuredBadgeInfo: {
+    flex: 1,
+  },
+  featuredBadgeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  featuredBadgeTitleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  featuredBadgeLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginBottom: 4,
+  },
+  featuredBadgeName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    textTransform: 'uppercase',
+  },
+  disponibleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2196F3',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  disponibleButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginRight: 6,
+  },
+  disponibleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#F44336',
+  },
+  featuredBadgeStats: {
+    alignItems: 'flex-end',
+  },
+  featuredBadgeStat: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginBottom: 4,
+    textAlign: 'right',
+  },
+  featuredBadgeDescription: {
+    fontSize: 14,
+    color: '#2C3E50',
+    lineHeight: 20,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  featuredBadgeProgress: {
+    marginBottom: 8,
+  },
+  featuredBadgeLevelText: {
+    fontSize: 14,
+    color: '#2C3E50',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  featuredProgressBar: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  featuredProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  featuredLockMessage: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginTop: 8,
+  },
+  // Badge Grid Styles
+  badgeGrid: {
+    marginBottom: 20,
+  },
+  badgeGridRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 16,
+  },
+  badgeGridItem: {
+    width: (screenWidth - 100) / 4,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  badgeGridIconContainer: {
+    width: (screenWidth - 100) / 4 - 12,
+    height: (screenWidth - 100) / 4 - 12,
+    position: 'relative',
+    marginBottom: 8,
+  },
+  badgeGridIcon: {
+    width: '100%',
+    height: '100%',
+  },
+  badgeGridIconLocked: {
+    opacity: 0.5,
+  },
+  badgeGridIconPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+  },
+  badgeGridLock: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeGridLevel: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FF69B4',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  badgeGridLevelText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  badgeGridName: {
+    fontSize: 11,
+    color: '#2C3E50',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  badgeGridNameLocked: {
+    color: '#7F8C8D',
+  },
+  progressSummary: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  progressSummaryText: {
+    fontSize: 14,
+    color: '#2C3E50',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  badgeDetailHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  badgeDetailIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  badgeDetailIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  badgeDetailName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
+  badgeDetailLevel: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    marginBottom: 8,
+  },
+  badgeDetailDescription: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  badgeDetailProgress: {
+    marginBottom: 24,
+  },
+  badgeDetailProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  badgeDetailProgressTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  badgeDetailProgressValue: {
+    fontSize: 14,
+    color: '#7F8C8D',
+  },
+  badgeDetailLevels: {
+    marginTop: 16,
+  },
+  badgeDetailLevelsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 12,
+  },
+  levelItem: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  levelItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  levelItemNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2C3E50',
+  },
+  levelItemDescription: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    marginBottom: 4,
+  },
+  levelItemPoints: {
+    fontSize: 12,
+    color: '#7F8C8D',
   },
 });
 

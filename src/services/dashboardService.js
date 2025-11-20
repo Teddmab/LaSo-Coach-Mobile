@@ -335,39 +335,11 @@ export class DashboardService {
    * @returns {Object} Calculated progress data
    */
   static calculateProgress(dashboardData) {
-    console.log('📊 calculateProgress - Input dashboardData:', JSON.stringify(dashboardData, null, 2));
+    // Removed verbose logging - was cluttering console
     
     const { profile, measurements, tascc } = dashboardData;
     
-    console.log('📊 calculateProgress - Extracted data:', {
-      profile: profile ? 'loaded' : 'null',
-      measurements: measurements ? 'loaded' : 'null',
-      tascc: tascc ? 'loaded' : 'null'
-    });
-    
-    if (profile) {
-      console.log('📊 Profile data:', {
-        initialWeight: profile.initialWeight,
-        goalWeight: profile.goalWeight,
-        targetWeight: profile.targetWeight,
-        initialWaistSize: profile.initialWaistSize,
-        targetWaistSize: profile.targetWaistSize
-      });
-    }
-    
-    if (measurements) {
-      console.log('📊 Measurements data:', {
-        weight: measurements.weight,
-        waistSize: measurements.waistSize
-      });
-    }
-    
-    if (tascc) {
-      console.log('📊 TASCC data:', {
-        totalPoints: tascc.totalPoints,
-        maxPoints: tascc.maxPoints
-      });
-    }
+    // Removed all verbose logging - was cluttering console
 
     // Validate that we have all required data
     if (!profile) {
@@ -385,11 +357,7 @@ export class DashboardService {
     const weightCurrent = measurements?.weight || 67;
     const weightTarget = profile?.targetWeight || 60;
     
-    console.log('📊 Weight calculation inputs:', {
-      initial: weightInitial,
-      current: weightCurrent,
-      target: weightTarget
-    });
+    // Removed verbose logging
     
     const weightProgress = this.calculateWeightProgress(
       weightInitial,
@@ -402,11 +370,7 @@ export class DashboardService {
     const waistCurrent = measurements?.waistSize || 85;
     const waistTarget = profile?.targetWaistSize || 80;
     
-    console.log('📊 Waist calculation inputs:', {
-      initial: waistInitial,
-      current: waistCurrent,
-      target: waistTarget
-    });
+    // Removed verbose logging
     
     const waistProgress = this.calculateWaistProgress(
       waistInitial,
@@ -418,10 +382,7 @@ export class DashboardService {
     const pointsCurrent = tascc?.totalPoints || 100;
     const pointsMax = tascc?.maxPoints || 1000;
     
-    console.log('📊 Points calculation inputs:', {
-      current: pointsCurrent,
-      max: pointsMax
-    });
+    // Removed verbose logging
     
     const pointsProgress = this.calculatePointsProgress(
       pointsCurrent,
@@ -434,7 +395,7 @@ export class DashboardService {
       points: pointsProgress,
     };
     
-    console.log('📊 calculateProgress - Final result:', JSON.stringify(result, null, 2));
+    // Removed verbose logging
     
     return result;
   }
@@ -499,8 +460,8 @@ export class DashboardService {
       
       // Fetch data from both endpoints as per specification
       const [profileRes, measurementsRes] = await Promise.all([
-        api.get('/api/v1/profile'),
-        api.get('/api/v1/onboarding/measurements')
+        api.get('/profile'), // Base URL already includes /api/v1
+        api.get('/onboarding/measurements') // Base URL already includes /api/v1
       ]);
       
       console.log('📊 DashboardService: Profile data:', profileRes.data);

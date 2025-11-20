@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
+import AgoraIcon from './icons/AgoraIcon';
 
 const { height } = Dimensions.get('window');
 
@@ -126,7 +127,6 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Menu</Text>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
             <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
           </TouchableOpacity>
@@ -142,7 +142,11 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
               activeOpacity={0.7}
             >
               <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon} size={24} color="#FFFFFF" />
+                {item.id === 'community' ? (
+                  <AgoraIcon width={24} height={24} color="#FFFFFF" />
+                ) : (
+                  <Ionicons name={item.icon} size={24} color="#FFFFFF" />
+                )}
               </View>
               <View style={styles.itemContent}>
                 <Text style={styles.itemTitle}>{item.title}</Text>
@@ -209,17 +213,12 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
   },
   closeButton: {
     padding: 4,

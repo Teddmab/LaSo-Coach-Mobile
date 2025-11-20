@@ -12,12 +12,24 @@ export const nutritionAPI = {
    */
   async getPlans() {
     try {
-      console.log('🥗 Fetching nutrition plans...');
+      console.log('🥗 API Request: GET /nutrition/plans');
+      console.log('🥗 Making fresh GET request (not OPTIONS preflight)');
       const response = await api.get('/nutrition/plans');
-      console.log('✅ Nutrition plans fetched successfully');
+      console.log('✅ GET /nutrition/plans - 200 OK');
+      console.log('✅ Response data structure:', {
+        hasData: !!response.data?.data,
+        plansCount: response.data?.data?.plans?.length || 0,
+        responseKeys: Object.keys(response.data || {})
+      });
       return response.data;
     } catch (error) {
       console.error('❌ Error fetching nutrition plans:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
       throw error;
     }
   },
@@ -133,7 +145,7 @@ export const nutritionAPI = {
    * Remove meal interaction
    * Endpoint: DELETE /api/v1/meals/{mealId}/interaction
    * @param {string} mealId - The meal ID
-   * @returns {Promise<Object>} Remove interaction response
+   * @returns {Promise<Object>} Remove interaction response with updated counts and null user interaction
    */
   async removeMealInteraction(mealId) {
     try {
@@ -143,6 +155,24 @@ export const nutritionAPI = {
       return response.data;
     } catch (error) {
       console.error('❌ Error removing meal interaction:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get meal interaction status
+   * Endpoint: GET /api/v1/meals/{mealId}/interaction
+   * @param {string} mealId - The meal ID
+   * @returns {Promise<Object>} Current like/dislike counts and user's interaction status
+   */
+  async getMealInteraction(mealId) {
+    try {
+      console.log(`📊 Fetching meal interaction status: ${mealId}`);
+      const response = await api.get(`/meals/${mealId}/interaction`);
+      console.log('✅ Meal interaction status fetched successfully');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error fetching meal interaction status:', error);
       throw error;
     }
   },

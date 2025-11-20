@@ -51,7 +51,7 @@ const CircularProgress = ({
         
         {/* Center Content */}
         <View style={styles.centerContent}>
-          <Text style={[styles.value, { color }]}>{current}{unit}</Text>
+          <Text style={[styles.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>{current}{unit}</Text>
         </View>
       </View>
       
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   value: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: theme.colors.primary,
   },
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 80,
+    width: 110,
     marginBottom: 4,
   },
   initialLabel: {

@@ -125,6 +125,14 @@ api.interceptors.request.use(
         console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
       }
 
+      // Handle FormData - remove Content-Type so axios can set it with boundary
+      if (config.data instanceof FormData) {
+        delete config.headers['Content-Type'];
+        if (__DEV__) {
+          console.log('📎 FormData detected - Content-Type will be set automatically');
+        }
+      }
+
       const idToken = await firebaseAuthService.getIdToken();
       if (idToken) {
         config.headers.Authorization = `Bearer ${idToken}`;

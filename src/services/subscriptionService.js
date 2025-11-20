@@ -83,13 +83,24 @@ export class SubscriptionService {
       const daysRemaining = subscription?.daysRemaining || 0;
       
       // Determine subscription status
+      // Priority: 1. Check subscription.status from API, 2. Calculate from daysRemaining
       let status = SUBSCRIPTION_STATUS.FREE;
       let accessLevel = ACCESS_LEVEL.FREE;
       let isExpired = false;
       let isExpiringSoon = false;
       let requiresRenewal = false;
       
-      if (hasActiveSubscription && subscription) {
+      // First, check the actual status from the API response
+      const apiStatus = subscription?.status?.toUpperCase();
+      
+      if (apiStatus === 'EXPIRED' || apiStatus === 'CANCELLED' || apiStatus === 'INACTIVE') {
+        // API explicitly says expired/cancelled/inactive
+        status = SUBSCRIPTION_STATUS.EXPIRED;
+        accessLevel = ACCESS_LEVEL.EXPIRED;
+        isExpired = true;
+        requiresRenewal = true;
+      } else if (hasActiveSubscription && subscription) {
+        // Calculate status based on daysRemaining if API status is not explicitly expired
         if (daysRemaining > 0) {
           if (daysRemaining <= 3) {
             status = SUBSCRIPTION_STATUS.EXPIRING_SOON;
@@ -101,6 +112,7 @@ export class SubscriptionService {
             accessLevel = ACCESS_LEVEL.ACTIVE;
           }
         } else {
+          // daysRemaining <= 0 means expired
           status = SUBSCRIPTION_STATUS.EXPIRED;
           accessLevel = ACCESS_LEVEL.EXPIRED;
           isExpired = true;
@@ -117,7 +129,8 @@ export class SubscriptionService {
         message: this.getStatusMessage(status, daysRemaining),
         isExpired,
         isExpiringSoon,
-        requiresRenewal
+        requiresRenewal,
+        isTrial: subscription?.isTrial || false
       };
       
       console.log('💳 Parsed subscription data:', subscriptionData);

@@ -11,12 +11,15 @@ import {
   RefreshControl,
   Alert,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import YoutubePlayer from 'react-native-youtube-iframe';
+import Toast from 'react-native-toast-message';
 import { theme } from '../constants/theme';
 import BottomNavigation from '../components/BottomNavigation';
 import ProgressCard from '../components/dashboard/ProgressCard';
@@ -28,6 +31,7 @@ import NutritionCard from '../components/dashboard/NutritionCard';
 import AgoraIcon from '../components/icons/AgoraIcon';
 import Avatar from '../components/Avatar';
 import NotificationBadge from '../components/NotificationBadge';
+import AppHeader from '../components/AppHeader';
 import SubscriptionAlert from '../components/SubscriptionAlert';
 import BlurredCard from '../components/BlurredCard';
 import SubscriptionBanner from '../components/SubscriptionBanner';
@@ -36,9 +40,11 @@ import { AgendaApi } from '../services/agendaApi';
 import CommunityApi from '../services/communityApi';
 import SubscriptionService, { SUBSCRIPTION_STATUS } from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
+import nutritionAPI from '../services/nutritionApi';
 import ProgressScreen from './ProgressScreen';
 import NutritionScreen from './NutritionScreen';
 import AchievementsScreen from './AchievementsScreen';
+import DefisScreen from './DefisScreen';
 import ChatScreen from './ChatScreen';
 import CommunityScreen from './CommunityScreen';
 import AgendaScreen from './AgendaScreen';
@@ -46,6 +52,15 @@ import NotificationsScreen from './NotificationsScreen';
 import MoreMenu from '../components/MoreMenu';
 import SettingsScreen from './SettingsScreen';
 import ProfileScreen from './ProfileScreen';
+import FAQScreen from './FAQScreen';
+
+// Stub function for page navigation logging (analytics)
+const logPageNavigation = (pageName, breadcrumbs = []) => {
+  // This can be extended to log to analytics service
+  if (__DEV__) {
+    console.log(`📊 Page Navigation: ${pageName}`, breadcrumbs.length > 0 ? breadcrumbs : '');
+  }
+};
 
 const DashboardScreen = ({ user, onLogout, navigation }) => {
   const { logout: authLogout } = useAuth();
@@ -75,6 +90,14 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
   // Only blur MenuDuJour when status is EXPIRED or INACTIVE (not just expiring soon)
   const shouldBlurMenu = subscriptionData?.status === 'EXPIRED' || subscriptionData?.status === 'INACTIVE';
   const requiresRenewal = subscriptionData?.requiresRenewal || false;
+  
+  // Meal modal state
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [showMealModal, setShowMealModal] = useState(false);
+  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
+  const [youtubePlaying, setYoutubePlaying] = useState(false);
+  const [mealModalTab, setMealModalTab] = useState('composition');
+  const [mealInteractions, setMealInteractions] = useState({});
 
   // Check if profile is complete based on onboarding progress
   const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
@@ -321,6 +344,119 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     }
   };
 
+  // Extract YouTube video ID from URL
+  const getYouTubeVideoId = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  // Handle meal press - open modal
+  const handleMealPress = async (meal) => {
+    setSelectedMeal(meal);
+    setShowMealModal(true);
+    setMealModalTab('composition');
+    
+    // Extract YouTube video ID if available
+    if (meal.youtubeUrl) {
+      const videoId = getYouTubeVideoId(meal.youtubeUrl);
+      setYoutubeVideoId(videoId);
+    } else {
+      setYoutubeVideoId(null);
+    }
+    
+    // Fetch meal interaction status
+    if (meal.id) {
+      try {
+        const interaction = await nutritionAPI.getMealInteraction(meal.id);
+        const userInteraction = interaction?.data?.userInteraction || interaction?.userInteraction || null;
+        const normalizedInteraction = userInteraction?.toLowerCase() === 'like' ? 'like' : 
+                                     userInteraction?.toLowerCase() === 'dislike' ? 'dislike' : 
+                                     null;
+        setMealInteractions(prev => ({ ...prev, [meal.id]: normalizedInteraction }));
+      } catch (error) {
+        console.error('Error fetching meal interaction:', error);
+      }
+    }
+  };
+
+  // Handle meal like
+  const handleMealLike = async (mealId) => {
+    try {
+      const meal = selectedMeal;
+      const mealName = meal?.name || 'ce repas';
+      const response = await nutritionAPI.likeMeal(mealId);
+      const userInteraction = response?.data?.userInteraction || 
+                             response?.data?.data?.userInteraction ||
+                             response?.userInteraction || 
+                             null;
+      const updatedInteraction = userInteraction?.toLowerCase() === 'like' ? 'like' : 
+                                userInteraction?.toLowerCase() === 'dislike' ? 'dislike' : 
+                                null;
+      setMealInteractions(prev => ({ ...prev, [mealId]: updatedInteraction }));
+      
+      if (updatedInteraction === 'like') {
+        Toast.show({
+          type: 'success',
+          text1: 'Repas aimé',
+          text2: `Vous avez aimé ${mealName}`
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Like supprimé',
+          text2: `Vous n'avez plus aimé ${mealName}`
+        });
+      }
+    } catch (error) {
+      console.error('Error handling meal like:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de sauvegarder votre choix'
+      });
+    }
+  };
+
+  // Handle meal dislike
+  const handleMealDislike = async (mealId) => {
+    try {
+      const meal = selectedMeal;
+      const mealName = meal?.name || 'ce repas';
+      const response = await nutritionAPI.dislikeMeal(mealId);
+      const userInteraction = response?.data?.userInteraction || 
+                             response?.data?.data?.userInteraction ||
+                             response?.userInteraction || 
+                             null;
+      const updatedInteraction = userInteraction?.toLowerCase() === 'like' ? 'like' : 
+                                userInteraction?.toLowerCase() === 'dislike' ? 'dislike' : 
+                                null;
+      setMealInteractions(prev => ({ ...prev, [mealId]: updatedInteraction }));
+      
+      if (updatedInteraction === 'dislike') {
+        Toast.show({
+          type: 'success',
+          text1: 'Repas non aimé',
+          text2: `Vous n'avez pas aimé ${mealName}`
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Dislike supprimé',
+          text2: `Vous n'avez plus détesté ${mealName}`
+        });
+      }
+    } catch (error) {
+      console.error('Error handling meal dislike:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de sauvegarder votre choix'
+      });
+    }
+  };
+
   const handleTabPress = (tabId) => {
     if (tabId === 'more') {
       // Toggle the more menu instead of changing tab
@@ -329,25 +465,38 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     } else {
       console.log('Tab pressed:', tabId);
       
-      // Handle home tab specific functionality BEFORE setting active tab
-      if (tabId === 'home') {
-        console.log('🏠 Home tab pressed - refreshing dashboard data');
-        
-        // Clear current data to force refresh
-        setDashboardData(null);
-        setAgendaData([]);
-        setCommunityPosts([]); // Clear community posts on home tab press
-        
-        // Fetch fresh data
-        fetchDashboardData();
-        fetchAgendaData();
-        fetchCommunityPosts();
-        
-        console.log('🏠 Dashboard refresh triggered');
-      }
+      // List of modal/overlay screens that should use setCurrentScreen instead of setActiveTab
+      const modalScreens = ['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile'];
       
-      setActiveTab(tabId);
-      setCurrentScreen('home'); // Reset to main app when using bottom nav
+      // Check if this is a modal screen (not a bottom navigation tab)
+      if (modalScreens.includes(tabId)) {
+        console.log(`📱 Modal screen navigation: ${tabId}`);
+        setCurrentScreen(tabId);
+        // Keep the current activeTab when navigating to modal screens
+        // Don't reset to 'home' to maintain the current tab context
+      } else {
+        // This is a bottom navigation tab (home, progress, nutrition, achievements, defis)
+        
+        // Handle home tab specific functionality BEFORE setting active tab
+        if (tabId === 'home') {
+          console.log('🏠 Home tab pressed - refreshing dashboard data');
+          
+          // Clear current data to force refresh
+          setDashboardData(null);
+          setAgendaData([]);
+          setCommunityPosts([]); // Clear community posts on home tab press
+          
+          // Fetch fresh data
+          fetchDashboardData();
+          fetchAgendaData();
+          fetchCommunityPosts();
+          
+          console.log('🏠 Dashboard refresh triggered');
+        }
+        
+        setActiveTab(tabId);
+        setCurrentScreen('home'); // Reset to main app when using bottom nav
+      }
     }
   };
 
@@ -357,8 +506,18 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
   };
 
   const handleMoreMenuItemPress = (itemId) => {
-    console.log('More menu item pressed:', itemId);
     // Handle menu item actions here
+    const pageNames = {
+      'chat': 'Chat',
+      'notifications': 'Notifications',
+      'community': 'Community',
+      'agenda': 'Agenda',
+      'settings': 'Settings',
+    };
+    
+    const pageName = pageNames[itemId] || itemId;
+    logPageNavigation(pageName);
+    
     switch (itemId) {
       case 'chat':
         setCurrentScreen('chat');
@@ -442,6 +601,11 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     fetchAgendaData();
     fetchCommunityPosts();
     checkSubscriptionStatus();
+  };
+
+  const handleFAQClose = () => {
+    setCurrentScreen('home');
+    console.log('FAQ closed, returning to dashboard');
   };
 
   const onRefresh = async () => {
@@ -603,17 +767,41 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
 
   // Profile completion handler
   const handleCompleteProfile = () => {
-    console.log('👤 Navigating to profile completion');
+    logPageNavigation('Profile', ['Profile Steps (Mon Profile, Mes Objectifs, Recommandations, Rendez-vous, Abonnement)']);
     setCurrentScreen('profile');
     setInitialProfileStep(1); // Start at step 1 - Mon Profile
   };
 
   // Profile step navigation handler
   const handleProfileStepPress = (stepId) => {
-    console.log('👤 Navigating to profile step:', stepId);
+    const stepNames = {
+      1: 'Mon Profile',
+      2: 'Mes Objectifs',
+      3: 'Recommandations',
+      4: 'Rendez-vous',
+      5: 'Abonnement',
+      6: 'Confirmation',
+    };
+    
+    logPageNavigation(`Profile - ${stepNames[stepId] || `Step ${stepId}`}`);
+    
     setCurrentScreen('profile');
     setInitialProfileStep(stepId);
   };
+
+  // If FAQ screen is active, show FAQScreen
+  if (currentScreen === 'faq') {
+    return (
+      <>
+        <FAQScreen 
+          onClose={handleFAQClose}
+          user={user}
+          onTabPress={handleTabPress}
+        />
+        <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />
+      </>
+    );
+  }
 
   // If notifications screen is active, show NotificationsScreen
   if (currentScreen === 'notifications') {
@@ -697,6 +885,27 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
+  // If settings screen is active, show SettingsScreen
+  // NOTE: This must come BEFORE activeTab checks so modal screens take priority
+  if (currentScreen === 'settings') {
+    return (
+      <>
+        <SettingsScreen 
+          user={user} 
+          onLogout={handleLogout} 
+          onTabPress={handleTabPress}
+          activeTab={activeTab}
+          onClose={handleSettingsClose}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
   // If progress tab is active, show ProgressScreen
   if (activeTab === 'progress') {
     return (
@@ -707,6 +916,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
+          onFAQPress={() => setCurrentScreen('faq')}
         />
         <MoreMenu 
           visible={showMoreMenu}
@@ -727,6 +937,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
+          onFAQPress={() => setCurrentScreen('faq')}
         />
         <MoreMenu 
           visible={showMoreMenu}
@@ -757,6 +968,26 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
+  // If defis tab is active, show DefisScreen
+  if (activeTab === 'defis') {
+    return (
+      <>
+        <DefisScreen 
+          user={user} 
+          onLogout={handleLogout} 
+          onTabPress={handleTabPress}
+          activeTab={activeTab}
+          onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
   // If profile screen is active, show ProfileScreen
   if (currentScreen === 'profile') {
     return (
@@ -768,27 +999,8 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           activeTab={activeTab}
           onClose={handleProfileClose}
           initialStep={initialProfileStep}
+          onFAQPress={() => setCurrentScreen('faq')}
           navigation={navigation}
-        />
-        <MoreMenu 
-          visible={showMoreMenu}
-          onClose={handleMoreMenuClose}
-          onMenuItemPress={handleMoreMenuItemPress}
-        />
-      </>
-    );
-  }
-
-  // If settings screen is active, show SettingsScreen
-  if (currentScreen === 'settings') {
-    return (
-      <>
-        <SettingsScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
-          activeTab={activeTab}
-          onClose={handleSettingsClose}
         />
         <MoreMenu 
           visible={showMoreMenu}
@@ -805,39 +1017,23 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Image 
-          source={require('../../assets/logo.png')} 
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-
-          
-          <TouchableOpacity style={styles.notificationButton} onPress={() => setCurrentScreen('notifications')}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <NotificationBadge />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => setCurrentScreen('settings')}>
-            {console.log('🏠 Dashboard avatar debug:', {
-              dashboardDataProfile: dashboardData?.profile?.avatar,
-              userAvatar: user?.avatar,
-              finalAvatar: dashboardData?.profile?.avatar || user?.avatar
-            })}
-            <Avatar 
-              source={{ uri: dashboardData?.profile?.avatar || user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        showLogo={true}
+        onHelpPress={() => {
+          logPageNavigation('FAQ', ['FAQ List', 'Search', 'Categories']);
+          setCurrentScreen('faq');
+        }}
+        onNotificationPress={() => {
+          logPageNavigation('Notifications');
+          setCurrentScreen('notifications');
+        }}
+        onProfilePress={() => {
+          logPageNavigation('Settings');
+          setCurrentScreen('settings');
+        }}
+        avatarSource={dashboardData?.profile?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       {/* Subscription Banner - Shows when expired/cancelled/inactive OR ≤3 days (paid) or ≤1 day (trial) */}
       <SubscriptionBanner 
@@ -903,6 +1099,11 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
                 handleSubscriptionRenew();
               } else {
                 setShowCompleteDayModal(true);
+              }
+            }}
+            onMealPress={(meal) => {
+              if (!shouldBlurMenu) {
+                handleMealPress(meal);
               }
             }}
           />
@@ -1196,6 +1397,268 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Meal Details Modal */}
+      <Modal
+        visible={showMealModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowMealModal(false);
+          setYoutubePlaying(false);
+        }}
+      >
+        <View style={styles.mealModalOverlay}>
+          <View style={styles.mealModalContent}>
+            <View style={styles.mealModalHeader}>
+              {/* Meal Image */}
+              {selectedMeal?.imageUrl && (
+                <Image
+                  source={{ uri: selectedMeal.imageUrl }}
+                  style={styles.mealModalHeaderImage}
+                  resizeMode="cover"
+                />
+              )}
+              <View style={styles.mealModalTitleContainer}>
+                <Text style={styles.mealModalTitle}>
+                  {selectedMeal?.name || 'Détails du repas'}
+                </Text>
+              </View>
+              {/* Like/Dislike Buttons */}
+              {selectedMeal && (
+                <View style={styles.headerInteractionButtons}>
+                  <TouchableOpacity 
+                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'like' && styles.activeHeaderInteractionButton]}
+                    onPress={() => handleMealLike(selectedMeal.id)}
+                  >
+                    <Ionicons 
+                      name={mealInteractions[selectedMeal.id] === 'like' ? "thumbs-up" : "thumbs-up-outline"} 
+                      size={20} 
+                      color={mealInteractions[selectedMeal.id] === 'like' ? '#1877F2' : '#8E8E93'} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'dislike' && styles.activeHeaderInteractionButton]}
+                    onPress={() => handleMealDislike(selectedMeal.id)}
+                  >
+                    <Ionicons 
+                      name={mealInteractions[selectedMeal.id] === 'dislike' ? "thumbs-down" : "thumbs-down-outline"} 
+                      size={20} 
+                      color={mealInteractions[selectedMeal.id] === 'dislike' ? '#FF3B30' : '#8E8E93'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowMealModal(false);
+                  setYoutubePlaying(false);
+                }}
+                style={styles.mealModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              style={styles.mealModalBody}
+              contentContainerStyle={styles.mealModalBodyContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* YouTube Video */}
+              {youtubeVideoId && (() => {
+                const screenWidth = Dimensions.get('window').width;
+                const videoWidth = screenWidth - 32;
+                const videoHeight = Math.round((videoWidth * 9) / 16);
+                
+                return (
+                  <View style={[styles.youtubePlayerContainer, { width: videoWidth }]}>
+                    <YoutubePlayer
+                      height={videoHeight}
+                      width={videoWidth}
+                      videoId={youtubeVideoId}
+                      play={youtubePlaying}
+                      onChangeState={(event) => {
+                        if (event === 'playing') {
+                          setYoutubePlaying(true);
+                        } else if (event === 'paused' || event === 'ended') {
+                          setYoutubePlaying(false);
+                        }
+                      }}
+                      onError={(error) => {
+                        console.error('YouTube player error:', error);
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Erreur',
+                          text2: 'Impossible de charger la vidéo'
+                        });
+                      }}
+                      webViewStyle={{ opacity: 0.99 }}
+                    />
+                  </View>
+                );
+              })()}
+              
+              {/* Navigation Tabs */}
+              {selectedMeal && (
+                <View style={styles.mealModalTabsContainer}>
+                  <View style={styles.mealModalTabs}>
+                    <TouchableOpacity 
+                      style={[styles.mealModalTab, mealModalTab === 'composition' && styles.activeMealModalTab]}
+                      onPress={() => setMealModalTab('composition')}
+                    >
+                      <Ionicons 
+                        name="nutrition" 
+                        size={20} 
+                        color={mealModalTab === 'composition' ? "#000000" : "#666666"} 
+                      />
+                      {mealModalTab === 'composition' && (
+                        <Text style={styles.mealModalTabTitle}>Composition</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.mealModalTab, mealModalTab === 'recipe' && styles.activeMealModalTab]}
+                      onPress={() => setMealModalTab('recipe')}
+                    >
+                      <Ionicons 
+                        name="restaurant" 
+                        size={20} 
+                        color={mealModalTab === 'recipe' ? "#000000" : "#666666"} 
+                      />
+                      {mealModalTab === 'recipe' && (
+                        <Text style={styles.mealModalTabTitle}>Instructions</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.mealModalTab, mealModalTab === 'ingredients' && styles.activeMealModalTab]}
+                      onPress={() => setMealModalTab('ingredients')}
+                    >
+                      <Ionicons 
+                        name="list" 
+                        size={20} 
+                        color={mealModalTab === 'ingredients' ? "#000000" : "#666666"} 
+                      />
+                      {mealModalTab === 'ingredients' && (
+                        <Text style={styles.mealModalTabTitle}>Ingrédients</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              
+              {/* Tab Content */}
+              {selectedMeal && (() => {
+                if (mealModalTab === 'composition') {
+                  const nutritionalData = selectedMeal.nutritionalComposition || {};
+                  const calories = selectedMeal.calories || selectedMeal.calorieCount || nutritionalData.calories || 0;
+                  const proteins = selectedMeal.proteins || nutritionalData.proteins || 0;
+                  const carbs = selectedMeal.carbs || selectedMeal.carbohydrates || nutritionalData.carbs || nutritionalData.carbohydrates || 0;
+                  const fats = selectedMeal.fats || selectedMeal.fat || nutritionalData.fats || nutritionalData.fat || 0;
+                  const hasNutritionalData = calories > 0 || proteins > 0 || carbs > 0 || fats > 0;
+                  
+                  return (
+                    <View style={styles.mealModalTabContent}>
+                      <Text style={styles.contentTitle}>Composition nutritionnelle</Text>
+                      {hasNutritionalData ? (
+                        <View style={styles.nutritionalDataContainer}>
+                          <View style={styles.nutritionalRow}>
+                            <Text style={styles.nutritionalLabel}>Calories:</Text>
+                            <Text style={styles.nutritionalValue}>{calories} kcal</Text>
+                          </View>
+                          <View style={styles.nutritionalRow}>
+                            <Text style={styles.nutritionalLabel}>Protéines:</Text>
+                            <Text style={styles.nutritionalValue}>{proteins} g</Text>
+                          </View>
+                          <View style={styles.nutritionalRow}>
+                            <Text style={styles.nutritionalLabel}>Glucides:</Text>
+                            <Text style={styles.nutritionalValue}>{carbs} g</Text>
+                          </View>
+                          <View style={styles.nutritionalRow}>
+                            <Text style={styles.nutritionalLabel}>Lipides:</Text>
+                            <Text style={styles.nutritionalValue}>{fats} g</Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.noContentText}>
+                          Aucune donnée nutritionnelle disponible pour ce repas
+                        </Text>
+                      )}
+                    </View>
+                  );
+                } else if (mealModalTab === 'recipe') {
+                  let instructions = selectedMeal.instructions;
+                  if (typeof instructions === 'string') {
+                    try {
+                      instructions = JSON.parse(instructions);
+                    } catch (e) {
+                      instructions = [instructions];
+                    }
+                  }
+                  
+                  return (
+                    <View style={styles.mealModalTabContent}>
+                      <Text style={styles.contentTitle}>Instructions de préparation</Text>
+                      {instructions && instructions.length > 0 ? (
+                        instructions.map((instruction, index) => (
+                          <Text key={index} style={styles.recipeStep}>
+                            {index + 1}. {instruction}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text style={styles.noContentText}>
+                          Aucune instruction disponible pour ce repas
+                        </Text>
+                      )}
+                    </View>
+                  );
+                } else {
+                  let ingredients = selectedMeal.ingredients;
+                  if (typeof ingredients === 'string') {
+                    try {
+                      ingredients = JSON.parse(ingredients);
+                    } catch (e) {
+                      ingredients = [];
+                    }
+                  }
+                  
+                  return (
+                    <View style={styles.mealModalTabContent}>
+                      <Text style={styles.contentTitle}>Liste des ingrédients</Text>
+                      {ingredients && ingredients.length > 0 ? (
+                        ingredients.map((ingredient, index) => {
+                          const ingredientName = typeof ingredient === 'string' ? ingredient : (ingredient.name || ingredient);
+                          const ingredientAmount = ingredient.amount;
+                          const ingredientUnit = ingredient.unit;
+                          
+                          return (
+                            <View key={index} style={styles.ingredientItem}>
+                              <Text style={styles.ingredientNumber}>{index + 1}.</Text>
+                              <View style={styles.ingredientDetails}>
+                                <Text style={styles.ingredientText}>
+                                  {ingredientName}
+                                </Text>
+                                {ingredientAmount && ingredientUnit && (
+                                  <Text style={styles.ingredientAmount}>
+                                    – {ingredientAmount} {ingredientUnit}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          );
+                        })
+                      ) : (
+                        <Text style={styles.noContentText}>
+                          Aucun ingrédient disponible pour ce repas
+                        </Text>
+                      )}
+                    </View>
+                  );
+                }
+              })()}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1203,45 +1666,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerLogo: {
-    height: 48,
-    width: 180,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
   },
   content: {
     flex: 1,
@@ -1294,14 +1719,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
     padding: 20,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   agoraHeader: {
     flexDirection: 'row',
@@ -1355,14 +1774,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
     padding: 20,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   menuSectionDisabled: {
     opacity: 0.6,
@@ -1424,17 +1837,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   mealCard: {
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#FFFFFF',
     borderRadius: 15,
     padding: 15,
     marginVertical: 5,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   mealCardBreakfast: {
     backgroundColor: '#E8F5E9',
@@ -1599,6 +2009,177 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 16,
     color: theme.colors.text.primary,
+  },
+  // Meal Modal Styles
+  mealModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  mealModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    width: '100%',
+    height: '90%',
+    flexDirection: 'column',
+  },
+  mealModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    gap: 12,
+  },
+  mealModalHeaderImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  mealModalTitleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  mealModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  mealModalCloseButton: {
+    padding: 4,
+  },
+  headerInteractionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginRight: 8,
+  },
+  headerInteractionButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
+  },
+  activeHeaderInteractionButton: {
+    backgroundColor: '#E3F2FD',
+  },
+  mealModalBody: {
+    flex: 1,
+  },
+  mealModalBodyContent: {
+    paddingBottom: 20,
+  },
+  mealModalTabsContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  mealModalTabs: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  mealModalTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 6,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  activeMealModalTab: {
+    backgroundColor: '#F0F0F0',
+  },
+  mealModalTabTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  mealModalTabContent: {
+    padding: 20,
+    paddingTop: 16,
+  },
+  contentTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+  },
+  nutritionalDataContainer: {
+    gap: 12,
+  },
+  nutritionalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  nutritionalLabel: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
+  nutritionalValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  noContentText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  recipeStep: {
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  ingredientItem: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    alignItems: 'flex-start',
+  },
+  ingredientNumber: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginRight: 8,
+    minWidth: 20,
+  },
+  ingredientDetails: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  ingredientText: {
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+  },
+  ingredientAmount: {
+    fontSize: 15,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
+  },
+  youtubePlayerContainer: {
+    alignSelf: 'center',
+    marginTop: 16,
+    marginBottom: 0,
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#000000',
   },
 });
 

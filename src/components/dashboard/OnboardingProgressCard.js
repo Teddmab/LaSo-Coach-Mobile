@@ -182,17 +182,8 @@ const styles = StyleSheet.create({
     padding: 20,
     marginHorizontal: 16,
     marginBottom: 20,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   title: {
     fontSize: 18,
@@ -234,18 +225,8 @@ const styles = StyleSheet.create({
   },
   stepCircleCurrent: {
     backgroundColor: '#FFF',
+    borderWidth: 2,
     borderColor: '#2C340E',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
   },
   stepCircleUpcoming: {
     backgroundColor: '#F3F4F6',

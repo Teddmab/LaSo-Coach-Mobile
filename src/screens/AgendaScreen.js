@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import { ProfileApi } from '../services/profileApi';
 
 const { width } = Dimensions.get('window');
@@ -31,6 +32,7 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   const [rendezvousData, setRendezvousData] = useState(null);
   const [showRendezvousForm, setShowRendezvousForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [profileData, setProfileData] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -46,6 +48,20 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   ];
 
   const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+  // Fetch profile data for avatar
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await ProfileApi.getProfile();
+        setProfileData(data);
+        console.log('[AgendaScreen] 📊 Profile data fetched:', data);
+      } catch (error) {
+        console.error('[AgendaScreen] ❌ Error fetching profile:', error);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // Fetch rendezvous on mount
   useEffect(() => {
@@ -542,30 +558,26 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Agenda</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationText}>5</Text>
-            </View>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Avatar 
-              source={{ uri: user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        title="Agenda"
+        onHelpPress={() => {
+          if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       <ScrollView 
         style={styles.content} 
@@ -678,55 +690,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
   },
   content: {
     flex: 1,

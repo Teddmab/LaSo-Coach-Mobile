@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
+import { ChatProvider } from './src/context/ChatContext';
 import { initializeTokenManager } from './src/services/api';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -13,8 +14,10 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import NetworkStatus from './src/components/NetworkStatus';
-import AuthInitDebug from './src/components/AuthInitDebug';
+// Removed AuthInitDebug overlay for production and development
 import { Linking } from 'react-native';
+// Import console filter to show only WebSocket/chat logs (must be imported early)
+import './src/utils/consoleFilter';
 
 
 const Stack = createStackNavigator();
@@ -169,10 +172,11 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <NotificationProvider>
-          <NetworkStatus />
-          {/* Debug component to log Firebase Auth initialization state; remove once stable */}
-          <AuthInitDebug />
-          <AppContent />
+          <ChatProvider>
+            <NetworkStatus />
+            {/* AuthInitDebug removed */}
+            <AppContent />
+          </ChatProvider>
         </NotificationProvider>
       </AuthProvider>
       <Toast 

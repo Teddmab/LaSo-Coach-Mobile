@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 
-const NutritionCard = ({ onPress }) => {
+const NutritionCard = ({ onPress, onMealPress }) => {
   const [nutritionData, setNutritionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -390,11 +390,6 @@ const NutritionCard = ({ onPress }) => {
         })}</Text>
       </View>
 
-      {/* Current Phase */}
-      <View style={styles.phaseBanner}>
-        <Text style={styles.phaseText}>Phase actuelle: {nutritionData.plan.tascPhase}</Text>
-      </View>
-
       {/* Date Navigation */}
       <ScrollView 
         horizontal 
@@ -402,26 +397,33 @@ const NutritionCard = ({ onPress }) => {
         style={styles.dateNavigation}
         contentContainerStyle={styles.dateNavigationContent}
       >
-        {weekDates.map((date, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.dateButton,
-              selectedDay === index + 1 && styles.dateButtonActive
-            ]}
-            onPress={() => {
-              console.log('🥗 Day navigation: Selected day', index + 1);
-              setSelectedDay(index + 1);
-            }}
-          >
-            <Text style={[
-              styles.dateButtonText,
-              selectedDay === index + 1 && styles.dateButtonTextActive
-            ]}>
-              {formatDate(date)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {weekDates.map((date, index) => {
+          const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
+          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+          
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.dateButton,
+                selectedDay === index + 1 && styles.dateButtonActive,
+                isWeekend && !(selectedDay === index + 1) && styles.dateButtonWeekend
+              ]}
+              onPress={() => {
+                console.log('🥗 Day navigation: Selected day', index + 1);
+                setSelectedDay(index + 1);
+              }}
+            >
+              <Text style={[
+                styles.dateButtonText,
+                selectedDay === index + 1 && styles.dateButtonTextActive,
+                isWeekend && !(selectedDay === index + 1) && styles.dateButtonTextWeekend
+              ]}>
+                {formatDate(date)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Meals */}
@@ -444,7 +446,16 @@ const NutritionCard = ({ onPress }) => {
             const backgroundColor = getMealTypeColor(meal.type);
             
             return (
-              <View key={meal.id} style={[styles.mealCard, { backgroundColor }]}>
+              <TouchableOpacity 
+                key={meal.id} 
+                style={[styles.mealCard, { backgroundColor }]}
+                onPress={() => {
+                  if (onMealPress) {
+                    onMealPress(meal);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
                 {/* Content area with image and text */}
                 <View style={styles.mealContent}>
                   {/* Image on the left - flush with edges */}
@@ -472,7 +483,7 @@ const NutritionCard = ({ onPress }) => {
                     )}
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })}
       </View>
@@ -546,11 +557,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   header: {
     flexDirection: 'row',
@@ -586,6 +594,8 @@ const styles = StyleSheet.create({
   },
   dateNavigationContent: {
     paddingHorizontal: 4,
+    justifyContent: 'center',
+    flexGrow: 1,
   },
   dateButton: {
     paddingHorizontal: 16,
@@ -604,6 +614,12 @@ const styles = StyleSheet.create({
   },
   dateButtonTextActive: {
     color: '#FFFFFF',
+  },
+  dateButtonWeekend: {
+    backgroundColor: '#FFF5F5',
+  },
+  dateButtonTextWeekend: {
+    color: '#FF6B6B',
   },
   mealsContainer: {
     marginBottom: 20,

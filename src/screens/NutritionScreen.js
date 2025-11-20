@@ -12,23 +12,30 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
-  Linking
+  Linking,
+  Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
 import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
 import Avatar from '../components/Avatar';
+import AppHeader from '../components/AppHeader';
 import NotificationBadge from '../components/NotificationBadge';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
 import Toast from 'react-native-toast-message';
 import BottomNavigation from '../components/BottomNavigation';
+import { createLogger } from '../utils/logger';
 
-const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew }) => {
+// Create logger instance for NutritionScreen
+const logger = createLogger('NutritionScreen');
+
+const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
   // State management
   const today = new Date();
   const [currentDate] = useState(today); // Keep current date constant
@@ -40,6 +47,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   const [nutritionPlans, setNutritionPlans] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
   const [dayMeals, setDayMeals] = useState([]);
+  const [tomorrowMeals, setTomorrowMeals] = useState([]);
   const [completionStatus, setCompletionStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,6 +64,28 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   
   // Tab state for meal preview
   const [activeMealTab, setActiveMealTab] = useState('composition'); // 'composition', 'recipe', or 'ingredients'
+  
+  // YouTube video state
+  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
+  const [showYoutubeModal, setShowYoutubeModal] = useState(false);
+  const [youtubePlaying, setYoutubePlaying] = useState(false);
+  const [youtubeModalTab, setYoutubeModalTab] = useState('composition'); // Tab state for YouTube modal
+  
+  // Meal completion modal state
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [mealsToComplete, setMealsToComplete] = useState([]);
+  
+  // Full-screen image modal state
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [fullScreenImageUrl, setFullScreenImageUrl] = useState(null);
+
+  // Extract YouTube video ID from URL
+  const getYouTubeVideoId = (url) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
 
   // Meal type configuration - minimal UI mapping only
   const mealTypeMap = {
@@ -98,50 +128,224 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      console.log('🥗 Nutrition: Fetching all data...');
+      logger.group('📥 FETCH ALL DATA - Initial Load');
+      logger.info('Starting data fetch for NutritionScreen');
       
-      // Fetch all data in parallel
-      const [profileRes, subscriptionRes, plansRes] = await Promise.allSettled([
+      // Step 1: Fetch subscription status FIRST to determine if we should fetch plans
+      logger.debug('API Request: Fetching subscription status first');
+      const subscriptionRes = await Promise.allSettled([
+        SubscriptionService.getSubscriptionStatus()
+      ]).then(results => results[0]);
+      
+      let subscription = null;
+      if (subscriptionRes.status === 'fulfilled') {
+        subscription = subscriptionRes.value;
+      }
+      
+      // Step 2: Fetch profile and plans (conditionally based on subscription)
+      const shouldFetchPlans = subscription && 
+        subscription.status !== 'EXPIRED' && 
+        subscription.status !== 'CANCELLED' && 
+        subscription.status !== 'INACTIVE' &&
+        !subscription.isExpired;
+      
+      logger.debug('Logic: Plans fetch decision', {
+        subscriptionStatus: subscription?.status,
+        isExpired: subscription?.isExpired,
+        shouldFetchPlans,
+        reason: shouldFetchPlans 
+          ? 'Subscription active - will fetch plans' 
+          : 'Subscription expired/inactive - will still fetch plans but expect empty response'
+      });
+      
+      // Always fetch plans (even if expired) to get fresh data, but log expected behavior
+      logger.debug('API Request: Fetching profile and nutrition plans');
+      const [profileRes, plansRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
-        SubscriptionService.getSubscriptionStatus(),
         nutritionAPI.getPlans()
       ]);
 
       // Handle profile data
+      logger.group('👤 PROFILE DATA');
       if (profileRes.status === 'fulfilled') {
+        logger.debug('API Response: Profile data received', {
+          status: 'success',
+          hasData: !!profileRes.value,
+          fields: profileRes.value ? Object.keys(profileRes.value) : []
+        });
+        
+        // Field mapping
+        logger.debug('Field Mapping: Profile data structure', {
+          'profile.height': profileRes.value?.profile?.height,
+          'profile.initialWeight': profileRes.value?.profile?.initialWeight,
+          'profile.targetWeight': profileRes.value?.profile?.targetWeight,
+          'profile.initialWaistSize': profileRes.value?.profile?.initialWaistSize,
+          'profile.targetWaistSize': profileRes.value?.profile?.targetWaistSize,
+          'profile.currentPhase': profileRes.value?.currentPhase,
+        });
+        
         setProfileData(profileRes.value);
-        console.log('✅ Nutrition: Profile data loaded');
+        logger.info('Profile data loaded and set in state');
+      } else {
+        logger.error('API Response: Profile fetch failed', profileRes.reason);
       }
+      logger.groupEnd();
 
-      // Handle subscription data
+      // Handle subscription data (already fetched above)
+      logger.group('💳 SUBSCRIPTION DATA');
       if (subscriptionRes.status === 'fulfilled') {
-        const subscription = subscriptionRes.value;
-        console.log('🔍 SUBSCRIPTION DATA STRUCTURE:', JSON.stringify(subscription, null, 2));
+        logger.debug('API Response: Subscription data received', {
+          status: 'success',
+          subscriptionStatus: subscription?.status,
+          isExpired: subscription?.isExpired,
+          isExpiringSoon: subscription?.isExpiringSoon,
+          daysRemaining: subscription?.daysRemaining,
+        });
+        
+        // Field mapping
+        logger.debug('Field Mapping: Subscription data structure', {
+          'subscription.status': subscription?.status,
+          'subscription.endDate': subscription?.endDate || subscription?.subscription?.endDate,
+          'subscription.startDate': subscription?.startDate || subscription?.subscription?.startDate,
+          'subscription.isTrial': subscription?.isTrial,
+          'subscription.planName': subscription?.planName,
+        });
+        
         setSubscriptionData(subscription);
         
-        // Only blur when status is EXPIRED or INACTIVE (not just expiring soon)
-        if (subscription?.status === 'EXPIRED' || subscription?.status === 'INACTIVE') {
+        // Logic: Check if banner should be displayed
+        const status = subscription?.status || subscription?.subscription?.status;
+        const isExpired = subscription?.isExpired || false;
+        const statusRequiresBanner = status === 'EXPIRED' || 
+                                     status === 'CANCELLED' || 
+                                     status === 'INACTIVE' ||
+                                     isExpired;
+        
+        logger.debug('Logic: Subscription banner display check', {
+          status,
+          isExpired,
+          statusRequiresBanner,
+          willShowBanner: statusRequiresBanner ? 'YES - Banner will be displayed' : 'NO - Banner will not be displayed',
+        });
+        
+        // Logic: Only blur when status is EXPIRED or INACTIVE
+        const shouldBlur = subscription?.status === 'EXPIRED' || subscription?.status === 'INACTIVE';
+        logger.debug('Logic: Blur overlay decision', {
+          subscriptionStatus: subscription?.status,
+          shouldBlur,
+          action: shouldBlur ? 'Setting blur overlay to true' : 'No blur needed'
+        });
+        
+        if (shouldBlur) {
           setShowBlurOverlay(true);
         }
-        console.log('✅ Nutrition: Subscription data loaded');
-        console.log('✅ End date from subscription:', subscription?.endDate || subscription?.subscription?.endDate);
+        logger.info('Subscription data loaded and processed');
+      } else {
+        logger.error('API Response: Subscription fetch failed', subscriptionRes.reason);
       }
+      logger.groupEnd();
 
       // Handle nutrition plans
+      logger.group('🍽️ NUTRITION PLANS DATA');
       if (plansRes.status === 'fulfilled') {
         const plansData = plansRes.value;
-        setNutritionPlans(plansData?.data?.plans || []);
+        const plansCount = plansData?.data?.plans?.length || 0;
         
-        // Set current plan (first active plan or first available)
-        const activePlan = plansData?.data?.plans?.find(plan => plan.isActive) || plansData?.data?.plans?.[0];
+        logger.debug('API Response: Nutrition plans received', {
+          status: 'success',
+          httpStatus: '200 OK',
+          requestType: 'GET /nutrition/plans',
+          hasData: !!plansData?.data,
+          plansCount,
+          responseStructure: {
+            hasData: !!plansData?.data,
+            hasPlansArray: Array.isArray(plansData?.data?.plans),
+            plansArrayLength: plansData?.data?.plans?.length || 0,
+          }
+        });
+        
+        // Check if empty plans are due to expired subscription
+        const isSubscriptionExpired = subscription && (
+          subscription.status === 'EXPIRED' || 
+          subscription.status === 'CANCELLED' || 
+          subscription.status === 'INACTIVE' ||
+          subscription.isExpired
+        );
+        
+        if (plansCount === 0) {
+          if (isSubscriptionExpired) {
+            logger.info('Logic: Empty plans response - Expected behavior', {
+              reason: 'Subscription is expired/inactive',
+              subscriptionStatus: subscription?.status,
+              isExpired: subscription?.isExpired,
+              action: 'Backend correctly returns empty plans array for expired subscription',
+              userMessage: 'UI will show "Aucun repas planifié" with subscription banner'
+            });
+          } else {
+            logger.warn('Logic: Empty plans response - Unexpected behavior', {
+              reason: 'No plans returned but subscription appears active',
+              subscriptionStatus: subscription?.status,
+              isExpired: subscription?.isExpired,
+              action: 'This may indicate a backend issue or user has no plans assigned'
+            });
+          }
+        }
+        
+        // Field mapping
+        logger.debug('Field Mapping: Plans data structure', {
+          'data.plans': plansData?.data?.plans?.map(plan => ({
+            id: plan.id,
+            name: plan.name,
+            isActive: plan.isActive,
+            numDays: plan.numDays,
+            menusCount: plan.menus?.length || 0,
+          })) || [],
+        });
+        
+        const allPlans = plansData?.data?.plans || [];
+        setNutritionPlans(allPlans);
+        
+        // Logic: Set current plan (first active plan or first available)
+        const activePlan = allPlans.find(plan => plan.isActive) || allPlans[0];
+        logger.debug('Logic: Current plan selection', {
+          totalPlans: allPlans.length,
+          activePlansCount: allPlans.filter(p => p.isActive).length,
+          selectedPlan: activePlan ? {
+            id: activePlan.id,
+            name: activePlan.name,
+            isActive: activePlan.isActive,
+            numDays: activePlan.numDays,
+            selectionReason: activePlan.isActive ? 'First active plan' : 'First available plan'
+          } : null,
+          result: activePlan ? 'Plan selected' : 'No plan available'
+        });
+        
         if (activePlan) {
           setCurrentPlan(activePlan);
-          console.log('✅ Nutrition: Current plan set:', activePlan.name);
+          logger.info('Current plan set', { planName: activePlan.name, planId: activePlan.id });
+        } else {
+          logger.warn('No nutrition plans available', {
+            plansCount: 0,
+            subscriptionStatus: subscription?.status,
+            isExpired: subscription?.isExpired,
+            reason: isSubscriptionExpired 
+              ? 'Expected: Subscription expired, backend returns empty plans' 
+              : 'Unexpected: No plans available despite active subscription'
+          });
         }
+      } else {
+        logger.error('API Response: Nutrition plans fetch failed', {
+          error: plansRes.reason,
+          subscriptionStatus: subscription?.status,
+          isExpired: subscription?.isExpired,
+          note: 'This is an actual API error, not an empty response'
+        });
       }
+      logger.groupEnd();
+      logger.groupEnd();
 
     } catch (error) {
-      console.error('❌ Nutrition: Error fetching data:', error);
+      logger.error('Error fetching all data', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur de chargement',
@@ -154,8 +358,20 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
 
   // Calculate which day in the nutrition plan cycle based on selected date
   const calculateNutritionPlanDay = (selectedDate) => {
+    logger.group('📅 CALCULATE PLAN DAY');
+    logger.debug('Input: Calculating plan day for selected date', {
+      selectedDate: selectedDate?.toDateString?.() || selectedDate,
+      subscriptionStartDate: subscriptionData?.subscription?.startDate,
+      planNumDays: currentPlan?.numDays,
+    });
+    
     if (!subscriptionData?.subscription?.startDate || !currentPlan?.numDays) {
-      console.log('⚠️ Missing subscription start date or plan numDays');
+      logger.warn('Missing required data for plan day calculation', {
+        hasStartDate: !!subscriptionData?.subscription?.startDate,
+        hasNumDays: !!currentPlan?.numDays,
+        action: 'Returning default day 1'
+      });
+      logger.groupEnd();
       return 1; // Default to day 1
     }
 
@@ -168,57 +384,261 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     // Calculate days since subscription started (0-indexed)
     const daysSinceStart = Math.floor((currentDate - startDate) / (1000 * 60 * 60 * 24));
     
-    // Calculate which day in the plan cycle (1-indexed, repeating)
+    // Logic: Calculate which day in the plan cycle (1-indexed, repeating)
     // Example: 3-day plan cycles as 1,2,3,1,2,3...
     const planDay = (daysSinceStart % currentPlan.numDays) + 1;
     
-    console.log(`📅 Date: ${currentDate.toDateString()}, Days since start: ${daysSinceStart}, Plan cycle day: ${planDay}/${currentPlan.numDays}`);
+    logger.debug('Logic: Plan day calculation', {
+      startDate: startDate.toDateString(),
+      currentDate: currentDate.toDateString(),
+      daysSinceStart,
+      planNumDays: currentPlan.numDays,
+      calculation: `(${daysSinceStart} % ${currentPlan.numDays}) + 1`,
+      result: planDay,
+    });
+    
+    logger.info('Plan day calculated', { 
+      calendarDate: currentDate.toDateString(),
+      planDay: `${planDay}/${currentPlan.numDays}` 
+    });
+    logger.groupEnd();
     
     return planDay;
   };
 
   const loadDayData = async () => {
-    if (!currentPlan?.id) return;
+    if (!currentPlan?.id) {
+      logger.warn('Cannot load day data: No current plan ID');
+      return;
+    }
     
     try {
-      // Calculate which day in the nutrition plan cycle
-      const planDay = calculateNutritionPlanDay(selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today);
+      logger.group('🍽️ LOAD DAY DATA');
+      logger.info('Loading meals for selected day and tomorrow');
       
-      console.log(`🥗 Nutrition: Loading data for calendar date ${selectedDate}, plan day ${planDay}`);
-      console.log(`🥗 Nutrition: Current plan:`, currentPlan.name, `(${currentPlan.numDays} days)`);
-      console.log(`🥗 Nutrition: Plan menus:`, currentPlan.menus);
+      // Calculate which day in the nutrition plan cycle for today
+      const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+      const planDay = calculateNutritionPlanDay(selectedDateObj);
       
-      // Get meals for the calculated plan day
+      // Calculate tomorrow's date and plan day
+      const tomorrow = new Date(selectedDateObj);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowPlanDay = calculateNutritionPlanDay(tomorrow);
+      
+      logger.debug('Input: Day selection parameters', {
+        calendarDate: selectedDate,
+        selectedDateObj: selectedDateObj.toDateString(),
+        tomorrowDate: tomorrow.toDateString(),
+        calculatedPlanDay: planDay,
+        tomorrowPlanDay: tomorrowPlanDay,
+        currentPlan: {
+          id: currentPlan.id,
+          name: currentPlan.name,
+          numDays: currentPlan.numDays,
+          menusCount: currentPlan.menus?.length || 0,
+        }
+      });
+      
+      // Logic: Get meals for today (calculated plan day)
+      logger.debug('Logic: Finding menu for plan day', {
+        planDay,
+        availableMenuDays: currentPlan.menus?.map(m => m.day) || [],
+        searchCriteria: `menu.day === ${planDay}`
+      });
+      
       const dayMenu = currentPlan.menus?.find(menu => menu.day === planDay);
-      console.log(`🥗 Nutrition: Found day menu for plan day ${planDay}:`, dayMenu);
       
       if (dayMenu) {
-        console.log(`🥗 Nutrition: Day meals:`, dayMenu.meals);
-        setDayMeals(dayMenu.meals || []);
+        logger.debug('API Response: Day menu found', {
+          menuDay: dayMenu.day,
+          mealsCount: dayMenu.meals?.length || 0,
+          mealIds: dayMenu.meals?.map(m => ({ id: m.id, name: m.name, type: m.type })) || [],
+        });
+        
+        // Field mapping
+        logger.debug('Field Mapping: Day menu structure', {
+          'menu.day': dayMenu.day,
+          'menu.meals[].id': dayMenu.meals?.map(m => m.id) || [],
+          'menu.meals[].name': dayMenu.meals?.map(m => m.name) || [],
+          'menu.meals[].type': dayMenu.meals?.map(m => m.type) || [],
+          'menu.meals[].imageUrl': dayMenu.meals?.map(m => m.imageUrl ? 'present' : 'missing') || [],
+        });
+        
+        const meals = dayMenu.meals || [];
+        setDayMeals(meals);
+        
+        // Load interaction status for each meal
+        const interactionPromises = meals.map(async (meal) => {
+          try {
+            const interactionRes = await nutritionAPI.getMealInteraction(meal.id);
+            logger.debug('Meal interaction response', { 
+              mealId: meal.id, 
+              response: interactionRes,
+              data: interactionRes?.data,
+              userInteraction: interactionRes?.data?.userInteraction || interactionRes?.userInteraction
+            });
+            
+            // Handle different response structures
+            const userInteraction = interactionRes?.data?.userInteraction || 
+                                   interactionRes?.data?.data?.userInteraction ||
+                                   interactionRes?.userInteraction || 
+                                   null;
+            
+            if (userInteraction) {
+              // Normalize to 'like' or 'dislike' (case-insensitive)
+              const normalizedInteraction = userInteraction.toLowerCase() === 'like' ? 'like' : 
+                                          userInteraction.toLowerCase() === 'dislike' ? 'dislike' : 
+                                          null;
+              return { mealId: meal.id, interaction: normalizedInteraction };
+            }
+          } catch (error) {
+            logger.debug('Error loading meal interaction', { mealId: meal.id, error });
+          }
+          return null;
+        });
+        
+        const interactionResults = await Promise.allSettled(interactionPromises);
+        const newInteractions = {};
+        interactionResults.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            newInteractions[result.value.mealId] = result.value.interaction;
+          }
+        });
+        
+        if (Object.keys(newInteractions).length > 0) {
+          setMealInteractions(prev => ({ ...prev, ...newInteractions }));
+          logger.debug('Updated meal interactions state', { newInteractions });
+        }
+        
+        logger.info('Day meals loaded', { 
+          mealsCount: meals.length,
+          planDay: `${planDay}/${currentPlan.numDays}`,
+          interactionsLoaded: Object.keys(newInteractions).length
+        });
       } else {
-        console.log(`🥗 Nutrition: No menu found for plan day ${planDay}`);
+        logger.warn('No menu found for plan day', {
+          planDay,
+          availableDays: currentPlan.menus?.map(m => m.day) || [],
+          action: 'Setting empty meals array'
+        });
         setDayMeals([]);
       }
 
+      // Logic: Get meals for tomorrow
+      logger.debug('Logic: Finding menu for tomorrow plan day', {
+        tomorrowPlanDay,
+        availableMenuDays: currentPlan.menus?.map(m => m.day) || [],
+        searchCriteria: `menu.day === ${tomorrowPlanDay}`
+      });
+      
+      const tomorrowMenu = currentPlan.menus?.find(menu => menu.day === tomorrowPlanDay);
+      
+      if (tomorrowMenu) {
+        logger.debug('API Response: Tomorrow menu found', {
+          menuDay: tomorrowMenu.day,
+          mealsCount: tomorrowMenu.meals?.length || 0,
+          mealIds: tomorrowMenu.meals?.map(m => ({ id: m.id, name: m.name, type: m.type })) || [],
+        });
+        
+        const tomorrowMealsList = tomorrowMenu.meals || [];
+        setTomorrowMeals(tomorrowMealsList);
+        
+        // Load interaction status for tomorrow's meals
+        const tomorrowInteractionPromises = tomorrowMealsList.map(async (meal) => {
+          try {
+            const interactionRes = await nutritionAPI.getMealInteraction(meal.id);
+            logger.debug('Tomorrow meal interaction response', { 
+              mealId: meal.id, 
+              response: interactionRes,
+              data: interactionRes?.data,
+              userInteraction: interactionRes?.data?.userInteraction || interactionRes?.userInteraction
+            });
+            
+            // Handle different response structures
+            const userInteraction = interactionRes?.data?.userInteraction || 
+                                   interactionRes?.data?.data?.userInteraction ||
+                                   interactionRes?.userInteraction || 
+                                   null;
+            
+            if (userInteraction) {
+              // Normalize to 'like' or 'dislike' (case-insensitive)
+              const normalizedInteraction = userInteraction.toLowerCase() === 'like' ? 'like' : 
+                                          userInteraction.toLowerCase() === 'dislike' ? 'dislike' : 
+                                          null;
+              return { mealId: meal.id, interaction: normalizedInteraction };
+            }
+          } catch (error) {
+            logger.debug('Error loading meal interaction', { mealId: meal.id, error });
+          }
+          return null;
+        });
+        
+        const tomorrowInteractionResults = await Promise.allSettled(tomorrowInteractionPromises);
+        const tomorrowNewInteractions = {};
+        tomorrowInteractionResults.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            tomorrowNewInteractions[result.value.mealId] = result.value.interaction;
+          }
+        });
+        
+        if (Object.keys(tomorrowNewInteractions).length > 0) {
+          setMealInteractions(prev => ({ ...prev, ...tomorrowNewInteractions }));
+          logger.debug('Updated tomorrow meal interactions state', { tomorrowNewInteractions });
+        }
+        
+        logger.info('Tomorrow meals loaded', { 
+          mealsCount: tomorrowMealsList.length,
+          planDay: `${tomorrowPlanDay}/${currentPlan.numDays}`,
+          interactionsLoaded: Object.keys(tomorrowNewInteractions).length
+        });
+      } else {
+        logger.warn('No menu found for tomorrow plan day', {
+          tomorrowPlanDay,
+          availableDays: currentPlan.menus?.map(m => m.day) || [],
+          action: 'Setting empty meals array'
+        });
+        setTomorrowMeals([]);
+      }
+
       // Get completion status for the plan day
+      logger.debug('API Request: Fetching day completion status', {
+        planId: currentPlan.id,
+        planDay,
+        endpoint: 'nutritionAPI.getDayCompletionStatus'
+      });
+      
       const completionRes = await nutritionAPI.getDayCompletionStatus(currentPlan.id, planDay);
+      
       if (completionRes.status === 'fulfilled') {
+        logger.debug('API Response: Completion status received', {
+          status: 'success',
+          hasData: !!completionRes.value?.data,
+          completionData: completionRes.value?.data,
+        });
         setCompletionStatus(completionRes.value.data);
+        logger.info('Completion status loaded');
+      } else {
+        logger.error('API Response: Completion status fetch failed', completionRes.reason);
       }
       
+      logger.groupEnd();
+      
     } catch (error) {
-      console.error('❌ Nutrition: Error loading day data:', error);
+      logger.error('Error loading day data', error);
     }
   };
 
   const onRefresh = async () => {
+    logger.info('User Action: Pull-to-refresh triggered');
     setRefreshing(true);
     await fetchAllData();
     setRefreshing(false);
+    logger.info('Refresh completed');
   };
 
   const handleSubscriptionRenew = () => {
-    console.log('🔄 Nutrition: Navigating to subscription renewal page');
+    logger.info('User Action: Subscription renewal requested');
+    logger.debug('Action: Closing blur overlay and navigating to subscription page');
     setShowBlurOverlay(false);
     if (onSubscriptionRenew) {
       onSubscriptionRenew();
@@ -227,30 +647,77 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
 
   // Meal interaction functions
   const handleMealLike = async (mealId) => {
+    logger.group('👍 MEAL LIKE ACTION');
+    logger.info('User Action: Meal like button pressed', { mealId });
+    
     try {
-      const currentInteraction = mealInteractions[mealId];
+      // Find meal name from current meals
+      const meal = [...dayMeals, ...tomorrowMeals].find(m => m.id === mealId) || selectedMeal;
+      const mealName = meal?.name || 'ce repas';
       
-      if (currentInteraction === 'like') {
-        // Remove like
-        await nutritionAPI.removeMealInteraction(mealId);
-        setMealInteractions(prev => ({ ...prev, [mealId]: null }));
-        Toast.show({
-          type: 'success',
-          text1: 'Like supprimé',
-          text2: 'Votre like a été retiré'
-        });
-      } else {
-        // Add like
-        await nutritionAPI.likeMeal(mealId);
-        setMealInteractions(prev => ({ ...prev, [mealId]: 'like' }));
+      const currentInteraction = mealInteractions[mealId];
+      logger.debug('Current state', {
+        mealId,
+        currentInteraction,
+        action: 'POST /meals/{mealId}/like (toggles: if liked removes, if disliked changes to like)'
+      });
+      
+      // API handles toggle behavior: if already liked, removes like; if disliked, changes to like
+      logger.debug('API Request: Toggling meal like', { mealId, endpoint: 'POST /meals/{mealId}/like' });
+      const response = await nutritionAPI.likeMeal(mealId);
+      logger.debug('API Response: Like action completed', { 
+        response: response?.data || response,
+        userInteraction: response?.data?.userInteraction || response?.userInteraction
+      });
+      
+      // Update state based on API response
+      // Response should contain: { userInteraction: 'like' | 'dislike' | null, likeCount, dislikeCount }
+      const userInteraction = response?.data?.userInteraction || 
+                             response?.data?.data?.userInteraction ||
+                             response?.userInteraction || 
+                             null;
+      
+      // Normalize to 'like' or 'dislike' (case-insensitive)
+      const updatedInteraction = userInteraction?.toLowerCase() === 'like' ? 'like' : 
+                                userInteraction?.toLowerCase() === 'dislike' ? 'dislike' : 
+                                null;
+      
+      logger.debug('API Response parsing', {
+        mealId,
+        rawResponse: response,
+        userInteraction,
+        normalizedInteraction: updatedInteraction
+      });
+      
+      setMealInteractions(prev => {
+        const updated = { ...prev, [mealId]: updatedInteraction };
+        logger.debug('Updated mealInteractions state', { mealId, updatedInteraction, allInteractions: updated });
+        return updated;
+      });
+      
+      logger.info('State updated based on API response', { 
+        mealId, 
+        previousInteraction: currentInteraction,
+        newInteraction: updatedInteraction
+      });
+      
+      if (updatedInteraction === 'like') {
         Toast.show({
           type: 'success',
           text1: 'Repas aimé',
-          text2: 'Merci pour votre retour!'
+          text2: `Vous avez aimé ${mealName}`
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Like supprimé',
+          text2: `Vous n'avez plus aimé ${mealName}`
         });
       }
+      logger.groupEnd();
     } catch (error) {
-      console.error('❌ Nutrition: Error handling meal like:', error);
+      logger.error('Error handling meal like', error);
+      logger.groupEnd();
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -260,30 +727,77 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   };
 
   const handleMealDislike = async (mealId) => {
+    logger.group('👎 MEAL DISLIKE ACTION');
+    logger.info('User Action: Meal dislike button pressed', { mealId });
+    
     try {
-      const currentInteraction = mealInteractions[mealId];
+      // Find meal name from current meals
+      const meal = [...dayMeals, ...tomorrowMeals].find(m => m.id === mealId) || selectedMeal;
+      const mealName = meal?.name || 'ce repas';
       
-      if (currentInteraction === 'dislike') {
-        // Remove dislike
-        await nutritionAPI.removeMealInteraction(mealId);
-        setMealInteractions(prev => ({ ...prev, [mealId]: null }));
-        Toast.show({
-          type: 'success',
-          text1: 'Dislike supprimé',
-          text2: 'Votre dislike a été retiré'
-        });
-      } else {
-        // Add dislike
-        await nutritionAPI.dislikeMeal(mealId);
-        setMealInteractions(prev => ({ ...prev, [mealId]: 'dislike' }));
+      const currentInteraction = mealInteractions[mealId];
+      logger.debug('Current state', {
+        mealId,
+        currentInteraction,
+        action: 'POST /meals/{mealId}/dislike (toggles: if disliked removes, if liked changes to dislike)'
+      });
+      
+      // API handles toggle behavior: if already disliked, removes dislike; if liked, changes to dislike
+      logger.debug('API Request: Toggling meal dislike', { mealId, endpoint: 'POST /meals/{mealId}/dislike' });
+      const response = await nutritionAPI.dislikeMeal(mealId);
+      logger.debug('API Response: Dislike action completed', { 
+        response: response?.data || response,
+        userInteraction: response?.data?.userInteraction || response?.userInteraction
+      });
+      
+      // Update state based on API response
+      // Response should contain: { userInteraction: 'like' | 'dislike' | null, likeCount, dislikeCount }
+      const userInteraction = response?.data?.userInteraction || 
+                             response?.data?.data?.userInteraction ||
+                             response?.userInteraction || 
+                             null;
+      
+      // Normalize to 'like' or 'dislike' (case-insensitive)
+      const updatedInteraction = userInteraction?.toLowerCase() === 'like' ? 'like' : 
+                                userInteraction?.toLowerCase() === 'dislike' ? 'dislike' : 
+                                null;
+      
+      logger.debug('API Response parsing', {
+        mealId,
+        rawResponse: response,
+        userInteraction,
+        normalizedInteraction: updatedInteraction
+      });
+      
+      setMealInteractions(prev => {
+        const updated = { ...prev, [mealId]: updatedInteraction };
+        logger.debug('Updated mealInteractions state', { mealId, updatedInteraction, allInteractions: updated });
+        return updated;
+      });
+      
+      logger.info('State updated based on API response', { 
+        mealId, 
+        previousInteraction: currentInteraction,
+        newInteraction: updatedInteraction
+      });
+      
+      if (updatedInteraction === 'dislike') {
         Toast.show({
           type: 'success',
           text1: 'Repas non aimé',
-          text2: 'Merci pour votre retour!'
+          text2: `Vous n'avez pas aimé ${mealName}`
+        });
+      } else {
+        Toast.show({
+          type: 'success',
+          text1: 'Dislike supprimé',
+          text2: `Vous n'avez plus détesté ${mealName}`
         });
       }
+      logger.groupEnd();
     } catch (error) {
-      console.error('❌ Nutrition: Error handling meal dislike:', error);
+      logger.error('Error handling meal dislike', error);
+      logger.groupEnd();
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -293,20 +807,36 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   };
 
   const handleMealComplete = async (mealId) => {
+    logger.group('✅ MEAL COMPLETE ACTION');
+    logger.info('User Action: Meal complete button pressed', { mealId });
+    
     try {
-      await nutritionAPI.completeMeal(mealId);
+      logger.debug('API Request: Marking meal as complete', { 
+        mealId, 
+        endpoint: 'POST /meals/{mealId}/complete',
+        note: 'Awards 25 points and marks meal as completed'
+      });
+      const response = await nutritionAPI.completeMeal(mealId);
+      logger.debug('API Response: Meal marked as complete successfully', {
+        response: response?.data || response,
+        pointsAwarded: response?.data?.pointsAwarded || response?.pointsAwarded || 25
+      });
+      
+      logger.info('State: Refreshing day data to update completion status');
       Toast.show({
         type: 'success',
         text1: 'Repas terminé',
-        text2: 'Félicitations!'
+        text2: `+${response?.data?.pointsAwarded || response?.pointsAwarded || 25} points!`
       });
       
       // Refresh completion status
       if (currentPlan?.id) {
         loadDayData();
       }
+      logger.groupEnd();
     } catch (error) {
-      console.error('❌ Nutrition: Error completing meal:', error);
+      logger.error('Error completing meal', error);
+      logger.groupEnd();
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -325,12 +855,32 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   const submitMealFeedback = async () => {
     if (!selectedMealForFeedback) return;
     
+    logger.group('💬 SUBMIT MEAL FEEDBACK');
+    logger.info('User Action: Submitting meal feedback', {
+      mealId: selectedMealForFeedback.id,
+      mealName: selectedMealForFeedback.name,
+      rating: feedbackRating,
+      hasFeedbackText: !!feedbackText,
+      feedbackLength: feedbackText.length,
+    });
+    
     try {
-      await nutritionAPI.submitMealFeedback(selectedMealForFeedback.id, {
+      const feedbackPayload = {
         feedback: feedbackText,
         rating: feedbackRating,
         suggestions: feedbackText // Using feedback as suggestions for now
+      };
+      
+      logger.debug('API Request: Submitting meal feedback', {
+        mealId: selectedMealForFeedback.id,
+        endpoint: 'nutritionAPI.submitMealFeedback',
+        payload: feedbackPayload,
       });
+      
+      await nutritionAPI.submitMealFeedback(selectedMealForFeedback.id, feedbackPayload);
+      
+      logger.debug('API Response: Feedback submitted successfully');
+      logger.info('State: Closing feedback modal and resetting form');
       
       Toast.show({
         type: 'success',
@@ -340,8 +890,10 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
       
       setShowFeedbackModal(false);
       setSelectedMealForFeedback(null);
+      logger.groupEnd();
     } catch (error) {
-      console.error('❌ Nutrition: Error submitting feedback:', error);
+      logger.error('Error submitting feedback', error);
+      logger.groupEnd();
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -352,16 +904,33 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
 
   // Check if a date is outside subscription coverage
   const isDateOutsideSubscription = (date) => {
+    logger.group('🗓️ DATE VALIDATION');
+    logger.debug('Input: Checking if date is outside subscription', {
+      dateToCheck: date?.toDateString?.() || date,
+      hasSubscriptionData: !!subscriptionData,
+    });
+    
     if (!subscriptionData) {
-      console.log('🗓️ No subscription data available');
+      logger.warn('No subscription data available - allowing date');
+      logger.groupEnd();
       return false;
     }
     
-    console.log('🗓️ Full subscription data:', JSON.stringify(subscriptionData, null, 2));
+    // Field mapping
+    logger.debug('Field Mapping: Subscription data for date validation', {
+      'subscriptionData.status': subscriptionData.status,
+      'subscriptionData.endDate': subscriptionData.endDate,
+      'subscriptionData.subscription.endDate': subscriptionData.subscription?.endDate,
+    });
     
-    // If subscription is EXPIRED or INACTIVE, all dates are outside
+    // Logic: If subscription is EXPIRED or INACTIVE, all dates are outside
     if (subscriptionData.status === 'EXPIRED' || subscriptionData.status === 'INACTIVE') {
-      console.log('🗓️ Date outside: Subscription is EXPIRED/INACTIVE');
+      logger.debug('Logic: Subscription status check', {
+        status: subscriptionData.status,
+        result: 'Date is outside (subscription expired/inactive)',
+        action: 'Returning true'
+      });
+      logger.groupEnd();
       return true;
     }
     
@@ -370,7 +939,10 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     const endDateString = subscriptionData.endDate || subscriptionData.subscription?.endDate;
     
     if (endDateString) {
-      console.log('🗓️ End date string from API:', endDateString);
+      logger.debug('Logic: Date comparison', {
+        endDateFromAPI: endDateString,
+        dateToCheck: date?.toDateString?.() || date,
+      });
       
       const endDate = new Date(endDateString);
       endDate.setHours(23, 59, 59, 999); // End of day
@@ -379,13 +951,28 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
       dateToCheck.setHours(0, 0, 0, 0); // Start of day
       
       const isOutside = dateToCheck > endDate;
-      console.log(`🗓️ Checking date ${dateToCheck.toISOString()} (${dateToCheck.toDateString()}) vs end date ${endDate.toISOString()} (${endDate.toDateString()}): ${isOutside ? 'OUTSIDE ❌' : 'INSIDE ✅'}`);
+      
+      logger.debug('Logic: Date comparison result', {
+        dateToCheck: dateToCheck.toISOString(),
+        dateToCheckFormatted: dateToCheck.toDateString(),
+        endDate: endDate.toISOString(),
+        endDateFormatted: endDate.toDateString(),
+        comparison: `${dateToCheck.toISOString()} > ${endDate.toISOString()}`,
+        result: isOutside ? 'OUTSIDE' : 'INSIDE',
+      });
+      
+      logger.info('Date validation completed', {
+        date: dateToCheck.toDateString(),
+        isOutside,
+      });
+      logger.groupEnd();
       
       if (isOutside) {
         return true;
       }
     } else {
-      console.log('🗓️ No end date found in subscription data');
+      logger.warn('No end date found in subscription data - allowing date');
+      logger.groupEnd();
     }
     
     return false;
@@ -441,8 +1028,16 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     const interaction = mealInteractions[meal.id];
     const isSelected = selectedMeal?.id === meal.id;
     
-    console.log(`🥗 Rendering meal card for: ${meal.name} (${meal.type})`);
-    console.log(`🥗 Meal imageUrl: ${meal.imageUrl}`);
+    logger.debug('Rendering meal card', {
+      mealId: meal.id,
+      mealName: meal.name,
+      mealType: meal.type,
+      hasImageUrl: !!meal.imageUrl,
+      imageUrl: meal.imageUrl,
+      isCompleted,
+      interaction,
+      isSelected,
+    });
     
     return (
       <TouchableOpacity 
@@ -452,7 +1047,29 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
           { backgroundColor: mealType.bg },
           isSelected && styles.selectedMealCard
         ]}
-        onPress={() => setSelectedMeal(meal)}
+        onPress={() => {
+          setSelectedMeal(meal);
+          // Open modal and set up video if available
+          if (meal.youtubeUrl) {
+            const videoId = getYouTubeVideoId(meal.youtubeUrl);
+            if (videoId) {
+              setYoutubeVideoId(videoId);
+              setYoutubePlaying(true);
+            } else {
+              setYoutubeVideoId(null);
+              setYoutubePlaying(false);
+            }
+          } else {
+            setYoutubeVideoId(null);
+            setYoutubePlaying(false);
+          }
+          setShowYoutubeModal(true);
+          logger.info('User Action: Opening meal details modal from meal card', {
+            mealId: meal.id,
+            hasYoutubeUrl: !!meal.youtubeUrl,
+            videoId: meal.youtubeUrl ? getYouTubeVideoId(meal.youtubeUrl) : null
+          });
+        }}
       >
         <View style={styles.mealContent}>
           {/* Meal Image - Left thumbnail */}
@@ -462,8 +1079,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                 source={{ uri: meal.imageUrl }}
                 style={styles.mealCardImage}
                 resizeMode="cover"
-                onError={(error) => console.log('❌ Image load error:', error)}
-                onLoad={() => console.log('✅ Image loaded successfully')}
+                onError={(error) => logger.warn('Meal image load error', { mealId: meal.id, mealName: meal.name, error })}
+                onLoad={() => logger.debug('Meal image loaded successfully', { mealId: meal.id, imageUrl: meal.imageUrl })}
               />
             ) : (
               <View style={styles.placeholderImage}>
@@ -492,248 +1109,6 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
     );
   };
 
-  const renderMealPreviewCard = () => {
-    if (!selectedMeal) {
-      return (
-        <View style={styles.mealPreviewCard}>
-          <View style={styles.emptyPreviewContainer}>
-            <Text style={styles.emptyPreviewIcon}>🍽️</Text>
-            <Text style={styles.emptyPreviewTitle}>Sélectionnez un repas</Text>
-            <Text style={styles.emptyPreviewSubtitle}>
-              Choisissez un repas dans la liste ci-dessous pour voir les détails
-            </Text>
-          </View>
-        </View>
-      );
-    }
-
-    const mealType = mealTypeMap[selectedMeal.type] || mealTypeMap.breakfast;
-    const isCompleted = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
-    const interaction = mealInteractions[selectedMeal.id];
-
-    return (
-      <View style={styles.mealPreviewCard}>
-        {/* Header Section */}
-        <View style={styles.mealPreviewHeader}>
-          <View style={styles.mealPreviewTitleRow}>
-            <Text style={styles.mealPreviewTitle}>{selectedMeal.name}</Text>
-            <Text style={styles.mealPreviewType}>{mealType.title}</Text>
-          </View>
-          <Text style={styles.mealPreviewTime}>{mealType.time}</Text>
-          
-          {/* Interaction Buttons */}
-          <View style={styles.headerInteractionButtons}>
-            <TouchableOpacity 
-              style={[styles.headerInteractionButton, interaction === 'like' && styles.activeHeaderInteractionButton]}
-              onPress={() => handleMealLike(selectedMeal.id)}
-            >
-              <Ionicons 
-                name="thumbs-up-outline" 
-                size={22} 
-                color={interaction === 'like' ? '#1877F2' : '#8E8E93'} 
-              />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.headerInteractionButton, interaction === 'dislike' && styles.activeHeaderInteractionButton]}
-              onPress={() => handleMealDislike(selectedMeal.id)}
-            >
-              <Ionicons 
-                name="thumbs-down-outline" 
-                size={22} 
-                color={interaction === 'dislike' ? '#FF3B30' : '#8E8E93'} 
-              />
-            </TouchableOpacity>
-          </View>
-
-        </View>
-
-        {/* Meal Image and Video Overlay */}
-        {selectedMeal.imageUrl && (
-          <View style={styles.mealImageContainer}>
-            <Image 
-              source={{ uri: selectedMeal.imageUrl }}
-              style={styles.mealImage}
-              resizeMode="cover"
-            />
-            
-            {/* Video Button Overlay */}
-            {selectedMeal.youtubeUrl && (
-              <TouchableOpacity 
-                style={styles.videoButton}
-                onPress={() => {
-                  if (selectedMeal.youtubeUrl) {
-                    Linking.openURL(selectedMeal.youtubeUrl)
-                      .catch(err => {
-                        console.error('Failed to open YouTube URL:', err);
-                        Toast.show({
-                          type: 'error',
-                          text1: 'Erreur',
-                          text2: 'Impossible d\'ouvrir la vidéo'
-                        });
-                      });
-                  }
-                }}
-              >
-                <Ionicons name="play" size={20} color="#FFFFFF" />
-                <Text style={styles.videoButtonText}>Voir la vidéo de la recette</Text>
-              </TouchableOpacity>
-            )}
-            
-            {/* Image Icon */}
-            <View style={styles.imageIcon}>
-              <Ionicons name="images" size={16} color={theme.colors.primary} />
-            </View>
-          </View>
-        )}
-
-        {/* Completion Button */}
-        <TouchableOpacity 
-          style={[styles.completeButton, isCompleted && styles.completedButtonStyle]}
-          onPress={() => handleMealComplete(selectedMeal.id)}
-        >
-          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-          <Text style={styles.completeButtonText}>
-            {isCompleted ? 'Complété' : 'Marquer comme complété'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Navigation Tabs and Interaction Buttons */}
-        <View style={styles.mealTabsContainer}>
-          {/* Left Side - Navigation Tabs */}
-          <View style={styles.mealTabs}>
-            <TouchableOpacity 
-              style={[styles.mealTab, activeMealTab === 'composition' && styles.activeMealTab]}
-              onPress={() => setActiveMealTab('composition')}
-            >
-              <Ionicons 
-                name="nutrition" 
-                size={20} 
-                color={activeMealTab === 'composition' ? "#000000" : "#666666"} 
-              />
-              {activeMealTab === 'composition' && (
-                <Text style={styles.tabTitle}>Composition</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.mealTab, activeMealTab === 'recipe' && styles.activeMealTab]}
-              onPress={() => setActiveMealTab('recipe')}
-            >
-              <Ionicons 
-                name="restaurant" 
-                size={20} 
-                color={activeMealTab === 'recipe' ? "#000000" : "#666666"} 
-              />
-              {activeMealTab === 'recipe' && (
-                <Text style={styles.tabTitle}>Instructions</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.mealTab, activeMealTab === 'ingredients' && styles.activeMealTab]}
-              onPress={() => setActiveMealTab('ingredients')}
-            >
-              <Ionicons 
-                name="list" 
-                size={20} 
-                color={activeMealTab === 'ingredients' ? "#000000" : "#666666"} 
-              />
-              {activeMealTab === 'ingredients' && (
-                <Text style={styles.tabTitle}>Ingrédients</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Content based on active tab */}
-        {activeMealTab === 'composition' ? (
-          /* Composition Content */
-          <View style={styles.compositionContent}>
-            <Text style={styles.contentTitle}>Composition nutritionnelle</Text>
-            <View style={styles.mockDataContent}>
-              <Text style={styles.mockDataText}>
-                • Riche en fibres alimentaires
-              </Text>
-              <Text style={styles.mockDataText}>
-                • Source de potassium et magnésium
-              </Text>
-              <Text style={styles.mockDataText}>
-                • Contient des vitamines B6 et C
-              </Text>
-              <Text style={styles.mockDataText}>
-                • Faible en sodium
-              </Text>
-              <Text style={styles.mockDataText}>
-                • Antioxydants naturels présents
-              </Text>
-            </View>
-          </View>
-        ) : activeMealTab === 'recipe' ? (
-          /* Recipe Content */
-          <View style={styles.recipeContent}>
-            <Text style={styles.contentTitle}>Instructions de préparation</Text>
-            {selectedMeal.instructions && selectedMeal.instructions.length > 0 ? (
-              (() => {
-                // Parse instructions - they come as string array from API
-                let instructions = selectedMeal.instructions;
-                if (typeof instructions === 'string') {
-                  try {
-                    instructions = JSON.parse(instructions);
-                  } catch (e) {
-                    instructions = [instructions];
-                  }
-                }
-                return instructions.map((instruction, index) => (
-                  <Text key={index} style={styles.recipeStep}>
-                    {index + 1}. {instruction}
-                  </Text>
-                ));
-              })()
-            ) : (
-              <Text style={styles.noContentText}>
-                Aucune instruction disponible pour ce repas
-              </Text>
-            )}
-          </View>
-        ) : (
-          /* Ingredients Content */
-          <View style={styles.ingredientsContent}>
-            <Text style={styles.contentTitle}>Liste des ingrédients</Text>
-            {(() => {
-              // Parse ingredients from API format
-              let ingredients = selectedMeal.ingredients;
-              if (typeof ingredients === 'string') {
-                try {
-                  ingredients = JSON.parse(ingredients);
-                } catch (e) {
-                  console.error('❌ Error parsing ingredients:', e);
-                  ingredients = [];
-                }
-              }
-              
-              return ingredients && ingredients.length > 0 ? (
-                ingredients.map((ingredient, index) => (
-                  <View key={index} style={styles.ingredientItem}>
-                    <Text style={styles.ingredientNumber}>{index + 1}.</Text>
-                    {ingredient.amount && ingredient.unit && (
-                      <Text style={styles.ingredientAmount}>
-                        {ingredient.amount} {ingredient.unit}
-                      </Text>
-                    )}
-                    <Text style={styles.ingredientText}>
-                      {ingredient.name || ingredient}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.noContentText}>
-                  Aucun ingrédient disponible pour ce repas
-                </Text>
-              );
-            })()}
-          </View>
-        )}
-      </View>
-    );
-  };
 
   if (loading) {
     return (
@@ -752,28 +1127,28 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Menus</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.helpButton}>
-            <Ionicons name="help-circle-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text.primary} />
-            <NotificationBadge />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.profileButton} onPress={() => onTabPress ? onTabPress('settings') : null}>
-            <Avatar 
-              source={{ uri: profileData?.avatar || user?.avatar }} 
-              size={40}
-              style={styles.profileImage}
-              fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader
+        title="Menus"
+        onHelpPress={() => {
+          if (onFAQPress) {
+            onFAQPress();
+          } else if (onTabPress) {
+            onTabPress('faq');
+          }
+        }}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+      />
 
       {/* Subscription Banner */}
       <SubscriptionBanner 
@@ -796,13 +1171,6 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
             <Text style={styles.menuTitle}>Menu du jour</Text>
             <Text style={styles.menuDate}>{formatDate(currentDate)}</Text>
           </View>
-        </View>
-
-        {/* Current Phase */}
-        <View style={styles.phaseCard}>
-          <Text style={styles.phaseText}>
-            Phase actuelle: {profileData?.currentPhase || 'Test'}
-          </Text>
         </View>
 
         {/* Week Calendar */}
@@ -841,8 +1209,17 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                       ]
                     );
                   } else {
+                    logger.info('User Action: Date selected', {
+                      selectedDate: day.number,
+                      selectedDayOfWeek: day.dayOfWeek,
+                      dayLabel: day.label,
+                      isToday: day.isToday,
+                      isOutsideSubscription: day.isOutsideSubscription,
+                    });
                     setSelectedDate(day.number);
                     setSelectedDay(day.dayOfWeek);
+                    // Clear selected meal when date changes
+                    setSelectedMeal(null);
                   }
                 }}
               >
@@ -850,7 +1227,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                   styles.dayNumber,
                   day.isToday && styles.todayDayNumber,
                   selectedDate === day.number && styles.selectedDayNumber,
-                  day.isOutsideSubscription && styles.outsideSubscriptionText
+                  day.isOutsideSubscription && styles.outsideSubscriptionText,
+                  (day.dayOfWeek === 0 || day.dayOfWeek === 6) && !day.isToday && selectedDate !== day.number && styles.weekendDayNumber
                 ]}>
                   {day.number}
                 </Text>
@@ -858,7 +1236,8 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                   styles.dayName,
                   day.isToday && styles.todayDayName,
                   selectedDate === day.number && styles.selectedDayName,
-                  day.isOutsideSubscription && styles.outsideSubscriptionText
+                  day.isOutsideSubscription && styles.outsideSubscriptionText,
+                  (day.dayOfWeek === 0 || day.dayOfWeek === 6) && !day.isToday && selectedDate !== day.number && styles.weekendDayName
                 ]}>
                   {day.day}
                 </Text>
@@ -875,25 +1254,72 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
           </ScrollView>
         </View>
 
-        {/* Meal Preview Card */}
-        {renderMealPreviewCard()}
-
         {/* Meals List */}
         <View style={styles.mealsContainer}>
-          <Text style={styles.mealsSectionTitle}>Repas disponibles</Text>
-          {dayMeals.length > 0 ? (
-            sortMealsByType(dayMeals).map((meal) => renderMealCard(meal))
+          {/* Today's Meals */}
+          {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
+            <>
+              {dayMeals.length > 0 && (() => {
+                // Check if selected date is today
+                const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+                const isToday = selectedDateObj.toDateString() === today.toDateString();
+                const dayLabel = isToday ? 'Aujourd\'hui' : formatDate(selectedDateObj);
+                
+                return (
+                  <>
+                    <View style={styles.mealsSectionHeader}>
+                      <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
+                    </View>
+                    {sortMealsByType(dayMeals).map((meal) => renderMealCard(meal))}
+                    
+                    {/* Complete All Button - only for today's meals */}
+                    {isToday && (
+                      <TouchableOpacity
+                        style={styles.completeAllMealsButton}
+                        onPress={() => {
+                          setMealsToComplete(sortMealsByType([...dayMeals]));
+                          setShowCompletionModal(true);
+                          logger.info('User Action: Open completion modal', { mealsCount: dayMeals.length });
+                        }}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.primary} />
+                        <Text style={styles.completeAllMealsButtonText}>Marquer comme complétés</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                );
+              })()}
+              
+              {/* Tomorrow's Meals */}
+              {tomorrowMeals.length > 0 && (() => {
+                // Calculate tomorrow's date
+                const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+                const tomorrow = new Date(selectedDateObj);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const isToday = selectedDateObj.toDateString() === today.toDateString();
+                const dayLabel = isToday ? 'Demain' : formatDate(tomorrow);
+                
+                return (
+                  <>
+                    <View style={[styles.mealsSectionHeader, { marginTop: dayMeals.length > 0 ? 24 : 0 }]}>
+                      <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
+                    </View>
+                    {sortMealsByType(tomorrowMeals).map((meal) => renderMealCard(meal))}
+                  </>
+                );
+              })()}
+            </>
           ) : (
             <View style={styles.emptyStateContainer}>
               <Text style={styles.emptyStateIcon}>🍽️</Text>
               <Text style={styles.emptyStateTitle}>Aucun repas planifié</Text>
               <Text style={styles.emptyStateSubtitle}>
-                Pas de repas prévus pour ce jour
+                Pas de repas prévus pour aujourd'hui et demain
               </Text>
               <Text style={styles.debugText}>Debug: Selected day: {selectedDay}, Meals count: {dayMeals.length}</Text>
-              </View>
+            </View>
           )}
-              </View>
+        </View>
       </ScrollView>
 
       {/* Bottom Navigation */}
@@ -964,6 +1390,493 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
                     </View>
       </Modal>
 
+      {/* YouTube Video Modal */}
+      <Modal
+        visible={showYoutubeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowYoutubeModal(false);
+          setYoutubePlaying(false);
+        }}
+      >
+        <View style={styles.youtubeModalOverlay}>
+          <View style={styles.youtubeModalContent}>
+            <View style={styles.youtubeModalHeader}>
+              {/* Meal Image */}
+              {selectedMeal?.imageUrl && (
+                <Image
+                  source={{ uri: selectedMeal.imageUrl }}
+                  style={styles.youtubeModalHeaderImage}
+                  resizeMode="cover"
+                />
+              )}
+              <View style={styles.youtubeModalTitleContainer}>
+                <Text style={styles.youtubeModalTitle}>
+                  {selectedMeal?.name || 'Détails du repas'}
+                </Text>
+              </View>
+              {/* Like/Dislike Buttons */}
+              {selectedMeal && (
+                <View style={styles.headerInteractionButtons}>
+                  <TouchableOpacity 
+                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'like' && styles.activeHeaderInteractionButton]}
+                    onPress={() => handleMealLike(selectedMeal.id)}
+                  >
+                    <Ionicons 
+                      name={mealInteractions[selectedMeal.id] === 'like' ? "thumbs-up" : "thumbs-up-outline"} 
+                      size={20} 
+                      color={mealInteractions[selectedMeal.id] === 'like' ? '#1877F2' : '#8E8E93'} 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'dislike' && styles.activeHeaderInteractionButton]}
+                    onPress={() => handleMealDislike(selectedMeal.id)}
+                  >
+                    <Ionicons 
+                      name={mealInteractions[selectedMeal.id] === 'dislike' ? "thumbs-down" : "thumbs-down-outline"} 
+                      size={20} 
+                      color={mealInteractions[selectedMeal.id] === 'dislike' ? '#FF3B30' : '#8E8E93'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowYoutubeModal(false);
+                  setYoutubePlaying(false);
+                }}
+                style={styles.youtubeModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView 
+              style={styles.youtubeModalBody}
+              contentContainerStyle={styles.youtubeModalBodyContent}
+              showsVerticalScrollIndicator={true}
+            >
+              {/* YouTube Video */}
+              {youtubeVideoId && (() => {
+                // Calculate video dimensions based on 16:9 aspect ratio
+                const screenWidth = Dimensions.get('window').width;
+                const videoWidth = screenWidth - 32; // Account for padding (16 on each side)
+                const videoHeight = Math.round((videoWidth * 9) / 16); // 16:9 aspect ratio
+                
+                logger.debug('YouTube player dimensions', {
+                  screenWidth,
+                  videoWidth,
+                  videoHeight,
+                  aspectRatio: (videoWidth / videoHeight).toFixed(2)
+                });
+                
+                return (
+                  <View style={[styles.youtubePlayerContainer, { width: videoWidth }]}>
+                    <YoutubePlayer
+                      height={videoHeight}
+                      width={videoWidth}
+                      videoId={youtubeVideoId}
+                      play={youtubePlaying}
+                      onChangeState={(event) => {
+                        if (event === 'playing') {
+                          setYoutubePlaying(true);
+                        } else if (event === 'paused' || event === 'ended') {
+                          setYoutubePlaying(false);
+                        }
+                      }}
+                      onReady={() => {
+                        logger.debug('YouTube player ready', { videoId: youtubeVideoId });
+                      }}
+                      onError={(error) => {
+                        logger.error('YouTube player error', { videoId: youtubeVideoId, error });
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Erreur',
+                          text2: 'Impossible de charger la vidéo'
+                        });
+                      }}
+                      webViewStyle={{ opacity: 0.99 }}
+                    />
+                  </View>
+                );
+              })()}
+              
+              {/* Completion Button - Only for today's meals */}
+              {selectedMeal && (() => {
+                // Check if meal is from today (in dayMeals) or tomorrow (in tomorrowMeals)
+                const isTodayMeal = dayMeals.some(meal => meal.id === selectedMeal.id);
+                const isCompleted = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
+                
+                // Only show completion button for today's meals
+                if (!isTodayMeal) {
+                  return null;
+                }
+                
+                return (
+                  <TouchableOpacity 
+                    style={[styles.youtubeModalCompleteButton, isCompleted && styles.completedButtonStyle]}
+                    onPress={() => {
+                      handleMealComplete(selectedMeal.id);
+                      setShowYoutubeModal(false);
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                    <Text style={styles.youtubeModalCompleteButtonText}>
+                      {isCompleted ? 'Complété' : 'Marquer comme complété'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })()}
+              
+              {/* Navigation Tabs */}
+              {selectedMeal && (
+                <View style={styles.youtubeModalTabsContainer}>
+                  <View style={styles.youtubeModalTabs}>
+                    <TouchableOpacity 
+                      style={[styles.youtubeModalTab, youtubeModalTab === 'composition' && styles.activeYoutubeModalTab]}
+                      onPress={() => setYoutubeModalTab('composition')}
+                    >
+                      <Ionicons 
+                        name="nutrition" 
+                        size={20} 
+                        color={youtubeModalTab === 'composition' ? "#000000" : "#666666"} 
+                      />
+                      {youtubeModalTab === 'composition' && (
+                        <Text style={styles.youtubeModalTabTitle}>Composition</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.youtubeModalTab, youtubeModalTab === 'recipe' && styles.activeYoutubeModalTab]}
+                      onPress={() => setYoutubeModalTab('recipe')}
+                    >
+                      <Ionicons 
+                        name="restaurant" 
+                        size={20} 
+                        color={youtubeModalTab === 'recipe' ? "#000000" : "#666666"} 
+                      />
+                      {youtubeModalTab === 'recipe' && (
+                        <Text style={styles.youtubeModalTabTitle}>Instructions</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.youtubeModalTab, youtubeModalTab === 'ingredients' && styles.activeYoutubeModalTab]}
+                      onPress={() => setYoutubeModalTab('ingredients')}
+                    >
+                      <Ionicons 
+                        name="list" 
+                        size={20} 
+                        color={youtubeModalTab === 'ingredients' ? "#000000" : "#666666"} 
+                      />
+                      {youtubeModalTab === 'ingredients' && (
+                        <Text style={styles.youtubeModalTabTitle}>Ingrédients</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              
+              {/* Tab Content */}
+              {selectedMeal && (() => {
+                if (youtubeModalTab === 'composition') {
+                  // Composition Content
+                  return (
+                    <View style={styles.youtubeModalTabContent}>
+                      <Text style={styles.contentTitle}>Composition nutritionnelle</Text>
+                      {(() => {
+                        const nutritionalData = selectedMeal.nutritionalComposition || {};
+                        const calories = selectedMeal.calories || selectedMeal.calorieCount || nutritionalData.calories || 0;
+                        const proteins = selectedMeal.proteins || nutritionalData.proteins || 0;
+                        const carbs = selectedMeal.carbs || selectedMeal.carbohydrates || nutritionalData.carbs || nutritionalData.carbohydrates || 0;
+                        const fats = selectedMeal.fats || selectedMeal.fat || nutritionalData.fats || nutritionalData.fat || 0;
+                        
+                        const hasNutritionalData = calories > 0 || proteins > 0 || carbs > 0 || fats > 0;
+                        
+                        if (hasNutritionalData) {
+                          return (
+                            <View style={styles.nutritionalDataContainer}>
+                              <View style={styles.nutritionalRow}>
+                                <Text style={styles.nutritionalLabel}>Calories:</Text>
+                                <Text style={styles.nutritionalValue}>{calories} kcal</Text>
+                              </View>
+                              <View style={styles.nutritionalRow}>
+                                <Text style={styles.nutritionalLabel}>Protéines:</Text>
+                                <Text style={styles.nutritionalValue}>{proteins} g</Text>
+                              </View>
+                              <View style={styles.nutritionalRow}>
+                                <Text style={styles.nutritionalLabel}>Glucides:</Text>
+                                <Text style={styles.nutritionalValue}>{carbs} g</Text>
+                              </View>
+                              <View style={styles.nutritionalRow}>
+                                <Text style={styles.nutritionalLabel}>Lipides:</Text>
+                                <Text style={styles.nutritionalValue}>{fats} g</Text>
+                              </View>
+                            </View>
+                          );
+                        } else {
+                          return (
+                            <Text style={styles.noContentText}>
+                              Aucune donnée nutritionnelle disponible pour ce repas
+                            </Text>
+                          );
+                        }
+                      })()}
+                    </View>
+                  );
+                } else if (youtubeModalTab === 'recipe') {
+                  // Instructions Content
+                  return (
+                    <View style={styles.youtubeModalTabContent}>
+                      <Text style={styles.contentTitle}>Instructions de préparation</Text>
+                      {selectedMeal.instructions && selectedMeal.instructions.length > 0 ? (
+                        (() => {
+                          let instructions = selectedMeal.instructions;
+                          if (typeof instructions === 'string') {
+                            try {
+                              instructions = JSON.parse(instructions);
+                            } catch (e) {
+                              instructions = [instructions];
+                            }
+                          }
+                          return instructions.map((instruction, index) => (
+                            <Text key={index} style={styles.recipeStep}>
+                              {index + 1}. {instruction}
+                            </Text>
+                          ));
+                        })()
+                      ) : (
+                        <Text style={styles.noContentText}>
+                          Aucune instruction disponible pour ce repas
+                        </Text>
+                      )}
+                    </View>
+                  );
+                } else {
+                  // Ingredients Content
+                  return (
+                    <View style={styles.youtubeModalTabContent}>
+                      <Text style={styles.contentTitle}>Liste des ingrédients</Text>
+                      {(() => {
+                        let ingredients = selectedMeal.ingredients;
+                        if (typeof ingredients === 'string') {
+                          try {
+                            ingredients = JSON.parse(ingredients);
+                          } catch (e) {
+                            ingredients = [];
+                          }
+                        }
+                        
+                        return ingredients && ingredients.length > 0 ? (
+                          ingredients.map((ingredient, index) => {
+                            const ingredientName = typeof ingredient === 'string' ? ingredient : (ingredient.name || ingredient);
+                            const ingredientAmount = ingredient.amount;
+                            const ingredientUnit = ingredient.unit;
+                            
+                            return (
+                              <View key={index} style={styles.ingredientItem}>
+                                <Text style={styles.ingredientNumber}>{index + 1}.</Text>
+                                <View style={styles.ingredientDetails}>
+                                  <Text style={styles.ingredientText}>
+                                    {ingredientName}
+                                  </Text>
+                                  {ingredientAmount && ingredientUnit && (
+                                    <Text style={styles.ingredientAmount}>
+                                      – {ingredientAmount} {ingredientUnit}
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+                            );
+                          })
+                        ) : (
+                          <Text style={styles.noContentText}>
+                            Aucun ingrédient disponible pour ce repas
+                          </Text>
+                        );
+                      })()}
+                    </View>
+                  );
+                }
+              })()}
+            </ScrollView>
+            
+            {/* Logo at bottom center */}
+            <View style={styles.youtubeModalLogoContainer}>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.youtubeModalLogo}
+                resizeMode="contain"
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Full-Screen Image Modal */}
+      <Modal
+        visible={showImageModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <View style={styles.imageModalOverlay}>
+          <TouchableOpacity
+            style={styles.imageModalCloseArea}
+            activeOpacity={1}
+            onPress={() => setShowImageModal(false)}
+          >
+            <View style={styles.imageModalHeader}>
+              <TouchableOpacity
+                onPress={() => setShowImageModal(false)}
+                style={styles.imageModalCloseButton}
+              >
+                <Ionicons name="close" size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            {fullScreenImageUrl && (
+              <Image
+                source={{ uri: fullScreenImageUrl }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Meal Completion Modal */}
+      <Modal
+        visible={showCompletionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCompletionModal(false)}
+      >
+        <View style={styles.completionModalOverlay}>
+          <View style={styles.completionModalContent}>
+            <View style={styles.completionModalHeader}>
+              <Text style={styles.completionModalTitle}>Marquer des repas comme complétés</Text>
+              <TouchableOpacity
+                onPress={() => setShowCompletionModal(false)}
+                style={styles.completionModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.completionModalBody}>
+              {mealsToComplete.map((meal) => {
+                const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
+                const isCompleted = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
+                
+                return (
+                  <View key={meal.id} style={styles.completionMealItem}>
+                    <View style={styles.completionMealImageContainer}>
+                      {meal.imageUrl ? (
+                        <Image 
+                          source={{ uri: meal.imageUrl }}
+                          style={styles.completionMealImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.completionMealPlaceholder}>
+                          <Text style={styles.completionMealPlaceholderText}>Meal</Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    <View style={styles.completionMealInfo}>
+                      <Text style={styles.completionMealName}>{meal.name}</Text>
+                      <Text style={styles.completionMealType}>{mealType.title}</Text>
+                      <View style={styles.completionMealDetails}>
+                        <Text style={styles.completionMealCalories}>
+                          {meal.calories || meal.calorieCount || 'N/A'} kcal
+                        </Text>
+                        <Text style={styles.completionMealPoints}>
+                          {meal.points || meal.pointValue || 0} points
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.completionMealActions}>
+                      <TouchableOpacity 
+                        style={styles.completionStatsButton}
+                        onPress={() => {
+                          // TODO: Show meal statistics
+                          logger.info('User Action: View meal statistics', { mealId: meal.id });
+                        }}
+                      >
+                        <Ionicons name="bar-chart" size={20} color={theme.colors.primary} />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[
+                          styles.completionCheckButton,
+                          isCompleted && styles.completionCheckButtonCompleted
+                        ]}
+                        onPress={async () => {
+                          if (isCompleted) {
+                            // TODO: Uncomplete meal if needed
+                            logger.info('User Action: Meal already completed', { mealId: meal.id });
+                          } else {
+                            await handleMealComplete(meal.id);
+                            // Refresh day data to update completion status
+                            if (currentPlan?.id) {
+                              loadDayData();
+                            }
+                            logger.info('User Action: Mark meal as completed from modal', { mealId: meal.id });
+                          }
+                        }}
+                      >
+                        {isCompleted ? (
+                          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                        ) : (
+                          <Ionicons name="checkmark-outline" size={20} color="#FFFFFF" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            
+            <View style={styles.completionModalFooter}>
+              <TouchableOpacity
+                style={styles.completeAllButton}
+                onPress={async () => {
+                  logger.info('User Action: Complete all meals', { mealsCount: mealsToComplete.length });
+                  for (const meal of mealsToComplete) {
+                    const isCompleted = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
+                    if (!isCompleted) {
+                      await handleMealComplete(meal.id);
+                    }
+                  }
+                  // Refresh day data to update completion status
+                  if (currentPlan?.id) {
+                    loadDayData();
+                  }
+                  setShowCompletionModal(false);
+                  Toast.show({
+                    type: 'success',
+                    text1: 'Succès',
+                    text2: 'Tous les repas ont été marqués comme complétés'
+                  });
+                }}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.completeAllButtonText}>Tout compléter</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.completionCancelButton}
+                onPress={() => setShowCompletionModal(false)}
+              >
+                <Text style={styles.completionCancelButtonText}>Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Blur Overlay for Expired Subscription */}
       <BlurOverlay
         visible={showBlurOverlay}
@@ -978,56 +1891,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  helpButton: {
-    padding: 4,
-  },
-  notificationButton: {
-    position: 'relative',
-    padding: 4,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#F44336',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  profileButton: {
-    padding: 2,
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
   },
   content: {
     flex: 1,
@@ -1070,19 +1934,90 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     flex: 1,
   },
-  phaseCard: {
-    backgroundColor: '#E1BEE7',
+  phasePathContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     marginHorizontal: 20,
     marginBottom: 20,
     paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
+    paddingHorizontal: 8,
   },
-  phaseText: {
+  phasePathItem: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  phasePathContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  phasePathCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    zIndex: 1,
+  },
+  phasePathCircleCompleted: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  phasePathCircleActive: {
+    backgroundColor: '#C8E6C9',
+    borderWidth: 3,
+    borderColor: '#66BB6A',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  phasePathLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  phasePathLabelInactive: {
+    color: '#9E9E9E',
+  },
+  phasePathLabelActive: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#7B1FA2',
-    textAlign: 'left',
+    color: '#2E7D32',
+  },
+  phasePathName: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  phasePathNameActive: {
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    fontSize: 12,
+  },
+  phasePathNameCompleted: {
+    color: '#4CAF50',
+  },
+  phasePathLine: {
+    position: 'absolute',
+    top: 20,
+    left: '60%',
+    right: '-40%',
+    height: 2,
+    backgroundColor: '#E0E0E0',
+    zIndex: 0,
+  },
+  phasePathLineFill: {
+    height: '100%',
+    width: 0,
+    backgroundColor: '#E0E0E0',
+  },
+  phasePathLineFillCompleted: {
+    width: '100%',
+    backgroundColor: '#4CAF50',
   },
   calendarContainer: {
     backgroundColor: '#FFFFFF',
@@ -1090,17 +2025,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 16,
     paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   calendarContent: {
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   calendarDay: {
     alignItems: 'center',
@@ -1111,6 +2044,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 65,
     flex: 1,
+    maxWidth: 80,
   },
   todayDay: {
     backgroundColor: '#E3F2FD',
@@ -1152,6 +2086,12 @@ const styles = StyleSheet.create({
     color: '#F44336',
     fontWeight: '600',
   },
+  weekendDayNumber: {
+    color: '#FF6B6B',
+  },
+  weekendDayName: {
+    color: '#FF6B6B',
+  },
   warningIcon: {
     position: 'absolute',
     top: 4,
@@ -1163,11 +2103,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   completionStatusTitle: {
     fontSize: 16,
@@ -1208,11 +2145,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   selectedMealCard: {
     borderWidth: 2,
@@ -1437,11 +2371,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    position: 'relative',
   },
   emptyPreviewContainer: {
     alignItems: 'center',
@@ -1468,14 +2400,18 @@ const styles = StyleSheet.create({
   mealPreviewTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
+  },
+  mealPreviewTitleContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   mealPreviewTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
-    marginRight: 8,
+    marginBottom: 4,
   },
   mealPreviewType: {
     fontSize: 16,
@@ -1563,7 +2499,7 @@ const styles = StyleSheet.create({
   },
   mealTabsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
@@ -1571,16 +2507,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    justifyContent: 'center',
   },
   mealTab: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 48,
+    minWidth: 100,
     flexDirection: 'column',
   },
   tabTitle: {
@@ -1617,13 +2554,19 @@ const styles = StyleSheet.create({
   },
   ingredientItem: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
+    alignItems: 'flex-start',
+    paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: '#F8F9FA',
     borderRadius: 8,
     marginBottom: 6,
     gap: 8,
+  },
+  ingredientDetails: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   ingredientText: {
     flex: 1,
@@ -1635,10 +2578,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.text.secondary,
     fontWeight: '600',
-    backgroundColor: '#E9ECEF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    marginLeft: 8,
   },
   noIngredientsText: {
     fontSize: 14,
@@ -1656,6 +2596,31 @@ const styles = StyleSheet.create({
   compositionContent: {
     marginTop: 10,
   },
+  nutritionalDataContainer: {
+    marginTop: 16,
+    gap: 12,
+  },
+  nutritionalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  nutritionalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  nutritionalValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
   noContentText: {
     fontSize: 14,
     color: theme.colors.text.secondary,
@@ -1663,22 +2628,25 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     paddingVertical: 20,
   },
+  // Header Interaction Buttons
   headerInteractionButtons: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
+    alignItems: 'center',
   },
   headerInteractionButton: {
-    padding: 8,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 36,
-    minHeight: 36,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   activeHeaderInteractionButton: {
     backgroundColor: '#E3F2FD',
+    borderColor: '#1877F2',
   },
   mockDataContent: {
     marginTop: 8,
@@ -1695,6 +2663,386 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     marginRight: 8,
     minWidth: 20,
+  },
+  // Meals section header
+  mealsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  completeAllMealsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+  },
+  completeAllMealsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  
+  // YouTube Modal Styles
+  youtubeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  youtubeModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    width: '100%',
+    height: '90%',
+    flexDirection: 'column',
+  },
+  youtubeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    gap: 12,
+  },
+  youtubeModalHeaderImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  youtubeModalTitleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  youtubeModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  youtubeModalCloseButton: {
+    padding: 4,
+  },
+  youtubeModalCompleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  youtubeModalCompleteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  youtubeModalTabsContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  youtubeModalTabs: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  youtubeModalTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 6,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  activeYoutubeModalTab: {
+    backgroundColor: '#F0F0F0',
+  },
+  youtubeModalTabTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  youtubeModalTabContent: {
+    padding: 20,
+    paddingTop: 16,
+  },
+  youtubeModalBody: {
+    flex: 1,
+  },
+  youtubeModalBodyContent: {
+    paddingBottom: 20,
+  },
+  youtubePlayerContainer: {
+    alignSelf: 'center',
+    marginTop: 16,
+    marginBottom: 0,
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#000000',
+  },
+  youtubeModalInstructions: {
+    padding: 16,
+    paddingTop: 8,
+  },
+  youtubeModalInstructionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+  },
+  youtubeModalInstructionStep: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  youtubeModalStepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  youtubeModalStepNumberText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  youtubeModalInstructionText: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+  },
+  youtubeModalNoInstructions: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
+  },
+  youtubeModalLogoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  youtubeModalLogo: {
+    width: 60,
+    height: 30,
+    opacity: 0.7,
+  },
+  
+  // Completion Modal Styles
+  completionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  completionModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    paddingBottom: 20,
+  },
+  completionModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  completionModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  completionModalCloseButton: {
+    padding: 4,
+  },
+  completionModalBody: {
+    maxHeight: 500,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  completionMealItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  completionMealImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginRight: 12,
+  },
+  completionMealImage: {
+    width: '100%',
+    height: '100%',
+  },
+  completionMealPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completionMealPlaceholderText: {
+    fontSize: 10,
+    color: '#999999',
+  },
+  completionMealInfo: {
+    flex: 1,
+  },
+  completionMealName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  completionMealType: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: 4,
+  },
+  completionMealDetails: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  completionMealCalories: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+  completionMealPoints: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  completionMealActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  completionStatsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completionCheckButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  completionCheckButtonCompleted: {
+    backgroundColor: '#4CAF50',
+  },
+  completionModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  completeAllButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  completeAllButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  completionCancelButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E0E0E0',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  completionCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  
+  // Full-Screen Image Modal Styles
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalCloseArea: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    zIndex: 1,
+    alignItems: 'flex-end',
+  },
+  imageModalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
   },
 });
 

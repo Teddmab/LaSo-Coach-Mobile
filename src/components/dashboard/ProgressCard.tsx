@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import CircularProgress from '../CircularProgress';
 import DashboardService from '../../services/dashboardService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createLogger } from '../../utils/logger';
+
+// Create logger instance for this component
+const logger = createLogger('ProgressCard');
 
 interface ProgressData {
   weight: {
@@ -28,19 +33,30 @@ interface ProgressData {
     max: number;
     remaining: number;
   };
+  height?: {
+    current: number;
+  };
+  bmi?: {
+    progress: number;
+    current: number;
+    target: number;
+  };
 }
 
 interface ProgressCardProps {
   dashboardData?: any; // Accept dashboard data as prop
   onRefresh?: () => void;
+  onAddMetric?: () => void; // Optional: open metric selection/additional chart
+  onProgressPress?: (tab: string) => void; // Optional: navigate to progress tab
 }
 
-const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh }) => {
+const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress }) => {
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['weight', 'waist']);
 
   /**
    * Transform progress overview API response to match our expected format
@@ -48,7 +64,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
    * @returns {ProgressData} Transformed progress data
    */
   const transformProgressData = (apiData: any): ProgressData => {
-    return {
+    const base: ProgressData = {
       weight: {
         progress: apiData.weightProgress || 0,
         initial: apiData.initialWeight || 0,
@@ -72,20 +88,55 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
         remaining: Math.max(0, (apiData.maxPoints || 100) - (apiData.currentPoints || 0)),
       },
     };
+
+    // Height if present from API (cm)
+    // API /profile returns height in meters (e.g., 1.6). Normalize to cm.
+    const rawHeight = apiData.height || apiData.profileHeight || apiData?.profile?.height || 0;
+    const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
+    if (heightCm) {
+      base.height = { current: heightCm };
+    }
+
+    // BMI if weight and height are available
+    const weightKg = base.weight.current || apiData.currentWeight || 0;
+    if (heightCm && weightKg) {
+      const hM = heightCm / 100;
+      const bmi = hM > 0 ? weightKg / (hM * hM) : 0;
+      const targetBmi = 22;
+      const bmiProgress = Math.max(0, Math.min(100, 100 - (Math.abs(bmi - targetBmi) / targetBmi) * 100));
+      base.bmi = { current: Number(bmi.toFixed(1)), target: targetBmi, progress: bmiProgress };
+    }
+
+    return base;
   };
 
   // Calculate progress from dashboard data when it changes
   useEffect(() => {
     if (dashboardData && !refreshing) {
       try {
-        console.log('📊 ProgressCard: Received dashboard data, calculating progress...');
+        logger.debug('Received dashboard data, calculating progress');
         const calculatedProgress = DashboardService.calculateProgress(dashboardData);
-        console.log('📊 ProgressCard: Progress calculated from props:', calculatedProgress);
-        setProgressData(calculatedProgress);
+        logger.debug('Progress calculated from props', calculatedProgress);
+        // Enrich with derived/optional metrics from dashboardData
+        const rawHeight = dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
+        const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
+        const weightKg = calculatedProgress?.weight?.current || 0;
+        const enriched: ProgressData = { ...calculatedProgress };
+        if (heightCm) {
+          enriched.height = { current: heightCm };
+          const hM = heightCm / 100;
+          if (weightKg) {
+            const bmi = hM > 0 ? weightKg / (hM * hM) : 0;
+            const targetBmi = 22;
+            const bmiProgress = Math.max(0, Math.min(100, 100 - (Math.abs(bmi - targetBmi) / targetBmi) * 100));
+            enriched.bmi = { current: Number(bmi.toFixed(1)), target: targetBmi, progress: bmiProgress };
+          }
+        }
+        setProgressData(enriched);
         setError(null);
       } catch (err) {
-        console.error('❌ ProgressCard: Error calculating progress from props:', err);
-        console.log('📊 ProgressCard: Using fallback progress data due to error');
+        logger.error('Error calculating progress from props', err);
+        logger.warn('Using fallback progress data due to error');
         
         // Use fallback data instead of showing error
         const fallbackData: ProgressData = {
@@ -127,7 +178,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
   // Debug: Log when progressData changes
   useEffect(() => {
     if (progressData) {
-      console.log('📊 ProgressCard: progressData updated:', {
+      logger.debug('Progress data updated', {
         weight: progressData.weight,
         waist: progressData.waist,
         points: progressData.points,
@@ -141,24 +192,24 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
       setLoading(true);
       setError(null);
       
-      console.log('📊 ProgressCard: Fetching progress data from new endpoint...');
+      logger.debug('Fetching progress data from new endpoint');
       
       // Try to get data from new progress overview endpoint
       const progressOverview = await DashboardService.getProgressOverview();
       
       if (progressOverview) {
-        console.log('📊 ProgressCard: Progress overview data received:', progressOverview);
+        logger.debug('Progress overview data received', progressOverview);
         
         // Transform the new API response to match our expected format
         const transformedData = transformProgressData(progressOverview);
-        console.log('📊 ProgressCard: Transformed progress data:', transformedData);
+        logger.debug('Transformed progress data', transformedData);
         
         setProgressData(transformedData);
       } else {
         throw new Error('No progress data received');
       }
     } catch (err) {
-      console.error('❌ ProgressCard: Error fetching progress data:', err);
+      logger.error('Error fetching progress data', err);
       setError('Erreur lors du chargement des données');
       setProgressData(null); // Don't show any fallback data
     } finally {
@@ -166,20 +217,43 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
     }
   };
 
+  // Persist and restore metric selection
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('@dashboard:selectedMetrics');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length) {
+            setSelectedMetrics(parsed);
+          }
+        }
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await AsyncStorage.setItem('@dashboard:selectedMetrics', JSON.stringify(selectedMetrics));
+      } catch {}
+    })();
+  }, [selectedMetrics]);
+
   const handleRefresh = async () => {
     try {
-      console.log('🔄 ProgressCard: Refresh button pressed - fetching fresh data...');
-      console.log('📊 ProgressCard: Current values before refresh:', progressData);
+      logger.info('Refresh button pressed - fetching fresh data');
+      logger.debug('Current values before refresh', progressData);
       setRefreshing(true);
       setError(null);
       
       // Always fetch fresh data from new progress overview endpoint
       const freshProgressOverview = await DashboardService.getProgressOverview();
-      console.log('📊 ProgressCard: Fresh progress overview received:', freshProgressOverview);
+      logger.debug('Fresh progress overview received', freshProgressOverview);
       
       if (freshProgressOverview) {
         const transformedProgress = transformProgressData(freshProgressOverview);
-        console.log('📊 ProgressCard: Fresh progress transformed:', transformedProgress);
+        logger.debug('Fresh progress transformed', transformedProgress);
         
         setProgressData(transformedProgress);
         setLastRefreshTime(Date.now());
@@ -190,7 +264,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
         throw new Error('No fresh progress data received');
       }
     } catch (err) {
-      console.error('❌ ProgressCard: Error refreshing data:', err);
+      logger.error('Error refreshing data', err);
       setError('Erreur lors du rafraîchissement des données');
     } finally {
       setRefreshing(false);
@@ -198,8 +272,10 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
   };
 
   const handleLearnMore = () => {
-    console.log('📚 Learn more pressed - navigate to progress details');
-    // TODO: Navigate to detailed progress screen
+    logger.info('Learn more pressed - navigating to progress tab');
+    if (onProgressPress) {
+      onProgressPress('progress');
+    }
   };
 
   if (loading) {
@@ -248,6 +324,57 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
     );
   }
 
+  // Helpers to derive optional metrics safely
+  const getHeightMetric = () => {
+    const fromState = progressData?.height?.current ?? 0;
+    if (fromState > 0) return { current: fromState };
+    // Fallback to dashboardData profile (can be nested) or measurements.height
+    const raw = (
+      (dashboardData?.profile?.profile?.height as number | undefined) ??
+      (dashboardData?.profile?.height as number | undefined) ??
+      (dashboardData?.measurements?.height as number | undefined) ??
+      0
+    );
+    const heightCm = raw > 3 ? raw : raw * 100; // normalize meters -> cm
+    return { current: Number((heightCm || 0).toFixed(0)) };
+  };
+
+  const getBmiMetric = () => {
+    // Height from state or dashboardData (handle nested profile.profile.height)
+    const heightFromState = progressData?.height?.current ?? 0;
+    const rawHeight =
+      heightFromState ||
+      (dashboardData?.profile?.profile?.height as number | undefined) ||
+      (dashboardData?.profile?.height as number | undefined) ||
+      (dashboardData?.measurements?.height as number | undefined) ||
+      0;
+    const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
+
+    // Weight from state or dashboardData (fallback to initialWeight if needed, handle nested profile.profile.initialWeight)
+    const weightKg =
+      progressData?.weight?.current ??
+      (dashboardData?.measurements?.currentWeight as number | undefined) ??
+      (dashboardData?.profile?.profile?.initialWeight as number | undefined) ??
+      (dashboardData?.profile?.initialWeight as number | undefined) ??
+      0;
+
+    const hM = heightCm > 0 ? Number(heightCm) / 100 : 0;
+    const bmi = hM > 0 && weightKg > 0 ? weightKg / (hM * hM) : 0;
+    const target = 22;
+    const progress = bmi > 0 ? Math.max(0, Math.min(100, 100 - (Math.abs(bmi - target) / target) * 100)) : 0;
+    return { current: Number(bmi.toFixed(1)), target, progress };
+  };
+
+  const getWeightRemainingMetric = () => {
+    const initial = progressData?.weight?.initial ?? 0;
+    const target = progressData?.weight?.target ?? 0;
+    const current = progressData?.weight?.current ?? 0;
+    const totalDelta = Math.max(0, initial - target);
+    const remaining = Math.max(0, current - target);
+    const progress = totalDelta > 0 ? Math.max(0, Math.min(100, (remaining / totalDelta) * 100)) : 0;
+    return { remaining, progress };
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -255,49 +382,52 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh })
           <Ionicons name="trending-up" size={20} color="#FF6B35" />
           <Text style={styles.title}>Progression</Text>
         </View>
-        <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton} disabled={refreshing}>
-          {refreshing ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : (
-            <Ionicons name="refresh" size={20} color={theme.colors.text.secondary} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={handleRefresh} style={styles.iconButton} disabled={refreshing}>
+            {refreshing ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : (
+              <Ionicons name="refresh" size={20} color={theme.colors.text.secondary} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
       
-      <View style={styles.progressGrid}>
-        <CircularProgress
-          size={90}
-          progress={progressData.weight.progress}
-          initial={progressData.weight.initial}
-          current={progressData.weight.current}
-          target={progressData.weight.target}
-          unit="kg"
-          label="Poids"
-          color="#C6E54A"
-        />
-        
-        <CircularProgress
-          size={90}
-          progress={progressData.waist.progress}
-          initial={progressData.waist.initial}
-          current={progressData.waist.current}
-          target={progressData.waist.target}
-          unit="cm"
-          label="Tour de taille"
-          color="#60A5FA"
-        />
-        
-        <CircularProgress
-          size={90}
-          progress={progressData.points.progress}
-          initial={0}
-          current={progressData.points.current}
-          target={progressData.points.max}
-          unit=""
-          label="Points"
-          color="#10B981"
-        />
-      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.progressRow}
+        style={styles.progressRowContainer}
+      >
+        {selectedMetrics.includes('weight') && (
+          <View style={styles.circleWrapper}>
+            <CircularProgress
+              size={90}
+              progress={progressData.weight.progress}
+              initial={progressData.weight.initial}
+              current={progressData.weight.current}
+              target={progressData.weight.target}
+              unit="kg"
+              label="Poids"
+              color="#C6E54A"
+            />
+          </View>
+        )}
+        {selectedMetrics.includes('waist') && (
+          <View style={styles.circleWrapper}>
+            <CircularProgress
+              size={90}
+              progress={progressData.waist.progress}
+              initial={progressData.waist.initial}
+              current={progressData.waist.current}
+              target={progressData.waist.target}
+              unit="cm"
+              label="Tour de taille"
+              color="#60A5FA"
+            />
+          </View>
+        )}
+      </ScrollView>
       
       <TouchableOpacity style={styles.learnMoreButton} onPress={handleLearnMore}>
         <Text style={styles.learnMoreText}>En savoir +</Text>
@@ -313,14 +443,8 @@ const styles = StyleSheet.create({
     marginTop: 0,
     padding: 20,
     borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   header: {
     flexDirection: 'row',
@@ -338,13 +462,29 @@ const styles = StyleSheet.create({
     color: '#FF6B35',
     marginLeft: 8,
   },
-  refreshButton: {
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
     padding: 4,
   },
-  progressGrid: {
+  progressRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
+    paddingHorizontal: 4,
+    paddingBottom: 4,
+  },
+  progressRowContainer: {
+    width: '100%',
+  },
+  circleWrapper: {
+    width: 110,
+    alignItems: 'center',
+    marginHorizontal: 8,
   },
   learnMoreButton: {
     backgroundColor: '#8BC34A',
@@ -390,6 +530,76 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalHeader: {
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+  },
+  metricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#F5F5F5',
+    marginTop: 8,
+  },
+  metricLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 12,
+    gap: 8,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#EFEFEF',
+  },
+  modalButtonPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  modalButtonTextPrimary: {
+    color: '#FFFFFF',
   },
 });
 

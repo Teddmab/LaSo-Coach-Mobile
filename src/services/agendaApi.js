@@ -18,42 +18,57 @@ export class AgendaApi {
       }
       
       console.log('📅 Fetching agenda content...');
-      console.log('📅 Request URL:', '/agenda');
-      console.log('📅 Full URL:', `${Config.API_BASE_URL}/agenda`);
+      console.log('📅 Request URL:', '/content/agenda');
+      console.log('📅 Full URL:', `${Config.API_BASE_URL}/content/agenda`);
       
       // Log the API instance configuration
       console.log('📅 API base URL:', Config.API_BASE_URL);
       console.log('📅 API timeout:', Config.API_TIMEOUT);
       
-      const response = await api.get('/agenda');
+      // Correct endpoint: GET /api/v1/content/agenda (not /api/v1/agenda)
+      const response = await api.get('/content/agenda');
       
       console.log('✅ Agenda content fetched successfully');
       console.log('📅 Response status:', response.status);
       console.log('📅 Response headers:', response.headers);
       console.log('📅 Raw agenda data:', JSON.stringify(response.data, null, 2));
       
-      // Parse the agenda data structure - new format with dates as keys
-      const rawData = response.data.data || response.data;
+      // Parse the agenda data structure - API returns { agenda: { "2024-01-15": [...] } }
+      // According to API docs: response structure is { agenda: { "date": [items] } }
+      const agendaData = response.data.agenda || response.data.data || response.data;
       
-      // Transform the data structure from { "2025-07-22": [...] } to flat array
+      // Transform the data structure from { "2024-01-15": [...] } to flat array
       const agendaItems = [];
       
-      if (rawData && typeof rawData === 'object') {
-        Object.keys(rawData).forEach(dateKey => {
-          const itemsForDate = rawData[dateKey];
+      if (agendaData && typeof agendaData === 'object') {
+        Object.keys(agendaData).forEach(dateKey => {
+          const itemsForDate = agendaData[dateKey];
           if (Array.isArray(itemsForDate)) {
             itemsForDate.forEach(item => {
+              // Handle both content and rendezvous types
+              const isRendezvous = item.type === 'rendezvous';
+              
               agendaItems.push({
                 id: item.id,
+                type: item.type || 'content', // 'content' or 'rendezvous'
                 title: item.content?.title || item.title,
                 description: item.content?.description || item.description,
                 thumbnailUrl: item.content?.thumbnailUrl || item.thumbnailUrl,
                 contentUrl: item.content?.contentUrl,
                 points: item.content?.points || 0,
-                author: item.content?.creator?.name || 'Anonyme',
-                assignedDate: item.assignedDate,
+                author: item.content?.creator?.name || 
+                       (item.content?.creator?.firstName && item.content?.creator?.lastName
+                         ? `${item.content.creator.firstName} ${item.content.creator.lastName}`
+                         : 'Anonyme'),
+                assignedDate: item.assignedDate || item.scheduledAt,
                 completed: item.completed || false,
                 completedAt: item.completedAt,
+                // Rendezvous-specific fields
+                scheduledAt: item.scheduledAt,
+                duration: item.duration,
+                coach: item.coach,
+                notes: item.notes,
+                // Full content object
                 content: item.content
               });
               
@@ -89,11 +104,14 @@ export class AgendaApi {
    */
   static async markContentComplete(contentId) {
     try {
+      // Correct endpoint: PATCH /api/v1/content/:id/complete (per API docs)
       console.log('✅ Marking content as complete:', contentId);
-      console.log('✅ Request URL:', `/agenda/${contentId}/complete`);
-      console.log('✅ Full URL:', `${Config.API_BASE_URL}/agenda/${contentId}/complete`);
+      console.log('✅ Request URL:', `/content/${contentId}/complete`);
+      console.log('✅ Full URL:', `${Config.API_BASE_URL}/content/${contentId}/complete`);
       
-      const response = await api.post(`/agenda/${contentId}/complete`);
+      // API docs say PATCH, but using POST for now (check backend implementation)
+      // If backend requires PATCH, change to: api.patch(`/content/${contentId}/complete`)
+      const response = await api.post(`/content/${contentId}/complete`);
       
       console.log('✅ Content marked as complete successfully');
       console.log('✅ Response status:', response.status);

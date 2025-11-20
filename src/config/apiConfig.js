@@ -75,6 +75,15 @@ export const API_CONFIG = {
       progress: '/badges/progress/user',
     },
 
+    // Mobile Badge endpoints (new simplified badge system)
+    mobile: {
+      badges: {
+        getAll: '/mobile/badges',
+        getSummary: '/mobile/badges/summary',
+        getById: (badgeId) => `/mobile/badges/${badgeId}`,
+      },
+    },
+
 
     // T.A.S.C.C. Progress endpoints
     tascc: {
@@ -112,8 +121,14 @@ export const API_CONFIG = {
     // Chat endpoints
     chat: {
       conversations: '/chat/conversations',
-      messages: '/chat/conversations/:id/messages',
-      send: '/chat/conversations/:id/messages',
+      conversation: (chatId) => `/chat/conversations/${chatId}`,
+      messages: (chatId) => `/chat/${chatId}/messages`,
+      send: (chatId) => `/chat/${chatId}/messages`,
+      oneToOne: '/chat/one-to-one',
+      group: '/chat/group',
+      findOrCreate: '/chat/find-or-create',
+      unreadCount: '/chat/unread/count',
+      markRead: (chatId) => `/chat/conversations/${chatId}/read`,
     },
 
     // Notifications endpoints
@@ -131,6 +146,17 @@ export const API_CONFIG = {
       subscribe: '/subscription/subscribe',
       cancel: '/subscription/cancel',
       renew: '/subscription/renew',
+    },
+
+    // FAQ endpoints
+    faq: {
+      public: '/faqs/public',
+    },
+
+    // Agenda endpoints
+    agenda: {
+      get: '/content/agenda',
+      markComplete: (contentId) => `/content/${contentId}/complete`,
     },
 
     // Health check endpoint

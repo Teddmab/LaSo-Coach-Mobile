@@ -1,4 +1,5 @@
 import api from './api';
+import Config from '../config/env';
 
 /**
  * Notifications API Service
@@ -132,9 +133,12 @@ export class NotificationWebSocketManager {
     try {
       console.log('🔌 Connecting to notifications WebSocket...');
       
-      // WebSocket URL (adjust based on your backend WebSocket endpoint)
-      const wsUrl = `${process.env.WEBSOCKET_URL || 'wss://laso-coach-backend.onrender.com'}/ws/notifications?token=${token}`;
+      // Use the same WebSocket base URL as chat (from .env file)
+      // The notification endpoint is typically at /ws/notifications
+      const wsBaseUrl = Config.WS_BASE_URL;
+      const wsUrl = `${wsBaseUrl}/ws/notifications?token=${token}`;
       
+      console.log('🔌 Using WebSocket URL from Config:', wsUrl);
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {

@@ -18,28 +18,36 @@ const SubscriptionBanner = ({
     return null;
   }
 
+  // Get status from top-level or nested subscription object
+  const status = subscriptionData.status || subscriptionData.subscription?.status;
+  const isExpired = subscriptionData.isExpired || false;
+  const daysRemaining = subscriptionData.daysRemaining ?? subscriptionData.subscription?.daysRemaining ?? 0;
+  const isTrial = subscriptionData.isTrial ?? subscriptionData.subscription?.isTrial ?? false;
+
   // Show banner if:
   // 1. Status is EXPIRED, CANCELLED, or INACTIVE
-  // 2. OR ≤3 days remaining (paid) or ≤1 day (free trial)
-  const statusRequiresAlert = subscriptionData.status === 'EXPIRED' || 
-                               subscriptionData.status === 'CANCELLED' || 
-                               subscriptionData.status === 'INACTIVE';
+  // 2. OR isExpired flag is true
+  // 3. OR ≤3 days remaining (paid) or ≤1 day (free trial)
+  const statusRequiresAlert = status === 'EXPIRED' || 
+                               status === 'CANCELLED' || 
+                               status === 'INACTIVE' ||
+                               isExpired;
   
-  const daysThreshold = subscriptionData.isTrial ? 1 : 3;
-  const daysRequireAlert = subscriptionData.daysRemaining !== undefined && 
-                           subscriptionData.daysRemaining > 0 && 
-                           subscriptionData.daysRemaining <= daysThreshold;
+  const daysThreshold = isTrial ? 1 : 3;
+  const daysRequireAlert = daysRemaining !== undefined && 
+                           daysRemaining > 0 && 
+                           daysRemaining <= daysThreshold;
   
   // Don't show if subscription is active and not expiring soon
   if (!statusRequiresAlert && !daysRequireAlert) {
     return null;
   }
 
-  const isExpired = statusRequiresAlert || (subscriptionData.daysRemaining !== undefined && subscriptionData.daysRemaining <= 0);
-  const isExpiringSoon = !isExpired && daysRequireAlert;
+  const isExpiredStatus = statusRequiresAlert || (daysRemaining !== undefined && daysRemaining <= 0);
+  const isExpiringSoon = !isExpiredStatus && daysRequireAlert;
 
   const getBannerConfig = () => {
-    if (isExpired) {
+    if (isExpiredStatus) {
       return {
         icon: 'warning',
         iconColor: '#F44336',
@@ -55,7 +63,7 @@ const SubscriptionBanner = ({
         icon: 'time',
         iconColor: '#FF9800',
         gradientColors: ['#FF9800', '#F57C00'],
-        title: `Expire dans ${subscriptionData.daysRemaining} jour(s)`,
+        title: `Expire dans ${daysRemaining} jour(s)`,
         subtitle: 'Renouvelez pour éviter l\'interruption',
         buttonText: 'Renouveler',
         buttonColor: '#FFFFFF',
@@ -122,11 +130,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   bannerContent: {
     flexDirection: 'row',
@@ -163,11 +168,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 80,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   actionButtonText: {
     fontSize: 14,
