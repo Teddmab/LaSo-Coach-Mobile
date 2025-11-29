@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import notificationsAPI, { NotificationWebSocketManager } from '../services/notificationsApi';
+import notificationsAPI from '../services/notificationsApi';
+import chatSocketService from '../services/chatSocketService';
 import { getFirebaseApp } from '../config/firebaseApp';
+import { useAuth } from './FirebaseAuthContext';
 
 // Configure notification handling
 Notifications.setNotificationHandler({
@@ -32,13 +34,21 @@ export const NotificationProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
-  const wsManagerRef = useRef(null);
+  const notificationUnsubscriberRef = useRef(null);
+  const listenerSetupRef = useRef(false); // Track if listener is set up
   const [isConnected, setIsConnected] = useState(false);
+  const { isAuthenticated, authReady } = useAuth();
+  const authInitializedRef = useRef(false); // avoid duplicate fetches when auth state flips quickly
 
   // Fetch unread count
   const fetchUnreadCount = async () => {
     try {
-      console.log('🔔 Fetching global unread count...');
+      // Guard: only fetch if authenticated so backend gets a valid bearer token
+      if (!isAuthenticated) {
+        console.log('🔔 Skipping unread count fetch (not authenticated yet)');
+        return 0;
+      }
+      console.log('🔔 Fetching global unread count (auth OK)...');
       const response = await notificationsAPI.getUnreadCount();
       if (response.status === 'success') {
         const count = response.data.count || 0;
@@ -122,53 +132,83 @@ export const NotificationProvider = ({ children }) => {
     }
   };
 
-  // Initialize WebSocket connection
-  const initializeWebSocket = async () => {
+  // Initialize WebSocket connection - use same Socket.IO connection as chat
+  const initializeWebSocket = () => {
     try {
-      if (!wsManagerRef.current) {
-        console.log('🔌 Initializing WebSocket connection...');
-        wsManagerRef.current = new NotificationWebSocketManager();
+      if (!isAuthenticated) {
+        console.log('⚠️ [NotificationContext] Not authenticated - deferring Socket.IO listener setup');
+        return;
+      }
+      // Clean up existing listener
+      if (notificationUnsubscriberRef.current) {
+        notificationUnsubscriberRef.current();
+        notificationUnsubscriberRef.current = null;
+      }
+
+      // Use the same Socket.IO connection as chat (chatSocketService)
+      // This ensures all notifications come through the same connection
+      const socket = chatSocketService.getSocket();
+      
+      if (socket && socket.connected) {
+        console.log('🔌 [NotificationContext] Setting up Socket.IO notification listener...');
         
-        // Add event listeners
-        wsManagerRef.current.addEventListener('new_notification', handleNewNotification);
-        wsManagerRef.current.addEventListener('unread_count_update', handleUnreadCountUpdate);
+        // Subscribe to notification events from Socket.IO
+        // This will receive ALL notification types (challenges, achievements, chat, etc.)
+        notificationUnsubscriberRef.current = chatSocketService.onNotification((notification) => {
+          console.log('🔔 [NotificationContext] Notification received via Socket.IO:', {
+            type: notification.type,
+            title: notification.title,
+          });
+          
+          // Handle ALL notification types (not just CHAT_MESSAGE)
+          // Chat notifications are also handled by ChatContext, but we show the notification here
+          handleNewNotification(notification);
+        });
         
-        // Get auth token (implement based on your auth system)
-        const token = await getAuthToken();
-        if (token) {
-          await wsManagerRef.current.connect(token);
-          setIsConnected(true);
-          console.log('✅ WebSocket connected successfully');
-        }
+        listenerSetupRef.current = true;
+        setIsConnected(true);
+        console.log('✅ [NotificationContext] Socket.IO notification listener set up successfully');
+      } else {
+        console.log('⚠️ [NotificationContext] Socket.IO not connected yet, will retry...');
+        setIsConnected(false);
+        
+        // Retry after a short delay if socket is not connected
+        setTimeout(() => {
+          initializeWebSocket();
+        }, 2000);
       }
     } catch (error) {
-      console.error('❌ Error initializing WebSocket:', error);
+      console.error('❌ [NotificationContext] Error initializing WebSocket:', error);
       setIsConnected(false);
     }
   };
 
-  // Get auth token (placeholder - implement based on your auth system)
-  const getAuthToken = async () => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      return token;
-    } catch (error) {
-      console.error('❌ Error getting auth token:', error);
-      return null;
-    }
-  };
-
   // Handle new notification from WebSocket
-  const handleNewNotification = (notification) => {
-    console.log('📨 New notification received:', notification);
+  const handleNewNotification = useCallback((notification) => {
+    console.log('📨 [NotificationContext] New notification received:', {
+      type: notification.type,
+      title: notification.title,
+      message: notification.message?.substring(0, 50),
+    });
     
     // Update local state
-    setNotifications(prev => [notification, ...prev]);
+    setNotifications(prev => {
+      // Check for duplicates
+      const exists = prev.some(n => n.id === notification.id);
+      if (exists) {
+        console.log('⚠️ [NotificationContext] Duplicate notification, skipping:', notification.id);
+        return prev;
+      }
+      return [notification, ...prev];
+    });
+    
+    // Update unread count
     setUnreadCount(prev => prev + 1);
     
-    // Show local notification
+    // CRITICAL: Show local notification for ALL notification types
+    // This includes challenges, achievements, chat messages, etc.
     showLocalNotification(notification);
-  };
+  }, []);
 
   // Handle unread count update from WebSocket
   const handleUnreadCountUpdate = (count) => {
@@ -177,26 +217,40 @@ export const NotificationProvider = ({ children }) => {
   };
 
   // Show local notification
-  const showLocalNotification = async (notification) => {
+  const showLocalNotification = useCallback(async (notification) => {
     try {
-      console.log('📱 Showing local notification:', notification);
+      // Skip if notification doesn't have required fields
+      if (!notification.title || !notification.message) {
+        console.warn('⚠️ [NotificationContext] Notification missing title or message, skipping:', notification);
+        return;
+      }
+      
+      console.log('📱 [NotificationContext] Showing local notification:', {
+        type: notification.type,
+        title: notification.title,
+        message: notification.message?.substring(0, 50),
+      });
       
       await Notifications.scheduleNotificationAsync({
         content: {
           title: notification.title,
           body: notification.message,
-          data: notification.data || {},
+          data: {
+            ...notification.data,
+            notificationId: notification.id,
+            type: notification.type,
+          },
           sound: 'default',
           badge: unreadCount + 1,
         },
         trigger: null, // Show immediately
       });
       
-      console.log('✅ Local notification scheduled');
+      console.log('✅ [NotificationContext] Local notification scheduled successfully');
     } catch (error) {
-      console.error('❌ Error showing local notification:', error);
+      console.error('❌ [NotificationContext] Error showing local notification:', error);
     }
-  };
+  }, [unreadCount]);
 
   // Handle notification response (when user taps on notification)
   const handleNotificationResponse = (response) => {
@@ -296,24 +350,45 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     const initialize = async () => {
       await initializePushNotifications();
-      await fetchUnreadCount();
-      await initializeWebSocket();
+      // Do NOT fetch unread count here; wait for authReady
+      initializeWebSocket();
     };
-
     initialize();
 
     // Add notification event listeners
     const notificationListener = Notifications.addNotificationReceivedListener(handleNotificationResponse);
     const responseListener = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
-    return () => {
-      if (wsManagerRef.current) {
-        wsManagerRef.current.disconnect();
+    // Monitor socket connection status and re-initialize when connected
+    const checkSocketInterval = setInterval(() => {
+      const socket = chatSocketService.getSocket();
+      if (socket && socket.connected && !listenerSetupRef.current) {
+        console.log('🔄 [NotificationContext] Socket.IO connected, setting up listener...');
+        initializeWebSocket();
       }
+    }, 3000);
+
+    return () => {
+      if (notificationUnsubscriberRef.current) {
+        notificationUnsubscriberRef.current();
+        notificationUnsubscriberRef.current = null;
+      }
+      clearInterval(checkSocketInterval);
       notificationListener.remove();
       responseListener.remove();
     };
-  }, []);
+  }, []); // Empty deps - only run on mount/unmount
+
+  // React to auth becoming ready & authenticated
+  useEffect(() => {
+    if (!authReady) return;
+    if (isAuthenticated && !authInitializedRef.current) {
+      authInitializedRef.current = true;
+      console.log('🔐 [NotificationContext] Auth ready & authenticated - fetching unread count and ensuring socket listener');
+      fetchUnreadCount();
+      initializeWebSocket();
+    }
+  }, [authReady, isAuthenticated]);
 
   // Test function to manually trigger a notification
   const testNotification = async () => {

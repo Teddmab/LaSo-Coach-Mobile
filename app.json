@@ -2,11 +2,11 @@
   "expo": {
     "name": "LasoCoach",
     "slug": "laso-coach",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "scheme": [
       "lasocoach",
       "com.laso.coach"
@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.afrotouch.lasocoach",
+      "bundleIdentifier": "com.laso.coach",
       "icon": "./assets/icon.png",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
@@ -30,8 +30,10 @@
         "backgroundColor": "#8BC34A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.afrotouch.lasocoach",
+      "package": "com.laso.coach",
       "icon": "./assets/icon.png",
+      "minSdkVersion": 24,
+      "versionCode": 3,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -63,12 +65,13 @@
     },
     "extra": {
       "eas": {
-        "projectId": "6f5af143-a419-447d-a44e-3b3e230cf397"
+        "projectId": "f509eb43-52af-44a9-b7f0-e8a7179a0aa3"
       }
     },
-    "owner": "teddmabulay",
+    "owner": "ohriginal-llc",
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "./plugins/with-product-flavors.js"
     ]
   }
 }

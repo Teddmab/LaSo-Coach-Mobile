@@ -11,9 +11,4 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
 
-# Google Play Billing
--keep class com.android.vending.billing.** { *; }
--keep class com.android.billingclient.** { *; }
--keep class com.reactnativeiap.** { *; }
-
 # Add any project specific keep options here:

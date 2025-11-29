@@ -3,6 +3,7 @@ import Config from '../config/env';
 import ProgressApi from './progressApi';
 import OnboardingApi from './onboardingApi';
 import AchievementsApi from './achievementsApi';
+import BadgeApi from './badgeApi';
 
 /**
  * Dashboard API Service
@@ -552,20 +553,292 @@ export class DashboardService {
   }
 
   /**
-   * Get achievements summary data from the new achievements endpoint
+   * Get achievements summary data using BadgeApi (same as DefisScreen/AchievementsScreen)
    * @returns {Promise<Object>} Achievements summary data
    */
   static async getAchievementsSummary() {
     try {
-      console.log('🏆 DashboardService: Fetching achievements summary from new endpoint...');
+      console.log('🏆 DashboardService: Fetching achievements summary from BadgeApi (same as DefisScreen/AchievementsScreen)...');
       
-      const result = await AchievementsApi.getAchievementsSummary();
+      // Use BadgeApi.getAllBadges() - same endpoint as DefisScreen and AchievementsScreen
+      const result = await BadgeApi.getAllBadges();
       
-      if (result.success) {
-        console.log('✅ DashboardService: Achievements summary fetched successfully');
-        return result.data;
+      // Also fetch next badge information for accurate "Plus que xpts pour le badge [next badge]" text
+      const nextBadgeResult = await BadgeApi.getNextBadge();
+      
+      if (result.success && result.data) {
+        console.log('✅ DashboardService: Badges data fetched successfully');
+        
+        const badges = result.data.badges || [];
+        const summary = result.data.summary || {};
+        
+        console.log('📊 DashboardService: Badges data structure:', {
+          badgesCount: badges.length,
+          summary: summary,
+          firstBadge: badges[0],
+        });
+        
+        // Find current badge - check summary first, then find from badges array
+        // The current badge should be the one with isUnlocked=true and currentLevel > 0
+        // Or check if summary has currentBadge field
+        let currentBadgeObj = null;
+        
+        if (summary.currentBadge) {
+          // If summary has currentBadge, find it in badges array
+          currentBadgeObj = badges.find(b => b.id === summary.currentBadge.id || b.name === summary.currentBadge.name);
+        }
+        
+        // If not found in summary, find first unlocked badge with currentLevel > 0
+        if (!currentBadgeObj) {
+          currentBadgeObj = badges.find(b => b.isUnlocked && b.currentLevel > 0);
+        }
+        
+        // If still not found, find first unlocked badge
+        if (!currentBadgeObj) {
+          currentBadgeObj = badges.find(b => b.isUnlocked);
+        }
+        
+        // If still not found, use first badge
+        if (!currentBadgeObj && badges.length > 0) {
+          currentBadgeObj = badges[0];
+        }
+        
+        // Get points from summary or calculate from badges
+        const totalPoints = summary.totalPointsEarned || summary.totalPoints || 0;
+        
+        // Extract next badge information from the new API endpoint
+        // For "Plus que xpts pour completer le badge [current badge name]"
+        // We need to use pointsToFinishCurrentBadge (sum of remaining points for all locked levels in current badge)
+        let pointsNeededForNext = 0;
+        let nextBadgeName = null;
+        
+        if (nextBadgeResult.success && nextBadgeResult.data) {
+          const nextBadgeData = nextBadgeResult.data;
+          
+          // COMPREHENSIVE LOGGING FOR TROUBLESHOOTING
+          console.log('🔍 DashboardService: ========== FULL NEXT BADGE API RESPONSE ==========');
+          console.log('📦 Complete nextBadgeResult:', JSON.stringify(nextBadgeResult, null, 2));
+          console.log('📦 Complete nextBadgeData object:', JSON.stringify(nextBadgeData, null, 2));
+          console.log('📊 Next badge data structure:', {
+            allUnlocked: nextBadgeData.allUnlocked,
+            hasCurrentWorkingBadge: !!nextBadgeData.currentWorkingBadge,
+            currentWorkingBadge: nextBadgeData.currentWorkingBadge,
+            hasNextBadge: !!nextBadgeData.nextBadge,
+            nextBadge: nextBadgeData.nextBadge,
+            pointsToFinishCurrentBadge: nextBadgeData.pointsToFinishCurrentBadge,
+            maxPointsForCurrentBadge: nextBadgeData.maxPointsForCurrentBadge,
+            pointsToStartNextBadgeLevel1: nextBadgeData.pointsToStartNextBadgeLevel1,
+            journeyTotalToNextBadgeLevel1: nextBadgeData.journeyTotalToNextBadgeLevel1,
+          });
+          
+          if (nextBadgeData.currentWorkingBadge) {
+            console.log('📊 Current Working Badge details:', {
+              id: nextBadgeData.currentWorkingBadge.id,
+              displayName: nextBadgeData.currentWorkingBadge.displayName,
+              sequenceOrder: nextBadgeData.currentWorkingBadge.sequenceOrder,
+              hasNextLevel: !!nextBadgeData.currentWorkingBadge.nextLevel,
+              nextLevel: nextBadgeData.currentWorkingBadge.nextLevel,
+            });
+            
+            if (nextBadgeData.currentWorkingBadge.nextLevel) {
+              console.log('📊 Next Level details:', {
+                level: nextBadgeData.currentWorkingBadge.nextLevel.level,
+                pointsRequired: nextBadgeData.currentWorkingBadge.nextLevel.pointsRequired,
+                pointsEarned: nextBadgeData.currentWorkingBadge.nextLevel.pointsEarned,
+                pointsRemaining: nextBadgeData.currentWorkingBadge.nextLevel.pointsRemaining,
+                progressPercent: nextBadgeData.currentWorkingBadge.nextLevel.progressPercent,
+                description: nextBadgeData.currentWorkingBadge.nextLevel.description,
+              });
+            }
+            
+            // Log remainingLevelsInBadge if available
+            if (nextBadgeData.currentWorkingBadge.remainingLevelsInBadge) {
+              console.log('📊 Remaining Levels in Badge:', {
+                totalPointsRemainingAllLevels: nextBadgeData.currentWorkingBadge.remainingLevelsInBadge.totalPointsRemainingAllLevels,
+                levels: nextBadgeData.currentWorkingBadge.remainingLevelsInBadge.levels,
+              });
+            }
+          }
+          
+          if (nextBadgeData.nextBadge) {
+            console.log('📊 Next Badge details:', {
+              id: nextBadgeData.nextBadge.id,
+              name: nextBadgeData.nextBadge.name,
+              displayName: nextBadgeData.nextBadge.displayName,
+              icon: nextBadgeData.nextBadge.icon,
+              color: nextBadgeData.nextBadge.color,
+              sequenceOrder: nextBadgeData.nextBadge.sequenceOrder,
+              hasFirstLevel: !!nextBadgeData.nextBadge.firstLevel,
+              firstLevel: nextBadgeData.nextBadge.firstLevel,
+            });
+          }
+          
+          console.log('🔍 DashboardService: ===================================================');
+          
+          // Use the next badge API response for accurate next badge information
+          if (nextBadgeData.allUnlocked) {
+            // All badges unlocked
+            console.log('✅ DashboardService: All badges unlocked');
+            pointsNeededForNext = 0;
+            nextBadgeName = null;
+          } else if (nextBadgeData.currentWorkingBadge) {
+            // According to API specification:
+            // GET /api/v1/mobile/badges/next → use data.pointsToFinishCurrentBadge (remaining points)
+            // Also use data.maxPointsForCurrentBadge (total points needed to complete badge)
+            const pointsToFinish = nextBadgeData.pointsToFinishCurrentBadge;
+            const maxPointsForBadge = nextBadgeData.maxPointsForCurrentBadge;
+            
+            console.log('🔍 DashboardService: Extracting badge progress fields from API response:', {
+              'nextBadgeData object keys': Object.keys(nextBadgeData),
+              'pointsToFinishCurrentBadge value': pointsToFinish,
+              'pointsToFinishCurrentBadge type': typeof pointsToFinish,
+              'maxPointsForCurrentBadge value': maxPointsForBadge,
+              'maxPointsForCurrentBadge type': typeof maxPointsForBadge,
+            });
+            
+            // Validate and use pointsToFinishCurrentBadge (remaining points to finish)
+            // This should be a number representing remaining points to finish the current badge
+            if (pointsToFinish !== undefined && pointsToFinish !== null && !isNaN(pointsToFinish)) {
+              pointsNeededForNext = Number(pointsToFinish);
+              console.log('✅ DashboardService: Using pointsToFinishCurrentBadge:', pointsNeededForNext);
+            } else {
+              console.warn('⚠️ DashboardService: pointsToFinishCurrentBadge is invalid, defaulting to 0');
+              console.warn('⚠️ DashboardService: Raw value:', pointsToFinish);
+              pointsNeededForNext = 0;
+            }
+            
+            // Store maxPointsForCurrentBadge for progress calculation
+            // This will be added to transformedData for UI display
+            const maxPoints = (maxPointsForBadge !== undefined && maxPointsForBadge !== null && !isNaN(maxPointsForBadge)) 
+              ? Number(maxPointsForBadge) 
+              : null;
+            
+            if (maxPoints !== null) {
+              console.log('✅ DashboardService: Using maxPointsForCurrentBadge:', maxPoints);
+            } else {
+              console.warn('⚠️ DashboardService: maxPointsForCurrentBadge is invalid or missing');
+            }
+            
+            // Use current badge name (since we're completing the current badge)
+            nextBadgeName = nextBadgeData.currentWorkingBadge.displayName || null;
+            
+            console.log('✅ DashboardService: Final calculated values:', {
+              pointsNeededForNext,
+              maxPointsForCurrentBadge: maxPoints,
+              nextBadgeName,
+              currentBadgeId: nextBadgeData.currentWorkingBadge.id,
+              source: 'data.pointsToFinishCurrentBadge and data.maxPointsForCurrentBadge from GET /api/v1/mobile/badges/next',
+            });
+            
+            // Store maxPoints in a variable that will be added to transformedData
+            // We'll add this to the transformedData object below
+            nextBadgeData._maxPointsForCurrentBadge = maxPoints;
+          } else {
+            console.warn('⚠️ DashboardService: No currentWorkingBadge in response');
+            console.warn('⚠️ DashboardService: Available keys in nextBadgeData:', Object.keys(nextBadgeData));
+          }
+        } else {
+          // Fallback to old logic if next badge API fails
+          console.warn('⚠️ DashboardService: Next badge API failed, using fallback logic');
+          
+          if (currentBadgeObj) {
+            // Check if badge has levels array
+            if (currentBadgeObj.levels && Array.isArray(currentBadgeObj.levels)) {
+              const currentLevel = currentBadgeObj.currentLevel || 0;
+              const nextLevel = currentBadgeObj.levels.find(l => l.level === currentLevel + 1);
+              if (nextLevel) {
+                pointsNeededForNext = Math.max(0, nextLevel.pointsRequired - totalPoints);
+                nextBadgeName = currentBadgeObj.name;
+              } else {
+                // No more levels in current badge, find next badge
+                const currentBadgeIndex = badges.findIndex(b => b.id === currentBadgeObj.id || b.name === currentBadgeObj.name);
+                if (currentBadgeIndex >= 0 && currentBadgeIndex < badges.length - 1) {
+                  const nextBadge = badges[currentBadgeIndex + 1];
+                  nextBadgeName = nextBadge?.name || null;
+                  if (nextBadge?.levels && nextBadge.levels.length > 0) {
+                    const firstLevel = nextBadge.levels[0];
+                    pointsNeededForNext = Math.max(0, firstLevel.pointsRequired - totalPoints);
+                  }
+                }
+              }
+            } else if (currentBadgeObj.nextLevelPoints) {
+              pointsNeededForNext = Math.max(0, currentBadgeObj.nextLevelPoints - totalPoints);
+              nextBadgeName = currentBadgeObj.name;
+            } else if (summary.pointsNeededForNext) {
+              pointsNeededForNext = summary.pointsNeededForNext;
+              const currentBadgeIndex = badges.findIndex(b => b.id === currentBadgeObj.id || b.name === currentBadgeObj.name);
+              if (currentBadgeIndex >= 0 && currentBadgeIndex < badges.length - 1) {
+                nextBadgeName = badges[currentBadgeIndex + 1]?.name || null;
+              }
+            }
+          }
+          
+          // If next badge name not found, try to find first locked badge
+          if (!nextBadgeName && badges.length > 0) {
+            const firstLockedBadge = badges.find(b => !b.isUnlocked);
+            if (firstLockedBadge) {
+              nextBadgeName = firstLockedBadge.name;
+            }
+          }
+        }
+        
+        // Get maxPointsForCurrentBadge from nextBadgeData if available
+        const maxPointsForCurrentBadge = nextBadgeResult.success && nextBadgeResult.data 
+          ? (nextBadgeResult.data._maxPointsForCurrentBadge || null)
+          : null;
+        
+        // Calculate progress percentage using maxPointsForCurrentBadge if available
+        // Otherwise fallback to the old calculation
+        let progressPercentage = 100;
+        if (maxPointsForCurrentBadge !== null && maxPointsForCurrentBadge > 0) {
+          // Progress = (points earned / max points) * 100
+          // Points earned = maxPoints - pointsToFinish
+          const pointsEarned = maxPointsForCurrentBadge - pointsNeededForNext;
+          progressPercentage = Math.min((pointsEarned / maxPointsForCurrentBadge) * 100, 100);
+        } else if (pointsNeededForNext > 0) {
+          // Fallback to old calculation
+          progressPercentage = Math.min((totalPoints / (totalPoints + pointsNeededForNext)) * 100, 100);
+        }
+        
+        // Transform to match AchievementsCard expected structure
+        const transformedData = {
+          // Current badge information
+          currentBadge: currentBadgeObj?.name || null,
+          currentBadgeDescription: currentBadgeObj?.description || null,
+          currentBadgeLevel: currentBadgeObj?.currentLevel || 0,
+          isCurrent: currentBadgeObj?.isUnlocked && (currentBadgeObj?.currentLevel || 0) > 0,
+          
+          // Points information
+          totalPoints: totalPoints,
+          pointsNeededForNext: pointsNeededForNext, // Remaining points to finish current badge
+          maxPointsForCurrentBadge: maxPointsForCurrentBadge, // Total points needed to complete current badge
+          nextBadgeName: nextBadgeName, // Current badge name (since we're completing it)
+          
+          // Badge summary
+          unlockedBadges: summary.unlockedBadges || badges.filter(b => b.isUnlocked).length || 0,
+          totalBadges: summary.totalBadges || badges.length || 10,
+          
+          // Progress calculation (using maxPointsForCurrentBadge if available)
+          progressPercentage: progressPercentage
+        };
+        
+        // LOGGING: Final transformed data that will be passed to AchievementsCard
+        console.log('🔍 DashboardService: ========== FINAL TRANSFORMED DATA ==========');
+        console.log('📊 Transformed data structure:', JSON.stringify(transformedData, null, 2));
+        console.log('📊 Key values for AchievementsCard:', {
+          currentBadge: transformedData.currentBadge,
+          currentBadgeLevel: transformedData.currentBadgeLevel,
+          totalPoints: transformedData.totalPoints,
+          pointsNeededForNext: transformedData.pointsNeededForNext,
+          nextBadgeName: transformedData.nextBadgeName,
+          unlockedBadges: transformedData.unlockedBadges,
+          totalBadges: transformedData.totalBadges,
+          progressPercentage: transformedData.progressPercentage,
+        });
+        console.log('🔍 DashboardService: ============================================');
+        return transformedData;
       } else {
-        console.log('⚠️ DashboardService: Achievements summary failed, using fallback');
+        console.log('⚠️ DashboardService: Badges data fetch failed, using fallback');
         // Fallback to existing method if new endpoint fails
         return await this.getFallbackAchievementsData();
       }

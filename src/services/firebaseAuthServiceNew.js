@@ -1,5 +1,6 @@
 // IMPORTANT: Import firebaseApp FIRST to ensure proper initialization order
 import { getFirebaseAuth, isCompatAuth } from '../config/firebaseApp';
+import createLogger from '../utils/logger';
 import { API_CONFIG } from '../config/apiConfig';
 import axios from 'axios';
 // Import Firebase auth functions AFTER our config is initialized
@@ -19,9 +20,10 @@ class FirebaseAuthService {
     this.firebaseAuth = null;
     this.authInitPromise = null;
     this._authStateListenerAttached = false; // Track if we've attached the Firebase onAuthStateChanged listener
+    this.logger = createLogger('FirebaseAuthService');
     
     // Log which API endpoint is being used
-    console.log('🔥 Firebase Auth Service initialized with API:', API_CONFIG.BASE_URL);
+    this.logger.info('Firebase Auth Service init', { baseUrl: API_CONFIG.BASE_URL });
     
     // Create a backend API instance that automatically includes Firebase ID tokens
     this.backendApi = axios.create({
@@ -37,14 +39,14 @@ class FirebaseAuthService {
     try {
       this.firebaseAuth = getFirebaseAuth();
       if (this.firebaseAuth) {
-        console.log('✅ Firebase Auth Service ready (instance captured)');
+        this.logger.debug('Firebase Auth instance captured');
         this.initializeInterceptors();
         this.initializeAuthStateListener();
       } else {
-        console.warn('⚠️ Firebase Auth instance not available at service construction (will retry in ensureAuth())');
+        this.logger.warn('Firebase Auth instance not available at construction (will retry)');
       }
     } catch (e) {
-      console.error('❌ Firebase Auth Service construction error:', e);
+      this.logger.error('Firebase Auth Service construction error', e);
     }
     this.authInitPromise = Promise.resolve(this.firebaseAuth);
   }
@@ -55,23 +57,28 @@ class FirebaseAuthService {
   }
 
   async ensureAuth() {
-    // Attempt to obtain the Firebase Auth instance if we don't have it yet
-    if (!this.firebaseAuth) {
+    // Attempt to obtain the Firebase Auth instance with limited retries to reduce race-induced crashes
+    const maxAttempts = 5;
+    let attempt = 0;
+    while (!this.firebaseAuth && attempt < maxAttempts) {
+      attempt += 1;
       this.firebaseAuth = getFirebaseAuth();
       if (this.firebaseAuth) {
-        console.log('🔁 ensureAuth(): Firebase Auth became available');
-        // Initialize interceptors only once
+        this.logger.debug(`ensureAuth available attempt ${attempt}`);
         if (!this._interceptorsInitialized) {
           this.initializeInterceptors();
           this._interceptorsInitialized = true;
         }
-        // Attach the auth state listener if not already
         if (!this._authStateListenerAttached) {
           this.initializeAuthStateListener();
         }
+        break;
+      }
+      if (attempt < maxAttempts) {
+        await new Promise(res => setTimeout(res, 150 * attempt)); // progressive backoff
       }
     }
-    if (!this.firebaseAuth) throw new Error('Firebase Auth is not initialized.');
+    if (!this.firebaseAuth) throw new Error('Firebase Auth is not initialized after retries.');
     return this.firebaseAuth;
   }
 
@@ -79,9 +86,6 @@ class FirebaseAuthService {
    * Get Firebase Auth instance (no longer lazy - already initialized)
    */
   getAuth() {
-    if (!this.firebaseAuth) {
-      throw new Error('Firebase Auth is not initialized. Please check Firebase configuration.');
-    }
     return this.firebaseAuth;
   }
 
@@ -115,7 +119,7 @@ class FirebaseAuthService {
           config.headers['Expires'] = '0';
         }
 
-        console.log('[API] Outgoing request:', config.url);
+        this.logger.debug('API request', { url: config.url });
         return config;
       },
       (error) => Promise.reject(error)
@@ -127,40 +131,38 @@ class FirebaseAuthService {
       async (error) => {
         const originalRequest = error.config;
 
-        console.log('🔍 API Interceptor - Error URL:', originalRequest?.url);
-        console.log('🔍 API Interceptor - Error Status:', error.response?.status);
+        this.logger.debug('API error', { url: originalRequest?.url, status: error.response?.status });
 
         // Handle 401 Unauthorized errors
         if (error.response?.status === 401) {
-          console.log('🔍 API Interceptor - 401 error detected');
-          
-          // Don't retry for auth endpoints
-          if (originalRequest?.url?.includes('/auth/login') || 
+          this.logger.info('API 401 detected');
+
+          // Skip retry for auth endpoints
+          if (originalRequest?.url?.includes('/auth/login') ||
               originalRequest?.url?.includes('/auth/verify-reset-token') ||
               originalRequest?.url?.includes('/auth/complete-reset-password') ||
               originalRequest?.url?.includes('/auth/forgot-password')) {
-            console.log('🔍 API Interceptor - Auth endpoint detected, not retrying');
+            this.logger.debug('API 401 auth endpoint skip retry');
             return Promise.reject(new Error('Invalid credentials or token'));
           }
 
-          // For other 401 errors, try to refresh Firebase token
-          if (!originalRequest._retry) {
-            originalRequest._retry = true;
-
+          // Retry logic with limited attempts; do NOT auto logout on transient failures
+          originalRequest._retryCount = originalRequest._retryCount || 0;
+          if (originalRequest._retryCount < 2) {
+            originalRequest._retryCount += 1;
             try {
-              console.log('🔍 API Interceptor - Attempting Firebase token refresh');
-              
-              // Force refresh Firebase ID token
+              this.logger.info(`API token refresh attempt ${originalRequest._retryCount}`);
               const newIdToken = await this.getIdToken(true);
               if (newIdToken && originalRequest?.headers) {
                 originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
                 return this.backendApi(originalRequest);
               }
             } catch (refreshError) {
-              console.log('🔍 API Interceptor - Firebase token refresh failed');
-              await this.logout();
-              return Promise.reject(new Error('Session expired. Please login again.'));
+              this.logger.warn('API token refresh failed');
             }
+          } else {
+            this.logger.warn('API max token refresh attempts reached');
+            return Promise.reject(new Error('Authentication temporarily unavailable. Please retry.'));
           }
         }
 
@@ -195,7 +197,7 @@ class FirebaseAuthService {
     }
     const useCompat = isCompatAuth();
     const listener = async (firebaseUser) => {
-      console.log('🔐 [AuthStateListener] Firebase user changed:', firebaseUser ? firebaseUser.email : 'null');
+      this.logger.debug('[AuthStateListener] change', { email: firebaseUser ? firebaseUser.email : null });
       
       if (firebaseUser) {
         // IMMEDIATE: Set basic user data and notify listeners to prevent timeout
@@ -207,7 +209,7 @@ class FirebaseAuthService {
         };
         
         // Notify immediately to clear auth timeout
-        console.log('🔐 [AuthStateListener] Notifying listeners immediately (basic user)');
+        this.logger.debug('[AuthStateListener] notify basic user');
         this.authStateListeners.forEach(cb => cb(this.currentUser));
         
         // ASYNC: Fetch full profile in background and update
@@ -223,29 +225,39 @@ class FirebaseAuthService {
                 uid: firebaseUser.uid,
                 emailVerified: firebaseUser.emailVerified,
               };
-              console.log('🔐 [AuthStateListener] User profile loaded, updating listeners');
+              this.logger.debug('[AuthStateListener] profile loaded');
               // Notify again with full profile
               this.authStateListeners.forEach(cb => cb(this.currentUser));
             }
           } catch (error) {
-            console.log('⚠️ [AuthStateListener] Could not fetch user profile:', error.message);
+            this.logger.warn('[AuthStateListener] profile fetch failed', { error: error.message });
             // Keep basic user data already set
           }
         })();
       } else {
         this.currentUser = null;
-        console.log('🔐 [AuthStateListener] User signed out');
+        this.logger.info('[AuthStateListener] user signed out');
         this.authStateListeners.forEach(cb => cb(this.currentUser));
       }
     };
     if (useCompat) {
       auth.onAuthStateChanged(listener);
+      // Compat doesn't expose separate onIdTokenChanged easily; rely on auth state changes.
     } else {
-      const { onAuthStateChanged } = require('firebase/auth');
+      const { onAuthStateChanged, onIdTokenChanged } = require('firebase/auth');
       onAuthStateChanged(auth, listener);
+      onIdTokenChanged(auth, async (user) => {
+        if (user) {
+          // Optionally we could broadcast a token refresh event or update currentUser timestamp
+          const freshToken = await this.getIdToken(false);
+          if (freshToken) {
+            this.logger.debug('[TokenListener] ID token refreshed');
+          }
+        }
+      });
     }
     this._authStateListenerAttached = true;
-    console.log('✅ Auth state listener attached');
+    this.logger.debug('Auth state listener attached');
   }
 
   /**
@@ -266,7 +278,9 @@ class FirebaseAuthService {
    */
   async updateUserProfile(data) {
     try {
-      if (!this.getAuth().currentUser) {
+      await this.ensureAuth();
+      const auth = this.getAuth();
+      if (!auth || !auth.currentUser) {
         throw new Error('No user logged in');
       }
 
@@ -279,7 +293,16 @@ class FirebaseAuthService {
       // Update Firebase profile if needed
       if (data.firstName || data.lastName) {
         const displayName = `${data.firstName || this.currentUser?.firstName || ''} ${data.lastName || this.currentUser?.lastName || ''}`.trim();
-        await updateProfile(this.getAuth().currentUser, { displayName });
+        try {
+          if (isCompatAuth()) {
+            await this.getAuth().currentUser.updateProfile({ displayName });
+          } else {
+            const { updateProfile } = require('firebase/auth');
+            await updateProfile(this.getAuth().currentUser, { displayName });
+          }
+        } catch (e) {
+          console.log('⚠️ Failed to update Firebase displayName:', e.message);
+        }
       }
 
       // Update current user
@@ -307,13 +330,13 @@ class FirebaseAuthService {
       
       // Get Firebase ID token and verify with backend
       const idToken = await userCredential.user.getIdToken();
-      console.log('🔐 [Login] Firebase sign-in successful, verifying with backend...');
+      this.logger.info('[Login] Firebase sign-in successful');
 
       // Send Firebase ID token to backend for verification and user sync
       await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
         idToken: idToken
       });
-      console.log('🔐 [Login] Backend verification successful');
+      this.logger.info('[Login] Backend verification successful');
 
       // Return minimal user data - the auth state listener will fetch full profile
       this.currentUser = {
@@ -322,7 +345,7 @@ class FirebaseAuthService {
         name: userCredential.user.displayName || 'User',
         emailVerified: userCredential.user.emailVerified,
       };
-      console.log('🔐 [Login] Returning user, auth state listener will load full profile');
+      this.logger.debug('[Login] Returning minimal user');
       
       return this.currentUser;
     } catch (error) {
@@ -336,7 +359,6 @@ class FirebaseAuthService {
    */
   async register(credentials) {
     try {
-      // Ensure Firebase Auth is initialized before registration
       const auth = await this.ensureAuth();
       
       // 1. Register user via backend (backend handles Firebase user creation)
@@ -368,7 +390,16 @@ class FirebaseAuthService {
       // 3. Ensure Firebase display name is up-to-date
       const displayName = `${credentials.firstName} ${credentials.lastName || ''}`.trim();
       if (displayName) {
-        await updateProfile(userCredential.user, { displayName });
+        try {
+          if (isCompatAuth()) {
+            await userCredential.user.updateProfile({ displayName });
+          } else {
+            const { updateProfile } = require('firebase/auth');
+            await updateProfile(userCredential.user, { displayName });
+          }
+        } catch (e) {
+          console.log('⚠️ Failed to set initial displayName:', e.message);
+        }
       }
 
       // 4. Fetch full user profile from backend
@@ -393,7 +424,6 @@ class FirebaseAuthService {
    */
   async loginWithGoogle(googleIdToken) {
     try {
-      // Ensure Firebase Auth is initialized before Google login
       const auth = await this.ensureAuth();
       
       // Send Google ID token to backend
@@ -435,6 +465,7 @@ class FirebaseAuthService {
    */
   async logout() {
     try {
+      await this.ensureAuth();
       const auth = this.getAuth();
       if (isCompatAuth()) {
         await auth.signOut();
@@ -462,11 +493,15 @@ class FirebaseAuthService {
    */
   async getIdToken(forceRefresh = false) {
     try {
-      const auth = this.firebaseAuth;
-      if (!auth) {
-        console.log('Firebase Auth not available for token request');
-        return null;
+      if (!this.firebaseAuth) {
+        try {
+          await this.ensureAuth();
+        } catch (e) {
+          console.log('Firebase Auth not available for token request (ensureAuth failed)');
+          return null;
+        }
       }
+      const auth = this.firebaseAuth;
       
       if (auth.currentUser) {
         return await auth.currentUser.getIdToken(forceRefresh);
@@ -526,7 +561,9 @@ class FirebaseAuthService {
    */
   async updatePassword(data) {
     try {
-      const user = this.getAuth().currentUser;
+      await this.ensureAuth();
+      const auth = this.getAuth();
+      const user = auth.currentUser;
       if (!user) throw new Error('No user logged in');
       if (isCompatAuth()) {
         const credential = firebaseCompat.auth.EmailAuthProvider.credential(user.email, data.currentPassword);
@@ -549,7 +586,9 @@ class FirebaseAuthService {
    */
   async deleteAccount() {
     try {
-      const user = this.getAuth().currentUser;
+      await this.ensureAuth();
+      const auth = this.getAuth();
+      const user = auth.currentUser;
       if (!user) throw new Error('No user logged in');
       await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
       await user.delete();

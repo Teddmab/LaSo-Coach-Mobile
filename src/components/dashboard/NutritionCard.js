@@ -9,10 +9,11 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 
-const NutritionCard = ({ onPress, onMealPress }) => {
+const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
   const [nutritionData, setNutritionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -357,16 +358,86 @@ const NutritionCard = ({ onPress, onMealPress }) => {
     );
   }
 
-  if (!nutritionData) {
+  // Check if subscription is expired or inactive
+  // Show locked menu only when: EXPIRED, INACTIVE, CANCELLED, or no subscription
+  // Show actual menu when: ACTIVE, EXPIRING_SOON, FREE_TRIAL, or TRIAL
+  const subscriptionStatus = subscriptionData?.status?.toUpperCase();
+  const isSubscriptionExpired = subscriptionStatus === 'EXPIRED' || 
+                                 subscriptionStatus === 'INACTIVE' || 
+                                 subscriptionStatus === 'CANCELLED' ||
+                                 (!subscriptionData && !nutritionData);
+  
+  // Show locked menu only if subscription is expired/inactive AND no nutrition data
+  // OR if we have subscription data but it's expired/inactive
+  const shouldShowLockedMenu = isSubscriptionExpired || (!subscriptionData && !nutritionData);
+  
+  if (shouldShowLockedMenu) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
           <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
           <Text style={styles.title}>Menu du jour</Text>
         </View>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="restaurant-outline" size={48} color={theme.colors.text.secondary} />
-          <Text style={styles.emptyText}>Aucun plan nutritionnel disponible</Text>
+        
+        {/* Locked Menu Message */}
+        <View style={styles.lockedContainer}>
+          {/* Plate Icon */}
+          <View style={styles.plateIconContainer}>
+            <View style={styles.plateIcon}>
+              <Ionicons name="restaurant" size={40} color="#9C27B0" />
+              <View style={styles.forkIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+              <View style={styles.knifeIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+            </View>
+          </View>
+          
+          {/* Title */}
+          <Text style={styles.lockedTitle}>Menus verrouillés</Text>
+          
+          {/* Description */}
+          <Text style={styles.lockedDescription}>
+            Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
+          </Text>
+          
+          {/* Primary Button */}
+          <TouchableOpacity 
+            style={styles.subscriptionButton}
+            onPress={() => {
+              if (onSubscriptionPress) {
+                onSubscriptionPress();
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#BA68C8', '#9C27B0']}
+              style={styles.subscriptionButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.subscriptionButtonText}>Voir les plans d'abonnement</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          {/* Free Trial Link */}
+          <TouchableOpacity 
+            style={styles.freeTrialLink}
+            onPress={() => {
+              if (onSubscriptionPress) {
+                onSubscriptionPress();
+              }
+            }}
+          >
+            <Text style={styles.freeTrialText}>Commencer avec l'essai gratuit</Text>
+          </TouchableOpacity>
+          
+          {/* Additional Text */}
+          <Text style={styles.freeTrialDescription}>
+            Commencez gratuitement avec notre essai gratuit !
+          </Text>
         </View>
       </View>
     );
@@ -375,6 +446,14 @@ const NutritionCard = ({ onPress, onMealPress }) => {
   // Get the menu for the selected day (1-based index)
   const currentMenu = nutritionData.plan.menus.find(menu => menu.day === selectedDay) || nutritionData.plan.menus[0];
   const { completionStatus } = nutritionData;
+
+  // Check if selected date is today
+  const today = new Date();
+  const selectedDateObj = weekDates[selectedDay - 1]; // selectedDay is 1-based, so subtract 1 for array index
+  const isToday = selectedDateObj && 
+    selectedDateObj.getDate() === today.getDate() &&
+    selectedDateObj.getMonth() === today.getMonth() &&
+    selectedDateObj.getFullYear() === today.getFullYear();
 
   return (
     <View style={styles.container}>
@@ -497,16 +576,6 @@ const NutritionCard = ({ onPress, onMealPress }) => {
         </View>
         
         <View style={styles.summaryItem}>
-          <Ionicons name="trophy-outline" size={16} color={theme.colors.text.secondary} />
-          <Text style={styles.summaryLabel}>Points collectés</Text>
-          <Text style={styles.summaryValue}>{completionStatus.completedMeals} repas complétés</Text>
-          <View style={styles.pointsDisplay}>
-            <Ionicons name="trophy" size={20} color={theme.colors.primary} />
-            <Text style={styles.pointsText}>{completionStatus.pointsEarned} points</Text>
-          </View>
-        </View>
-        
-        <View style={styles.summaryItem}>
           <Ionicons name="checkmark-circle-outline" size={16} color={theme.colors.text.secondary} />
           <Text style={styles.summaryLabel}>Progression</Text>
           <View style={styles.progressContainer}>
@@ -523,29 +592,31 @@ const NutritionCard = ({ onPress, onMealPress }) => {
         </View>
       </View>
 
-      {/* Complete Day Button */}
-      <TouchableOpacity 
-        style={styles.completeButton} 
-        onPress={async () => {
-          if (onPress) {
-            onPress();
-          }
-          
-          // TODO: Call API to mark day as complete
-          // if (nutritionData?.plan?.id) {
-          //   try {
-          //     await nutritionAPI.markDayComplete(nutritionData.plan.id, selectedDay);
-          //     // Refresh data after completion
-          //     // fetchNutritionData();
-          //   } catch (error) {
-          //     console.error('Error marking day as complete:', error);
-          //   }
-          // }
-        }}
-      >
-        <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-        <Text style={styles.completeButtonText}>Marquer le jour comme terminé</Text>
-      </TouchableOpacity>
+      {/* Complete Day Button - Only show for today */}
+      {isToday && (
+        <TouchableOpacity 
+          style={styles.completeButton} 
+          onPress={async () => {
+            if (onPress) {
+              onPress();
+            }
+            
+            // TODO: Call API to mark day as complete
+            // if (nutritionData?.plan?.id) {
+            //   try {
+            //     await nutritionAPI.markDayComplete(nutritionData.plan.id, selectedDay);
+            //     // Refresh data after completion
+            //     // fetchNutritionData();
+            //   } catch (error) {
+            //     console.error('Error marking day as complete:', error);
+            //   }
+            // }
+          }}
+        >
+          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+          <Text style={styles.completeButtonText}>Marquer le jour comme terminé</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -751,6 +822,84 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text.secondary,
     marginTop: 8,
+  },
+  // Locked Menu Styles
+  lockedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  plateIconContainer: {
+    marginBottom: 24,
+  },
+  plateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3E5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  forkIcon: {
+    position: 'absolute',
+    left: -8,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  knifeIcon: {
+    position: 'absolute',
+    right: -8,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  lockedTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  lockedDescription: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  subscriptionButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 16,
+  },
+  subscriptionButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscriptionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  freeTrialLink: {
+    marginBottom: 8,
+  },
+  freeTrialText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  freeTrialDescription: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
 

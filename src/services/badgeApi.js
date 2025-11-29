@@ -94,6 +94,69 @@ class BadgeApi {
   }
 
   /**
+   * Get next badge information and progress
+   * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
+   */
+  static async getNextBadge() {
+    try {
+      console.log('🏆 BadgeApi: Fetching next badge information...');
+      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.mobile.badges.getNext);
+      
+      const response = await api.get(API_CONFIG.endpoints.mobile.badges.getNext);
+      
+      console.log('✅ BadgeApi: Next badge information fetched successfully');
+      console.log('📊 Full response object:', response);
+      console.log('📊 Response.data:', response.data);
+      
+      // Handle both axios response structure and direct data
+      const responseData = response.data || response;
+      
+      console.log('📊 Parsed responseData:', responseData);
+      console.log('📊 responseData.status:', responseData.status);
+      console.log('📊 responseData.data:', responseData.data);
+      
+      if (responseData.status === 'success' && responseData.data) {
+        const apiData = responseData.data;
+        
+        // Log the specific fields we need
+        console.log('🔍 BadgeApi: Checking required fields in response:');
+        console.log('📊 apiData keys:', Object.keys(apiData));
+        console.log('📊 apiData.pointsToFinishCurrentBadge:', apiData.pointsToFinishCurrentBadge);
+        console.log('📊 apiData.maxPointsForCurrentBadge:', apiData.maxPointsForCurrentBadge);
+        console.log('📊 apiData.currentWorkingBadge:', apiData.currentWorkingBadge);
+        console.log('📊 apiData.nextBadge:', apiData.nextBadge);
+        console.log('📊 apiData.allUnlocked:', apiData.allUnlocked);
+        
+        return {
+          success: true,
+          data: apiData, // This should contain pointsToFinishCurrentBadge
+        };
+      }
+      
+      console.warn('⚠️ BadgeApi: Invalid response format');
+      console.warn('⚠️ BadgeApi: responseData.status:', responseData.status);
+      console.warn('⚠️ BadgeApi: Has responseData.data:', !!responseData.data);
+      
+      return {
+        success: false,
+        error: 'Invalid response format',
+      };
+    } catch (error) {
+      console.error('❌ BadgeApi: Error fetching next badge information:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch next badge information',
+      };
+    }
+  }
+
+  /**
    * Get detailed information for a single badge
    * @param {string} badgeId - Badge ID
    * @returns {Promise<{success: boolean, data?: {badge: Object}, error?: string}>}

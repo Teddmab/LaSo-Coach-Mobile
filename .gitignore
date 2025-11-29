@@ -78,5 +78,16 @@ secure-keys/
 # Environment variables
 .env
 .env.local
+
+# Google Cloud / Firebase Service Account Keys
+*.json
+!app.json
+!eas.json
+!package.json
+!tsconfig.json
 .env.production
 client_secret_*.json
+
+# Google Service Account (SECURITY - DO NOT COMMIT)
+google-service-account.json
+*service-account*.json

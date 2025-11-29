@@ -62,12 +62,16 @@ export default function LoginScreen({ navigation, route }) {
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
   } = useGoogleAuth();
+  
+  console.log('📱 LoginScreen rendered, Google auth available:', isGoogleAvailable);
   /**
    * Handle Google login
    */
   const handleGoogleLogin = async () => {
+    console.log('🎯 Google login button clicked!');
     setErrors({});
     const result = await triggerGoogleSignIn();
+    console.log('🎯 Google login result:', result);
     if (result?.error) {
       setErrors({ general: result.error });
     }

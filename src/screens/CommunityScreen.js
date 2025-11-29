@@ -405,46 +405,46 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
 
     return (
       <View style={styles.postContainer}>
-        {/* Post Header */}
-        <View style={styles.postHeader}>
-          <Avatar 
+      {/* Post Header */}
+      <View style={styles.postHeader}>
+        <Avatar 
             source={{ uri: authorAvatar }} 
-            size={40}
-            style={styles.authorAvatar}
+          size={40}
+          style={styles.authorAvatar}
             fallbackText={authorName?.charAt(0) || 'U'}
-          />
-          <View style={styles.authorInfo}>
+        />
+        <View style={styles.authorInfo}>
             <Text style={styles.authorName}>{authorName}</Text>
             <Text style={styles.postTime}>{timeAgo || 'Maintenant'}</Text>
-          </View>
-          <TouchableOpacity style={styles.moreButton}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
         </View>
+        <TouchableOpacity style={styles.moreButton}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text.secondary} />
+        </TouchableOpacity>
+      </View>
 
-        {/* Post Content */}
-        <View style={styles.postContent}>
+      {/* Post Content */}
+      <View style={styles.postContent}>
           {postContent ? (
             <Text style={styles.postText}>{postContent}</Text>
           ) : null}
           {images.length > 0 ? renderImageCarousel(post) : null}
-        </View>
+      </View>
 
-        {/* Post Actions */}
-        <View style={styles.postActions}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleLike(post.id)}
-          >
-            <Ionicons 
+      {/* Post Actions */}
+      <View style={styles.postActions}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleLike(post.id)}
+        >
+          <Ionicons 
               name={isLiked ? "heart" : "heart-outline"} 
               size={24} 
               color={isLiked ? "#F44336" : theme.colors.text.primary} 
-            />
+          />
             {likesCount > 0 ? (
               <Text style={styles.actionText}>{likesCount}</Text>
             ) : null}
-          </TouchableOpacity>
+        </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.actionButton}
@@ -458,12 +458,12 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
             {commentsCount > 0 ? (
               <Text style={styles.actionText}>{commentsCount}</Text>
             ) : null}
-          </TouchableOpacity>
+        </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleShare(post.id)}
-          >
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handleShare(post.id)}
+        >
             <Ionicons name="share-outline" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
 
@@ -471,8 +471,8 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
 
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="bookmark-outline" size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
+      </View>
 
         {/* Comments Section */}
         {visibleComments[post.id] ? renderComments(post) : null}
@@ -493,18 +493,18 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
           }}
           collapsable={false}
         >
-          <View style={styles.commentInputContainer}>
-            <Avatar 
-              source={{ uri: user?.avatar }} 
-              size={32}
-              style={styles.commentAvatar}
+        <View style={styles.commentInputContainer}>
+          <Avatar 
+            source={{ uri: user?.avatar }} 
+            size={32}
+            style={styles.commentAvatar}
               fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-            />
-            <TextInput
+          />
+          <TextInput
               ref={(ref) => {
                 if (ref) commentInputRefs.current[post.id] = ref;
               }}
-              style={styles.commentInput}
+            style={styles.commentInput}
               placeholder="Ajouter un commentaire..."
               value={currentCommentText}
               onChangeText={(text) => setCommentText(prev => ({ ...prev, [post.id]: text }))}
@@ -539,9 +539,9 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
                   }
                 }, Platform.OS === 'ios' ? 350 : 150);
               }}
-              multiline
-              maxLength={500}
-            />
+            multiline
+            maxLength={500}
+          />
             {currentCommentText.trim() ? (
               <TouchableOpacity
                 onPress={() => handleCommentSubmit(post.id)}
@@ -550,10 +550,10 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
                 <Ionicons name="send" size={20} color={theme.colors.primary} />
               </TouchableOpacity>
             ) : null}
-          </View>
         </View>
       </View>
-    );
+    </View>
+  );
   };
 
   const renderCreatePostModal = () => {
@@ -568,45 +568,45 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
                          user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
 
     return (
-      <Modal
-        visible={showCreatePostModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={handleCloseCreatePost}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          {/* Modal Header */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Créer un post</Text>
-            <TouchableOpacity onPress={handleCloseCreatePost} style={styles.closeButton}>
+    <Modal
+      visible={showCreatePostModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={handleCloseCreatePost}
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        {/* Modal Header */}
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Créer un post</Text>
+          <TouchableOpacity onPress={handleCloseCreatePost} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          {/* User Info */}
+          <View style={styles.modalUserInfo}>
+            <Avatar 
+                source={{ uri: avatarSource }} 
+              size={40}
+              style={styles.modalUserAvatar}
+                fallbackText={fallbackText}
+            />
+              <Text style={styles.modalUserName}>{displayName}</Text>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {/* User Info */}
-            <View style={styles.modalUserInfo}>
-              <Avatar 
-                source={{ uri: avatarSource }} 
-                size={40}
-                style={styles.modalUserAvatar}
-                fallbackText={fallbackText}
-              />
-              <Text style={styles.modalUserName}>{displayName}</Text>
-            </View>
-
-            {/* Post Text Input */}
-            <TextInput
-              style={styles.postTextInput}
-              placeholder="Partagez votre progression et motivez la communauté..."
+          {/* Post Text Input */}
+          <TextInput
+            style={styles.postTextInput}
+            placeholder="Partagez votre progression et motivez la communauté..."
               placeholderTextColor={theme.colors.text.secondary}
-              value={newPostText}
-              onChangeText={setNewPostText}
-              multiline
-              autoFocus
-              maxLength={2000}
-              textAlignVertical="top"
-            />
+            value={newPostText}
+            onChangeText={setNewPostText}
+            multiline
+            autoFocus
+            maxLength={2000}
+            textAlignVertical="top"
+          />
 
             {/* Selected Images Preview */}
             {selectedImages.length > 0 ? (
@@ -621,10 +621,10 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
                       >
                         <Ionicons name="close-circle" size={24} color="#FFFFFF" />
                       </TouchableOpacity>
-                    </View>
+              </View>
                   ))}
                 </ScrollView>
-              </View>
+            </View>
             ) : null}
 
             {/* Add Image Section */}
@@ -639,41 +639,41 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
                 size={24} 
                 color={selectedImages.length >= 5 ? theme.colors.text.secondary : theme.colors.primary} 
               />
-            </TouchableOpacity>
+          </TouchableOpacity>
             {selectedImages.length >= 5 ? (
               <Text style={styles.maxImagesText}>Maximum 5 images</Text>
             ) : null}
-          </ScrollView>
+        </ScrollView>
 
-          {/* Publish Button */}
-          <View style={styles.modalFooter}>
-            <TouchableOpacity 
-              style={[
-                styles.publishButton,
+        {/* Publish Button */}
+        <View style={styles.modalFooter}>
+          <TouchableOpacity 
+            style={[
+              styles.publishButton,
                 (newPostText.trim() || selectedImages.length > 0) && !isPublishing
                   ? styles.publishButtonActive 
                   : styles.publishButtonInactive
-              ]}
-              onPress={handlePublishPost}
+            ]}
+            onPress={handlePublishPost}
               disabled={(!newPostText.trim() && selectedImages.length === 0) || isPublishing}
-            >
+          >
               {isPublishing ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={[
-                  styles.publishButtonText,
+            <Text style={[
+              styles.publishButtonText,
                   (newPostText.trim() || selectedImages.length > 0)
                     ? styles.publishButtonTextActive 
                     : styles.publishButtonTextInactive
-                ]}>
-                  Publier
-                </Text>
+            ]}>
+              Publier
+            </Text>
               )}
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    );
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
   };
 
   return (
@@ -707,22 +707,22 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
         style={styles.keyboardAvoidingView}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
       >
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.content} 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-        >
+      >
         {/* Community Intro */}
         <TouchableOpacity style={styles.introCard} onPress={handleCreatePost}>
-          <Avatar 
+                      <Avatar 
             source={{ uri: profileData?.avatar || currentUser?.avatar || user?.avatar }} 
-            size={40}
-            style={styles.introAvatar}
+              size={40}
+              style={styles.introAvatar}
             fallbackText={currentUser?.firstName?.charAt(0) || currentUser?.name?.charAt(0) || user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-          />
+            />
           <Text style={styles.introText}>
             Partagez votre progression et motivez la communauté...
           </Text>
@@ -738,8 +738,8 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
           communityPosts.map((post, index) => (
             <View key={post.id}>
               <TouchableOpacity onPress={() => handlePostPress(post)}>
-                {renderPost(post)}
-              </TouchableOpacity>
+            {renderPost(post)}
+          </TouchableOpacity>
               {index < communityPosts.length - 1 ? <View style={styles.postDivider} /> : null}
             </View>
           ))
@@ -995,11 +995,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   navTab: {
     flex: 1,

@@ -10,10 +10,15 @@
  *   logger.error('Error occurred', error);
  */
 
+import Constants from 'expo-constants';
+// Determine debug flag from Expo extra env DEBUG_MODE (string 'true') or __DEV__
+const extraEnv = Constants?.expoConfig?.extra?.env || {};
+const runtimeDebug = extraEnv.debugMode === 'true';
+
 // Global log configuration - can be controlled via environment or config
 const LOG_CONFIG = {
-  // Enable/disable all logs
-  enabled: __DEV__ || false,
+  // Enable/disable all logs (production sets DEBUG_MODE=false to silence debug spam)
+  enabled: (__DEV__ || runtimeDebug) || false,
   
   // Per-page/component toggles (set to false to disable specific logs)
   pages: {

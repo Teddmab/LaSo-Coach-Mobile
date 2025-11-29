@@ -807,32 +807,13 @@ export const ChatProvider = ({ children }) => {
         hasMessage: !!notification.message,
       });
       
-      // CRITICAL: Show notification using Notifications.scheduleNotificationAsync
-      // This ensures notifications appear even when app is in foreground
-      // Only show if chat is not active (user is not viewing it)
-      if (!isActiveChat && notification.title && notification.message) {
-        try {
-          console.log('📱 [handleChatNotification] Scheduling notification (chat not active)');
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: notification.title,
-              body: notification.message, // Truncated content from backend
-              data: {
-                chatId: chatId,
-                messageId: messageId,
-                type: 'CHAT_MESSAGE',
-                ...notification.data, // Include all metadata
-              },
-              sound: 'default',
-            },
-            trigger: null, // Show immediately
-          });
-          console.log('✅ [handleChatNotification] Notification scheduled successfully');
-        } catch (err) {
-          console.error('❌ [handleChatNotification] Error scheduling notification:', err);
-        }
+      // NOTE: Notification display is now handled by NotificationContext
+      // ChatContext only handles chat-specific logic (conversation updates, room joining)
+      // This prevents duplicate notifications and ensures all notifications go through NotificationContext
+      if (isActiveChat) {
+        console.log('ℹ️ [handleChatNotification] Chat is active, NotificationContext will handle notification display');
       } else {
-        console.log('ℹ️ [handleChatNotification] Chat is active, skipping notification');
+        console.log('ℹ️ [handleChatNotification] Chat not active, NotificationContext will show notification');
       }
       
       // Per backend guide: notification.data.message does NOT contain full message object

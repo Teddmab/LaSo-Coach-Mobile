@@ -81,6 +81,7 @@ export const API_CONFIG = {
         getAll: '/mobile/badges',
         getSummary: '/mobile/badges/summary',
         getById: (badgeId) => `/mobile/badges/${badgeId}`,
+        getNext: '/mobile/badges/next',
       },
     },
 

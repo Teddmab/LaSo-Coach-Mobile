@@ -42,6 +42,18 @@ const WEBSOCKET_KEYWORDS = [
   '[chatSocketService]',
   '[handleChatNotification]',
   '[ChatContext]',
+  // Google OAuth keywords
+  'Google',
+  'OAuth',
+  'AuthSession',
+  '🧭',
+  '🔐',
+  '🎯',
+  '🚀',
+  '📬',
+  '🧪',
+  'LoginScreen',
+  '📱',
 ];
 
 // Keywords that indicate verbose logs to hide

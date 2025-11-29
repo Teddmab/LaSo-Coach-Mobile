@@ -81,6 +81,7 @@ const AuthContext = createContext(undefined);
 
 // Import Firebase auth service directly
 import firebaseAuthService from '../services/firebaseAuthServiceNew';
+import { loadPersistedUser, savePersistedUser, clearPersistedUser } from '../services/authPersistence';
 
 /**
  * Authentication Provider Component using Firebase Auth Service
@@ -136,16 +137,44 @@ export function AuthProvider({ children }) {
     let unsubscribe = () => {};
     let fallbackTimeout; // will hold timeout id
 
+    const prehydrateFromStorage = async () => {
+      // Attempt to restore a previously persisted user snapshot BEFORE listener fires
+      try {
+        const persisted = await loadPersistedUser();
+        if (persisted && !state.user) {
+          console.log('💾 Rehydrated user from AsyncStorage (pre-listener):', persisted.email);
+          dispatch({ type: AUTH_ACTIONS.SET_USER, payload: persisted });
+        }
+      } catch (e) {
+        console.log('⚠️ Failed to rehydrate user:', e.message);
+      }
+    };
+
     const initAuth = async () => {
       try {
+        await prehydrateFromStorage();
         // Wait for Firebase Auth to be ready
         await firebaseAuthService.ensureAuth();
-        console.log('🔐 Firebase Auth is ready, setting up listener...');
-        
+        console.log('🔐 Firebase Auth is ready, setting up auth state listener...');
+
+        // If Firebase already has a current user and we have not resolved yet, optimistically set it
+        const firebaseCurrent = firebaseAuthService.getAuth().currentUser;
+        if (firebaseCurrent && !initialAuthResolvedRef.current && !state.user) {
+          console.log('🔐 Found Firebase currentUser before listener event, optimistic set');
+          dispatch({
+            type: AUTH_ACTIONS.SET_USER,
+            payload: {
+              uid: firebaseCurrent.uid,
+              email: firebaseCurrent.email,
+              name: firebaseCurrent.displayName || 'User',
+              emailVerified: firebaseCurrent.emailVerified,
+            }
+          });
+        }
+
         // Listen to Firebase auth state changes
         unsubscribe = firebaseAuthService.onAuthStateChange((user) => {
           console.log('🔐 Firebase auth state changed:', user ? `User: ${user.email}` : 'No user');
-          // First event received: clear fallback timeout so it doesn't wrongly log us out
           if (!initialAuthResolvedRef.current) {
             initialAuthResolvedRef.current = true;
             if (fallbackTimeout) {
@@ -154,42 +183,39 @@ export function AuthProvider({ children }) {
               console.log('🛑 Cleared auth fallback timeout after first auth event');
             }
           }
-          
+
           if (user) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
-            console.log('✅ User authenticated via Firebase:', user.firstName || user.name);
+            savePersistedUser(user); // persist snapshot
+            console.log('✅ User authenticated via Firebase (listener):', user.firstName || user.name);
           } else {
+            clearPersistedUser();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
-            console.log('🔐 No Firebase user, logged out');
+            console.log('🔐 No Firebase user, logged out (listener)');
           }
-          
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
         });
       } catch (error) {
         console.error('❌ Firebase auth initialization error:', error);
-        // Set authReady to true even if Firebase fails
+        // Don't force logout here; just mark ready so UI can show login if needed
         dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
       }
     };
 
     initAuth();
 
-    // Set a fallback timeout to ensure authReady gets set even if Firebase fails
+    // Fallback: mark authReady but DO NOT logout blindly (keep any rehydrated user)
     fallbackTimeout = setTimeout(() => {
-      if (initialAuthResolvedRef.current) {
-        // Listener already fired; no action needed.
-        return;
-      }
-      console.log('⚠️ Firebase auth initialization timeout (no auth event) - marking authReady, staying logged out');
+      if (initialAuthResolvedRef.current) return; // Listener already fired
+      console.log('⚠️ Auth init fallback reached before listener. Marking ready without forcing logout.');
       dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-    }, 5000); // 5 second timeout
+    }, 6000); // Slightly longer to allow fold/unfold/device slow init
 
     return () => {
       unsubscribe();
       if (fallbackTimeout) clearTimeout(fallbackTimeout);
     };
+    // Intentionally exclude state.user from deps (rehydration only once)
   }, []);
 
   /**
@@ -337,6 +363,7 @@ export function AuthProvider({ children }) {
       // Still update state even if Firebase logout fails
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } finally {
+      clearPersistedUser();
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
     }
   };

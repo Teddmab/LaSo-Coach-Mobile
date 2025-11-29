@@ -711,10 +711,14 @@ class ChatSocketService {
     }
 
     const listener = (notification) => {
-      console.log('🔔 New notification:', notification);
-      if (notification.type === 'CHAT_MESSAGE') {
-        callback(notification);
-      }
+      console.log('🔔 [chatSocketService] New notification received:', {
+        type: notification.type,
+        title: notification.title,
+        hasData: !!notification.data,
+      });
+      // CRITICAL: Handle ALL notification types, not just CHAT_MESSAGE
+      // Backend sends all notifications (challenges, achievements, etc.) through this event
+      callback(notification);
     };
 
     this.socket.on('notification', listener);

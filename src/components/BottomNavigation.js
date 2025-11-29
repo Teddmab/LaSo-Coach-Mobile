@@ -9,7 +9,6 @@ const BottomNavigation = ({ activeTab = 'home', onTabPress }) => {
     { id: 'progress', icon: 'trending-up-outline', activeIcon: 'trending-up' },
     { id: 'nutrition', icon: 'restaurant-outline', activeIcon: 'restaurant' },
     { id: 'achievements', icon: 'trophy-outline', activeIcon: 'trophy' },
-    { id: 'defis', icon: 'medal-outline', activeIcon: 'medal' },
     { id: 'more', icon: 'add-outline', activeIcon: 'add' }
   ];
 
@@ -44,14 +43,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   tab: {
     flex: 1,

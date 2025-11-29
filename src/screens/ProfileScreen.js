@@ -2691,11 +2691,13 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
       />
 
-      {/* Subscription Banner */}
-      <SubscriptionBanner 
-        subscriptionData={subscriptionData}
-        onRenew={handleSubscriptionRenew}
-      />
+      {/* Subscription Banner - Hide for subscription step */}
+      {currentStep !== 5 && (
+        <SubscriptionBanner 
+          subscriptionData={subscriptionData}
+          onRenew={handleSubscriptionRenew}
+        />
+      )}
 
       <ScrollView 
         style={styles.content} 
@@ -2712,57 +2714,63 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           </View>
         ) : (
           <>
-            {/* Profile Header */}
-            <View style={styles.profileHeader}>
-          <View style={styles.profileImageContainer}>
-            <Pressable 
-              onPress={handleAvatarUpload}
-              style={({ pressed }) => [
-                styles.avatarUploadButton,
-                pressed && { opacity: 0.7 }
-              ]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Avatar 
-                source={{ uri: profileData?.avatar || user?.avatar }} 
-                size={80}
-                style={styles.largeProfileImage}
-                fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-              />
-              <View style={styles.avatarUploadOverlay}>
-                <Ionicons name="camera" size={24} color="#FFFFFF" />
-              </View>
-              {avatarUploading && (
-                <View style={styles.avatarUploadingOverlay}>
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+            {/* Profile Header - Hide for subscription step */}
+            {currentStep !== 5 && (
+              <View style={styles.profileHeader}>
+                <View style={styles.profileImageContainer}>
+                  <Pressable 
+                    onPress={handleAvatarUpload}
+                    style={({ pressed }) => [
+                      styles.avatarUploadButton,
+                      pressed && { opacity: 0.7 }
+                    ]}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Avatar 
+                      source={{ uri: profileData?.avatar || user?.avatar }} 
+                      size={80}
+                      style={styles.largeProfileImage}
+                      fallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
+                    />
+                    <View style={styles.avatarUploadOverlay}>
+                      <Ionicons name="camera" size={24} color="#FFFFFF" />
+                    </View>
+                    {avatarUploading && (
+                      <View style={styles.avatarUploadingOverlay}>
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      </View>
+                    )}
+                  </Pressable>
                 </View>
-              )}
-            </Pressable>
-          </View>
-          <View style={styles.profileHeaderText}>
-            <Text style={styles.profileTitle}>{getStepTitle()}</Text>
-            <Text style={styles.profileSubtitle}>
-              {getStepSubtitle()}
+                <View style={styles.profileHeaderText}>
+                  <Text style={styles.profileTitle}>{getStepTitle()}</Text>
+                  <Text style={styles.profileSubtitle}>
+                    {getStepSubtitle()}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+        {/* Info Banner - Hide for subscription step */}
+        {currentStep !== 5 && (
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoBannerText}>
+              {getInfoBannerText()}
             </Text>
           </View>
-        </View>
+        )}
 
-        {/* Info Banner */}
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoBannerText}>
-            {getInfoBannerText()}
-          </Text>
-        </View>
-
-        {/* Profile Complete Status */}
-        <View style={styles.statusContainer}>
-          <View style={styles.statusIcon}>
-            <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
+        {/* Profile Complete Status - Hide for subscription step */}
+        {currentStep !== 5 && (
+          <View style={styles.statusContainer}>
+            <View style={styles.statusIcon}>
+              <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
+            </View>
+            <Text style={styles.statusText}>
+              {getStatusText()}
+            </Text>
           </View>
-          <Text style={styles.statusText}>
-            {getStatusText()}
-          </Text>
-        </View>
+        )}
 
         {/* Form Content */}
         {currentStep === 1 ? (
@@ -2781,6 +2789,9 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
             navigation={navigation}
             onClose={() => setCurrentStep(4)}
             onNext={() => setCurrentStep(6)}
+            onTabPress={onTabPress}
+            activeTab={activeTab}
+            isStandalone={false}
           />
         ) : currentStep === 6 ? (
           renderOnboardingSummary()
@@ -2789,33 +2800,35 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         )}
       </ScrollView>
 
-      {/* Navigation Footer */}
-      <View style={styles.navigationFooter}>
-        <TouchableOpacity style={styles.prevButton} onPress={handlePrevious}>
-          <Ionicons name="chevron-back" size={20} color="#666" />
-        </TouchableOpacity>
-        
-        <View style={styles.stepIndicator}>
-          <Text style={styles.stepText}>
-            Étape {currentStep} sur 6
-          </Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${getStepProgress()}%` }]} />
+      {/* Navigation Footer - Hide for subscription step */}
+      {currentStep !== 5 && (
+        <View style={styles.navigationFooter}>
+          <TouchableOpacity style={styles.prevButton} onPress={handlePrevious}>
+            <Ionicons name="chevron-back" size={20} color="#666" />
+          </TouchableOpacity>
+          
+          <View style={styles.stepIndicator}>
+            <Text style={styles.stepText}>
+              Étape {currentStep} sur 6
+            </Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${getStepProgress()}%` }]} />
+            </View>
           </View>
+          
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointsLabel}>Points:</Text>
+            <Text style={styles.pointsValue}>{getPoints()}</Text>
+          </View>
+          
+          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+            <Text style={styles.nextButtonText}>
+              {getNextButtonText()}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        
-        <View style={styles.pointsContainer}>
-          <Text style={styles.pointsLabel}>Points:</Text>
-          <Text style={styles.pointsValue}>{getPoints()}</Text>
-        </View>
-        
-        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-          <Text style={styles.nextButtonText}>
-            {getNextButtonText()}
-          </Text>
-          <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+      )}
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -3294,11 +3307,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   navTab: {
     flex: 1,

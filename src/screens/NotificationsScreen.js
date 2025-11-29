@@ -34,7 +34,7 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
   });
 
   // Use global notification context
-  const { unreadCount, markAsRead: globalMarkAsRead, markAllAsRead: globalMarkAllAsRead, testNotification, checkNotificationStatus } = useNotifications();
+  const { unreadCount, markAsRead: globalMarkAsRead, markAllAsRead: globalMarkAllAsRead } = useNotifications();
 
   // Local state for this screen
   const [notifications, setNotifications] = useState([]);
@@ -281,6 +281,144 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
     });
   };
 
+  /**
+   * Translate notification title from English to French
+   */
+  const translateNotificationTitle = (title) => {
+    if (!title) return title;
+    
+    const titleLower = title.toLowerCase().trim();
+    let translated = title;
+    
+    // Common notification title translations (exact matches first)
+    const exactTranslations = {
+      'badge unlocked': 'Badge débloqué',
+      'badge unlocked!': 'Badge débloqué !',
+      'congratulations': 'Félicitations',
+      'congratulations!': 'Félicitations !',
+      'new content': 'Nouveau contenu',
+      'new content assigned': 'Nouveau contenu assigné',
+      'content assigned': 'Contenu assigné',
+      'new message': 'Nouveau message',
+      'new session': 'Nouvelle session',
+      'session reminder': 'Rappel de session',
+      'payment received': 'Paiement reçu',
+      'payment successful': 'Paiement réussi',
+      'subscription updated': 'Abonnement mis à jour',
+      'subscription expired': 'Abonnement expiré',
+      'achievement unlocked': 'Succès débloqué',
+      'achievement unlocked!': 'Succès débloqué !',
+      'goal reached': 'Objectif atteint',
+      'goal reached!': 'Objectif atteint !',
+      'welcome': 'Bienvenue',
+      'welcome!': 'Bienvenue !',
+    };
+    
+    // Check for exact match
+    if (exactTranslations[titleLower]) {
+      return exactTranslations[titleLower];
+    }
+    
+    // Pattern-based translations (case-insensitive)
+    const patterns = [
+      { en: /badge unlocked/gi, fr: 'Badge débloqué' },
+      { en: /congratulations/gi, fr: 'Félicitations' },
+      { en: /new content/gi, fr: 'Nouveau contenu' },
+      { en: /content assigned/gi, fr: 'Contenu assigné' },
+      { en: /new message/gi, fr: 'Nouveau message' },
+      { en: /achievement unlocked/gi, fr: 'Succès débloqué' },
+      { en: /goal reached/gi, fr: 'Objectif atteint' },
+      { en: /payment received/gi, fr: 'Paiement reçu' },
+      { en: /payment successful/gi, fr: 'Paiement réussi' },
+      { en: /subscription updated/gi, fr: 'Abonnement mis à jour' },
+      { en: /subscription expired/gi, fr: 'Abonnement expiré' },
+      { en: /session reminder/gi, fr: 'Rappel de session' },
+      { en: /new session/gi, fr: 'Nouvelle session' },
+    ];
+    
+    // Apply pattern replacements
+    patterns.forEach(({ en, fr }) => {
+      translated = translated.replace(en, fr);
+    });
+    
+    return translated;
+  };
+
+  /**
+   * Translate notification message from English to French
+   */
+  const translateNotificationMessage = (message) => {
+    if (!message) return message;
+    
+    let translated = message;
+    
+    // Pattern-based translations (order matters - more specific first)
+    const patterns = [
+      // Achievement/Badge related
+      { en: /congratulations! you have/gi, fr: 'Félicitations ! Vous avez' },
+      { en: /congratulations! you/gi, fr: 'Félicitations ! Vous' },
+      { en: /congratulations, you have/gi, fr: 'Félicitations, vous avez' },
+      { en: /congratulations, you/gi, fr: 'Félicitations, vous' },
+      { en: /congratulations! /gi, fr: 'Félicitations ! ' },
+      { en: /congratulations, /gi, fr: 'Félicitations, ' },
+      { en: /you have unlocked/gi, fr: 'Vous avez débloqué' },
+      { en: /you've unlocked/gi, fr: 'Vous avez débloqué' },
+      { en: /you unlocked/gi, fr: 'Vous avez débloqué' },
+      
+      // Content related
+      { en: /new content has been assigned to you/gi, fr: 'Un nouveau contenu vous a été assigné' },
+      { en: /new content has been assigned/gi, fr: 'Un nouveau contenu vous a été assigné' },
+      { en: /content has been assigned to you/gi, fr: 'Un contenu vous a été assigné' },
+      { en: /content has been assigned/gi, fr: 'Un contenu vous a été assigné' },
+      { en: /you have new content/gi, fr: 'Vous avez un nouveau contenu' },
+      { en: /new content available/gi, fr: 'Nouveau contenu disponible' },
+      
+      // Message related
+      { en: /you have a new message from/gi, fr: 'Vous avez un nouveau message de' },
+      { en: /you have a new message/gi, fr: 'Vous avez un nouveau message' },
+      { en: /new message from/gi, fr: 'Nouveau message de' },
+      
+      // Session related
+      { en: /your session is starting soon/gi, fr: 'Votre session commence bientôt' },
+      { en: /your session is starting/gi, fr: 'Votre session commence' },
+      { en: /you have a session/gi, fr: 'Vous avez une session' },
+      { en: /session reminder/gi, fr: 'Rappel de session' },
+      
+      // Payment related
+      { en: /your payment was successful/gi, fr: 'Votre paiement a réussi' },
+      { en: /payment received successfully/gi, fr: 'Paiement reçu avec succès' },
+      { en: /payment received/gi, fr: 'Paiement reçu' },
+      { en: /subscription has been updated/gi, fr: 'L\'abonnement a été mis à jour' },
+      { en: /subscription updated/gi, fr: 'Abonnement mis à jour' },
+      { en: /subscription expired/gi, fr: 'Abonnement expiré' },
+      
+      // Goal related
+      { en: /you have reached your goal/gi, fr: 'Vous avez atteint votre objectif' },
+      { en: /you've reached your goal/gi, fr: 'Vous avez atteint votre objectif' },
+      { en: /you have reached/gi, fr: 'Vous avez atteint' },
+      { en: /you've reached/gi, fr: 'Vous avez atteint' },
+      { en: /goal reached/gi, fr: 'Objectif atteint' },
+      
+      // Achievement related
+      { en: /you have earned/gi, fr: 'Vous avez gagné' },
+      { en: /you've earned/gi, fr: 'Vous avez gagné' },
+      { en: /achievement unlocked/gi, fr: 'Succès débloqué' },
+      
+      // General phrases
+      { en: /click here to/gi, fr: 'Cliquez ici pour' },
+      { en: /tap to/gi, fr: 'Appuyez pour' },
+      { en: /view more/gi, fr: 'Voir plus' },
+      { en: /see details/gi, fr: 'Voir les détails' },
+    ];
+    
+    // Apply pattern replacements
+    patterns.forEach(({ en, fr }) => {
+      translated = translated.replace(en, fr);
+    });
+    
+    return translated;
+  };
+
   const togglePreference = (type) => {
     setPreferences(prev => ({
       ...prev,
@@ -388,14 +526,55 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
     </Modal>
   );
 
+  /**
+   * Handle notification press - navigate to corresponding page
+   */
+  const handleNotificationPress = (notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      handleMarkAsRead(notification.id);
+    }
+
+    // Navigate based on notification type
+    if (!onTabPress) return;
+
+    switch (notification.type) {
+      case 'content_assigned':
+      case 'session':
+        // Navigate to Agenda
+        onTabPress('agenda');
+        break;
+      case 'chat_message':
+        // Navigate to Chat
+        onTabPress('chat');
+        break;
+      case 'payment':
+        // Navigate to Subscription
+        onTabPress('subscription');
+        break;
+      case 'system':
+        // Stay on notifications or navigate to settings
+        // For now, stay on notifications
+        break;
+      default:
+        // Unknown type, do nothing
+        break;
+    }
+  };
+
   const renderNotification = (notification) => {
     const icon = getNotificationIcon(notification.type);
     
     return (
-      <View key={notification.id} style={[
-        styles.notificationItem,
-        !notification.read && styles.unreadNotification
-      ]}>
+      <TouchableOpacity
+        key={notification.id}
+        style={[
+          styles.notificationItem,
+          !notification.read && styles.unreadNotification
+        ]}
+        onPress={() => handleNotificationPress(notification)}
+        activeOpacity={0.7}
+      >
         <View style={styles.notificationIcon}>
           <Ionicons 
             name={icon.name} 
@@ -410,7 +589,7 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
               styles.notificationTitle,
               !notification.read && styles.unreadTitle
             ]}>
-              {notification.title}
+              {translateNotificationTitle(notification.title)}
             </Text>
             <View style={styles.notificationBadges}>
               <View style={[
@@ -438,7 +617,7 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
           </View>
 
           <Text style={styles.notificationDescription}>
-            {notification.message || notification.description}
+            {translateNotificationMessage(notification.message || notification.description)}
           </Text>
 
           <View style={styles.notificationFooter}>
@@ -449,21 +628,27 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
               {!notification.read && (
                 <TouchableOpacity 
                   style={styles.actionButton}
-                  onPress={() => handleMarkAsRead(notification.id)}
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    handleMarkAsRead(notification.id);
+                  }}
                 >
                   <Text style={styles.actionText}>Marquer comme lu</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity 
                 style={[styles.actionButton, styles.deleteButton]}
-                onPress={() => handleDelete(notification.id)}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  handleDelete(notification.id);
+                }}
               >
                 <Text style={[styles.actionText, styles.deleteText]}>Supprimer</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -510,14 +695,6 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
             
             <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllAsRead}>
               <Text style={styles.markAllText}>Tout marquer comme lu</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.testButton} onPress={testNotification}>
-              <Text style={styles.testButtonText}>Test Notification</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.debugButton} onPress={checkNotificationStatus}>
-              <Text style={styles.debugButtonText}>Debug Status</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -589,6 +766,14 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
                     ? 'Vous n\'avez aucune notification non lue'
                     : selectedTab === 'all'
                     ? 'Vous n\'avez aucune notification'
+                    : selectedTab === 'messages'
+                    ? 'Aucune notification de type Messages'
+                    : selectedTab === 'content'
+                    ? 'Aucune notification de type Contenu'
+                    : selectedTab === 'payments'
+                    ? 'Aucune notification de type Paiements'
+                    : selectedTab === 'system'
+                    ? 'Aucune notification de type Système'
                     : `Aucune notification de type ${selectedTab}`
                   }
                 </Text>
@@ -685,28 +870,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   markAllText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  testButton: {
-    backgroundColor: '#FF9800',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  testButtonText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  debugButton: {
-    backgroundColor: '#9C27B0',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  debugButtonText: {
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '600',
@@ -862,11 +1025,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   navTab: {
     flex: 1,

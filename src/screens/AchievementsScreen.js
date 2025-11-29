@@ -31,6 +31,8 @@ import BadgeApi from '../services/badgeApi';
 import chatSocketService from '../services/chatSocketService';
 import BadgeUnlockModal from '../components/BadgeUnlockModal';
 import FloatingPointsAnimation from '../components/FloatingPointsAnimation';
+import AchievementsCard from '../components/dashboard/AchievementsCard';
+import DashboardService from '../services/dashboardService';
 
 // Haptics is optional - check if available
 let Haptics = null;
@@ -94,6 +96,7 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
   const [showFloatingPoints, setShowFloatingPoints] = useState(false);
   const [floatingPointsData, setFloatingPointsData] = useState(null);
   const [socketSubscriptions, setSocketSubscriptions] = useState([]);
+  const [achievementsData, setAchievementsData] = useState(null);
 
   useEffect(() => {
     console.log('🚀 Achievements: useEffect triggered');
@@ -104,6 +107,7 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
     fetchChallengesData();
     fetchBadgesData();
     fetchBadges(); // Fetch new mobile badges
+    fetchAchievementsData(); // Fetch achievements data for AchievementsCard
     console.log('🎯 Achievements: About to call fetchChallenges');
     fetchChallenges();
     console.log('🎯 Achievements: fetchChallenges called');
@@ -295,6 +299,30 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
         status: error.response?.status
       });
       setChallengesData(null);
+    }
+  };
+
+  const fetchAchievementsData = async () => {
+    try {
+      console.log('🏆 Achievements: Fetching achievements data for card...');
+      const data = await DashboardService.getAchievementsSummary();
+      console.log('✅ Achievements: Achievements data fetched successfully:', data);
+      console.log('📊 Achievements: Data structure check:', {
+        totalPoints: data?.totalPoints,
+        currentBadge: data?.currentBadge,
+        pointsNeededForNext: data?.pointsNeededForNext,
+        nextBadgeName: data?.nextBadgeName,
+        unlockedBadges: data?.unlockedBadges,
+        totalBadges: data?.totalBadges,
+      });
+      setAchievementsData(data);
+    } catch (error) {
+      console.error('❌ Achievements: Error fetching achievements data:', error);
+      console.error('❌ Achievements: Error details:', {
+        message: error.message,
+        stack: error.stack,
+      });
+      setAchievementsData(null);
     }
   };
 
@@ -1695,56 +1723,62 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
           )}
         </View>
 
-                {/* Challenges and Badges Summary Card */}
-        <View style={styles.card}>
-          {summaryLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Chargement des données...</Text>
+                {/* Vos progrès Card */}
+        {badgesSummary && (
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryHeader}>
+              <Ionicons name="trophy" size={24} color="#FFD700" />
+              <Text style={styles.summaryTitle}>Vos progrès</Text>
             </View>
-          ) : (
-            <View style={styles.summaryContainer}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Défis complétés</Text>
-                <Text style={styles.summaryValue}>{completedChallenges}/{totalChallenges}</Text>
+            
+            <View style={styles.summaryStats}>
+              <View style={styles.summaryStat}>
+                <Text style={styles.summaryStatValue}>{badgesSummary.unlockedBadges || 0}</Text>
+                <Text style={styles.summaryStatLabel}>Badges débloqués</Text>
               </View>
+              
               <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Badges collectés</Text>
-                <Text style={styles.summaryValue}>{unlockedBadges}/{totalBadges}</Text>
+              
+              <View style={styles.summaryStat}>
+                <Text style={styles.summaryStatValue}>{formatPoints(badgesSummary.totalPointsEarned || 0)}</Text>
+                <Text style={styles.summaryStatLabel}>Points totaux</Text>
               </View>
-            </View>
-          )}
-        </View>
-
-        {/* User's Badge and Points Card */}
-        <View style={styles.card}>
-          <View style={styles.badgePointsContainer}>
-            <View style={styles.pointsDisplay}>
-              <Text style={styles.pointsDisplayText}>{formatPoints(userPoints || 0)}pts</Text>
-            </View>
-            
-            <View style={styles.badgeInfo}>
-              <View style={styles.badgeIconContainer}>
-                <Ionicons name="star" size={24} color="#3B82F6" />
-              </View>
-              <View style={styles.badgeTextContainer}>
-                <Text style={styles.badgeLabel}>Mon badge actuel :</Text>
-                <Text style={styles.badgeName}>AUCUN</Text>
+              
+              <View style={styles.summaryDivider} />
+              
+              <View style={styles.summaryStat}>
+                <Text style={styles.summaryStatValue}>{badgesSummary.overallProgressPercentage || 0}%</Text>
+                <Text style={styles.summaryStatLabel}>Progression</Text>
               </View>
             </View>
             
-            <View style={styles.medalInfo}>
-              <Ionicons name="medal" size={20} color="#FFD700" />
-              <Text style={styles.medalText}>
-                Vous avez <Text style={styles.medalPoints}>{formatPoints(userPoints || 0)} Points</Text>
-              </Text>
+            {/* Overall Progress Bar */}
+            <View style={styles.overallProgressContainer}>
+              <View style={styles.progressBarBackground}>
+                <View 
+                  style={[
+                    styles.progressBarFill, 
+                    { 
+                      width: `${badgesSummary.overallProgressPercentage || 0}%`,
+                      backgroundColor: theme.colors.primary,
+                    }
+                  ]} 
+                />
+              </View>
             </View>
-            
-            <Text style={styles.nextLevelText}>
-              Plus que <Text style={styles.nextLevelPoints}>0pts</Text> pour le niveau 1 du badge <Text style={styles.nextLevelBadge}>Suivant</Text>
-            </Text>
           </View>
-        </View>
+        )}
+
+        {/* Mon badge actuel Card - Using AchievementsCard component */}
+        <AchievementsCard
+          badgesData={achievementsData}
+          onPress={() => {
+            // Card is already on AchievementsScreen, no navigation needed
+            // Or could scroll to badges section
+          }}
+          subscriptionData={subscriptionData}
+          onSubscriptionRenew={onSubscriptionRenew}
+        />
 
         {/* Challenges Section */}
         <View style={styles.challengesSection}>
@@ -1906,11 +1940,6 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
 
   // Leaderboard Card
@@ -1970,17 +1999,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pointsContainer: {
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 2,
     borderColor: '#4CAF50',
   },
   pointsText: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#FFFFFF',
   },
 
   // User Ranking Card
@@ -2039,6 +2068,57 @@ const styles = StyleSheet.create({
     width: 1,
     height: 40,
     backgroundColor: '#E0E0E0',
+  },
+  // Vos progrès Card Styles
+  summaryCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginVertical: 16,
+    borderRadius: 16,
+    padding: 20,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginLeft: 8,
+  },
+  summaryStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  summaryStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryStatValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 4,
+  },
+  summaryStatLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
+  },
+  overallProgressContainer: {
+    marginTop: 8,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
   },
 
   // Badge and Points Card
@@ -2122,11 +2202,6 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   challengesTitle: {
     fontSize: 24,
@@ -2219,11 +2294,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
@@ -2590,11 +2660,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   navTab: {
     flex: 1,
@@ -2613,11 +2678,6 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   // Featured Badge Styles
   featuredBadgeContainer: {
@@ -2627,11 +2687,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     marginTop: 20,
     flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },

@@ -90,18 +90,6 @@ const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
       color: '#4CAF50'
     },
     {
-      id: 'training',
-      title: 'Entraînements & Activité physique',
-      icon: 'pulse-outline',
-      color: '#4CAF50'
-    },
-    {
-      id: 'integrations',
-      title: 'Intégrations / Appareils connectés',
-      icon: 'link-outline',
-      color: '#4CAF50'
-    },
-    {
       id: 'language',
       title: 'Langue & Région',
       icon: 'language-outline',
@@ -136,6 +124,12 @@ const SettingsScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
     if (itemId === 'profile' && onClose) {
       // Pass profile navigation request up to parent
       onClose(itemId);
+    } else if (itemId === 'subscription' && onClose) {
+      // Navigate to subscription screen
+      onClose('subscription');
+    } else if (itemId === 'security' && onClose) {
+      // Navigate to security screen
+      onClose('security');
     }
   };
 
@@ -372,11 +366,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
   },
   navTab: {
     flex: 1,

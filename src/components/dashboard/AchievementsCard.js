@@ -21,10 +21,17 @@ const AchievementsCard = ({
   const currentBadge = badgesData?.currentBadge || null;
   const currentBadgeDescription = badgesData?.currentBadgeDescription || null;
   const currentBadgeLevel = badgesData?.currentBadgeLevel || 1;
-  const pointsNeededForNext = badgesData?.pointsNeededForNext || 0;
+  const pointsNeededForNext = badgesData?.pointsNeededForNext || 0; // Remaining points to finish
+  const maxPointsForCurrentBadge = badgesData?.maxPointsForCurrentBadge || null; // Total points needed
+  const nextBadgeName = badgesData?.nextBadgeName || null;
   const unlockedBadges = badgesData?.unlockedBadges || 0;
   const totalBadges = badgesData?.totalBadges || 10;
   const progressPercentage = badgesData?.progressPercentage || 0;
+  
+  // Calculate points earned for current badge (if maxPoints is available)
+  const pointsEarnedForCurrentBadge = maxPointsForCurrentBadge !== null 
+    ? Math.max(0, maxPointsForCurrentBadge - pointsNeededForNext)
+    : null;
   
   // Badge status logic as per specification
   const isCompleted = currentBadgeLevel > 0;
@@ -74,32 +81,36 @@ const AchievementsCard = ({
 
   // Debug logging to show expected data structure (BadgeProgressWidget)
   React.useEffect(() => {
-    console.log('🏆 AchievementsCard - BadgeProgressWidget Expected Structure:');
-    console.log('📊 Current badgesData:', badgesData);
-    console.log('📊 Expected API Response Structure:', {
-      'badgeProgress.currentBadge.name': 'string (e.g., "BOTOSI", "ELENGI", "MPIKO", etc.)',
-      'badgeProgress.currentBadge.description': 'string (badge description)',
-      'badgeProgress.currentBadge.level': 'number (e.g., 1, 2, 3)',
-      'badgeProgress.nextBadge.pointsNeeded': 'number (e.g., 0, 50, 100)',
-      'badgeProgress.unlockedBadges': 'number (e.g., 0, 1, 2)',
-      'badgeProgress.totalBadges': 'number (e.g., 10)',
-      'tasccProgress.totalPoints': 'number (e.g., 11277)'
+    console.log('🔍 AchievementsCard: ========== RECEIVED DATA ==========');
+    console.log('📦 Complete badgesData prop:', JSON.stringify(badgesData, null, 2));
+    console.log('📊 Extracted values:', {
+      userPoints: badgesData?.totalPoints,
+      currentBadge: badgesData?.currentBadge,
+      currentBadgeDescription: badgesData?.currentBadgeDescription,
+      currentBadgeLevel: badgesData?.currentBadgeLevel,
+      pointsNeededForNext: badgesData?.pointsNeededForNext,
+      maxPointsForCurrentBadge: badgesData?.maxPointsForCurrentBadge,
+      nextBadgeName: badgesData?.nextBadgeName,
+      unlockedBadges: badgesData?.unlockedBadges,
+      totalBadges: badgesData?.totalBadges,
+      progressPercentage: badgesData?.progressPercentage,
+      isCurrent: badgesData?.isCurrent,
     });
-    console.log('📊 Available badge names:', [
-      'BOTOSI', 'ELENGI', 'ENERGIE', 'MAKASI', 'MOLENDE', 
-      'MOPAO', 'MOTO', 'MPIKO', 'NZURI', 'SAFI', 'SAWA'
-    ]);
-    console.log('📊 Current values:', {
+    console.log('📊 Computed values:', {
       userPoints,
       currentBadge,
       currentBadgeDescription,
       currentBadgeLevel,
       pointsNeededForNext,
+      maxPointsForCurrentBadge,
+      pointsEarnedForCurrentBadge,
+      nextBadgeName,
       unlockedBadges,
       totalBadges,
-      badgeProgressPercentage,
-      globalProgressPercentage
+      progressPercentage,
+      globalProgressPercentage,
     });
+    console.log('🔍 AchievementsCard: ===================================');
   }, [badgesData]);
 
   const handlePress = () => {
@@ -123,7 +134,7 @@ const AchievementsCard = ({
       onPress={handlePress}
       activeOpacity={0.7}
     >
-      {/* Points Display - Top Left */}
+      {/* Points Display - Top Right (Absolute Positioned) */}
       <View style={styles.pointsContainer}>
         <View style={styles.pointsBadge}>
           <Text style={styles.pointsText}>{formatPoints(userPoints)}pts</Text>
@@ -169,7 +180,17 @@ const AchievementsCard = ({
       {/* Progress to Next Badge Level */}
       <View style={styles.nextLevelContainer}>
         <Text style={styles.nextLevelText}>
-          Plus que <Text style={styles.nextLevelPoints}>{formatPoints(pointsNeededForNext)}pts</Text> pour le niveau du badge <Text style={styles.nextLevelBadge}>{currentBadge ? currentBadge.toUpperCase() : 'SUIVANT'}</Text>
+          {maxPointsForCurrentBadge !== null && pointsEarnedForCurrentBadge !== null ? (
+            // Show "X of Y points" format when maxPoints is available
+            <>
+              <Text style={styles.nextLevelPoints}>{formatPoints(pointsEarnedForCurrentBadge)}</Text> / <Text style={styles.nextLevelPoints}>{formatPoints(maxPointsForCurrentBadge)}</Text> points pour completer le badge <Text style={styles.nextLevelBadge}>{currentBadge ? currentBadge.toUpperCase() : 'SUIVANT'}</Text>
+            </>
+          ) : (
+            // Fallback to "Plus que X points" format
+            <>
+              Plus que <Text style={styles.nextLevelPoints}>{formatPoints(pointsNeededForNext)}pts</Text> pour completer le badge <Text style={styles.nextLevelBadge}>{currentBadge ? currentBadge.toUpperCase() : 'SUIVANT'}</Text>
+            </>
+          )}
         </Text>
       </View>
 
@@ -210,9 +231,13 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    position: 'relative',
   },
   pointsContainer: {
-    marginBottom: 16,
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 1,
   },
   pointsBadge: {
     backgroundColor: '#E8F5E9',
@@ -221,7 +246,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#4CAF50',
-    alignSelf: 'flex-start',
   },
   pointsText: {
     fontSize: 14,
@@ -234,17 +258,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   badgeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   badgeImage: {
-    width: 32,
-    height: 32,
+    width: 56,
+    height: 56,
   },
   badgeTextContainer: {
     flex: 1,

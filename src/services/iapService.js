@@ -344,8 +344,8 @@ class IAPService {
    * @returns {string} Store product ID
    */
   getStoreProductId(plan) {
-    // Format: com.afrotouch.lasocoach.{plan_name}_{duration}
-    // Example: com.afrotouch.lasocoach.premium_monthly
+  // Format: com.laso.coach.{plan_name}_{duration}
+  // Example: com.laso.coach.premium_monthly
     
     const planName = plan.name.toLowerCase().replace(/\s+/g, '_');
     let duration = 'monthly';
@@ -360,10 +360,10 @@ class IAPService {
     
     // Free trial uses special ID
     if (plan.isFree) {
-      return `com.afrotouch.lasocoach.trial_${plan.duration}days`;
+      return `com.laso.coach.trial_${plan.duration}days`;
     }
-    
-    return `com.afrotouch.lasocoach.${planName}_${duration}`;
+
+    return `com.laso.coach.${planName}_${duration}`;
   }
 
   /**

@@ -44,7 +44,6 @@ import nutritionAPI from '../services/nutritionApi';
 import ProgressScreen from './ProgressScreen';
 import NutritionScreen from './NutritionScreen';
 import AchievementsScreen from './AchievementsScreen';
-import DefisScreen from './DefisScreen';
 import ChatScreen from './ChatScreen';
 import CommunityScreen from './CommunityScreen';
 import AgendaScreen from './AgendaScreen';
@@ -53,6 +52,8 @@ import MoreMenu from '../components/MoreMenu';
 import SettingsScreen from './SettingsScreen';
 import ProfileScreen from './ProfileScreen';
 import FAQScreen from './FAQScreen';
+import SubscriptionScreen from './SubscriptionScreen';
+import SecurityScreen from './SecurityScreen';
 
 // Stub function for page navigation logging (analytics)
 const logPageNavigation = (pageName, breadcrumbs = []) => {
@@ -475,7 +476,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         // Keep the current activeTab when navigating to modal screens
         // Don't reset to 'home' to maintain the current tab context
       } else {
-        // This is a bottom navigation tab (home, progress, nutrition, achievements, defis)
+        // This is a bottom navigation tab (home, progress, nutrition, achievements, more)
         
         // Handle home tab specific functionality BEFORE setting active tab
         if (tabId === 'home') {
@@ -584,6 +585,10 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     } else if (navigationTarget === 'confirmation') {
       setCurrentScreen('profile');
       setInitialProfileStep(6); // Start at step 6 - Summary/Confirmation
+    } else if (navigationTarget === 'subscription') {
+      setCurrentScreen('subscription');
+    } else if (navigationTarget === 'security') {
+      setCurrentScreen('security');
     } else {
       setCurrentScreen('home');
     }
@@ -906,6 +911,46 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
+  // If subscription screen is active, show SubscriptionScreen
+  if (currentScreen === 'subscription') {
+    return (
+      <>
+        <SubscriptionScreen 
+          navigation={navigation}
+          onClose={() => setCurrentScreen('settings')}
+          user={user}
+          onTabPress={handleTabPress}
+          isStandalone={true}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  // If security screen is active, show SecurityScreen
+  if (currentScreen === 'security') {
+    return (
+      <>
+        <SecurityScreen 
+          navigation={navigation}
+          onClose={() => setCurrentScreen('settings')}
+          user={user}
+          onTabPress={handleTabPress}
+          activeTab={activeTab}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
   // If progress tab is active, show ProgressScreen
   if (activeTab === 'progress') {
     return (
@@ -968,25 +1013,6 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
-  // If defis tab is active, show DefisScreen
-  if (activeTab === 'defis') {
-    return (
-      <>
-        <DefisScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
-          activeTab={activeTab}
-          onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
-        />
-        <MoreMenu 
-          visible={showMoreMenu}
-          onClose={handleMoreMenuClose}
-          onMenuItemPress={handleMoreMenuItemPress}
-        />
-      </>
-    );
-  }
 
   // If profile screen is active, show ProfileScreen
   if (currentScreen === 'profile') {
@@ -1106,6 +1132,8 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
                 handleMealPress(meal);
               }
             }}
+            subscriptionData={subscriptionData}
+            onSubscriptionPress={handleSubscriptionRenew}
           />
         </BlurredCard>
 

@@ -1,4 +1,4 @@
-package com.afrotouch.lasocoach
+package com.laso.coach
 
 import android.app.Application
 import android.content.res.Configuration

@@ -33,5 +33,11 @@ allprojects {
   }
 }
 
+// Set minSdkVersion in ext before plugins apply
+// This ensures all modules see minSdkVersion 24 (required by Hermes tooling)
+ext {
+    minSdkVersion = 24
+}
+
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"

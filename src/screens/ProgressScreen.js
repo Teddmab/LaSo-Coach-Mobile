@@ -32,6 +32,7 @@ import { ProfileApi } from '../services/profileApi';
 import api from '../services/api';
 import { API_CONFIG } from '../config/apiConfig';
 import ProgressPhotosApi from '../services/progressPhotosApi';
+import DashboardService from '../services/dashboardService';
 
 const { width } = Dimensions.get('window');
 
@@ -46,6 +47,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [achievementsData, setAchievementsData] = useState(null);
 
   // Modal states
   const [showMeasurementModal, setShowMeasurementModal] = useState(false);
@@ -87,7 +89,20 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   useEffect(() => {
     fetchAllData();
     checkSubscriptionStatus();
+    fetchAchievementsData();
   }, []);
+
+  const fetchAchievementsData = async () => {
+    try {
+      console.log('[ProgressScreen] 🏆 Fetching achievements data for card...');
+      const data = await DashboardService.getAchievementsSummary();
+      console.log('[ProgressScreen] ✅ Achievements data fetched successfully:', data);
+      setAchievementsData(data);
+    } catch (error) {
+      console.error('[ProgressScreen] ❌ Error fetching achievements data:', error);
+      setAchievementsData(null);
+    }
+  };
 
   // Add pull-to-refresh functionality
   const handleRefresh = async () => {
@@ -847,7 +862,17 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
             />
 
             {/* Achievement Card */}
-            <AchievementsCard />
+            <AchievementsCard
+              badgesData={achievementsData}
+              onPress={() => {
+                // Navigate to achievements tab
+                if (onTabPress) {
+                  onTabPress('achievements');
+                }
+              }}
+              subscriptionData={subscriptionData}
+              onSubscriptionRenew={onSubscriptionRenew}
+            />
           </>
         ) : (
           /* Photos Tab */
