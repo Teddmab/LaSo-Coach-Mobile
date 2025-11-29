@@ -71,7 +71,7 @@
     "owner": "ohriginal-llc",
     "plugins": [
       "expo-web-browser",
-      "./plugins/with-product-flavors.js"
+      "./plugins/withReactNativeIAP.js"
     ]
   }
 }

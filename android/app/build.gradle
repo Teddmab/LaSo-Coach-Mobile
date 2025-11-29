@@ -87,24 +87,17 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.laso.coach'
+    namespace 'com.afrotouch.lasocoach'
     defaultConfig {
-        applicationId 'com.laso.coach'
-        // Explicitly set minSdkVersion to 24 to match Hermes tooling requirements
-        // app.json specifies minSdkVersion: 24
-        minSdkVersion 24
+        applicationId 'com.afrotouch.lasocoach'
+        minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 1
+        versionName "1.0.0"
+        
+        // FIX: react-native-iap variant ambiguity (Amazon vs Play Store)
+        // Force Play Store variant instead of Amazon
         missingDimensionStrategy 'store', 'play'
-    }
-
-    flavorDimensions "store"
-
-    productFlavors {
-        play {
-            dimension "store"
-        }
     }
     signingConfigs {
         debug {
