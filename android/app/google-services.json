@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "855620848279-ce0c4jtc1fl7rcmsfeop78a5iseebaml.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "4e7b0076a49a2619c8934e329633110c395168a7"
+          }
+        },
+        {
           "client_id": "855620848279-g6ldvl74r00efnlulbmis10pqgacvo80.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
@@ -30,11 +38,27 @@
           }
         },
         {
+          "client_id": "855620848279-hfvoc7q7p0fdjh7dbmpavgfc06v4dj5v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "5f3ff61733833b29cd59049a5236438a3b1c4a5b"
+          }
+        },
+        {
           "client_id": "855620848279-r02as9i9t4i56vsi6tea9otuf3o22lie.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.afrotouch.lasocoach",
             "certificate_hash": "84d5ed56479a0577e56dbbb4bd783c741107abff"
+          }
+        },
+        {
+          "client_id": "855620848279-vo39391cbs0oec6rgpemim2ultukd7ne.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "3b1c4a5bd271ec1ed2bd487df4e0829e07761f42"
           }
         },
         {
@@ -68,4 +92,3 @@
   ],
   "configuration_version": "1"
 }
-
