@@ -89,6 +89,7 @@
     },
     "owner": "moses_jo",
     "plugins": [
+      "expo-dev-client",
       "expo-web-browser",
       "./plugins/withReactNativeIAP.js"
     ]
