@@ -443,6 +443,71 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
     );
   }
 
+  // Safety check: if nutritionData is null or doesn't have a plan, show locked menu
+  if (!nutritionData || !nutritionData.plan || !nutritionData.plan.menus || nutritionData.plan.menus.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
+          <Text style={styles.title}>Menu du jour</Text>
+        </View>
+        
+        <View style={styles.lockedContainer}>
+          <View style={styles.plateIconContainer}>
+            <View style={styles.plateIcon}>
+              <Ionicons name="restaurant" size={40} color="#9C27B0" />
+              <View style={styles.forkIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+              <View style={styles.knifeIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+            </View>
+          </View>
+          
+          <Text style={styles.lockedTitle}>Menus verrouillés</Text>
+          <Text style={styles.lockedDescription}>
+            Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.subscriptionButton}
+            onPress={() => {
+              if (onSubscriptionPress) {
+                onSubscriptionPress();
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#BA68C8', '#9C27B0']}
+              style={styles.subscriptionButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.subscriptionButtonText}>Voir les plans d'abonnement</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.freeTrialLink}
+            onPress={() => {
+              if (onSubscriptionPress) {
+                onSubscriptionPress();
+              }
+            }}
+          >
+            <Text style={styles.freeTrialText}>Commencer avec l'essai gratuit</Text>
+          </TouchableOpacity>
+          
+          <Text style={styles.freeTrialDescription}>
+            Commencez gratuitement avec notre essai gratuit !
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   // Get the menu for the selected day (1-based index)
   const currentMenu = nutritionData.plan.menus.find(menu => menu.day === selectedDay) || nutritionData.plan.menus[0];
   const { completionStatus } = nutritionData;

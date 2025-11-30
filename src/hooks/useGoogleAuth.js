@@ -141,6 +141,8 @@ export const useGoogleAuth = (isRegistration = false) => {
 
     } catch (error) {
       console.error('❌ Erreur Google Sign-In:', error);
+      console.error('❌ Code erreur:', error.code);
+      console.error('❌ Message erreur:', error.message);
 
       // Gestion des erreurs spécifiques du SDK Google Sign-In
       let userMessage = 'Impossible de se connecter avec Google.';
@@ -151,6 +153,15 @@ export const useGoogleAuth = (isRegistration = false) => {
         userMessage = 'Une connexion est déjà en cours.';
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         userMessage = 'Google Play Services n\'est pas disponible. Mettez à jour Google Play Services.';
+      } else if (
+        error.code === 10 || 
+        error.message?.includes('DEVELOPER_ERROR') || 
+        error.message?.includes('Developer_error') ||
+        error.message?.includes('developer_error')
+      ) {
+        // Erreur DEVELOPER_ERROR (code 10) - Problème de configuration SHA-1/SHA-256
+        console.error('❌ DEVELOPER_ERROR détecté - Problème de configuration SHA dans Firebase');
+        userMessage = 'Erreur de configuration. Les empreintes SHA-1/SHA-256 doivent être ajoutées dans Firebase Console. Consultez FIREBASE_SHA_CONFIG.md pour les instructions.';
       } else if (error.message?.includes('network') || error.message?.includes('Network')) {
         userMessage = 'Erreur de connexion. Vérifiez votre connexion internet et réessayez.';
       } else if (error.message?.includes('timeout')) {

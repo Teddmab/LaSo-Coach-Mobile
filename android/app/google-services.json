@@ -1,0 +1,71 @@
+{
+  "project_info": {
+    "project_number": "855620848279",
+    "project_id": "lasocoach-39710",
+    "storage_bucket": "lasocoach-39710.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:855620848279:android:921c7a56774752f4aef7d2",
+        "android_client_info": {
+          "package_name": "com.afrotouch.lasocoach"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "855620848279-c0hknlt9062vgr9966n7304j3qmh7njh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "94fe509277711aa1c92714bdacb5598e33c52143"
+          }
+        },
+        {
+          "client_id": "855620848279-g6ldvl74r00efnlulbmis10pqgacvo80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "855620848279-r02as9i9t4i56vsi6tea9otuf3o22lie.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "84d5ed56479a0577e56dbbb4bd783c741107abff"
+          }
+        },
+        {
+          "client_id": "855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBt5VquI3ljsOFcHJQj3MZp5H7U9o0GV1g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "855620848279-vsqoisa0hfcgb997ni1oubk7fnuk1nms.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.laso.coach"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+
