@@ -2,11 +2,11 @@
   "expo": {
     "name": "LasoCoach",
     "slug": "laso-coach",
-    "version": "1.0.2",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "scheme": [
       "lasocoach",
       "com.laso.coach"
@@ -18,7 +18,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.laso.coach",
+      "bundleIdentifier": "com.afrotouch.lasocoach",
       "icon": "./assets/icon.png",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
@@ -30,10 +30,8 @@
         "backgroundColor": "#8BC34A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.laso.coach",
+      "package": "com.afrotouch.lasocoach",
       "icon": "./assets/icon.png",
-      "minSdkVersion": 24,
-      "versionCode": 3,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -64,11 +62,32 @@
       "androidCollapsedTitle": "#{unread_notifications} new notifications"
     },
     "extra": {
+      "env": {
+        "nodeEnv": "development",
+        "apiBaseUrl": "https://laso-coach-backend.onrender.com/api/v1",
+        "apiBaseUrlDev": "http://localhost:3000/api/v1",
+        "apiTimeout": "30000",
+        "debugMode": "true",
+        "offlineMode": "false",
+        "forceProdApi": true
+      },
+      "firebase": {
+        "apiKey": "AIzaSyDubBwQF27OUZyOMhzmNpIizw2D4dHxzO0",
+        "authDomain": "lasocoach-39710.firebaseapp.com",
+        "projectId": "lasocoach-39710",
+        "storageBucket": "lasocoach-39710.appspot.com",
+        "messagingSenderId": "855620848279",
+        "appId": "1:855620848279:web:f93cbbf9c0d8f42faef7d2",
+        "measurementId": "G-8JK6R4BGYG",
+        "iosClientId": "855620848279-vsqoisa0hfcgb997ni1oubk7fnuk1nms.apps.googleusercontent.com",
+        "androidClientId": "855620848279-urs0dvsvoa45k74uhedk0odosfsfuh28.apps.googleusercontent.com",
+        "webClientId": "855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com"
+      },
       "eas": {
-        "projectId": "f509eb43-52af-44a9-b7f0-e8a7179a0aa3"
+        "projectId": "202e9298-94fd-42da-ac28-574924c2418b"
       }
     },
-    "owner": "ohriginal-llc",
+    "owner": "moses_jo",
     "plugins": [
       "expo-web-browser",
       "./plugins/withReactNativeIAP.js"

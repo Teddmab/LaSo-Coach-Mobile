@@ -12,25 +12,57 @@ import {
   WS_BASE_URL_DEV,
 } from '@env';
 
+// ✅ DEBUG: Vérifier chargement variables .env
+console.log('🔍 [DEBUG ENV] Variables chargées depuis @env:', {
+  API_BASE_URL: API_BASE_URL || '❌ UNDEFINED',
+  API_BASE_URL_DEV: API_BASE_URL_DEV || '❌ UNDEFINED',
+  API_TIMEOUT: API_TIMEOUT || '❌ UNDEFINED',
+});
+
 const extraEnv = Constants.expoConfig?.extra?.env ?? {};
+
+// ✅ DEBUG: Vérifier app.json config
+console.log('🔍 [DEBUG ENV] Variables depuis app.json:', {
+  apiBaseUrl: extraEnv.apiBaseUrl || '❌ UNDEFINED',
+  apiBaseUrlDev: extraEnv.apiBaseUrlDev || '❌ UNDEFINED',
+});
 
 // Determine the appropriate API URL based on environment
 const getApiBaseUrl = () => {
   // Check if we're in development mode
   const isDev = __DEV__;
   
+  // ✅ FIX: Forcer production URL si FORCE_PROD_API=true ou si devUrl n'est pas accessible
+  const forceProd = String(extraEnv.forceProdApi) === 'true' || extraEnv.forceProdApi === true;
+  
   // Try to get dev URL from various sources (check app config first)
   const devUrl = extraEnv.apiBaseUrlDev || API_BASE_URL_DEV;
-  console.log('🔍 Dev URL sources:', { extraEnv: extraEnv.apiBaseUrlDev, envVar: API_BASE_URL_DEV });
+  console.log('🔍 Dev URL sources:', { extraEnv: extraEnv.apiBaseUrlDev, envVar: API_BASE_URL_DEV, forceProd });
   
-  // Use dev URL in development, production URL in builds
-  if (isDev && devUrl) {
+  // ✅ FIX: Utiliser production si forcé OU si on est en dev mais pas de backend local
+  // (localhost:3000 n'existe probablement pas si backend est sur Render)
+  if (forceProd || !isDev) {
+    const prodUrl = extraEnv.apiBaseUrl || API_BASE_URL || 'https://laso-coach-backend.onrender.com/api/v1';
+    console.log('🚀 Using production API:', prodUrl);
+    console.log('🔍 [DEBUG] Source URL:', {
+      fromAppJson: extraEnv.apiBaseUrl ? '✅ app.json' : '❌',
+      fromEnv: API_BASE_URL ? '✅ .env' : '❌',
+      fallback: (!extraEnv.apiBaseUrl && !API_BASE_URL) ? '✅ hardcoded' : '❌',
+      reason: forceProd ? 'forceProd=true' : 'production build',
+    });
+    return prodUrl;
+  }
+  
+  // Use dev URL in development (seulement si backend local existe)
+  if (isDev && devUrl && devUrl !== 'http://localhost:3000/api/v1') {
     console.log('🔧 Using development API:', devUrl);
     return devUrl;
   }
   
+  // Fallback: Production même en dev si pas de backend local
   const prodUrl = extraEnv.apiBaseUrl || API_BASE_URL || 'https://laso-coach-backend.onrender.com/api/v1';
-  console.log('🚀 Using production API:', prodUrl);
+  console.log('🚀 Using production API (fallback):', prodUrl);
+  console.log('⚠️ [DEBUG] Dev URL non disponible, utilisation production');
   return prodUrl;
 };
 
