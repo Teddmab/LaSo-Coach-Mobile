@@ -11,7 +11,8 @@ import {
   Modal,
   ActivityIndicator,
   Pressable,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -397,47 +398,136 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
       }
 
       // Launch image picker
+      // CRITICAL FIX: Disable allowsEditing completely to avoid URI access issues
+      // Without editing, ImagePicker may return more accessible URIs
+      // Users can crop the image manually if needed
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false, // Disabled to avoid content:// URI issues on Android
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        const imageUri = result.assets[0].uri;
+        const asset = result.assets[0];
+        const imageUri = asset.uri;
         setAvatarUploading(true);
         
-        const formData = new FormData();
-        formData.append('avatar', {
+        // CRITICAL FIX: Use URI directly as returned by ImagePicker
+        // Do NOT modify the URI - ImagePicker already returns the correct format
+        // Modifying it can cause FileNotFoundException on Android
+        console.log('📸 Image asset:', {
           uri: imageUri,
-          type: 'image/jpeg',
-          name: 'avatar.jpg'
+          type: asset.type,
+          fileName: asset.fileName,
+          width: asset.width,
+          height: asset.height,
+          fileSize: asset.fileSize
         });
         
+        // CRITICAL: On Android, content:// URIs need special handling
+        // The URI format from ImagePicker should work, but we log it for debugging
+        console.log('📸 Image URI details:', {
+          uri: imageUri,
+          uriType: imageUri.startsWith('content://') ? 'content://' : 
+                   imageUri.startsWith('file://') ? 'file://' : 'unknown',
+          type: asset.type || 'image/jpeg',
+          fileName: asset.fileName || asset.name || `avatar_${Date.now()}.jpg`,
+          fileSize: asset.fileSize,
+          width: asset.width,
+          height: asset.height
+        });
+        
+        // CRITICAL FIX: Copy content:// URI to accessible location on Android
+        // This ensures the file is accessible for upload (fixes "Network request failed")
+        const mimeType = asset.type || 'image/jpeg';
+        console.log('📁 Preparing file for upload...');
+        const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
+        
+        // Prepare file name with proper extension
+        const fileName = asset.fileName || asset.name || `avatar_${Date.now()}.jpg`;
+        const extension = mimeType.includes('png') ? 'png' : 
+                         mimeType.includes('gif') ? 'gif' : 
+                         'jpg';
+        const finalFileName = fileName.includes('.') 
+          ? fileName 
+          : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
+        
+        // Create FormData with accessible URI
+        const formData = new FormData();
+        formData.append('avatar', {
+          uri: accessibleUri, // Use accessible URI (file:// after copy on Android)
+          type: mimeType,
+          name: finalFileName
+        });
+        
+        console.log('📤 FormData prepared for upload:', {
+          originalUri: imageUri.substring(0, 50) + '...',
+          accessibleUri: accessibleUri.substring(0, 50) + '...',
+          uriType: accessibleUri.startsWith('file://') ? 'file://' : 'content://',
+          type: mimeType,
+          name: finalFileName
+        });
+        console.log('📤 Uploading avatar...');
         const response = await ProfileApi.uploadAvatar(formData);
         console.log('✅ Avatar uploaded successfully');
         
         // Update profile data with new avatar
-        if (response.avatarUrl) {
+        // Handle different response formats
+        const avatarUrl = response?.data?.avatarUrl || 
+                         response?.avatarUrl || 
+                         response?.data?.avatar ||
+                         response?.avatar;
+        
+        if (avatarUrl) {
           setProfileData(prev => ({
             ...prev,
-            avatar: response.avatarUrl
+            avatar: avatarUrl
           }));
+          
+          Toast.show({
+            type: 'success',
+            text1: 'Avatar mis à jour',
+            text2: 'Votre photo de profil a été mise à jour avec succès',
+          });
+        } else {
+          console.warn('⚠️ No avatar URL in response:', response);
+          Toast.show({
+            type: 'warning',
+            text1: 'Avatar téléchargé',
+            text2: 'L\'image a été téléchargée mais l\'URL n\'est pas disponible. Rafraîchissez la page.',
+          });
         }
-        
-        Toast.show({
-          type: 'success',
-          text1: 'Avatar mis à jour',
-          text2: 'Votre photo de profil a été mise à jour avec succès',
-        });
       }
     } catch (error) {
       console.error('❌ Error uploading avatar:', error);
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Impossible de télécharger votre avatar. Veuillez réessayer.';
+      
+      if (error.message && typeof error.message === 'string') {
+        // Use the error message if it's user-friendly (from our API)
+        if (error.message.includes('trop de temps') || 
+            error.message.includes('connexion') ||
+            error.message.includes('timeout')) {
+          errorMessage = error.message;
+        } else if (error.message.includes('Network Error') || 
+                   error.code === 'ERR_NETWORK') {
+          errorMessage = 'Erreur de connexion. Vérifiez votre connexion internet et réessayez.';
+        } else if (error.response?.status === 413) {
+          errorMessage = 'L\'image est trop volumineuse. Veuillez choisir une image plus petite.';
+        } else if (error.response?.status === 400) {
+          errorMessage = 'Format d\'image non supporté. Utilisez JPG ou PNG.';
+        } else if (error.response?.status === 401) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      }
+      
       Toast.show({
         type: 'error',
         text1: 'Erreur de téléchargement',
-        text2: 'Impossible de télécharger votre avatar. Veuillez réessayer.',
+        text2: errorMessage,
       });
     } finally {
       setAvatarUploading(false);
