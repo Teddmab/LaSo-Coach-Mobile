@@ -453,9 +453,11 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
           : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
         
         // Create FormData with accessible URI
+        // CRITICAL: Keep file:// prefix - axios needs it to access the file on React Native
+        // Removing it causes Network Error because axios can't find the file
         const formData = new FormData();
         formData.append('avatar', {
-          uri: accessibleUri, // Use accessible URI (file:// after copy on Android)
+          uri: accessibleUri, // Keep file:// prefix - axios needs it
           type: mimeType,
           name: finalFileName
         });
@@ -470,15 +472,48 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
         console.log('📤 Uploading avatar...');
         const response = await ProfileApi.uploadAvatar(formData);
         console.log('✅ Avatar uploaded successfully');
+        console.log('📥 Full response structure:', JSON.stringify(response, null, 2));
         
         // Update profile data with new avatar
-        // Handle different response formats
-        const avatarUrl = response?.data?.avatarUrl || 
-                         response?.avatarUrl || 
-                         response?.data?.avatar ||
-                         response?.avatar;
+        // Backend returns: { success: true, message: "Success", data: { message: "...", avatarUrl: "..." } }
+        // So we need to check response.data.data.avatarUrl first
+        let avatarUrl = response?.data?.data?.avatarUrl ||  // Format backend actuel (sendSuccess)
+                       response?.data?.avatarUrl ||          // Format alternatif
+                       response?.avatarUrl ||                // Format direct
+                       response?.data?.avatar ||             // Format alternatif
+                       response?.avatar;                     // Format direct
         
+        console.log('🔍 Extracted avatarUrl:', avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null');
+        
+        // CRITICAL: Verify that the URL is a valid S3 URL (not a local path)
         if (avatarUrl) {
+          // Check if URL is valid (must start with http:// or https://)
+          const isValidUrl = avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://');
+          
+          if (!isValidUrl) {
+            console.error('❌ Invalid avatar URL format (not a valid S3 URL):', avatarUrl);
+            console.error('❌ URL appears to be a local path. This indicates S3 upload may have failed.');
+            Toast.show({
+              type: 'error',
+              text1: 'Erreur d\'upload',
+              text2: 'L\'URL de l\'avatar n\'est pas valide. L\'upload vers S3 a peut-être échoué.',
+            });
+            return;
+          }
+          
+          // Additional check: Verify it's an S3 URL (contains s3.amazonaws.com or similar)
+          const isS3Url = avatarUrl.includes('s3.') || 
+                         avatarUrl.includes('amazonaws.com') ||
+                         avatarUrl.includes('s3-') ||
+                         avatarUrl.match(/https?:\/\/.*\.s3\.[\w\-]+\.amazonaws\.com/);
+          
+          if (!isS3Url) {
+            console.warn('⚠️ Avatar URL does not appear to be an S3 URL:', avatarUrl.substring(0, 50));
+            console.warn('⚠️ This might be a CDN or other storage URL. Continuing anyway...');
+          } else {
+            console.log('✅ Valid S3 URL detected:', avatarUrl.substring(0, 50) + '...');
+          }
+          
           setProfileData(prev => ({
             ...prev,
             avatar: avatarUrl
@@ -490,7 +525,16 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
             text2: 'Votre photo de profil a été mise à jour avec succès',
           });
         } else {
-          console.warn('⚠️ No avatar URL in response:', response);
+          console.warn('⚠️ No avatar URL found in response');
+          console.warn('⚠️ Response structure:', {
+            hasResponse: !!response,
+            hasData: !!response?.data,
+            hasDataData: !!response?.data?.data,
+            keys: response ? Object.keys(response) : [],
+            dataKeys: response?.data ? Object.keys(response.data) : [],
+            dataDataKeys: response?.data?.data ? Object.keys(response.data.data) : [],
+          });
+          console.warn('⚠️ Full response:', JSON.stringify(response, null, 2));
           Toast.show({
             type: 'warning',
             text1: 'Avatar téléchargé',
@@ -2742,7 +2786,7 @@ const ProfileScreen = ({ user, onLogout, onTabPress, activeTab, onClose, initial
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
@@ -2964,7 +3008,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   loadingContainer: {
     flex: 1,

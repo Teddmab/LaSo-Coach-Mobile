@@ -677,7 +677,7 @@ const CommunityScreen = ({ user, onLogout, onTabPress, activeTab, onClose, selec
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}

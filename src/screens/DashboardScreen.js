@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Dimensions
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,6 +42,8 @@ import CommunityApi from '../services/communityApi';
 import SubscriptionService, { SUBSCRIPTION_STATUS } from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
+import SubscriptionApi from '../services/subscriptionApi';
+import firebaseAuthService from '../services/firebaseAuthServiceNew';
 import ProgressScreen from './ProgressScreen';
 import NutritionScreen from './NutritionScreen';
 import AchievementsScreen from './AchievementsScreen';
@@ -54,6 +57,7 @@ import ProfileScreen from './ProfileScreen';
 import FAQScreen from './FAQScreen';
 import SubscriptionScreen from './SubscriptionScreen';
 import SecurityScreen from './SecurityScreen';
+import SubscriptionPaymentFlow from '../components/SubscriptionPaymentFlow';
 
 // Stub function for page navigation logging (analytics)
 const logPageNavigation = (pageName, breadcrumbs = []) => {
@@ -87,6 +91,23 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState(false);
   const [subscriptionAlertType, setSubscriptionAlertType] = useState(null);
+  
+  // Subscription plans bottom sheet state
+  const [showPlansBottomSheet, setShowPlansBottomSheet] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  
+  // Payment flow state (replaces WebView)
+  const [showPaymentFlow, setShowPaymentFlow] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  
+  // Legacy WebView state (kept for backward compatibility, but not used)
+  const [showSubscriptionWebView, setShowSubscriptionWebView] = useState(false);
+  const [subscriptionWebViewUrl, setSubscriptionWebViewUrl] = useState(null);
+  const [subscriptionWebViewLoading, setSubscriptionWebViewLoading] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
+  const [webAuthToken, setWebAuthToken] = useState(null);
+  const [apiBaseUrl, setApiBaseUrl] = useState(null);
   
   // Only blur MenuDuJour when status is EXPIRED or INACTIVE (not just expiring soon)
   const shouldBlurMenu = subscriptionData?.status === 'EXPIRED' || subscriptionData?.status === 'INACTIVE';
@@ -284,6 +305,20 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     } finally {
       setCommunityLoading(false);
       console.log('👥 Dashboard: Community posts loading completed');
+    }
+  };
+
+  /**
+   * Load subscription data
+   */
+  const loadSubscriptionData = async () => {
+    try {
+      console.log('💳 Dashboard: Loading subscription data...');
+      const data = await SubscriptionService.getSubscriptionStatus();
+      setSubscriptionData(data);
+      console.log('✅ Dashboard: Subscription data loaded successfully');
+    } catch (error) {
+      console.error('❌ Dashboard: Error loading subscription data:', error);
     }
   };
 
@@ -753,13 +788,174 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     handleSubscriptionRenew();
   };
 
-  const handleSubscriptionRenew = () => {
-    console.log('🔄 Navigating to subscription renewal page');
+  /**
+   * Load subscription plans for bottom sheet
+   */
+  const loadSubscriptionPlans = async () => {
+    try {
+      setLoadingPlans(true);
+      const plans = await SubscriptionApi.getPlans();
+      
+      // Validate and filter plans - only keep plans with valid IDs
+      const validPlans = plans.filter(plan => {
+        const hasValidId = plan?.id && typeof plan.id === 'string' && plan.id.trim() !== '';
+        
+        if (!hasValidId) {
+          console.warn('⚠️ Plan without valid ID found:', {
+            name: plan?.name || 'Unknown',
+            id: plan?.id,
+            plan: plan
+          });
+        }
+        
+        return hasValidId;
+      });
+      
+      // Log warning if some plans were filtered out
+      if (validPlans.length < plans.length) {
+        const filteredCount = plans.length - validPlans.length;
+        console.warn(`⚠️ ${filteredCount} plan(s) without valid ID were filtered out`);
+        Toast.show({
+          type: 'warning',
+          text1: 'Attention',
+          text2: `${filteredCount} plan(s) non disponible(s) (ID manquant)`,
+        });
+      }
+      
+      setSubscriptionPlans(validPlans);
+      console.log('✅ Subscription plans loaded:', validPlans.length, 'valid plan(s)');
+      
+      // Log each plan's ID for debugging
+      validPlans.forEach(plan => {
+        console.log(`  📋 Plan: ${plan.name} (ID: ${plan.id})`);
+      });
+    } catch (error) {
+      console.error('❌ Error loading subscription plans:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de charger les plans d\'abonnement',
+      });
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
+  /**
+   * Handle subscription renewal - show plans bottom sheet
+   */
+  const handleSubscriptionRenew = async () => {
+    console.log('🔄 Opening subscription plans bottom sheet');
     setShowSubscriptionAlert(false);
     
-    // Navigate to subscription page (step 5 of profile) with subscription tab selected
-    setCurrentScreen('profile');
-    setInitialProfileStep(5); // Start at subscription step
+    // Load plans if not already loaded
+    if (subscriptionPlans.length === 0) {
+      await loadSubscriptionPlans();
+    }
+    
+    // Show bottom sheet with plans
+    setShowPlansBottomSheet(true);
+  };
+
+  /**
+   * Handle plan selection - open payment flow component
+   */
+  const handlePlanSelect = async (plan) => {
+    try {
+      // Validate plan and plan ID before proceeding
+      if (!plan) {
+        console.error('❌ No plan provided to handlePlanSelect');
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: 'Plan d\'abonnement invalide',
+        });
+        return;
+      }
+      
+      // Validate plan ID - must be a non-empty string
+      const planId = plan?.id;
+      if (!planId || typeof planId !== 'string' || planId.trim() === '') {
+        console.error('❌ Plan without valid ID selected:', {
+          planName: plan?.name || 'Unknown',
+          planId: planId,
+          plan: plan
+        });
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: 'Ce plan d\'abonnement n\'a pas d\'ID valide. Veuillez réessayer.',
+        });
+        return;
+      }
+      
+      console.log('💳 Opening payment flow for plan:', {
+        id: planId,
+        name: plan?.name || 'Unknown'
+      });
+      
+      // Close plans bottom sheet
+      setShowPlansBottomSheet(false);
+      
+      // Store selected plan (only id and name needed for mobile payment)
+      const planForPayment = {
+        id: plan.id,
+        name: plan.name,
+        price: plan.price,
+        discountPrice: plan.discountPrice,
+        duration: plan.duration,
+        features: plan.features || [],
+        currency: plan.currency || 'EUR'
+      };
+      
+      console.log('💳 Plan data for payment:', planForPayment);
+      
+      // Store selected plan and open payment flow (NO WEBVIEW)
+      setSelectedPlan(planForPayment);
+      setShowPaymentFlow(true);
+      
+      console.log('✅ Payment flow opened - showPaymentFlow:', true);
+    } catch (error) {
+      console.error('❌ Error opening payment flow:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible d\'ouvrir le flux de paiement',
+      });
+    }
+  };
+
+  /**
+   * Handle payment success
+   */
+  const handlePaymentSuccess = async (paymentData) => {
+    console.log('✅ Payment successful:', paymentData);
+    
+    Toast.show({
+      type: 'success',
+      text1: 'Abonnement activé',
+      text2: 'Votre abonnement a été activé avec succès',
+    });
+    
+    // Refresh subscription data
+    await loadSubscriptionData();
+    
+    // Close payment flow
+    setShowPaymentFlow(false);
+    setSelectedPlan(null);
+  };
+
+  /**
+   * Handle payment error
+   */
+  const handlePaymentError = (error) => {
+    console.error('❌ Payment error:', error);
+    
+    Toast.show({
+      type: 'error',
+      text1: 'Erreur de paiement',
+      text2: error?.message || 'Une erreur est survenue lors du paiement',
+    });
   };
 
   const handleSubscriptionRenewFromRestricted = () => {
@@ -951,7 +1147,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
-  // If progress tab is active, show ProgressScreen
+  // If progress tab is active, show ProgressScreen but keep BottomNavigation visible
   if (activeTab === 'progress') {
     return (
       <>
@@ -963,6 +1159,8 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
           onFAQPress={() => setCurrentScreen('faq')}
         />
+        {/* Navigation bas persistante pour une meilleure fluidité */}
+        <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />
         <MoreMenu 
           visible={showMoreMenu}
           onClose={handleMoreMenuClose}
@@ -972,7 +1170,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
-  // If nutrition tab is active, show NutritionScreen
+  // If nutrition tab is active, show NutritionScreen but keep BottomNavigation visible
   if (activeTab === 'nutrition') {
     return (
       <>
@@ -984,6 +1182,8 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
           onFAQPress={() => setCurrentScreen('faq')}
         />
+        {/* Navigation bas persistante pour une meilleure fluidité */}
+        <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />
         <MoreMenu 
           visible={showMoreMenu}
           onClose={handleMoreMenuClose}
@@ -993,7 +1193,7 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
     );
   }
 
-  // If achievements tab is active, show AchievementsScreen
+  // If achievements tab is active, show AchievementsScreen but keep BottomNavigation visible
   if (activeTab === 'achievements') {
     return (
       <>
@@ -1004,6 +1204,8 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
           activeTab={activeTab}
           onSubscriptionRenew={handleSubscriptionRenewFromRestricted}
         />
+        {/* Navigation bas persistante pour une meilleure fluidité */}
+        <BottomNavigation activeTab={activeTab} onTabPress={handleTabPress} />
         <MoreMenu 
           visible={showMoreMenu}
           onClose={handleMoreMenuClose}
@@ -1200,6 +1402,491 @@ const DashboardScreen = ({ user, onLogout, navigation }) => {
         daysRemaining={subscriptionData?.daysRemaining}
         onRenew={handleSubscriptionRenew}
       />
+
+      {/* Subscription Plans Bottom Sheet */}
+      <Modal
+        visible={showPlansBottomSheet}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPlansBottomSheet(false)}
+      >
+        <View style={styles.bottomSheetOverlay}>
+          <TouchableOpacity
+            style={styles.bottomSheetBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowPlansBottomSheet(false)}
+          />
+          <View style={styles.bottomSheetContainer}>
+            {/* BottomSheet Handle */}
+            <View style={styles.bottomSheetHandleContainer}>
+              <View style={styles.bottomSheetHandle} />
+            </View>
+            
+            {/* BottomSheet Header */}
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Choisissez votre abonnement</Text>
+              <TouchableOpacity 
+                onPress={() => setShowPlansBottomSheet(false)} 
+                style={styles.bottomSheetCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Plans List or Payment Flow */}
+            {showPaymentFlow && selectedPlan ? (
+              <SubscriptionPaymentFlow
+                visible={true}
+                plan={selectedPlan}
+                onClose={() => {
+                  setShowPaymentFlow(false);
+                  setSelectedPlan(null);
+                }}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+                isEmbedded={true}
+              />
+            ) : (
+            <ScrollView style={styles.bottomSheetContent} showsVerticalScrollIndicator={false}>
+              {loadingPlans ? (
+                <View style={styles.bottomSheetLoadingContainer}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text style={styles.bottomSheetLoadingText}>Chargement des plans...</Text>
+                </View>
+              ) : subscriptionPlans.length > 0 ? (
+                subscriptionPlans.map((plan) => {
+                  // Double-check plan ID validity (should already be filtered, but safety check)
+                  if (!plan?.id || typeof plan.id !== 'string' || plan.id.trim() === '') {
+                    console.warn('⚠️ Plan without valid ID in render (should have been filtered):', plan);
+                    return null; // Don't render plans without valid ID
+                  }
+                  
+                  let backgroundColor = '#4CAF50';
+                  
+                  if (plan.name?.toLowerCase().includes('premium')) {
+                    backgroundColor = '#8B5CF6';
+                  } else if (plan.name?.toLowerCase().includes('flexy')) {
+                    backgroundColor = '#FF6B35';
+                  } else if (plan.name?.toLowerCase().includes('basic')) {
+                    backgroundColor = '#2196F3';
+                  }
+                  
+                  return (
+                    <TouchableOpacity
+                      key={plan.id}
+                      style={[styles.planBottomSheetItem, { borderLeftColor: backgroundColor }]}
+                      onPress={() => handlePlanSelect(plan)}
+                    >
+                      <View style={styles.planBottomSheetContent}>
+                        <Text style={styles.planBottomSheetName}>{plan.name}</Text>
+                        <View style={styles.planBottomSheetPricing}>
+                          {plan.discountPrice && plan.discountPrice < plan.price ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={[styles.planBottomSheetPrice, { color: theme.colors.primary }]}>
+                                {plan.currency || '€'}{plan.discountPrice}
+                              </Text>
+                              <Text style={[styles.planBottomSheetPrice, { 
+                                textDecorationLine: 'line-through', 
+                                color: theme.colors.text.secondary,
+                                fontSize: 14 
+                              }]}>
+                                {plan.currency || '€'}{plan.price}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.planBottomSheetPrice}>
+                              {plan.currency || '€'}{plan.price}
+                            </Text>
+                          )}
+                          {plan.duration && (
+                            <Text style={styles.planBottomSheetDuration}>
+                              / {SubscriptionApi.getBillingPeriod(plan.duration)}
+                            </Text>
+                          )}
+                        </View>
+                        {plan.features && plan.features.length > 0 && (
+                          <Text style={styles.planBottomSheetFeatures}>
+                            {plan.features.slice(0, 2).join(' • ')}
+                          </Text>
+                        )}
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.bottomSheetEmptyContainer}>
+                  <Ionicons name="card-outline" size={48} color={theme.colors.text.secondary} />
+                  <Text style={styles.bottomSheetEmptyText}>Aucun plan disponible</Text>
+                </View>
+              )}
+            </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* Subscription WebView BottomSheet - REMOVED: Now using native payment flow component above */}
+      {/* Legacy code removed - no longer needed */}
+      {false && (
+      <Modal
+        visible={false}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {}}
+      >
+        <View style={styles.bottomSheetOverlay}>
+          <TouchableOpacity
+            style={styles.bottomSheetBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowSubscriptionWebView(false)}
+          />
+          <View style={styles.bottomSheetContainer}>
+            {/* BottomSheet Handle */}
+            <View style={styles.bottomSheetHandleContainer}>
+              <View style={styles.bottomSheetHandle} />
+            </View>
+            
+            {/* BottomSheet Header */}
+            <View style={styles.bottomSheetHeader}>
+              <Text style={styles.bottomSheetTitle}>Paiement Abonnement</Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowSubscriptionWebView(false);
+                  setSelectedPlanId(null); // Clear selected plan ID when closing
+                }} 
+                style={styles.bottomSheetCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* WebView Content */}
+            <View style={styles.bottomSheetContent}>
+              {subscriptionWebViewUrl ? (
+                <WebView
+                  source={{ 
+                    uri: subscriptionWebViewUrl, 
+                    headers: webAuthToken ? { Authorization: `Bearer ${webAuthToken}` } : {} 
+                  }}
+                  onLoadStart={() => setSubscriptionWebViewLoading(true)}
+                  onLoadEnd={() => setSubscriptionWebViewLoading(false)}
+                  onNavigationStateChange={(nav) => {
+                    const url = nav.url || '';
+                    console.log('🌐 Subscription WebView navigation:', url);
+                    
+                    // Check if redirected to login (token not working)
+                    if (url.includes('/login') || url.includes('/auth/login') || url.includes('/signin')) {
+                      console.error('❌ Redirected to login page - token authentication failed');
+                      Toast.show({
+                        type: 'error',
+                        text1: 'Erreur d\'authentification',
+                        text2: 'La connexion automatique a échoué. Vérifiez votre connexion.',
+                      });
+                    }
+                    
+                    // Check if we're NOT on the correct subscription page with the plan ID
+                    if (selectedPlanId) {
+                      const expectedPath = `/onboarding/subscription/${selectedPlanId}`;
+                      const isOnCorrectPage = url.includes(expectedPath);
+                      
+                      // If redirected to dashboard, home, or any other page (except success/cancel), redirect to subscription page
+                      if (!isOnCorrectPage && 
+                          !url.includes('/onboarding/subscription-success') && 
+                          !url.includes('/onboarding/subscription-cancel') &&
+                          (url.includes('/dashboard') || url.includes('/home') || url === 'https://app.lasocoach.com/' || url === 'https://app.lasocoach.com' || !url.includes('/onboarding/subscription/'))) {
+                        console.log('🔄 Not on correct subscription page, forcing navigation to:', expectedPath);
+                        console.log('🔄 Current URL:', url);
+                        
+                        // Get token from current URL or use stored token
+                        const urlParams = new URLSearchParams(nav.url?.split('?')[1] || '');
+                        const token = urlParams.get('token') || webAuthToken;
+                        
+                        // Build subscription URL with plan ID
+                        const subscriptionUrl = `https://app.lasocoach.com/onboarding/subscription/${selectedPlanId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+                        
+                        console.log('🔄 Redirecting to:', subscriptionUrl.replace(token || '', '***TOKEN***'));
+                        
+                        // Force navigation to subscription page
+                        setTimeout(() => {
+                          setSubscriptionWebViewUrl(subscriptionUrl);
+                        }, 100);
+                      } else if (isOnCorrectPage) {
+                        console.log('✅ On correct subscription page with plan ID:', selectedPlanId);
+                      }
+                    }
+                    
+                    // Check for success/cancel
+                    if (url.includes('/onboarding/subscription-success')) {
+                      Toast.show({ 
+                        type: 'success', 
+                        text1: 'Abonnement activé', 
+                        text2: 'Merci pour votre souscription !' 
+                      });
+                      setShowSubscriptionWebView(false);
+                      setSelectedPlanId(null); // Clear selected plan ID
+                      // Refresh subscription data
+                      loadSubscriptionData();
+                    } else if (url.includes('/onboarding/subscription-cancel')) {
+                      Toast.show({ 
+                        type: 'info', 
+                        text1: 'Abonnement annulé', 
+                        text2: 'Processus annulé.' 
+                      });
+                      setShowSubscriptionWebView(false);
+                      setSelectedPlanId(null); // Clear selected plan ID
+                    }
+                  }}
+                  onError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.error('❌ Subscription WebView error:', nativeEvent);
+                    Toast.show({
+                      type: 'error',
+                      text1: 'Erreur de chargement',
+                      text2: 'Impossible de charger la page de souscription',
+                    });
+                  }}
+                  injectedJavaScriptBeforeContentLoaded={webAuthToken && selectedPlanId ? `
+                    (function() {
+                      try {
+                        // Get token from URL first (most reliable)
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const urlToken = urlParams.get('token');
+                        const firebaseIdToken = urlToken || '${webAuthToken ? webAuthToken.replace(/'/g, "\\'").replace(/\\/g, '\\\\').replace(/\n/g, '\\n') : ''}';
+                        const planId = '${selectedPlanId}';
+                        const expectedPath = '/onboarding/subscription/' + planId;
+                        const apiBaseUrl = '${apiBaseUrl || 'https://laso-coach-backend.onrender.com/api/v1'}';
+                        
+                        console.log('🔐 Starting authentication with Firebase ID token...');
+                        console.log('📋 Plan ID:', planId);
+                        console.log('🔗 Expected path:', expectedPath);
+                        console.log('🔗 API Base URL:', apiBaseUrl);
+                        
+                        // CRITICAL: Intercept fetch and XMLHttpRequest BEFORE storing tokens
+                        // This ensures ALL requests (including auth checks) get the token
+                        const originalFetch = window.fetch;
+                        const originalXHROpen = XMLHttpRequest.prototype.open;
+                        const originalXHRSend = XMLHttpRequest.prototype.send;
+                        
+                        // Store backend token when available
+                        let backendToken = null;
+                        let tokenPromise = null;
+                        
+                        // Intercept fetch to add Authorization header
+                        window.fetch = function(...args) {
+                          const [url, options = {}] = args;
+                          const headers = options.headers || {};
+                          
+                          // Add token to headers if available
+                          const token = backendToken || firebaseIdToken;
+                          if (token && !headers['Authorization'] && !headers['authorization']) {
+                            if (headers instanceof Headers) {
+                              headers.set('Authorization', 'Bearer ' + token);
+                            } else {
+                              options.headers = {
+                                ...headers,
+                                'Authorization': 'Bearer ' + token
+                              };
+                            }
+                          }
+                          
+                          return originalFetch.apply(this, [url, options]);
+                        };
+                        
+                        // Intercept XMLHttpRequest to add Authorization header
+                        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                          this._url = url;
+                          this._method = method;
+                          return originalXHROpen.apply(this, [method, url, ...rest]);
+                        };
+                        
+                        XMLHttpRequest.prototype.send = function(...args) {
+                          const token = backendToken || firebaseIdToken;
+                          if (token && this._url && !this.getRequestHeader('Authorization')) {
+                            this.setRequestHeader('Authorization', 'Bearer ' + token);
+                          }
+                          return originalXHRSend.apply(this, args);
+                        };
+                        
+                        console.log('✅ HTTP interceptors installed for automatic token injection');
+                        
+                        // Store Firebase token IMMEDIATELY (synchronously)
+                        if (firebaseIdToken) {
+                          localStorage.setItem('token', firebaseIdToken);
+                          localStorage.setItem('firebase_id_token', firebaseIdToken);
+                          localStorage.setItem('mobile_auth_token', firebaseIdToken);
+                          sessionStorage.setItem('token', firebaseIdToken);
+                          sessionStorage.setItem('firebase_id_token', firebaseIdToken);
+                          sessionStorage.setItem('mobile_auth_token', firebaseIdToken);
+                          window.authToken = firebaseIdToken;
+                          console.log('✅ Firebase token stored IMMEDIATELY in localStorage (synchronous)');
+                        }
+                        
+                        // Authenticate with backend to get backend token (PRIORITY: do this ASAP)
+                        if (firebaseIdToken) {
+                          console.log('🔄 Authenticating with backend to get admin token...');
+                          
+                          // Use async fetch but set up token promise for immediate use
+                          tokenPromise = fetch(apiBaseUrl + '/auth/login', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': 'Bearer ' + firebaseIdToken
+                            },
+                            body: JSON.stringify({ idToken: firebaseIdToken })
+                          })
+                          .then(response => {
+                            if (!response.ok) {
+                              console.warn('⚠️ Backend authentication returned status:', response.status);
+                              return response.text().then(text => {
+                                console.warn('⚠️ Response:', text);
+                                throw new Error('Authentication failed: ' + response.status);
+                              });
+                            }
+                            return response.json();
+                          })
+                          .then(data => {
+                            console.log('✅ Backend authentication successful:', data);
+                            
+                            // Update with backend token
+                            if (data.token || data.data?.token) {
+                              backendToken = data.token || data.data.token;
+                              localStorage.setItem('token', backendToken);
+                              sessionStorage.setItem('token', backendToken);
+                              window.authToken = backendToken;
+                              console.log('✅ Backend token stored in localStorage (replaces Firebase token)');
+                              
+                              // Update interceptors to use backend token
+                              return backendToken;
+                            } else {
+                              console.warn('⚠️ No backend token in response, using Firebase token');
+                              return firebaseIdToken;
+                            }
+                          })
+                          .catch(error => {
+                            console.error('❌ Backend authentication error:', error);
+                            console.warn('⚠️ Falling back to Firebase token for requests');
+                            return firebaseIdToken;
+                          });
+                          
+                          // Start authentication immediately (don't wait)
+                          tokenPromise.catch(() => {}); // Suppress unhandled rejection
+                        }
+                        
+                        // Force redirection to subscription page if not already there
+                        const currentPath = window.location.pathname;
+                        if (planId && !currentPath.includes('/onboarding/subscription/' + planId) && 
+                            !currentPath.includes('/onboarding/subscription-success') && 
+                            !currentPath.includes('/onboarding/subscription-cancel')) {
+                          console.log('🔄 Redirecting to subscription page with plan ID:', planId);
+                          const token = backendToken || firebaseIdToken;
+                          const subscriptionUrl = expectedPath + (token ? '?token=' + encodeURIComponent(token) : '');
+                          console.log('🔄 Redirecting to:', subscriptionUrl);
+                          window.location.replace(subscriptionUrl);
+                        } else {
+                          console.log('✅ Already on correct subscription page with plan ID:', planId);
+                        }
+                      } catch (e) {
+                        console.error('❌ Error in injection script:', e);
+                      }
+                    })();
+                  ` : webAuthToken ? `
+                    (function() {
+                      try {
+                        // Get token from URL first (most reliable)
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const urlToken = urlParams.get('token');
+                        const token = urlToken || '${webAuthToken.replace(/'/g, "\\'").replace(/\\/g, '\\\\').replace(/\n/g, '\\n')}';
+                        
+                        // Set token in localStorage immediately before page loads
+                        if (token) {
+                          // Store with multiple keys for compatibility
+                          localStorage.setItem('token', token); // Frontend web expects this key
+                          localStorage.setItem('firebase_id_token', token);
+                          localStorage.setItem('mobile_auth_token', token);
+                          
+                          // Also store in sessionStorage as backup
+                          sessionStorage.setItem('token', token); // Frontend web expects this key
+                          sessionStorage.setItem('firebase_id_token', token);
+                          sessionStorage.setItem('mobile_auth_token', token);
+                          
+                          // Set Authorization header for fetch requests
+                          window.authToken = token;
+                          
+                          console.log('✅ Mobile auth token set in localStorage (multiple keys for compatibility)');
+                        }
+                      } catch (e) {
+                        console.error('❌ Error setting auth token:', e);
+                      }
+                    })();
+                  ` : ''}
+                  injectedJavaScript={webAuthToken && selectedPlanId ? `
+                    (function() {
+                      try {
+                        // Re-intercept fetch and XMLHttpRequest after page load
+                        // This ensures the interceptors are still active even if page reloads
+                        const token = localStorage.getItem('token') || localStorage.getItem('firebase_id_token') || '${webAuthToken ? webAuthToken.replace(/'/g, "\\'").replace(/\\/g, '\\\\').replace(/\n/g, '\\n') : ''}';
+                        
+                        if (token) {
+                          // Intercept fetch
+                          const originalFetch = window.fetch;
+                          window.fetch = function(...args) {
+                            const [url, options = {}] = args;
+                            const headers = options.headers || {};
+                            
+                            if (!headers['Authorization'] && !headers['authorization']) {
+                              if (headers instanceof Headers) {
+                                headers.set('Authorization', 'Bearer ' + token);
+                              } else {
+                                options.headers = {
+                                  ...headers,
+                                  'Authorization': 'Bearer ' + token
+                                };
+                              }
+                            }
+                            
+                            return originalFetch.apply(this, [url, options]);
+                          };
+                          
+                          // Intercept XMLHttpRequest
+                          const originalXHROpen = XMLHttpRequest.prototype.open;
+                          const originalXHRSend = XMLHttpRequest.prototype.send;
+                          
+                          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                            this._url = url;
+                            this._method = method;
+                            return originalXHROpen.apply(this, [method, url, ...rest]);
+                          };
+                          
+                          XMLHttpRequest.prototype.send = function(...args) {
+                            if (token && this._url && !this.getRequestHeader('Authorization')) {
+                              this.setRequestHeader('Authorization', 'Bearer ' + token);
+                            }
+                            return originalXHRSend.apply(this, args);
+                          };
+                          
+                          console.log('✅ HTTP interceptors re-installed after page load');
+                        }
+                      } catch (e) {
+                        console.error('❌ Error in post-load injection script:', e);
+                      }
+                    })();
+                    true; // Required for injectedJavaScript
+                  ` : ''}
+                  style={styles.bottomSheetWebView}
+                />
+              ) : null}
+              {subscriptionWebViewLoading && (
+                <View style={styles.bottomSheetLoadingOverlay}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+      )}
 
       {/* Debug Modal */}
       <Modal
@@ -1700,7 +2387,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   achievementBanner: {
     margin: 20,
@@ -2208,6 +2895,141 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 8,
     backgroundColor: '#000000',
+  },
+  // Bottom Sheet Styles
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+    minHeight: '60%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  bottomSheetHandleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  bottomSheetTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  bottomSheetCloseButton: {
+    padding: 8,
+    marginRight: -8,
+  },
+  bottomSheetContent: {
+    flex: 1,
+    minHeight: 400,
+  },
+  bottomSheetWebView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  bottomSheetLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  bottomSheetLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+  },
+  bottomSheetLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bottomSheetEmptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  bottomSheetEmptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
+  // Plan Bottom Sheet Item Styles
+  planBottomSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    borderLeftWidth: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  planBottomSheetContent: {
+    flex: 1,
+  },
+  planBottomSheetName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+  },
+  planBottomSheetPricing: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
+  },
+  planBottomSheetPrice: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  planBottomSheetDuration: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginLeft: 4,
+  },
+  planBottomSheetFeatures: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    marginTop: 4,
   },
 });
 

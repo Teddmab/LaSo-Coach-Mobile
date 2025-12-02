@@ -609,7 +609,7 @@ const ChatScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header - Always Visible */}

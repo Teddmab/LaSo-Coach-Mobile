@@ -1856,25 +1856,6 @@ const AchievementsScreen = ({ user, onLogout, onTabPress, activeTab, onSubscript
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('home')}>
-          <Ionicons name="home" size={24} color={activeTab === 'home' ? theme.colors.primary : theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('progress')}>
-          <Ionicons name="trending-up-outline" size={24} color={activeTab === 'progress' ? theme.colors.primary : theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('nutrition')}>
-          <Ionicons name="restaurant" size={24} color={activeTab === 'nutrition' ? theme.colors.primary : theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navTab, styles.activeNavTab]} onPress={() => onTabPress('achievements')}>
-          <Ionicons name="trophy" size={24} color={theme.colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('more')}>
-          <Ionicons name="add-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-      </View>
-
       {/* Challenge Completion Modal */}
       {renderCompletionModal()}
       
@@ -1913,7 +1894,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   
   // Header Section

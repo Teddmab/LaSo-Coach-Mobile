@@ -54,6 +54,8 @@ export default function SubscriptionPaymentFlow({
   const [cardholderName, setCardholderName] = useState('');
   const [stripeSessionId, setStripeSessionId] = useState(null);
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
+  const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState(null);
+  const [showStripeWebView, setShowStripeWebView] = useState(false);
 
   // États pour PayPal
   const [paypalOrderId, setPaypalOrderId] = useState(null);
@@ -92,6 +94,8 @@ export default function SubscriptionPaymentFlow({
     setCardholderName('');
     setStripeSessionId(null);
     setStripeClientSecret(null);
+    setStripeCheckoutUrl(null);
+    setShowStripeWebView(false);
     setPaypalOrderId(null);
     setPaypalApprovalUrl(null);
     setPaypalPayerId(null);
@@ -164,9 +168,10 @@ export default function SubscriptionPaymentFlow({
    */
   const handlePaymentMethodSelect = (method) => {
     setSelectedPaymentMethod(method);
+    // Ne pas créer la session ici, attendre le clic sur "Continuer"
   };
 
-  const handleContinueFromMethodSelection = () => {
+  const handleContinueFromMethodSelection = async () => {
     if (!plan?.id) {
       Toast.show({
         type: 'error',
@@ -175,7 +180,99 @@ export default function SubscriptionPaymentFlow({
       });
       return;
     }
-    setCurrentStep(2); // Passer à la saisie des informations
+    
+    // Pour Stripe, créer la session et ouvrir directement la webview
+    if (selectedPaymentMethod === 'stripe') {
+      try {
+        setProcessing(true);
+        console.log('💳 Creating Stripe checkout session when clicking Continue...');
+        
+        const sessionData = {
+          subscriptionPlanId: plan.id,
+          clientType: 'mobile',
+        };
+
+        const checkoutData = await SubscriptionApi.createStripeCheckoutSession(sessionData);
+        
+        console.log('💳 Stripe session response:', checkoutData);
+        
+        // Si le backend retourne une URL, ouvrir directement la webview
+        if (checkoutData?.url || checkoutData?.checkoutUrl) {
+          const stripeUrl = checkoutData.url || checkoutData.checkoutUrl;
+          console.log('✅ Stripe checkout URL received, opening webview directly:', stripeUrl);
+          setStripeCheckoutUrl(stripeUrl);
+          setShowStripeWebView(true);
+          // Passer à l'étape 2 qui affichera la webview
+          setCurrentStep(2);
+          return;
+        }
+        
+        // Si le backend retourne sessionId/clientSecret, utiliser le SDK natif (CardField)
+        if (checkoutData?.sessionId && checkoutData?.clientSecret) {
+          setStripeSessionId(checkoutData.sessionId);
+          setStripeClientSecret(checkoutData.clientSecret);
+          console.log('✅ Stripe session created successfully (SDK natif), showing CardField');
+          setCurrentStep(2); // Passer à l'étape 2 qui affichera le CardField
+          return;
+        }
+        
+        // Si ni URL ni sessionId/clientSecret, erreur
+        console.error('❌ Invalid Stripe response:', checkoutData);
+        throw new Error('Réponse Stripe invalide: URL ou sessionId/clientSecret requis');
+      } catch (error) {
+        console.error('❌ Error creating Stripe session:', error);
+        const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la session de paiement';
+        setError(errorMessage);
+        setCurrentStep(4);
+      } finally {
+        setProcessing(false);
+      }
+    } else if (selectedPaymentMethod === 'paypal') {
+      // Pour PayPal, créer la commande et ouvrir la webview
+      try {
+        setProcessing(true);
+        console.log('💳 Creating PayPal order when clicking Continue...');
+        
+        const orderData = {
+          subscriptionPlanId: plan.id,
+          clientType: 'mobile',
+        };
+
+        const paypalData = await SubscriptionApi.createPayPalOrder(orderData);
+        
+        console.log('💳 PayPal order response:', paypalData);
+        
+        // Pour PayPal, le backend doit retourner orderId ET approvalUrl pour la webview
+        if (paypalData?.orderId && paypalData?.approvalUrl) {
+          setPaypalOrderId(paypalData.orderId);
+          setPaypalApprovalUrl(paypalData.approvalUrl);
+          console.log('✅ PayPal order created successfully');
+          console.log('🔗 PayPal approval URL:', paypalData.approvalUrl);
+          
+          // Afficher la webview PayPal
+          setShowPayPalWebView(true);
+          setCurrentStep(2);
+        } else if (paypalData?.orderId) {
+          // Si seulement orderId, on continue sans webview (ancien flow)
+          setPaypalOrderId(paypalData.orderId);
+          console.log('✅ PayPal order created successfully (no approval URL)');
+          setCurrentStep(2);
+        } else {
+          console.error('❌ Invalid PayPal response:', paypalData);
+          throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
+        }
+      } catch (error) {
+        console.error('❌ Error creating PayPal order:', error);
+        const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
+        setError(errorMessage);
+        setCurrentStep(4);
+      } finally {
+        setProcessing(false);
+      }
+    } else {
+      // Par défaut, passer à l'étape 2
+      setCurrentStep(2);
+    }
   };
 
   /**
@@ -220,52 +317,16 @@ export default function SubscriptionPaymentFlow({
 
   const handleContinueFromCardInput = async () => {
     if (selectedPaymentMethod === 'stripe') {
-      // Avec Stripe SDK CardField, la validation est automatique
-      // Créer la session Stripe avec le backend pour obtenir clientSecret
-      try {
-        setProcessing(true);
-        console.log('💳 Creating Stripe checkout session for plan:', plan.id);
-        
-        const sessionData = {
-          subscriptionPlanId: plan.id,
-          clientType: 'mobile',
-        };
-
-        const checkoutData = await SubscriptionApi.createStripeCheckoutSession(sessionData);
-        
-        console.log('💳 Stripe session response:', checkoutData);
-        
-        // Vérifier que le backend retourne sessionId et clientSecret (pas d'URL)
-        if (checkoutData?.url || checkoutData?.checkoutUrl) {
-          console.error('❌ Backend returned URL instead of sessionId/clientSecret');
-          Toast.show({
-            type: 'error',
-            text1: 'Configuration backend requise',
-            text2: 'Le backend doit retourner sessionId et clientSecret pour le paiement mobile natif',
-          });
-          setError('Le backend retourne une URL au lieu des données de paiement natif');
-          setCurrentStep(4);
-          return;
-        }
-        
-        if (checkoutData?.sessionId && checkoutData?.clientSecret) {
-          setStripeSessionId(checkoutData.sessionId);
-          setStripeClientSecret(checkoutData.clientSecret);
-          console.log('✅ Stripe session created successfully');
-          
-          // Passer à l'étape de confirmation
-          setCurrentStep(3);
-        } else {
-          console.error('❌ Invalid Stripe response:', checkoutData);
-          throw new Error('Réponse Stripe invalide: sessionId et clientSecret requis');
-        }
-      } catch (error) {
-        console.error('❌ Error creating Stripe session:', error);
-        const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la session de paiement';
-        setError(errorMessage);
+      // Pour Stripe, si on arrive ici, c'est qu'on utilise le SDK natif (CardField)
+      // La session a déjà été créée dans handlePaymentMethodSelect
+      // On a déjà sessionId et clientSecret, on peut passer à la confirmation
+      if (stripeSessionId && stripeClientSecret) {
+        console.log('✅ Stripe SDK ready, proceeding to confirmation');
+        setCurrentStep(3);
+      } else {
+        console.error('❌ Stripe session not ready');
+        setError('Session Stripe non disponible. Veuillez réessayer.');
         setCurrentStep(4);
-      } finally {
-        setProcessing(false);
       }
     } else if (selectedPaymentMethod === 'paypal') {
       // Créer la commande PayPal avec le backend
@@ -599,7 +660,7 @@ export default function SubscriptionPaymentFlow({
 
   const renderStep1_MethodSelection = () => (
     <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Choisissez votre méthode de paiement</Text>
+      <Text style={[styles.stepTitle, { fontSize: 18 }]}>Choisir une méthode</Text>
       <Text style={styles.stepSubtitle}>Sélectionnez votre méthode de paiement préférée</Text>
 
       {plan && (
@@ -690,6 +751,113 @@ export default function SubscriptionPaymentFlow({
   );
 
   const renderStep2_CardInput = () => {
+    // Pour Stripe, vérifier si on doit afficher la webview
+    if (selectedPaymentMethod === 'stripe' && showStripeWebView && stripeCheckoutUrl) {
+      return (
+        <View style={styles.stepContainer}>
+          <View style={styles.webviewHeader}>
+            <Text style={styles.stepTitle}>Paiement Stripe</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowStripeWebView(false);
+                setStripeCheckoutUrl(null);
+              }}
+              style={styles.webviewCloseButton}
+            >
+              <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+          <WebView
+            source={{ uri: stripeCheckoutUrl }}
+            style={styles.webview}
+            onNavigationStateChange={async (navState) => {
+              // Détecter les URLs de retour Stripe
+              const url = navState.url;
+              console.log('🔗 Stripe WebView navigation:', url);
+              
+              // Détecter succès (retour avec session_id ou success)
+              // URLs Stripe de succès peuvent être : 
+              // - https://checkout.stripe.com/payments/success?session_id=...
+              // - https://app.lasocoach.com/subscription-success?session_id=...
+              // - ou toute URL contenant "success" et "session_id"
+              if (url.includes('success') || url.includes('session_id=') || url.includes('payment_intent=')) {
+                try {
+                  const urlObj = new URL(url);
+                  const sessionId = urlObj.searchParams.get('session_id') || 
+                                   urlObj.searchParams.get('payment_intent') ||
+                                   urlObj.searchParams.get('sessionId');
+                  
+                  if (sessionId || url.includes('success')) {
+                    console.log('✅ Stripe payment successful in webview');
+                    console.log('✅ Session ID:', sessionId);
+                    
+                    // Sauvegarder le sessionId pour la confirmation
+                    if (sessionId) {
+                      setStripeSessionId(sessionId);
+                    }
+                    
+                    setShowStripeWebView(false);
+                    
+                    // Confirmer le paiement avec le backend
+                    try {
+                      setProcessing(true);
+                      console.log('💳 Confirming Stripe payment with backend...');
+                      
+                      const paymentData = {
+                        sessionId: sessionId || stripeSessionId,
+                        // Pour les paiements via webview, on n'a pas besoin de clientSecret
+                        // Le backend peut vérifier le statut de la session Stripe
+                      };
+                      
+                      const subscriptionData = await SubscriptionApi.confirmStripePayment(paymentData);
+                      
+                      console.log('✅ Stripe payment confirmed with backend');
+                      console.log('💳 Subscription data:', subscriptionData);
+                      
+                      setSuccess(true);
+                      setCurrentStep(4);
+                      
+                      // Appeler onSuccess pour fermer le bottomsheet
+                      if (onSuccess) {
+                        onSuccess({
+                          planId: plan.id,
+                          paymentMethod: 'stripe',
+                          sessionId: sessionId || stripeSessionId,
+                          subscription: subscriptionData,
+                        });
+                      }
+                    } catch (confirmError) {
+                      console.error('❌ Error confirming Stripe payment:', confirmError);
+                      const errorMessage = confirmError.response?.data?.message || confirmError.message || 'Erreur lors de la confirmation du paiement';
+                      setError(errorMessage);
+                      setCurrentStep(4);
+                    } finally {
+                      setProcessing(false);
+                    }
+                    
+                    return;
+                  }
+                } catch (e) {
+                  console.warn('⚠️ Error parsing Stripe URL:', e);
+                }
+              }
+              
+              // Détecter annulation
+              if (url.includes('cancel') || url.includes('cancelled')) {
+                console.log('❌ Stripe payment cancelled');
+                setShowStripeWebView(false);
+                Toast.show({
+                  type: 'info',
+                  text1: 'Paiement annulé',
+                  text2: 'Vous avez annulé le paiement Stripe',
+                });
+              }
+            }}
+          />
+        </View>
+      );
+    }
+    
     if (selectedPaymentMethod === 'paypal') {
       // Pour PayPal, afficher la webview si on a l'URL d'approbation
       if (showPayPalWebView && paypalApprovalUrl) {
@@ -773,7 +941,8 @@ export default function SubscriptionPaymentFlow({
       );
     }
 
-    // Pour Stripe, utiliser le CardField natif du SDK
+    // Pour Stripe, utiliser le CardField natif du SDK (si pas de webview)
+    // Si on a une URL, elle sera affichée dans la webview ci-dessus
     return (
       <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
         <Text style={styles.stepTitle}>Informations de paiement</Text>
