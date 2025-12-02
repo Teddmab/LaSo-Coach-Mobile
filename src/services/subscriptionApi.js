@@ -141,6 +141,98 @@ class SubscriptionApi {
   }
 
   /**
+   * Confirm Stripe payment
+   * @param {Object} paymentData - Payment confirmation data
+   * @returns {Promise<Object>} Subscription data
+   */
+  static async confirmStripePayment(paymentData) {
+    try {
+      console.log('💳 Confirming Stripe payment...');
+      console.log('💳 Payment data:', paymentData);
+      
+      const response = await api.post('/payments/confirm-stripe-payment', paymentData);
+      
+      console.log('✅ Stripe payment confirmed successfully');
+      console.log('💳 Confirmation response:', response.data);
+      
+      return response.data.data;
+    } catch (error) {
+      console.error('❌ Error confirming Stripe payment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Confirm PayPal payment
+   * @param {Object} paymentData - Payment confirmation data
+   * @returns {Promise<Object>} Subscription data
+   */
+  static async confirmPayPalPayment(paymentData) {
+    try {
+      console.log('💳 Confirming PayPal payment...');
+      console.log('💳 Payment data:', paymentData);
+      
+      const response = await api.post('/payments/confirm-paypal-payment', paymentData);
+      
+      console.log('✅ PayPal payment confirmed successfully');
+      console.log('💳 Confirmation response:', response.data);
+      
+      return response.data.data;
+    } catch (error) {
+      console.error('❌ Error confirming PayPal payment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribe to a plan (same endpoint as web version)
+   * POST /subscriptions/subscribe - Utilisé par la version web
+   * @param {Object} subscriptionData - Subscription data with subscriptionPlanId
+   * @returns {Promise<Object>} Subscription data
+   */
+  static async subscribe(subscriptionData) {
+    try {
+      console.log('💳 Subscribing to plan (same endpoint as web)...');
+      console.log('💳 Subscription data:', subscriptionData);
+      
+      // Utiliser exactement le même endpoint que la version web
+      const response = await api.post('/subscriptions/subscribe', subscriptionData);
+      
+      console.log('✅ Subscription created successfully');
+      console.log('💳 Subscription response:', response.data);
+      
+      return response.data.data || response.data;
+    } catch (error) {
+      console.error('❌ Error subscribing:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Activate free trial subscription
+   * Utilise le même endpoint que la version web: POST /subscriptions/subscribe
+   * Le backend détecte automatiquement que c'est un plan gratuit (price = 0)
+   * @param {string} planId - Plan ID
+   * @returns {Promise<Object>} Subscription data
+   */
+  static async activateFreeTrial(planId) {
+    try {
+      console.log('💳 Activating free trial for plan:', planId);
+      console.log('💳 Using same endpoint as web version: /subscriptions/subscribe');
+      
+      // Utiliser exactement le même endpoint et format que la version web
+      const subscriptionData = {
+        subscriptionPlanId: planId, // Format utilisé par la version web
+      };
+      
+      return await this.subscribe(subscriptionData);
+    } catch (error) {
+      console.error('❌ Error activating free trial:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Retry payment
    * @param {string} transactionId - Transaction ID
    * @returns {Promise<Object>} Retry payment data

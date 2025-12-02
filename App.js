@@ -2,10 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
 import { initializeTokenManager } from './src/services/api';
+import Config from './src/config/env';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
@@ -168,23 +170,36 @@ export default function App() {
     initializeTokenManager();
   }, []);
   
+  // Stripe publishable key from configuration
+  // Priority: 1. Config (from env.js -> app.json -> .env), 2. Fallback placeholder
+  const STRIPE_PUBLISHABLE_KEY = Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder';
+  
+  if (!Config.STRIPE_PUBLISHABLE_KEY) {
+    console.warn('⚠️ [Stripe] Publishable key not found in configuration. Using placeholder.');
+    console.warn('⚠️ [Stripe] Please add STRIPE_PUBLISHABLE_KEY to your .env file or app.json');
+  } else {
+    console.log('✅ [Stripe] Publishable key loaded from configuration');
+  }
+  
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <NotificationProvider>
-          <ChatProvider>
-            <NetworkStatus />
-            {/* AuthInitDebug removed */}
-            <AppContent />
-          </ChatProvider>
-        </NotificationProvider>
-      </AuthProvider>
-      <Toast 
-        position="top"
-        visibilityTime={5000}
-        autoHide={true}
-        topOffset={50}
-      />
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <AuthProvider>
+          <NotificationProvider>
+            <ChatProvider>
+              <NetworkStatus />
+              {/* AuthInitDebug removed */}
+              <AppContent />
+            </ChatProvider>
+          </NotificationProvider>
+        </AuthProvider>
+        <Toast 
+          position="top"
+          visibilityTime={5000}
+          autoHide={true}
+          topOffset={50}
+        />
+      </StripeProvider>
     </ErrorBoundary>
   );
 }
