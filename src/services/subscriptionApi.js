@@ -414,6 +414,24 @@ class SubscriptionApi {
     
     return 'Méthode de paiement inconnue';
   }
+
+  /**
+   * Get Stripe publishable key from backend
+   * @returns {Promise<string|null>} Stripe publishable key or null
+   */
+  static async getStripePublishableKey() {
+    try {
+      console.log('🔑 Fetching Stripe publishable key from backend...');
+      const response = await api.get('/payments/config');
+      
+      console.log('✅ Stripe publishable key fetched successfully');
+      return response.data?.data?.stripePublishableKey || response.data?.stripePublishableKey || null;
+    } catch (error) {
+      console.warn('⚠️ Could not fetch Stripe publishable key from backend:', error.message);
+      console.warn('⚠️ Endpoint /payments/config may not exist yet. Using fallback.');
+      return null;
+    }
+  }
 }
 
 export default SubscriptionApi;

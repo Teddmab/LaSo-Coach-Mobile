@@ -163,23 +163,38 @@ function AppContent() {
 export default function App() {
   console.log('📱 LaSo Coach App starting...');
   
+  const [stripeKey, setStripeKey] = React.useState(Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
+  
   // Initialize TokenManager at app startup
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
     console.log('🔐 [Startup] Initializing app dependencies...');
     initializeTokenManager();
+    
+    // Try to fetch Stripe key from backend if not in config
+    if (!Config.STRIPE_PUBLISHABLE_KEY || Config.STRIPE_PUBLISHABLE_KEY === 'pk_test_placeholder') {
+      console.log('🔑 [Stripe] Attempting to fetch publishable key from backend...');
+      const SubscriptionApi = require('./src/services/subscriptionApi').default;
+      SubscriptionApi.getStripePublishableKey()
+        .then((backendKey) => {
+          if (backendKey) {
+            console.log('✅ [Stripe] Publishable key loaded from backend');
+            setStripeKey(backendKey);
+          } else {
+            console.warn('⚠️ [Stripe] Publishable key not found in backend. Using placeholder.');
+            console.warn('⚠️ [Stripe] Please add STRIPE_PUBLISHABLE_KEY to your .env file or configure backend endpoint /payments/config');
+          }
+        })
+        .catch((error) => {
+          console.warn('⚠️ [Stripe] Could not fetch key from backend:', error.message);
+        });
+    } else {
+      console.log('✅ [Stripe] Publishable key loaded from configuration');
+    }
   }, []);
   
-  // Stripe publishable key from configuration
-  // Priority: 1. Config (from env.js -> app.json -> .env), 2. Fallback placeholder
-  const STRIPE_PUBLISHABLE_KEY = Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder';
-  
-  if (!Config.STRIPE_PUBLISHABLE_KEY) {
-    console.warn('⚠️ [Stripe] Publishable key not found in configuration. Using placeholder.');
-    console.warn('⚠️ [Stripe] Please add STRIPE_PUBLISHABLE_KEY to your .env file or app.json');
-  } else {
-    console.log('✅ [Stripe] Publishable key loaded from configuration');
-  }
+  // Stripe publishable key - from config or backend
+  const STRIPE_PUBLISHABLE_KEY = stripeKey;
   
   return (
     <ErrorBoundary>
