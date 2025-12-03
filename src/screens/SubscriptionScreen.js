@@ -7,23 +7,21 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Linking,
   ActivityIndicator,
   Modal,
   Platform,
   StatusBar,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../context/FirebaseAuthContext';
 import SubscriptionApi from '../services/subscriptionApi';
 import ProfileApi from '../services/profileApi';
-import firebaseAuthService from '../services/firebaseAuthServiceNew';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
 import BottomNavigation from '../components/BottomNavigation';
+import SubscriptionPaymentFlow from '../components/SubscriptionPaymentFlow';
 
 /**
  * SubscriptionScreen - Spotify-style Flow
@@ -37,22 +35,18 @@ import BottomNavigation from '../components/BottomNavigation';
 export default function SubscriptionScreen({ navigation, onClose, onNext, isStandalone = true, onTabPress, user: propUser, activeTab = 'home' }) {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
-  const [webAuthToken, setWebAuthToken] = useState(null);
   
   // State management
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState([]);
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [redirecting, setRedirecting] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [profileData, setProfileData] = useState(null);
-  // In-app web subscription flow
-  const [showWebView, setShowWebView] = useState(false);
-  const [webViewUrl, setWebViewUrl] = useState(null);
-  const [webViewLoading, setWebViewLoading] = useState(false);
+  // Native payment flow (no web redirect)
+  const [showPaymentFlow, setShowPaymentFlow] = useState(false);
 
   /**
    * Initialize screen data
@@ -87,21 +81,11 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
       setLoading(true);
       console.log('💳 Initializing subscription screen...');
 
-      // Get Firebase ID token for web authentication
-      try {
-        const token = await firebaseAuthService.getIdToken();
-        if (token) {
-          setWebAuthToken(token);
-          console.log('✅ Firebase ID token retrieved for web auth');
-        }
-      } catch (tokenError) {
-        console.log('⚠️ Could not get Firebase token for web auth:', tokenError);
-      }
-
-      // Fetch subscription data, profile, and history
+      // Fetch subscription data, profile, and history (NO WEB AUTH NEEDED - Native only)
+      // Note: We're not calling backend for plans yet, but keeping the structure for later
       const [plansData, subscriptionData, profile, historyResponse] = await Promise.all([
-        SubscriptionApi.getPlans(),
-        SubscriptionApi.getCurrentSubscription(),
+        SubscriptionApi.getPlans().catch(() => []), // Return empty array if fails
+        SubscriptionApi.getCurrentSubscription().catch(() => null),
         ProfileApi.getProfile().catch(() => null),
         SubscriptionApi.getHistory().catch(() => ({ success: false, data: [] })),
       ]);
@@ -138,87 +122,7 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
     }
   };
 
-  /**
-   * Build web URL with token and plan ID
-   */
-  const buildWebUrl = (planId = null) => {
-    const baseUrl = 'https://app.lasocoach.com/onboarding/subscription';
-    const params = new URLSearchParams();
-    
-    if (webAuthToken) {
-      params.append('token', webAuthToken);
-    }
-    
-    if (planId) {
-      params.append('planId', planId);
-    }
-    
-    const queryString = params.toString();
-    return queryString ? `${baseUrl}?${queryString}` : baseUrl;
-  };
-
-  /**
-   * Redirect to web app for subscription
-   */
-  const redirectToWeb = async (plan) => {
-    // Legacy external redirect kept for any non-plan actions (e.g. cancel)
-    try {
-      let token = webAuthToken;
-      try {
-        const freshToken = await firebaseAuthService.getIdToken(true);
-        if (freshToken) {
-          token = freshToken;
-          setWebAuthToken(freshToken);
-        }
-      } catch (e) {
-        console.log('Token refresh failed, using cached token');
-      }
-      const baseUrl = 'https://app.lasocoach.com/onboarding/subscription';
-      const params = new URLSearchParams();
-      if (token) params.append('token', token);
-      if (plan?.id) params.append('planId', plan.id);
-      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      }
-    } catch (error) {
-      console.error('External redirect error:', error);
-    }
-  };
-
-  const openEmbeddedSubscription = async (plan) => {
-    try {
-      setRedirecting(true);
-      setSelectedPlan(plan);
-      let token = webAuthToken;
-      try {
-        const freshToken = await firebaseAuthService.getIdToken(true);
-        if (freshToken) {
-          token = freshToken;
-          setWebAuthToken(freshToken);
-        }
-      } catch (e) {
-        console.log('Token refresh failed, using cached token');
-      }
-      const baseUrl = 'https://app.lasocoach.com/onboarding/subscription';
-      const params = new URLSearchParams();
-      if (token) params.append('token', token);
-      if (plan?.id) params.append('planId', plan.id);
-      const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
-      setWebViewUrl(url);
-      setShowWebView(true);
-    } catch (error) {
-      console.error('Embedded subscription error:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible d\'ouvrir la souscription intégrée',
-      });
-    } finally {
-      setRedirecting(false);
-    }
-  };
+  // REMOVED: All web redirect functions - Now using native payment flow only
 
   /**
    * Refresh subscription data and history
@@ -252,7 +156,7 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
   };
 
   /**
-   * Handle plan selection - redirect to web
+   * Handle plan selection - open native payment flow (NO WEB)
    */
   const handlePlanSelect = async (plan) => {
     // Check if already subscribed to this plan
@@ -264,8 +168,63 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
       });
       return;
     }
-    // Open embedded in-app subscription flow
-    await openEmbeddedSubscription(plan);
+    
+    // Validate plan
+    if (!plan || !plan.id) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Plan d\'abonnement invalide',
+      });
+      return;
+    }
+    
+    // Store selected plan and open native payment flow (NO WEB REDIRECT)
+    const planForPayment = {
+      id: plan.id,
+      name: plan.name,
+      price: plan.price,
+      discountPrice: plan.discountPrice,
+      duration: plan.duration,
+      features: plan.features || [],
+      currency: plan.currency || 'EUR'
+    };
+    
+    setSelectedPlan(planForPayment);
+    setShowPaymentFlow(true);
+    console.log('✅ Opening native payment flow (no web redirect)');
+  };
+
+  /**
+   * Handle payment success
+   */
+  const handlePaymentSuccess = async (paymentData) => {
+    console.log('✅ Payment successful:', paymentData);
+    
+    Toast.show({
+      type: 'success',
+      text1: 'Abonnement activé',
+      text2: 'Votre abonnement a été activé avec succès',
+    });
+    
+    // Refresh subscription data
+    await refreshSubscriptionData();
+    await refreshProfile();
+    
+    // Close payment flow
+    setShowPaymentFlow(false);
+    setSelectedPlan(null);
+  };
+
+  /**
+   * Handle payment error
+   */
+  const handlePaymentError = (error) => {
+    console.error('❌ Payment error:', error);
+    // Error is already displayed in the payment flow component
+    // Just close the flow
+    setShowPaymentFlow(false);
+    setSelectedPlan(null);
   };
 
   /**
@@ -520,9 +479,16 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
         {/* Cancel Subscription */}
         <TouchableOpacity 
           style={styles.cancelSubscriptionButton}
-          onPress={() => redirectToWeb(null)}
+          onPress={() => {
+            // TODO: Implement cancel subscription in native flow
+            Toast.show({
+              type: 'info',
+              text1: 'Fonctionnalité à venir',
+              text2: 'L\'annulation d\'abonnement sera disponible prochainement',
+            });
+          }}
         >
-          <Text style={styles.cancelSubscriptionText}>Cancel Subscription</Text>
+          <Text style={styles.cancelSubscriptionText}>Annuler l'abonnement</Text>
         </TouchableOpacity>
       </View>
     );
@@ -653,15 +619,11 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
                 <TouchableOpacity 
                   style={styles.planSubscribeButton}
                   onPress={() => handlePlanSelect(plan)}
-                  disabled={redirecting || isCurrent}
+                  disabled={isCurrent}
                 >
-                  {redirecting && selectedPlan?.id === plan.id ? (
-                    <ActivityIndicator color={backgroundColor} size="small" />
-                  ) : (
-                    <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
-                      {isCurrent ? 'Plan actuel' : "S'abonner"}
-                    </Text>
-                  )}
+                  <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
+                    {isCurrent ? 'Plan actuel' : "S'abonner"}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -688,7 +650,7 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Chargement...</Text>
@@ -825,7 +787,7 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* AppHeader */}
@@ -881,56 +843,48 @@ export default function SubscriptionScreen({ navigation, onClose, onNext, isStan
       {/* Invoice Modal */}
       {renderInvoiceModal()}
 
-      {/* Embedded Subscription WebView Modal */}
-      <Modal
-        visible={showWebView}
-        animationType="slide"
-        onRequestClose={() => setShowWebView(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' }}>
-            <TouchableOpacity onPress={() => setShowWebView(false)} style={{ padding: 8 }}>
-              <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-            <Text style={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: theme.colors.text.primary }}>
-              Paiement Abonnement
-            </Text>
-            <View style={{ width: 32 }} />
-          </View>
-          {webViewUrl ? (
-            <WebView
-              source={{ uri: webViewUrl, headers: webAuthToken ? { Authorization: `Bearer ${webAuthToken}` } : {} }}
-              onLoadStart={() => setWebViewLoading(true)}
-              onLoadEnd={() => setWebViewLoading(false)}
-              onNavigationStateChange={(nav) => {
-                const url = nav.url || '';
-                if (url.includes('/onboarding/subscription-success')) {
-                  Toast.show({ type: 'success', text1: 'Abonnement activé', text2: 'Merci pour votre souscription !' });
-                  setShowWebView(false);
-                  refreshSubscriptionData();
-                  refreshProfile();
-                } else if (url.includes('/onboarding/subscription-cancel')) {
-                  Toast.show({ type: 'info', text1: 'Abonnement annulé', text2: 'Processus annulé.' });
-                  setShowWebView(false);
-                }
+      {/* Native Payment Flow - NO WEB REDIRECT */}
+      {showPaymentFlow && selectedPlan && (
+        <Modal
+          visible={showPaymentFlow}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setShowPaymentFlow(false);
+            setSelectedPlan(null);
+          }}
+        >
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableOpacity
+              style={styles.bottomSheetBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                setShowPaymentFlow(false);
+                setSelectedPlan(null);
               }}
-              injectedJavaScriptBeforeContentLoaded={webAuthToken ? `(() => { try { localStorage.setItem('firebase_id_token', '${(webAuthToken||'').replace(/'/g,"\\'")}'); } catch(e){} })();` : ''}
-              startInLoadingState
-              renderLoading={() => (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
-                  <Text style={{ marginTop: 12, color: theme.colors.text.secondary }}>Chargement du portail...</Text>
-                </View>
-              )}
-              style={{ flex: 1 }}
             />
-          ) : (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
+            <View style={styles.bottomSheetContainer}>
+              {/* BottomSheet Handle */}
+              <View style={styles.bottomSheetHandleContainer}>
+                <View style={styles.bottomSheetHandle} />
+              </View>
+              
+              {/* Payment Flow Content */}
+              <SubscriptionPaymentFlow
+                visible={true}
+                isEmbedded={true}
+                plan={selectedPlan}
+                onClose={() => {
+                  setShowPaymentFlow(false);
+                  setSelectedPlan(null);
+                }}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+              />
             </View>
-          )}
-        </SafeAreaView>
-      </Modal>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -945,7 +899,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   sectionContainer: {
     paddingHorizontal: 20,
@@ -1811,6 +1765,82 @@ const styles = StyleSheet.create({
   paymentStatusText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  // BottomSheet Styles
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  bottomSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    minHeight: '85%',
+    height: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  bottomSheetHandleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 2,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  bottomSheetTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+  },
+  bottomSheetCloseButton: {
+    padding: 8,
+    marginRight: -8,
+  },
+  bottomSheetContent: {
+    flex: 1,
+    minHeight: 400,
+  },
+  bottomSheetWebView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  bottomSheetLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  bottomSheetLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: theme.colors.text.secondary,
   },
 });
 

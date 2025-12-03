@@ -29,7 +29,6 @@ import NotificationBadge from '../components/NotificationBadge';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
 import Toast from 'react-native-toast-message';
-import BottomNavigation from '../components/BottomNavigation';
 import { createLogger } from '../utils/logger';
 
 // Create logger instance for NutritionScreen
@@ -1123,7 +1122,7 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
@@ -1321,12 +1320,6 @@ const NutritionScreen = ({ user, onLogout, onTabPress, activeTab, onSubscription
           )}
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <BottomNavigation 
-        activeTab={activeTab} 
-        onTabPress={onTabPress} 
-      />
 
       {/* Feedback Modal */}
       <Modal
@@ -1897,7 +1890,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   loadingContainer: {
     flex: 1,
@@ -2789,7 +2782,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   youtubeModalBodyContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   youtubePlayerContainer: {
     alignSelf: 'center',
@@ -2846,7 +2839,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
   },
@@ -2867,7 +2860,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   completionModalHeader: {
     flexDirection: 'row',
@@ -3028,7 +3021,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingTop: 50,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
     zIndex: 1,
     alignItems: 'flex-end',
   },

@@ -2,10 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
 import { initializeTokenManager } from './src/services/api';
+import Config from './src/config/env';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
@@ -161,30 +163,58 @@ function AppContent() {
 export default function App() {
   console.log('📱 LaSo Coach App starting...');
   
+  const [stripeKey, setStripeKey] = React.useState(Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
+  
   // Initialize TokenManager at app startup
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
     console.log('🔐 [Startup] Initializing app dependencies...');
     initializeTokenManager();
+    
+    // Try to fetch Stripe key from backend if not in config
+    if (!Config.STRIPE_PUBLISHABLE_KEY || Config.STRIPE_PUBLISHABLE_KEY === 'pk_test_placeholder') {
+      console.log('🔑 [Stripe] Attempting to fetch publishable key from backend...');
+      const SubscriptionApi = require('./src/services/subscriptionApi').default;
+      SubscriptionApi.getStripePublishableKey()
+        .then((backendKey) => {
+          if (backendKey) {
+            console.log('✅ [Stripe] Publishable key loaded from backend');
+            setStripeKey(backendKey);
+          } else {
+            console.warn('⚠️ [Stripe] Publishable key not found in backend. Using placeholder.');
+            console.warn('⚠️ [Stripe] Please add STRIPE_PUBLISHABLE_KEY to your .env file or configure backend endpoint /payments/config');
+          }
+        })
+        .catch((error) => {
+          console.warn('⚠️ [Stripe] Could not fetch key from backend:', error.message);
+        });
+    } else {
+      console.log('✅ [Stripe] Publishable key loaded from configuration');
+    }
   }, []);
+  
+  // Stripe publishable key - from config or backend
+  const STRIPE_PUBLISHABLE_KEY = stripeKey;
   
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <NotificationProvider>
-          <ChatProvider>
-            <NetworkStatus />
-            {/* AuthInitDebug removed */}
-            <AppContent />
-          </ChatProvider>
-        </NotificationProvider>
-      </AuthProvider>
-      <Toast 
-        position="top"
-        visibilityTime={5000}
-        autoHide={true}
-        topOffset={50}
-      />
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <AuthProvider>
+          <NotificationProvider>
+            <ChatProvider>
+              <NetworkStatus />
+              {/* AuthInitDebug removed */}
+              <AppContent />
+            </ChatProvider>
+          </NotificationProvider>
+        </AuthProvider>
+        <Toast 
+          position="top"
+          visibilityTime={5000}
+          autoHide={true}
+          topOffset={50}
+        />
+      </StripeProvider>
     </ErrorBoundary>
   );
 }

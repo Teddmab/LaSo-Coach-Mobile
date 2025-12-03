@@ -554,7 +554,7 @@ const AgendaScreen = ({ user, onLogout, onTabPress, activeTab, onClose }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   programInfo: {
     backgroundColor: '#FFFFFF',

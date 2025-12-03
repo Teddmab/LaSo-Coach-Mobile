@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 /**
@@ -82,6 +83,7 @@ const AuthContext = createContext(undefined);
 // Import Firebase auth service directly
 import firebaseAuthService from '../services/firebaseAuthServiceNew';
 import { loadPersistedUser, savePersistedUser, clearPersistedUser } from '../services/authPersistence';
+import deviceApi from '../services/deviceApi';
 
 /**
  * Authentication Provider Component using Firebase Auth Service
@@ -188,6 +190,12 @@ export function AuthProvider({ children }) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
             savePersistedUser(user); // persist snapshot
             console.log('✅ User authenticated via Firebase (listener):', user.firstName || user.name);
+            
+            // Event Trigger 1: After auth success - Enregistrer l'appareil
+            // (Déjà fait dans firebaseAuthServiceNew.js, mais on le fait aussi ici pour être sûr)
+            deviceApi.registerDevice().catch(error => {
+              console.warn('⚠️ [AuthContext] Échec enregistrement appareil après auth (non bloquant):', error.message);
+            });
           } else {
             clearPersistedUser();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
@@ -217,6 +225,50 @@ export function AuthProvider({ children }) {
     };
     // Intentionally exclude state.user from deps (rehydration only once)
   }, []);
+
+  /**
+   * Event Trigger 2: App lifecycle - Quand l'app revient au premier plan
+   * Met à jour lastSeenAt et appVersion dans le backend
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && state.isAuthenticated) {
+        // App has come to the foreground and user is authenticated
+        console.log('📱 [DeviceApi] App revient au premier plan - Mise à jour lastSeenAt et appVersion...');
+        
+        // Mettre à jour les informations de l'appareil (lastSeenAt, appVersion)
+        deviceApi.registerDevice().catch(error => {
+          console.warn('⚠️ [DeviceApi] Échec mise à jour appareil au foreground (non bloquant):', error.message);
+        });
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [state.isAuthenticated]);
+
+  /**
+   * Event Trigger 3: Cold start - Si l'utilisateur est déjà connecté au démarrage
+   * Optionnel : Enregistrer l'appareil une fois au démarrage si session restaurée
+   */
+  useEffect(() => {
+    // Attendre que l'auth soit prête et que l'utilisateur soit authentifié
+    if (state.authReady && state.isAuthenticated && state.user) {
+      console.log('📱 [DeviceApi] Cold start - Utilisateur déjà connecté, enregistrement appareil...');
+      
+      // Enregistrer l'appareil une fois au démarrage (avec un petit délai pour éviter les appels multiples)
+      const timeoutId = setTimeout(() => {
+        deviceApi.registerDevice().catch(error => {
+          console.warn('⚠️ [DeviceApi] Échec enregistrement appareil au cold start (non bloquant):', error.message);
+        });
+      }, 2000); // Délai de 2 secondes pour laisser l'app se stabiliser
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [state.authReady, state.isAuthenticated]); // Se déclenche une fois quand authReady et isAuthenticated deviennent true
 
   /**
    * Login user with email and password

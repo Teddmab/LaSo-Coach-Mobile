@@ -25,7 +25,6 @@ import SubscriptionService from '../services/subscriptionService';
 import Avatar from '../components/Avatar';
 import AppHeader from '../components/AppHeader';
 import ProgressChart from '../components/ProgressChart';
-import BottomNavigation from '../components/BottomNavigation';
 import AchievementsCard from '../components/dashboard/AchievementsCard';
 import NotificationBadge from '../components/NotificationBadge';
 import { ProfileApi } from '../services/profileApi';
@@ -641,7 +640,7 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header - aligned with Dashboard */}
@@ -1088,8 +1087,6 @@ const ProgressScreen = ({ user, onLogout, onTabPress, activeTab, onSubscriptionR
         </View>
       </Modal>
 
-      {/* Bottom Navigation */}
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };
@@ -1113,7 +1110,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   tabContainer: {
     flexDirection: 'row',

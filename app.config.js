@@ -20,6 +20,7 @@ const {
   DEBUG_MODE,
   OFFLINE_MODE,
   NODE_ENV,
+  STRIPE_PUBLISHABLE_KEY,
 } = process.env;
 
 const DEFAULT_FIREBASE = {
@@ -68,6 +69,7 @@ export default ({ config }) => ({
           typeof OFFLINE_MODE !== 'undefined'
             ? OFFLINE_MODE
             : DEFAULT_ENV.offlineMode,
+        stripePublishableKey: STRIPE_PUBLISHABLE_KEY, // Stripe publishable key
       },
       firebase: {
         apiKey: FIREBASE_API_KEY || DEFAULT_FIREBASE.apiKey,

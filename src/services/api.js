@@ -713,9 +713,13 @@ export const authAPI = {
       };
     }
 
+    // CRITICAL FIX: Uploads need longer timeout and proper FormData handling
+    // Don't set Content-Type manually - axios will set it with boundary automatically
     const response = await api.patch('/profile/avatar', formData, {
+      timeout: 120000, // 120 seconds for image uploads (longer than default)
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Don't set Content-Type - axios will set it automatically with boundary for FormData
+        // Setting it manually prevents axios from adding the boundary parameter
       },
     });
     return response.data;

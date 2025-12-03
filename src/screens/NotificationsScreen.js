@@ -653,7 +653,7 @@ const NotificationsScreen = ({ user, onLogout, onTabPress, activeTab, onClose })
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
@@ -923,6 +923,7 @@ const styles = StyleSheet.create({
   },
   notificationsContent: {
     paddingVertical: 8,
+    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   notificationItem: {
     backgroundColor: '#FFFFFF',
@@ -1050,7 +1051,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
   },
   modalTitle: {
     fontSize: 24,

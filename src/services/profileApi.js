@@ -1,5 +1,7 @@
 import api from './api';
 import Config from '../config/env';
+import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 
 /**
  * Profile API Service
@@ -48,6 +50,59 @@ export class ProfileApi {
   }
 
   /**
+   * Copy file from content:// URI to accessible file:// URI (Android fix)
+   * This solves the "Network request failed" error on Android
+   * @param {string} sourceUri - Source URI (content:// or file://)
+   * @param {string} mimeType - MIME type of the file
+   * @returns {Promise<string>} Accessible file URI
+   */
+  static async copyFileToAccessibleLocation(sourceUri, mimeType = 'image/jpeg') {
+    try {
+      // On iOS or if already a file:// URI, return as-is
+      if (Platform.OS === 'ios' || sourceUri.startsWith('file://')) {
+        console.log('📁 URI already accessible:', sourceUri.substring(0, 50));
+        return sourceUri;
+      }
+
+      // On Android with content:// URI, copy to cache directory
+      if (sourceUri.startsWith('content://')) {
+        console.log('📁 Copying content:// URI to accessible location...');
+        
+        // Determine file extension from mime type
+        const extension = mimeType.includes('png') ? 'png' : 
+                         mimeType.includes('gif') ? 'gif' : 
+                         'jpg';
+        
+        // Create a unique filename in cache directory
+        const fileName = `avatar_${Date.now()}.${extension}`;
+        const destUri = `${FileSystem.cacheDirectory}${fileName}`;
+        
+        console.log('📁 Copying from:', sourceUri.substring(0, 50));
+        console.log('📁 Copying to:', destUri);
+        
+        // Copy the file using expo-file-system
+        await FileSystem.copyAsync({
+          from: sourceUri,
+          to: destUri,
+        });
+        
+        console.log('✅ File copied successfully to:', destUri);
+        return destUri;
+      }
+
+      // Unknown URI format, return as-is
+      console.log('📁 URI format:', sourceUri.substring(0, 50));
+      return sourceUri;
+    } catch (error) {
+      console.error('❌ Error copying file:', error);
+      console.error('❌ Error details:', error.message, error.stack);
+      // If copy fails, return original URI as fallback
+      console.warn('⚠️ Returning original URI - upload may fail');
+      return sourceUri;
+    }
+  }
+
+  /**
    * Upload user avatar
    * @param {FormData} formData - FormData containing the avatar file
    * @returns {Promise<Object>} Upload response with avatar URL
@@ -56,19 +111,92 @@ export class ProfileApi {
     try {
       console.log('👤 Uploading avatar...');
       
+      // CRITICAL FIX: Use axios for file uploads - it handles content:// URIs better on Android
+      // fetch() may have issues with content:// URIs on Android
+      // Axios with proper FormData configuration works more reliably
+      
+      // Get Firebase token for authorization (axios interceptor will add it, but we log it)
+      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
+      const idToken = await firebaseAuthService.getIdToken();
+      
+      if (!idToken) {
+        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
+      }
+      
+      // Get API base URL
+      const Config = require('../config/env').default;
+      const uploadUrl = `${Config.API_BASE_URL}/profile/avatar`;
+      
+      console.log('📤 Upload URL:', uploadUrl);
+      console.log('📤 Has token:', !!idToken);
+      console.log('📤 FormData type:', formData.constructor.name);
+      
+      // Use axios - the interceptor will handle Content-Type correctly
+      // Axios handles content:// URIs better than fetch on React Native
       const response = await api.patch('/profile/avatar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        timeout: 120000, // 120 seconds for image uploads
+        // Don't set headers manually - interceptor handles it
+        // The interceptor will remove Content-Type for FormData and let axios set it with boundary
+        maxContentLength: Infinity, // Allow large file uploads
+        maxBodyLength: Infinity, // Allow large file uploads
       });
       
+      console.log('📥 Upload response status:', response.status);
       console.log('✅ Avatar uploaded successfully');
       console.log('👤 Avatar response:', response.data);
       
       return response.data;
     } catch (error) {
       console.error('❌ Error uploading avatar:', error);
-      throw error;
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response ? {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        } : null,
+        request: error.request ? 'Request made but no response' : null
+      });
+      
+      // Provide more detailed error information
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.error('❌ Upload timeout - image may be too large or connection too slow');
+        throw new Error('Le téléchargement prend trop de temps. Vérifiez votre connexion internet ou essayez avec une image plus petite.');
+      }
+      
+      if (error.message?.includes('Network Error') || error.message?.includes('Network request failed') || (!error.response && !error.request)) {
+        console.error('❌ Network error during upload - this might be a file access issue');
+        console.error('❌ Possible causes:');
+        console.error('   1. File URI not accessible (content:// URIs need special handling)');
+        console.error('   2. Network connectivity issue');
+        console.error('   3. Server unreachable');
+        throw new Error('Erreur de connexion ou fichier inaccessible. Vérifiez votre connexion internet et réessayez.');
+      }
+      
+      // Handle server errors
+      if (error.response) {
+        const status = error.response.status;
+        const errorData = error.response.data;
+        let errorMessage = 'Erreur lors du téléchargement de l\'avatar';
+        
+        if (errorData?.message) {
+          errorMessage = errorData.message;
+        } else if (errorData?.error) {
+          errorMessage = errorData.error;
+        } else if (status === 413) {
+          errorMessage = 'L\'image est trop volumineuse. Veuillez choisir une image plus petite.';
+        } else if (status === 400) {
+          errorMessage = 'Format d\'image non supporté. Utilisez JPG ou PNG.';
+        } else if (status === 401) {
+          errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      // If error has a message, use it; otherwise use generic message
+      throw error.message ? error : new Error('Erreur lors du téléchargement de l\'avatar');
     }
   }
 
