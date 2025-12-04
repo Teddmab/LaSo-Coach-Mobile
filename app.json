@@ -84,10 +84,10 @@
         "webClientId": "855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com"
       },
       "eas": {
-        "projectId": "202e9298-94fd-42da-ac28-574924c2418b"
+        "projectId": "f509eb43-52af-44a9-b7f0-e8a7179a0aa3"
       }
     },
-    "owner": "moses_jo",
+    "owner": "ohriginal-llc",
     "plugins": [
       "expo-web-browser",
       "./plugins/withReactNativeIAP.js"

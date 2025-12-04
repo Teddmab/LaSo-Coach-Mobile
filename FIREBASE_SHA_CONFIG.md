@@ -187,8 +187,38 @@ cat .env | grep FIREBASE_WEB_CLIENT_ID
 L'app utilise automatiquement :
 - **Debug** : `android/app/debug.keystore` OU `~/.android/debug.keystore`
 - **Release** : Le keystore configuré pour la signature
+- **EAS Build** : Le keystore géré par EAS (différent du debug local)
 
 Pour les tests locaux, utilisez les **deux keystores debug** dans Firebase.
+
+### 🔑 Récupérer le SHA-1 du Keystore EAS Build (Production)
+
+Si vous utilisez **EAS Build** pour créer des builds de production, vous devez aussi ajouter le SHA-1 du keystore EAS :
+
+```bash
+# 1. Installer EAS CLI si pas déjà fait
+npm install -g eas-cli
+
+# 2. Se connecter à EAS
+eas login
+
+# 3. Voir les credentials Android
+eas credentials
+
+# 4. Sélectionner votre projet et "Android"
+# 5. Choisir "Keystore: Manage everything needed to build your project"
+# 6. EAS affichera le SHA-1 et SHA-256 du keystore de production
+```
+
+**OU** via l'interface web :
+1. Aller sur https://expo.dev
+2. Sélectionner votre projet
+3. Aller dans **Credentials** > **Android**
+4. Le SHA-1 et SHA-256 sont affichés dans les détails du keystore
+
+**IMPORTANT** : Ajoutez **TOUS** les SHA-1/SHA-256 dans Firebase :
+- ✅ SHA du debug keystore local (pour tests locaux)
+- ✅ SHA du keystore EAS Build (pour builds de production)
 
 ---
 

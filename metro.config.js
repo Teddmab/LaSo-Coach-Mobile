@@ -33,24 +33,5 @@ config.transformer = {
   unstable_allowRequireContext: true,
 };
 
-// Exclude build directories from watching to prevent ENOENT errors
-config.watchFolders = config.watchFolders || [];
-config.watchFolders = config.watchFolders.filter(folder => {
-  return !folder.includes('android\\build') && !folder.includes('android/build');
-});
-
-// Add watcher configuration to ignore problematic paths
-config.watcher = {
-  ...config.watcher,
-  additionalExts: config.watcher?.additionalExts || [],
-  ignored: [
-    ...(config.watcher?.ignored || []),
-    '**/node_modules/**/android/build/**',
-    '**/node_modules/**/build/tmp/**',
-    '**/android/build/**',
-    '**/android/app/build/**',
-  ],
-};
-
 module.exports = config;
 

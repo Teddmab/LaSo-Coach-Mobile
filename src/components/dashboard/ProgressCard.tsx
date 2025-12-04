@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import CircularProgress from '../CircularProgress';
 import DashboardService from '../../services/dashboardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createLogger } from '../../utils/logger';
+import { ShimmerCard } from '../Shimmer';
 
 // Create logger instance for this component
 const logger = createLogger('ProgressCard');
@@ -115,13 +116,13 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     if (dashboardData && !refreshing) {
       try {
         logger.debug('Received dashboard data, calculating progress');
-        const calculatedProgress = DashboardService.calculateProgress(dashboardData);
+        const calculatedProgress: any = DashboardService.calculateProgress(dashboardData);
         logger.debug('Progress calculated from props', calculatedProgress);
         // Enrich with derived/optional metrics from dashboardData
         const rawHeight = dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
         const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
         const weightKg = calculatedProgress?.weight?.current || 0;
-        const enriched: ProgressData = { ...calculatedProgress };
+        const enriched: ProgressData = calculatedProgress as ProgressData;
         if (heightCm) {
           enriched.height = { current: heightCm };
           const hM = heightCm / 100;
@@ -289,8 +290,8 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
         </View>
         
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <ShimmerCard />
+          <ShimmerCard />
         </View>
       </View>
     );
@@ -468,6 +469,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconButton: {
+    padding: 4,
+  },
+  refreshButton: {
     padding: 4,
   },
   progressRow: {
