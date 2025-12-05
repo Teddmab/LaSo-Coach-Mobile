@@ -29,6 +29,10 @@ import FAQScreen from './FAQScreen';
 import SubscriptionScreen from './SubscriptionScreen';
 import LanguageScreen from './settings/LanguageScreen';
 import NotificationSettingsScreen from './settings/NotificationSettingsScreen';
+import WebViewScreen from './WebViewScreen';
+import ContactSupportScreen from './ContactSupportScreen';
+import AboutScreen from './AboutScreen';
+import SecurityScreen from './SecurityScreen';
 import MoreMenu from '../components/MoreMenu';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navigation }) => {
@@ -75,6 +79,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const [showCompleteDayModal, setShowCompleteDayModal] = useState<boolean>(false);
   const [selectedMeals, setSelectedMeals] = useState<any[]>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
+  // État pour savoir d'où on vient (settings ou security) pour les webviews
+  const [webViewSource, setWebViewSource] = useState<string>('settings');
   
   // BackHandler: gestion du bouton retour Android
   const backHandlerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -550,12 +556,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
             } else if (target === 'subscription') {
               setCurrentScreen('subscription');
             } else if (target === 'security') {
-              // Security screen navigation - will be handled separately if needed
-              setCurrentScreen('home');
+              setCurrentScreen('security');
             } else if (target === 'language') {
               setCurrentScreen('language');
             } else if (target === 'notifications') {
               setCurrentScreen('notification-settings');
+            } else if (target === 'privacy-policy') {
+              setWebViewSource('settings');
+              setCurrentScreen('privacy-policy');
+            } else if (target === 'terms-of-service') {
+              setWebViewSource('settings');
+              setCurrentScreen('terms-of-service');
+            } else if (target === 'platform-rules') {
+              setWebViewSource('settings');
+              setCurrentScreen('platform-rules');
+            } else if (target === 'contact-support') {
+              setCurrentScreen('contact-support');
+            } else if (target === 'about') {
+              setCurrentScreen('about');
             } else {
               // Default: go back to home
               setCurrentScreen('home');
@@ -563,12 +581,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           }}
         />
       </FixedLayout>
-        <MoreMenu 
-          visible={showMoreMenu}
-          onClose={handleMoreMenuClose}
-          onMenuItemPress={handleMoreMenuItemPress}
-        />
-      </>
+      <MoreMenu 
+        visible={showMoreMenu}
+        onClose={handleMoreMenuClose}
+        onMenuItemPress={handleMoreMenuItemPress}
+      />
+    </>
     );
   }
 
@@ -671,7 +689,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     return (
       <>
         <FixedLayout
-          headerTitle="Paramètres de Notifications"
+          headerTitle="P. Notification"
           activeTab={activeTab}
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
@@ -686,6 +704,131 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
             activeTab={activeTab}
           />
         </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'security') {
+    return (
+      <>
+        <SecurityScreen
+          onClose={() => setCurrentScreen('settings')}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+          onLinkPress={(linkId) => {
+            setWebViewSource('security');
+            setCurrentScreen(linkId);
+          }}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'privacy-policy') {
+    return (
+      <>
+        <WebViewScreen
+          url="https://lasocoach.com/politique-de-confidentialite"
+          title="Politique de confidentialité"
+          onClose={() => setCurrentScreen(webViewSource)}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'terms-of-service') {
+    return (
+      <>
+        <WebViewScreen
+          url="https://lasocoach.com/termes-de-service"
+          title="Termes de service"
+          onClose={() => setCurrentScreen(webViewSource)}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'platform-rules') {
+    return (
+      <>
+        <WebViewScreen
+          url="https://lasocoach.com/regles-de-plateforme/"
+          title="Règles de la plateforme"
+          onClose={() => setCurrentScreen(webViewSource)}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'contact-support') {
+    return (
+      <>
+        <ContactSupportScreen
+          onClose={() => setCurrentScreen('settings')}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+          user={user}
+        />
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
+    );
+  }
+
+  if (currentScreen === 'about') {
+    return (
+      <>
+        <AboutScreen
+          onClose={() => setCurrentScreen('settings')}
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        />
         <MoreMenu 
           visible={showMoreMenu}
           onClose={handleMoreMenuClose}

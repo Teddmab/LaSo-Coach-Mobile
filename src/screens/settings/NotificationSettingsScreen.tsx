@@ -25,37 +25,21 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
           <Ionicons name="notifications" size={64} color={theme.colors.primary} />
         </View>
         
-        <Text style={styles.title}>Paramètres de Notifications</Text>
+        <Text style={styles.title}>Notifications</Text>
         
-        <Text style={styles.message}>
-          Actuellement, seule la langue française est disponible pour les notifications.
-        </Text>
-        
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
-          <Text style={styles.infoText}>
-            Les notifications sont actuellement disponibles uniquement en français. D'autres langues seront ajoutées dans les prochaines mises à jour.
+        <View style={styles.statusCard}>
+          <Ionicons name="checkmark-circle" size={32} color={theme.colors.primary} />
+          <Text style={styles.statusText}>
+            Les notifications sont activées dans l'application
           </Text>
         </View>
         
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresTitle}>Fonctionnalités disponibles :</Text>
-          <View style={styles.featureItem}>
-            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-            <Text style={styles.featureText}>Notifications push</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-            <Text style={styles.featureText}>Notifications de messages</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-            <Text style={styles.featureText}>Notifications d'objectifs</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-            <Text style={styles.featureText}>Notifications de progression</Text>
-          </View>
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary} />
+          <Text style={styles.infoText}>
+            Vous recevrez des notifications pour les messages, les objectifs, 
+            la progression et les mises à jour importantes de votre parcours.
+          </Text>
         </View>
       </View>
     </ScrollView>
@@ -87,51 +71,35 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
   },
-  message: {
+  statusCard: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.primaryLight + '20',
+    padding: 24,
+    borderRadius: 12,
+    marginBottom: 24,
+    width: '100%',
+  },
+  statusText: {
     fontSize: 16,
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.primary,
+    marginTop: 12,
     textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-    paddingHorizontal: 16,
+    fontWeight: '600',
   },
   infoCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.primaryLight,
+    alignItems: 'flex-start',
+    backgroundColor: '#F5F5F5',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 24,
     width: '100%',
   },
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: theme.colors.text.primary,
+    color: theme.colors.text.secondary,
     marginLeft: 12,
     lineHeight: 20,
-  },
-  featuresCard: {
-    width: '100%',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    padding: 20,
-  },
-  featuresTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 16,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  featureText: {
-    fontSize: 16,
-    color: theme.colors.text.primary,
-    marginLeft: 12,
   },
 });
 

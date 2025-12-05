@@ -44,6 +44,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       onClose('language');
     } else if (itemId === 'notifications' && onClose) {
       onClose('notifications');
+    } else if (itemId === 'contact-support' && onClose) {
+      onClose('contact-support');
+    } else if (itemId === 'about' && onClose) {
+      onClose('about');
     }
   };
 

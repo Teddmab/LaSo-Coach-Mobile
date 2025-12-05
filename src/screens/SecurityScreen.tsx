@@ -1,126 +1,150 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
-import AppHeader from '../components/AppHeader';
-import BottomNavigation from '../components/BottomNavigation';
-import { useAuth } from '../context/FirebaseAuthContext';
-import { SecurityScreenProps } from './settings/types';
-import AccountInfo from './settings/components/AccountInfo';
-import SecurityForm from './settings/components/SecurityForm';
-import DangerZone from './settings/components/DangerZone';
-import { useSecurity } from './settings/hooks/useSecurity';
-import { ScreenLayout, ScreenContent } from './shared';
+import FixedLayout from '../components/FixedLayout';
+
+interface SecurityScreenProps {
+  onClose: () => void;
+  activeTab?: string;
+  onTabPress?: (tabId: string) => void;
+  avatarSource?: any;
+  avatarFallbackText?: string;
+  onLinkPress: (linkId: string) => void;
+}
 
 const SecurityScreen: React.FC<SecurityScreenProps> = ({
-  navigation,
   onClose,
-  user,
+  activeTab,
   onTabPress,
-  activeTab = 'home',
+  avatarSource,
+  avatarFallbackText,
+  onLinkPress,
 }) => {
-  const { user: authUser } = useAuth();
-  const userEmail = authUser?.email || user?.email;
-  
-  const {
-    formData,
-    securityInfo,
-    setFormData,
-    handleUpdateEmail,
-    handleChangePassword,
-    handleDeleteAccount,
-  } = useSecurity(userEmail);
-
-  const handleBack = (): void => {
-    if (onClose) {
-      onClose();
-    } else if (navigation) {
-      navigation.goBack();
-    }
-  };
-
   return (
-    <ScreenLayout>
-      <StatusBar style="dark" />
-      
-      {/* Header */}
-      <AppHeader
-        title="Sécurité & Connexion"
-        onHelpPress={() => {
-          if (onTabPress) {
-            onTabPress('faq');
-          }
-        }}
-        onNotificationPress={() => {
-          if (onTabPress) {
-            onTabPress('notifications');
-          }
-        }}
-        onProfilePress={() => {
-          if (onTabPress) {
-            onTabPress('settings');
-          }
-        }}
-        avatarSource={authUser?.avatar || user?.avatar}
-        avatarFallbackText={authUser?.firstName?.charAt(0) || user?.name?.charAt(0)}
-      />
-
-      <ScreenContent>
-        {/* Account Information */}
-        <AccountInfo email={formData.email} securityInfo={securityInfo} />
-
-        {/* Security & Connection Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
-            <Text style={styles.sectionTitle}>Sécurité & Connexion</Text>
+    <FixedLayout
+      headerTitle="Sécurité & Connexion"
+      activeTab={activeTab}
+      onTabPress={onTabPress}
+      onHelpPress={() => {}}
+      onNotificationPress={() => {}}
+      onProfilePress={() => {}}
+      avatarSource={avatarSource}
+      avatarFallbackText={avatarFallbackText}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={styles.logoContainer}>
+              <Ionicons name="lock-closed" size={64} color={theme.colors.primary} />
+            </View>
           </View>
 
-          <SecurityForm
-            formData={formData}
-            onEmailChange={(email) => setFormData(prev => ({ ...prev, email }))}
-            onCurrentPasswordChange={(password) => setFormData(prev => ({ ...prev, currentPassword: password }))}
-            onNewPasswordChange={(password) => setFormData(prev => ({ ...prev, newPassword: password }))}
-            onConfirmPasswordChange={(password) => setFormData(prev => ({ ...prev, confirmPassword: password }))}
-            onUpdateEmail={handleUpdateEmail}
-            onChangePassword={handleChangePassword}
-          />
+          {/* Description Section */}
+          <Text style={styles.description}>
+            Consultez nos documents importants pour comprendre nos politiques de sécurité, 
+            nos conditions d'utilisation et les règles de la plateforme.
+          </Text>
+
+          {/* Links Section */}
+          <View style={styles.linksSection}>
+            <TouchableOpacity
+              style={styles.linkCard}
+              onPress={() => onLinkPress('privacy-policy')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="document-text-outline" size={24} color={theme.colors.primary} />
+              <Text style={styles.linkText}>Politique de confidentialité</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkCard}
+              onPress={() => onLinkPress('terms-of-service')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="document-text-outline" size={24} color={theme.colors.primary} />
+              <Text style={styles.linkText}>Termes de service</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkCard}
+              onPress={() => onLinkPress('platform-rules')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="document-text-outline" size={24} color={theme.colors.primary} />
+              <Text style={styles.linkText}>Règles de la plateforme</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* Danger Zone */}
-        <DangerZone onDeleteAccount={handleDeleteAccount} />
-      </ScreenContent>
-
-      {/* Bottom Navigation */}
-      {onTabPress && (
-        <BottomNavigation 
-          activeTab={activeTab} 
-          onTabPress={onTabPress}
-        />
-      )}
-    </ScreenLayout>
+      </ScrollView>
+    </FixedLayout>
   );
 };
 
 const styles = StyleSheet.create({
-  section: {
-    marginTop: 20,
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
   },
-  sectionHeader: {
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  content: {
+    padding: 20,
+  },
+  logoSection: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    marginBottom: 24,
+  },
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.colors.primaryLight + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 10,
+  },
+  linksSection: {
+    gap: 12,
+  },
+  linkCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+  linkText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
     color: theme.colors.text.primary,
     marginLeft: 12,
   },
 });
 
 export default SecurityScreen;
-
