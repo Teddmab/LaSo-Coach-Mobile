@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType, Animated } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from './Avatar';
@@ -35,22 +35,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   avatarFallbackText = '',
   showNotificationBadge = true,
 }) => {
-  // Animation douce du contenu gauche (logo / titre) lorsqu'on change d'écran
-  const leftOpacity = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    leftOpacity.setValue(0);
-    Animated.timing(leftOpacity, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [title, showLogo, leftOpacity]);
-
   return (
     <View style={[styles.header, showLogo && styles.headerWithLogo]}>
-      {/* Left Side: Logo or Title */}
-      <Animated.View style={[styles.headerLeft, { opacity: leftOpacity }]}>
+      {/* Left Side: Logo or Title - Pas d'animation pour éviter l'effet de chargement */}
+      <View style={styles.headerLeft}>
         {showLogo ? (
           <Image 
             source={require('../../assets/logo.png')} 
@@ -60,7 +48,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         ) : (
           <Text style={styles.headerTitle}>{title}</Text>
         )}
-      </Animated.View>
+      </View>
 
       {/* Right Side: Action Buttons */}
       <View style={styles.headerRight}>
@@ -116,19 +104,27 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    minHeight: 64, // Hauteur fixe standard pour tous les écrans
+    height: 64, // Hauteur fixe absolue pour tous les écrans (logo ou titre)
+    minHeight: 64, // Garantit une hauteur minimale
+    marginTop:32,
   },
   headerWithLogo: {
-    paddingVertical: 14,
+    // Même hauteur que sans logo pour éviter que le contenu monte
+    height: 64,
     minHeight: 64,
   },
   headerLeft: {
     flex: 1,
+    justifyContent: 'center', // Aligne verticalement le contenu (logo ou titre)
+    height: '100%', // Prend toute la hauteur disponible
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
+    lineHeight: 24, // Hauteur de ligne fixe pour un alignement cohérent
+    includeFontPadding: false, // Évite le padding supplémentaire sur Android
+    textAlignVertical: 'center', // Aligne verticalement le texte
   },
   headerLogo: {
     width: 120,
@@ -142,10 +138,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    justifyContent: 'center', // Aligne verticalement les boutons
+    height: '100%', // Prend toute la hauteur disponible
   },
   headerButton: {
     padding: 4,
     position: 'relative',
+    justifyContent: 'center', // Aligne verticalement le contenu du bouton
+    alignItems: 'center', // Aligne horizontalement le contenu du bouton
   },
 });
 

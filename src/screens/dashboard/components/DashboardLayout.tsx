@@ -90,7 +90,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Banniere réseau flottante (offline / reconnexion) */}
       <NetworkStatus />
       
-      {/* Header fixe */}
+      {/* Header fixe - position absolute comme FixedLayout */}
       <View style={styles.headerContainer}>
         <DashboardHeader
           user={user}
@@ -106,8 +106,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         onRenew={onSubscriptionRenew}
       />
 
-      {/* Contenu avec padding pour la navigation (légèrement réduit pour éviter un grand espace vide) */}
-      <View style={[styles.contentContainer, { paddingBottom: contentBottomPadding }]}>
+      {/* Contenu avec padding pour le header en haut et la navigation en bas */}
+      <View style={[styles.contentContainer, { 
+        paddingTop: 64, // Hauteur fixe du header (64px) pour cohérence avec FixedLayout
+        paddingBottom: contentBottomPadding 
+      }]}>
         <DashboardContent
           isProfileComplete={isProfileComplete}
           dashboardData={dashboardData}
@@ -134,8 +137,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         />
       </View>
 
-      {/* Barre de navigation fixe */}
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      {/* Barre de navigation fixe - position absolute comme FixedLayout */}
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      </View>
 
       <MoreMenu 
         visible={showMoreMenu}
@@ -160,10 +165,27 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     backgroundColor: '#FFFFFF',
-    zIndex: 100,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    // Pas de paddingTop ici, SafeAreaView le gère déjà
   },
   contentContainer: {
     flex: 1,
+    // Le padding est géré dynamiquement pour le header et la navigation
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingHorizontal: 0, // Les marges sont gérées par BottomNavigation lui-même
+    paddingBottom: 5, // Le padding bottom est géré par BottomNavigation avec useSafeAreaInsets
   },
 });
 

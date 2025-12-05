@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { useAuth } from '../context/FirebaseAuthContext';
 import DashboardLayout from './dashboard/components/DashboardLayout';
@@ -29,6 +29,7 @@ import FAQScreen from './FAQScreen';
 import SubscriptionScreen from './SubscriptionScreen';
 import LanguageScreen from './settings/LanguageScreen';
 import NotificationSettingsScreen from './settings/NotificationSettingsScreen';
+import MoreMenu from '../components/MoreMenu';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navigation }) => {
   const { logout: authLogout } = useAuth();
@@ -130,6 +131,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
     (dashboardData?.onboarding?.data?.completedSteps && 
      dashboardData.onboarding.data.completedSteps.length >= 6);
+
+  // Mémoriser l'avatar pour éviter les rechargements à chaque changement de page
+  const avatarData = useMemo(() => {
+    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
+    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
+    return { avatarSource, avatarFallbackText };
+  }, [dashboardData?.profile?.avatar, user?.avatar, user?.firstName, user?.name]);
 
   // Refresh all data
   const onRefresh = async (): Promise<void> => {
@@ -255,70 +263,94 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   // Screen routing logic
   if (currentScreen === 'faq') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="FAQ"
-        showLogo={false}
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => {
-          // Already on FAQ page
-        }}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <FAQScreen 
-          onClose={() => setCurrentScreen('home')}
-          user={user}
+      <>
+        <FixedLayout
+          headerTitle="FAQ"
+          showLogo={false}
+          activeTab={activeTab}
           onTabPress={handleTabPress}
+          onHelpPress={() => {
+            // Already on FAQ page
+          }}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <FAQScreen 
+            onClose={() => setCurrentScreen('home')}
+            user={user}
+            onTabPress={handleTabPress}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (currentScreen === 'notifications') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="Notifications"
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => {
-          // Already on notifications page
-        }}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-        showNotificationBadge={false}
-      >
-        <NotificationsScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle="Notifications"
           activeTab={activeTab}
-          onClose={() => setCurrentScreen('home')}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => {
+            // Already on notifications page
+          }}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+          showNotificationBadge={false}
+        >
+          <NotificationsScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onClose={() => setCurrentScreen('home')}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (currentScreen === 'agenda') {
     return (
       <>
-        <AgendaScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+        <FixedLayout
+          headerTitle="Agenda"
           activeTab={activeTab}
-          onClose={() => setCurrentScreen('home')}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <AgendaScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onClose={() => setCurrentScreen('home')}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
       </>
     );
@@ -327,139 +359,169 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (currentScreen === 'community') {
     return (
       <>
-        <CommunityScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+        <FixedLayout
+          headerTitle="L'Agora"
           activeTab={activeTab}
-          onClose={() => setCurrentScreen('home')}
-          selectedPostId={null}
-          onPostPress={handlePostPress}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <CommunityScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onClose={() => setCurrentScreen('home')}
+            selectedPostId={null}
+            onPostPress={handlePostPress}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
       </>
     );
   }
 
   if (currentScreen === 'chat') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="Messages"
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <ChatScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle="Messages"
           activeTab={activeTab}
-          onClose={() => setCurrentScreen('home')}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <ChatScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onClose={() => setCurrentScreen('home')}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (activeTab === 'progress') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="Progression"
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <ProgressScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle="Progression"
           activeTab={activeTab}
-          onSubscriptionRenew={handleSubscriptionRenew}
-          onFAQPress={() => setCurrentScreen('faq')}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <ProgressScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onSubscriptionRenew={handleSubscriptionRenew}
+            onFAQPress={() => setCurrentScreen('faq')}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (activeTab === 'nutrition') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="Nutrition"
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <NutritionScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle="Nutrition"
           activeTab={activeTab}
-          onSubscriptionRenew={handleSubscriptionRenew}
-          onFAQPress={() => setCurrentScreen('faq')}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <NutritionScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onSubscriptionRenew={handleSubscriptionRenew}
+            onFAQPress={() => setCurrentScreen('faq')}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (activeTab === 'achievements') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
-        headerTitle="Réalisations"
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <AchievementsScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle="Réalisations"
           activeTab={activeTab}
-          onSubscriptionRenew={handleSubscriptionRenew}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <AchievementsScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onSubscriptionRenew={handleSubscriptionRenew}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
   if (currentScreen === 'settings') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <FixedLayout
+      <>
+        <FixedLayout
         headerTitle="Configurations"
         activeTab={activeTab}
         onTabPress={handleTabPress}
         onHelpPress={() => setCurrentScreen('faq')}
         onNotificationPress={() => setCurrentScreen('notifications')}
         onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
+        avatarSource={avatarData.avatarSource}
+        avatarFallbackText={avatarData.avatarFallbackText}
       >
         <SettingsScreen 
           user={user} 
@@ -501,36 +563,64 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           }}
         />
       </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
     );
   }
 
   if (currentScreen === 'profile') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
+    // Déterminer le titre du header selon l'étape du profil
+    const getProfileHeaderTitle = () => {
+      switch (initialProfileStep) {
+        case 1:
+          return 'Profil';
+        case 2:
+          return 'Objectifs';
+        case 3:
+          return 'Recommandations';
+        case 4:
+          return 'Rendez-vous';
+        case 5:
+        case 6:
+          return 'Abonnement';
+        default:
+          return 'Profil';
+      }
+    };
+
     return (
-      <FixedLayout
-        // On laisse ProfileScreen gérer son propre AppHeader
-        hideHeader
-        activeTab={activeTab}
-        onTabPress={handleTabPress}
-        onHelpPress={() => setCurrentScreen('faq')}
-        onNotificationPress={() => setCurrentScreen('notifications')}
-        onProfilePress={() => setCurrentScreen('settings')}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      >
-        <ProfileScreen 
-          user={user} 
-          onLogout={handleLogout} 
-          onTabPress={handleTabPress}
+      <>
+        <FixedLayout
+          headerTitle={getProfileHeaderTitle()}
           activeTab={activeTab}
-          onClose={() => setCurrentScreen('settings')}
-          initialStep={initialProfileStep}
-          onFAQPress={() => setCurrentScreen('faq')}
-          navigation={navigation}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <ProfileScreen 
+            user={user} 
+            onLogout={handleLogout} 
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onClose={() => setCurrentScreen('settings')}
+            initialStep={initialProfileStep}
+            onFAQPress={() => setCurrentScreen('faq')}
+            navigation={navigation}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
         />
-      </FixedLayout>
+      </>
     );
   }
 
@@ -550,32 +640,58 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   }
 
   if (currentScreen === 'language') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <LanguageScreen
-        onClose={() => setCurrentScreen('settings')}
-        onTabPress={handleTabPress}
-        activeTab={activeTab}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      />
+      <>
+        <FixedLayout
+          headerTitle="Langue & Région"
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <LanguageScreen
+            onClose={() => setCurrentScreen('settings')}
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
     );
   }
 
   if (currentScreen === 'notification-settings') {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
-    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
-    
     return (
-      <NotificationSettingsScreen
-        onClose={() => setCurrentScreen('settings')}
-        onTabPress={handleTabPress}
-        activeTab={activeTab}
-        avatarSource={avatarSource}
-        avatarFallbackText={avatarFallbackText}
-      />
+      <>
+        <FixedLayout
+          headerTitle="Paramètres de Notifications"
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          onHelpPress={() => setCurrentScreen('faq')}
+          onNotificationPress={() => setCurrentScreen('notifications')}
+          onProfilePress={() => setCurrentScreen('settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <NotificationSettingsScreen
+            onClose={() => setCurrentScreen('settings')}
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+          />
+        </FixedLayout>
+        <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+      </>
     );
   }
 

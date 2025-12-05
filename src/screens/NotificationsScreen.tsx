@@ -8,7 +8,7 @@ import NotificationTabs from './notifications/components/NotificationTabs';
 import NotificationItem from './notifications/components/NotificationItem';
 import NotificationEmptyState from './notifications/components/NotificationEmptyState';
 import NotificationPreferencesModal from './notifications/components/NotificationPreferencesModal';
-import { ShimmerList } from '../components/Shimmer';
+import { Shimmer } from '../components/Shimmer';
 
 const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   user,
@@ -92,7 +92,16 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
         {/* Notifications List */}
         {loading && notifications.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ShimmerList count={5} itemHeight={80} />
+            {[1, 2, 3, 4, 5].map((index) => (
+              <View key={index} style={styles.notificationShimmerCard}>
+                <Shimmer width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Shimmer width="70%" height={16} style={{ marginBottom: 8 }} />
+                  <Shimmer width="100%" height={14} style={{ marginBottom: 6 }} />
+                  <Shimmer width="60%" height={12} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : (
           <ScrollView
@@ -125,7 +134,16 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
             
             {loading && notifications.length > 0 && (
               <View style={styles.loadingMore}>
-                <ShimmerList count={2} itemHeight={80} />
+                {[1, 2].map((index) => (
+                  <View key={index} style={styles.notificationShimmerCard}>
+                    <Shimmer width={48} height={48} borderRadius={24} style={{ marginRight: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Shimmer width="70%" height={16} style={{ marginBottom: 8 }} />
+                      <Shimmer width="100%" height={14} style={{ marginBottom: 6 }} />
+                      <Shimmer width="60%" height={12} />
+                    </View>
+                  </View>
+                ))}
               </View>
             )}
           </ScrollView>
@@ -196,7 +214,16 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
+    padding: 16,
+  },
+  notificationShimmerCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
     alignItems: 'center',
   },
   loadingText: {

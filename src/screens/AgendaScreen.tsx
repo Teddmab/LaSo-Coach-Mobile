@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Linking } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { theme } from '../constants/theme';
-import AppHeader from '../components/AppHeader';
-import BottomNavigation from '../components/BottomNavigation';
 import { AgendaScreenProps, ProgramSession } from './agenda/types';
 import { useAgenda } from './agenda/hooks/useAgenda';
 import RendezvousCard from './agenda/components/RendezvousCard';
 import RendezvousForm from './agenda/components/RendezvousForm';
 import CalendarView from './agenda/components/CalendarView';
 import ProgramSessionCard from './agenda/components/ProgramSessionCard';
-import { ScreenLayout, ScreenContent } from './shared';
 
 const AgendaScreen: React.FC<AgendaScreenProps> = ({
   user,
@@ -70,31 +66,11 @@ const AgendaScreen: React.FC<AgendaScreenProps> = ({
   ];
 
   return (
-    <ScreenLayout>
-      <StatusBar style="dark" />
-      
-      <AppHeader
-        title="Agenda"
-        onHelpPress={() => {
-          if (onTabPress) {
-            onTabPress('faq');
-          }
-        }}
-        onNotificationPress={() => {
-          if (onTabPress) {
-            onTabPress('notifications');
-          }
-        }}
-        onProfilePress={() => {
-          if (onTabPress) {
-            onTabPress('settings');
-          }
-        }}
-        avatarSource={profileData?.avatar || user?.avatar}
-        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-      />
-
-      <ScreenContent contentContainerStyle={styles.scrollContent}>
+    <ScrollView 
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.scrollContent}
+    >
         {/* Rendezvous Card or Form */}
         {showRendezvousForm ? (
           <RendezvousForm
@@ -137,19 +113,17 @@ const AgendaScreen: React.FC<AgendaScreenProps> = ({
             <ProgramSessionCard key={session.id} session={session} />
           ))}
         </View>
-      </ScreenContent>
-
-      {/* Bottom Navigation */}
-      {onTabPress && (
-        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
-      )}
-    </ScreenLayout>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F0F0F0',
+  },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   programInfo: {
     backgroundColor: '#FFFFFF',

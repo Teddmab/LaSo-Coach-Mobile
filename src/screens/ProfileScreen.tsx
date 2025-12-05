@@ -7,7 +7,6 @@ import {
   ScrollView, 
   TouchableOpacity,
   Image,
-  StatusBar,
   TextInput,
   Modal,
   ActivityIndicator,
@@ -17,7 +16,6 @@ import {
   Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { theme, TYPOGRAPHY } from '../constants/theme';
@@ -26,7 +24,6 @@ import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import SubscriptionScreen from './SubscriptionScreen';
 import Avatar from '../components/Avatar';
-import AppHeader from '../components/AppHeader';
 import NotificationBadge from '../components/NotificationBadge';
 import * as ImagePicker from 'expo-image-picker';
 import { ShimmerCard, Shimmer } from '../components/Shimmer';
@@ -2976,24 +2973,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
   };
 
-  const getHeaderTitle = () => {
-    switch (currentStep) {
-      case 1:
-        return 'Profil';
-      case 2:
-        return 'Objectifs';
-      case 3:
-        return 'Recommandations';
-      case 4:
-        return 'Rendez-vous';
-      case 5:
-        return 'Abonnement';
-      case 6:
-        return 'Abonnement';
-      default:
-        return 'Profil';
-    }
-  };
 
   const getInfoBannerText = () => {
     switch (currentStep) {
@@ -3061,47 +3040,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
-      {/* Header fixe - même style que Home */}
-      <View style={styles.headerContainer}>
-      <AppHeader
-        title={getHeaderTitle()}
-        onHelpPress={() => {
-          if (onFAQPress) {
-            onFAQPress();
-          } else if (onTabPress) {
-            onTabPress('faq');
-          }
-        }}
-        onNotificationPress={() => {
-          if (onTabPress) {
-            onTabPress('notifications');
-          }
-        }}
-        onProfilePress={() => {
-          console.log('🔍 ProfileScreen: Header avatar clicked');
-          console.log('🔍 ProfileScreen: onTabPress function:', onTabPress);
-          console.log('🔍 ProfileScreen: onLogout function:', onLogout);
-          console.log('🔍 ProfileScreen: navigation prop:', navigation);
-          
-          if (onTabPress && typeof onTabPress === 'function') {
-            console.log('🔍 ProfileScreen: Calling onTabPress("settings")');
-            onTabPress('settings');
-          } else if (navigation && typeof navigation.navigate === 'function') {
-            console.log('🔍 ProfileScreen: Using navigation.navigate("Settings")');
-            navigation.navigate('Settings');
-          } else {
-            console.log('🔍 ProfileScreen: No navigation method available, doing nothing');
-            // Don't call onLogout - just do nothing
-          }
-        }}
-        avatarSource={profileData?.avatar || user?.avatar}
-        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-      />
-      </View>
-
+    <>
       {/* Subscription Banner - Hide for subscription step */}
       {currentStep !== 5 && (
         <SubscriptionBanner 
@@ -3113,7 +3052,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]} // Espace pour la navigation footer fixe
+        contentContainerStyle={styles.scrollContent}
         onScrollBeginDrag={() => {
           // Clean up any open modals if needed
         }}
@@ -3240,7 +3179,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         ) : null}
           </Animated.View>
         )}
-      </ScrollView>
 
       {/* Navigation Footer - Hide for subscription step */}
       {currentStep !== 5 && (
@@ -3276,6 +3214,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           </TouchableOpacity>
         </View>
       )}
+      </ScrollView>
 
       {/* Save Confirmation Modal */}
       {renderSaveModal()}
@@ -3289,7 +3228,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       {renderGenderModal()}
       {renderOccupationModal()}
       {renderDateModal()}
-    </SafeAreaView>
+    </>
     );
 };
 
@@ -3298,17 +3237,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  headerContainer: {
-    backgroundColor: '#FFFFFF',
-    zIndex: 100,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
   content: {
     flex: 1,
+    backgroundColor: '#F0F0F0',
   },
   scrollContent: {
-    paddingBottom: 100, // Espace standard pour la navigation fixe en bas (hauteur nav + safe area + marge)
+    paddingBottom: 20,
   },
   loadingContainer: {
     flex: 1,

@@ -1,66 +1,52 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
-import AppHeader from '../../components/AppHeader';
-import FixedLayout from '../../components/FixedLayout';
 
 interface LanguageScreenProps {
   onClose?: () => void;
   onTabPress?: (tabId: string) => void;
   activeTab?: string;
-  avatarSource?: any;
-  avatarFallbackText?: string;
 }
 
 const LanguageScreen: React.FC<LanguageScreenProps> = ({
   onClose,
   onTabPress,
   activeTab,
-  avatarSource,
-  avatarFallbackText,
 }) => {
   return (
-    <FixedLayout
-      headerTitle="Langue & Région"
-      activeTab={activeTab}
-      onTabPress={onTabPress}
-      onHelpPress={() => onTabPress?.('faq')}
-      onNotificationPress={() => onTabPress?.('notifications')}
-      onProfilePress={() => onTabPress?.('settings')}
-      avatarSource={avatarSource}
-      avatarFallbackText={avatarFallbackText}
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="language" size={64} color={theme.colors.primary} />
-          </View>
-          
-          <Text style={styles.title}>Langue & Région</Text>
-          
-          <Text style={styles.message}>
-            Actuellement, seule la langue française est disponible dans l'application.
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="language" size={64} color={theme.colors.primary} />
+        </View>
+        
+        <Text style={styles.title}>Langue & Région</Text>
+        
+        <Text style={styles.message}>
+          Actuellement, seule la langue française est disponible dans l'application.
+        </Text>
+        
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
+          <Text style={styles.infoText}>
+            D'autres langues seront ajoutées dans les prochaines mises à jour.
           </Text>
-          
-          <View style={styles.infoCard}>
-            <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
-            <Text style={styles.infoText}>
-              D'autres langues seront ajoutées dans les prochaines mises à jour.
-            </Text>
+        </View>
+        
+        <View style={styles.languageCard}>
+          <View style={styles.languageItem}>
+            <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+            <Text style={styles.languageName}>Français</Text>
           </View>
-          
-          <View style={styles.languageCard}>
-            <View style={styles.languageItem}>
-              <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
-              <Text style={styles.languageName}>Français</Text>
-            </View>
-            <Text style={styles.languageStatus}>Disponible</Text>
-          </View>
+          <Text style={styles.languageStatus}>Disponible</Text>
         </View>
       </View>
-    </FixedLayout>
+    </ScrollView>
   );
 };
 
@@ -69,11 +55,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 24,
+  },
   content: {
     flex: 1,
-    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 400,
   },
   iconContainer: {
     marginBottom: 24,

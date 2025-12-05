@@ -1,78 +1,64 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
-import AppHeader from '../../components/AppHeader';
-import FixedLayout from '../../components/FixedLayout';
 
 interface NotificationSettingsScreenProps {
   onClose?: () => void;
   onTabPress?: (tabId: string) => void;
   activeTab?: string;
-  avatarSource?: any;
-  avatarFallbackText?: string;
 }
 
 const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
   onClose,
   onTabPress,
   activeTab,
-  avatarSource,
-  avatarFallbackText,
 }) => {
   return (
-    <FixedLayout
-      headerTitle="Notifications"
-      activeTab={activeTab}
-      onTabPress={onTabPress}
-      onHelpPress={() => onTabPress?.('faq')}
-      onNotificationPress={() => onTabPress?.('notifications')}
-      onProfilePress={() => onTabPress?.('settings')}
-      avatarSource={avatarSource}
-      avatarFallbackText={avatarFallbackText}
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="notifications" size={64} color={theme.colors.primary} />
-          </View>
-          
-          <Text style={styles.title}>Paramètres de Notifications</Text>
-          
-          <Text style={styles.message}>
-            Actuellement, seule la langue française est disponible pour les notifications.
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="notifications" size={64} color={theme.colors.primary} />
+        </View>
+        
+        <Text style={styles.title}>Paramètres de Notifications</Text>
+        
+        <Text style={styles.message}>
+          Actuellement, seule la langue française est disponible pour les notifications.
+        </Text>
+        
+        <View style={styles.infoCard}>
+          <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
+          <Text style={styles.infoText}>
+            Les notifications sont actuellement disponibles uniquement en français. D'autres langues seront ajoutées dans les prochaines mises à jour.
           </Text>
-          
-          <View style={styles.infoCard}>
-            <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
-            <Text style={styles.infoText}>
-              Les notifications sont actuellement disponibles uniquement en français. D'autres langues seront ajoutées dans les prochaines mises à jour.
-            </Text>
+        </View>
+        
+        <View style={styles.featuresCard}>
+          <Text style={styles.featuresTitle}>Fonctionnalités disponibles :</Text>
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+            <Text style={styles.featureText}>Notifications push</Text>
           </View>
-          
-          <View style={styles.featuresCard}>
-            <Text style={styles.featuresTitle}>Fonctionnalités disponibles :</Text>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-              <Text style={styles.featureText}>Notifications push</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-              <Text style={styles.featureText}>Notifications de messages</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-              <Text style={styles.featureText}>Notifications d'objectifs</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
-              <Text style={styles.featureText}>Notifications de progression</Text>
-            </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+            <Text style={styles.featureText}>Notifications de messages</Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+            <Text style={styles.featureText}>Notifications d'objectifs</Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+            <Text style={styles.featureText}>Notifications de progression</Text>
           </View>
         </View>
       </View>
-    </FixedLayout>
+    </ScrollView>
   );
 };
 
@@ -81,11 +67,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 24,
+  },
   content: {
     flex: 1,
-    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 400,
   },
   iconContainer: {
     marginBottom: 24,

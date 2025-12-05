@@ -71,13 +71,18 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
         </View>
       )}
 
-      {/* Contenu avec padding pour la navigation en bas (légèrement réduit pour éviter l'effet de \"masque\") */}
-      <View style={[styles.contentContainer, { paddingBottom: contentBottomPadding }]}>
+      {/* Contenu avec padding pour le header en haut et la navigation en bas */}
+      <View style={[styles.contentContainer, { 
+        paddingTop: !hideHeader ? 64 : 0, // Hauteur fixe du header (64px) si visible
+        paddingBottom: contentBottomPadding 
+      }]}>
         {children}
       </View>
 
-      {/* Barre de navigation fixe - toujours en bas */}
-      <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      {/* Barre de navigation fixe - toujours en bas avec position absolute */}
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
+      </View>
     </SafeAreaView>
   );
 };
@@ -89,11 +94,27 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     backgroundColor: '#FFFFFF',
-    zIndex: 100,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
     // Pas de paddingTop ici, SafeAreaView le gère déjà
   },
   contentContainer: {
     flex: 1,
+    // Le padding est géré dynamiquement pour le header et la navigation
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingHorizontal: 0, // Les marges sont gérées par BottomNavigation lui-même
+    paddingBottom: 5, // Le padding bottom est géré par BottomNavigation avec useSafeAreaInsets
   },
 });
 

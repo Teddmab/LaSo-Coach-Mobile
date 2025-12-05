@@ -19,7 +19,7 @@ import BadgeDetailModal from './defis/components/BadgeDetailModal';
 import SummaryCard from './defis/components/SummaryCard';
 import ChallengeCompletionModal from './achievements/components/ChallengeCompletionModal';
 import { formatPoints } from './achievements/utils/achievementsUtils';
-import { ShimmerCard, ShimmerGrid } from '../components/Shimmer';
+import { ShimmerCard } from '../components/Shimmer';
 
 const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
   user,
@@ -77,6 +77,29 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
     userId: userPosition.userId,
     flag: userPosition.flag || '🏳️',
   }] : [];
+
+  // Loading state - same pattern as ProgressScreen
+  if (loading) {
+    return (
+      <>
+        <SubscriptionBanner 
+          subscriptionData={subscriptionData} 
+          onRenew={handleSubscriptionRenew} 
+        />
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.sectionContainer}>
+            <ShimmerCard />
+            <ShimmerCard />
+            <ShimmerCard />
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
 
   return (
     <>
@@ -181,7 +204,8 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
           
           {badgesLoading ? (
             <View style={styles.loadingContainer}>
-              <ShimmerGrid columns={3} count={6} />
+              <ShimmerCard />
+              <ShimmerCard />
             </View>
           ) : badges.length === 0 ? (
             <View style={styles.emptyState}>
@@ -254,6 +278,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20, // Padding réduit car FixedLayout gère déjà l'espace pour la navigation
+  },
+  sectionContainer: {
+    padding: 20,
   },
   headerSection: {
     paddingHorizontal: 20,

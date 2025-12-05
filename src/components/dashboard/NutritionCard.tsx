@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
-import { ShimmerCard } from '../Shimmer';
+import { Shimmer } from '../Shimmer';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
   const [nutritionData, setNutritionData] = useState(null);
@@ -351,8 +351,22 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
           })}</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ShimmerCard />
-          <ShimmerCard />
+          <View style={styles.mealShimmerCard}>
+            <Shimmer width={80} height={80} borderRadius={0} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Shimmer width="60%" height={18} style={{ marginBottom: 8 }} />
+              <Shimmer width="100%" height={16} style={{ marginBottom: 6 }} />
+              <Shimmer width="40%" height={14} />
+            </View>
+          </View>
+          <View style={styles.mealShimmerCard}>
+            <Shimmer width={80} height={80} borderRadius={0} style={{ marginRight: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Shimmer width="60%" height={18} style={{ marginBottom: 8 }} />
+              <Shimmer width="100%" height={16} style={{ marginBottom: 6 }} />
+              <Shimmer width="40%" height={14} />
+            </View>
+          </View>
         </View>
       </View>
     );
@@ -869,9 +883,16 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 20,
+  },
+  mealShimmerCard: {
+    flexDirection: 'row',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 0,
+    overflow: 'hidden',
+    height: 80,
   },
   loadingText: {
     fontSize: 14,

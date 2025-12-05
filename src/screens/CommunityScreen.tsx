@@ -1,11 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
-import AppHeader from '../components/AppHeader';
-import BottomNavigation from '../components/BottomNavigation';
 import { CommunityScreenProps } from './community/types';
 import { useCommunityScreen } from './community/hooks/useCommunityScreen';
 import PostCard from './community/components/PostCard';
@@ -48,31 +44,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
   } = useCommunityScreen(selectedPostId);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="dark" />
-      
-      {/* Header */}
-      <AppHeader
-        title="L'Agora"
-        onHelpPress={() => {
-          if (onTabPress) {
-            onTabPress('faq');
-          }
-        }}
-        onNotificationPress={() => {
-          if (onTabPress) {
-            onTabPress('notifications');
-          }
-        }}
-        onProfilePress={() => {
-          if (onTabPress) {
-            onTabPress('settings');
-          }
-        }}
-        avatarSource={profileData?.avatar || user?.avatar}
-        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
-      />
-
+    <>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}
@@ -101,7 +73,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
 
           {/* Posts Feed */}
           {communityLoading ? (
-            <View style={styles.loadingContainer}>
+            <View style={styles.sectionContainer}>
               <ShimmerCard />
               <ShimmerCard />
               <ShimmerCard />
@@ -137,11 +109,6 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Bottom Navigation */}
-      {onTabPress && (
-        <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
-      )}
-
       {/* Create Post Modal */}
       <CreatePostModal
         visible={showCreatePostModal}
@@ -154,15 +121,11 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
         onPublish={handlePublishPost}
         onClose={handleCloseCreatePost}
       />
-    </SafeAreaView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
   keyboardAvoidingView: {
     flex: 1,
   },
@@ -170,7 +133,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   introCard: {
     backgroundColor: theme.colors.surface,
@@ -197,14 +160,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.border,
     marginVertical: 0,
   },
-  loadingContainer: {
-    paddingVertical: 48,
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+  sectionContainer: {
+    padding: 20,
   },
   emptyContainer: {
     paddingVertical: 48,

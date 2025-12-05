@@ -28,11 +28,8 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
     <View style={[
       styles.container, 
       { 
-        position: 'absolute',
-        bottom: bottomOffset,
-        left: 16,
-        right: 16,
-        zIndex: 1000,
+        marginBottom: bottomPadding,
+        marginHorizontal: 16,
       }
     ]}>
       {tabs.map((tab) => (

@@ -10,7 +10,12 @@ export const useDashboardNavigation = () => {
     if (tabId === 'more') {
       setShowMoreMenu(true);
       console.log('Tab pressed: more - showing menu');
+    } else if (['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile', 'subscription', 'language', 'notification-settings'].includes(tabId)) {
+      // Écrans spéciaux qui ne sont pas des onglets de navigation
+      console.log('Screen navigation:', tabId);
+      setCurrentScreen(tabId);
     } else {
+      // Onglets de navigation principaux
       console.log('Tab pressed:', tabId);
       setActiveTab(tabId);
       setCurrentScreen(tabId);
