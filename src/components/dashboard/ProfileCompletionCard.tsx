@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -92,11 +92,24 @@ const ProfileCompletionCard = ({
     }
   };
 
+  const scrollRef = useRef<ScrollView | null>(null);
+
   const handleStepPress = (stepId) => {
     if (onStepPress) {
       onStepPress(stepId);
     }
   };
+
+  // Centrer automatiquement l'étape active dans le carrousel
+  React.useEffect(() => {
+    if (!scrollRef.current || updatedSteps.length === 0) return;
+
+    const cardWidth = 152; // largeur approximative (140) + marge
+    const targetIndex = currentActiveStep;
+    const x = Math.max(0, cardWidth * targetIndex - cardWidth); // décale pour centrer visuellement
+
+    scrollRef.current.scrollTo({ x, animated: true });
+  }, [currentActiveStep, updatedSteps.length]);
 
   return (
     <View style={styles.container} key={`profile-completion-${JSON.stringify(completedSteps)}`}>
@@ -110,21 +123,31 @@ const ProfileCompletionCard = ({
 
       {/* Steps Cards */}
       <ScrollView 
+        ref={scrollRef}
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.stepsContainer}
       >
         {updatedSteps.map((step, index) => {
           const isActive = index === currentActiveStep;
+          const isCompleted = step.completed;
+          const isPastCompleted = isCompleted && !isActive;
           
           return (
             <TouchableOpacity 
               key={step.id} 
               style={[
                 styles.stepCard,
-                isActive && styles.stepCardActive
+                isActive && styles.stepCardActive,
+                isPastCompleted && styles.stepCardCompleted
               ]}
-              onPress={() => handleStepPress(step.id)}
+              // On ne permet plus de revenir sur une étape déjà complétée
+              disabled={isPastCompleted}
+              onPress={() => {
+                if (!isPastCompleted) {
+                  handleStepPress(step.id);
+                }
+              }}
               activeOpacity={0.7}
             >
               {/* Circular Icon */}
@@ -153,7 +176,8 @@ const ProfileCompletionCard = ({
               {/* Step Title */}
               <Text style={[
                 styles.stepTitle,
-                isActive && styles.stepTitleActive
+                isActive && styles.stepTitleActive,
+                isPastCompleted && styles.stepTitleCompleted
               ]}>
                 {step.title}
               </Text>
@@ -233,6 +257,9 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     marginRight: 12,
   },
+  stepCardCompleted: {
+    opacity: 0.4,
+  },
   stepCardActive: {
     backgroundColor: '#F3E5F5',
     borderColor: '#9C27B0',
@@ -279,6 +306,9 @@ const styles = StyleSheet.create({
   stepTitleActive: {
     color: '#9C27B0',
     fontSize: 15,
+  },
+  stepTitleCompleted: {
+    color: theme.colors.text.secondary,
   },
   pointsBadge: {
     backgroundColor: '#E8F5E9',

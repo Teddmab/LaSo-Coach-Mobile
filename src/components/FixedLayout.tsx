@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar';
 import AppHeader from './AppHeader';
 import BottomNavigation from './BottomNavigation';
+import NetworkStatus from './NetworkStatus';
 import type { ImageSourcePropType } from 'react-native';
 
 interface FixedLayoutProps {
@@ -18,6 +19,8 @@ interface FixedLayoutProps {
   activeTab?: string;
   onTabPress?: (tabId: string) => void;
   showNotificationBadge?: boolean;
+  /** Permet de masquer le header interne si l'écran gère déjà son propre AppHeader */
+  hideHeader?: boolean;
 }
 
 /**
@@ -38,32 +41,38 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   activeTab = 'home',
   onTabPress,
   showNotificationBadge = true,
+  hideHeader = false,
 }) => {
   const insets = useSafeAreaInsets();
   
-  // Calculer la hauteur de la barre de navigation
+  // Calculer la hauteur de la barre de navigation (utilisée pour éviter que le contenu passe sous la barre)
   const bottomNavHeight = 12 + 24 + 8 + Math.max(insets.bottom, 8);
+  const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
-      
-      {/* Header fixe - toujours au même endroit avec SafeArea géré */}
-      <View style={styles.headerContainer}>
-        <AppHeader
-          title={headerTitle}
-          showLogo={showLogo}
-          onHelpPress={onHelpPress}
-          onNotificationPress={onNotificationPress}
-          onProfilePress={onProfilePress}
-          avatarSource={avatarSource}
-          avatarFallbackText={avatarFallbackText}
-          showNotificationBadge={showNotificationBadge}
-        />
-      </View>
+      {/* Banniere réseau flottante (offline / reconnexion) */}
+      <NetworkStatus />
 
-      {/* Contenu avec padding pour la navigation en bas */}
-      <View style={[styles.contentContainer, { paddingBottom: bottomNavHeight }]}>
+      {/* Header fixe - optionnel (certains écrans comme Profile gèrent leur propre AppHeader) */}
+      {!hideHeader && (
+        <View style={styles.headerContainer}>
+          <AppHeader
+            title={headerTitle}
+            showLogo={showLogo}
+            onHelpPress={onHelpPress}
+            onNotificationPress={onNotificationPress}
+            onProfilePress={onProfilePress}
+            avatarSource={avatarSource}
+            avatarFallbackText={avatarFallbackText}
+            showNotificationBadge={showNotificationBadge}
+          />
+        </View>
+      )}
+
+      {/* Contenu avec padding pour la navigation en bas (légèrement réduit pour éviter l'effet de \"masque\") */}
+      <View style={[styles.contentContainer, { paddingBottom: contentBottomPadding }]}>
         {children}
       </View>
 

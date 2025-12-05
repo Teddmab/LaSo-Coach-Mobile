@@ -60,6 +60,36 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   onMarkContentComplete,
   onCompleteDayPress,
 }) => {
+  // Harmoniser les points de badges sur le Home avec la progression (profil / onboarding)
+  const mergedAchievementsData = React.useMemo(() => {
+    if (!achievementsData) return achievementsData;
+
+    let totalPoints = achievementsData.totalPoints || 0;
+
+    // Si le backend ne remonte pas encore de points mais que l'on connaît les étapes complétées,
+    // on dérive un score local basé sur les points définis dans la carte de complétion du profil.
+    if (
+      totalPoints === 0 &&
+      dashboardData?.onboarding?.data?.completedSteps &&
+      Array.isArray(dashboardData.onboarding.data.completedSteps)
+    ) {
+      const completed = dashboardData.onboarding.data.completedSteps as string[];
+      let bonus = 0;
+
+      if (completed.includes('profile_setup')) bonus += 100;
+      if (completed.includes('goals_setup')) bonus += 30;
+      if (completed.includes('recommandations') || completed.includes('recommendations')) bonus += 20;
+      if (completed.includes('appointment')) bonus += 25;
+
+      totalPoints = bonus;
+    }
+
+    return {
+      ...achievementsData,
+      totalPoints,
+    };
+  }, [achievementsData, dashboardData?.onboarding]);
+
   return (
     <ScrollView 
       style={styles.content} 
@@ -91,7 +121,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       {/* Achievements Card */}
       <AchievementsCard
         key={achievementsData?.fetchedAt || 'initial'}
-        badgesData={achievementsData}
+        badgesData={mergedAchievementsData}
         onPress={() => onTabPress('achievements')}
         subscriptionData={subscriptionData}
         onSubscriptionRenew={onSubscriptionRenew}

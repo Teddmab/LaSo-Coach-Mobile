@@ -110,7 +110,13 @@ export class DashboardService {
       
       // Validate that we have the required data
       if (!profileData.initialWeight || !profileData.targetWeight || !profileData.initialWaistSize || !profileData.targetWaistSize) {
-        throw new Error('Profile data is incomplete - missing weight or waist size information');
+        // Ne plus bloquer le dashboard si certaines données manquent
+        console.warn('⚠️ Profile data is incomplete - using partial data and defaults for progress', {
+          hasInitialWeight: !!profileData.initialWeight,
+          hasTargetWeight: !!profileData.targetWeight,
+          hasInitialWaistSize: !!profileData.initialWaistSize,
+          hasTargetWaistSize: !!profileData.targetWaistSize,
+        });
       }
       
       console.log('👤 Parsed profile data:', profileData);
@@ -183,7 +189,12 @@ export class DashboardService {
       
       // Validate that we have the required data
       if (parsedData.weight === undefined || parsedData.waistSize === undefined) {
-        throw new Error('Latest measurement data is incomplete');
+        // Ne plus lever d'exception ici : on laisse le reste du dashboard utiliser des valeurs par défaut
+        console.warn('⚠️ Latest measurement data is incomplete - returning null so UI can fallback', {
+          hasWeight: parsedData.weight !== undefined,
+          hasWaistSize: parsedData.waistSize !== undefined,
+        });
+        return null;
       }
       
       console.log('📏 Parsed measurements data:', parsedData);
@@ -709,6 +720,8 @@ export class DashboardService {
             
             // Store maxPointsForCurrentBadge for progress calculation
             // This will be added to transformedData for UI display
+            // Note: maxPointsForCurrentBadge may be absent in some cases (e.g., all badges unlocked)
+            // This is normal and we should use fallback calculation in such cases
             const maxPoints = (maxPointsForBadge !== undefined && maxPointsForBadge !== null && !isNaN(maxPointsForBadge)) 
               ? Number(maxPointsForBadge) 
               : null;
@@ -716,7 +729,8 @@ export class DashboardService {
             if (maxPoints !== null) {
               console.log('✅ DashboardService: Using maxPointsForCurrentBadge:', maxPoints);
             } else {
-              console.warn('⚠️ DashboardService: maxPointsForCurrentBadge is invalid or missing');
+              // Use debug log instead of warning - this is normal in some cases (e.g., all badges unlocked)
+              console.log('ℹ️ DashboardService: maxPointsForCurrentBadge not available, will use fallback calculation');
             }
             
             // Use current badge name (since we're completing the current badge)

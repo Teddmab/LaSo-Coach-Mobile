@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { BackHandler, Platform } from 'react-native';
 import { useAuth } from '../context/FirebaseAuthContext';
 import DashboardLayout from './dashboard/components/DashboardLayout';
 import SubscriptionPlansModal from './dashboard/modals/SubscriptionPlansModal';
@@ -26,6 +27,8 @@ import SettingsScreen from './SettingsScreen';
 import ProfileScreen from './ProfileScreen';
 import FAQScreen from './FAQScreen';
 import SubscriptionScreen from './SubscriptionScreen';
+import LanguageScreen from './settings/LanguageScreen';
+import NotificationSettingsScreen from './settings/NotificationSettingsScreen';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navigation }) => {
   const { logout: authLogout } = useAuth();
@@ -71,6 +74,57 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const [showCompleteDayModal, setShowCompleteDayModal] = useState<boolean>(false);
   const [selectedMeals, setSelectedMeals] = useState<any[]>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
+  
+  // BackHandler: gestion du bouton retour Android
+  const backHandlerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  useEffect(() => {
+    // Seulement sur Android
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const backAction = (): boolean => {
+      // Si on n'est pas sur home, rediriger vers home
+      if (currentScreen !== 'home' || activeTab !== 'home') {
+        handleTabPress('home');
+        setCurrentScreen('home');
+        return true; // Empêcher le comportement par défaut
+      }
+
+      // Si on est sur home, gérer le double-clic pour quitter
+      if (backHandlerTimeout.current) {
+        // Deuxième clic dans les 2 secondes : quitter l'application
+        clearTimeout(backHandlerTimeout.current);
+        backHandlerTimeout.current = null;
+        BackHandler.exitApp();
+        return true;
+      } else {
+        // Premier clic : afficher un message et attendre le deuxième clic
+        Toast.show({
+          type: 'info',
+          text1: 'Appuyez à nouveau pour quitter',
+          visibilityTime: 2000,
+        });
+        
+        // Définir un timeout de 2 secondes
+        backHandlerTimeout.current = setTimeout(() => {
+          backHandlerTimeout.current = null;
+        }, 2000);
+        
+        return true; // Empêcher le comportement par défaut
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+
+    return () => {
+      backHandler.remove();
+      if (backHandlerTimeout.current) {
+        clearTimeout(backHandlerTimeout.current);
+      }
+    };
+  }, [currentScreen, activeTab, handleTabPress, setCurrentScreen]);
 
   // Check if profile is complete
   const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
@@ -206,7 +260,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     
     return (
       <FixedLayout
-        showLogo={true}
+        headerTitle="FAQ"
+        showLogo={false}
         activeTab={activeTab}
         onTabPress={handleTabPress}
         onHelpPress={() => {
@@ -435,6 +490,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
             } else if (target === 'security') {
               // Security screen navigation - will be handled separately if needed
               setCurrentScreen('home');
+            } else if (target === 'language') {
+              setCurrentScreen('language');
+            } else if (target === 'notifications') {
+              setCurrentScreen('notification-settings');
             } else {
               // Default: go back to home
               setCurrentScreen('home');
@@ -446,8 +505,21 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   }
 
   if (currentScreen === 'profile') {
+    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
+    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
+    
     return (
-      <>
+      <FixedLayout
+        // On laisse ProfileScreen gérer son propre AppHeader
+        hideHeader
+        activeTab={activeTab}
+        onTabPress={handleTabPress}
+        onHelpPress={() => setCurrentScreen('faq')}
+        onNotificationPress={() => setCurrentScreen('notifications')}
+        onProfilePress={() => setCurrentScreen('settings')}
+        avatarSource={avatarSource}
+        avatarFallbackText={avatarFallbackText}
+      >
         <ProfileScreen 
           user={user} 
           onLogout={handleLogout} 
@@ -458,7 +530,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onFAQPress={() => setCurrentScreen('faq')}
           navigation={navigation}
         />
-      </>
+      </FixedLayout>
     );
   }
 
@@ -474,6 +546,36 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           isStandalone={true}
         />
       </>
+    );
+  }
+
+  if (currentScreen === 'language') {
+    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
+    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
+    
+    return (
+      <LanguageScreen
+        onClose={() => setCurrentScreen('settings')}
+        onTabPress={handleTabPress}
+        activeTab={activeTab}
+        avatarSource={avatarSource}
+        avatarFallbackText={avatarFallbackText}
+      />
+    );
+  }
+
+  if (currentScreen === 'notification-settings') {
+    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
+    const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
+    
+    return (
+      <NotificationSettingsScreen
+        onClose={() => setCurrentScreen('settings')}
+        onTabPress={handleTabPress}
+        activeTab={activeTab}
+        avatarSource={avatarSource}
+        avatarFallbackText={avatarFallbackText}
+      />
     );
   }
 

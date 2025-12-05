@@ -103,60 +103,33 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
       console.log('🚀 Lancement de l\'authentification Google native...');
 
-      // CRITICAL: ALWAYS force complete disconnection before sign-in
-      // This ensures account selection screen is shown and no auto-reconnection
+      // OPTIMIZED: Simplified disconnection process for faster sign-in
+      // Only perform essential cleanup to force account selection
       try {
-        console.log('🔌 Déconnexion complète de Google Sign-In pour forcer la sélection de TOUS les comptes...');
+        console.log('🔌 Déconnexion rapide de Google Sign-In...');
         
-        // 1. ALWAYS revoke access FIRST to completely destroy the session
-        // This removes all cached account information and forces account selection
-        console.log('🔓 Révoquation de l\'accès Google (force sélection de compte)...');
+        // 1. Quick revoke access to clear cached account
         try {
           await GoogleSignin.revokeAccess();
-          console.log('✅ Accès Google révoqué - cache supprimé');
+          console.log('✅ Accès révoqué');
         } catch (revokeError: any) {
-          // Even if revokeAccess fails, try to sign out
-          console.warn('⚠️ Erreur lors de la révocation (tentative signOut):', revokeError);
+          // Ignore - continue anyway
         }
         
-        // 2. ALWAYS sign out (even if not signed in) to clear any cached state
-        console.log('🚪 Déconnexion de Google Sign-In (nettoyage complet)...');
+        // 2. Quick sign out to clear session
         try {
           await GoogleSignin.signOut();
-          console.log('✅ Google Sign-In déconnecté');
+          console.log('✅ Déconnexion effectuée');
         } catch (signOutError: any) {
-          // Ignore errors - we want to proceed anyway
-          console.log('ℹ️ SignOut appelé (peut échouer si pas de session active)');
+          // Ignore - continue anyway
         }
         
-        // 3. Additional cleanup: Try to get current user and sign out if exists
-        // This ensures we disconnect from any cached account
-        try {
-          const currentUser = await GoogleSignin.getCurrentUser();
-          if (currentUser) {
-            console.log('🧹 Compte actuel détecté, déconnexion supplémentaire...');
-            await GoogleSignin.revokeAccess(); // Revoke again for this specific account
-            await GoogleSignin.signOut();
-          }
-        } catch (getUserError) {
-          // Ignore - no current user
-        }
-        
-        // 4. CRITICAL: Force sign out one more time to ensure complete cleanup
-        // Sometimes Android keeps a cached account even after revokeAccess
-        try {
-          await GoogleSignin.signOut();
-        } catch (finalSignOutError) {
-          // Ignore - we've already tried
-        }
-        
-        // 5. Longer delay to ensure disconnection is complete and cache is cleared
-        // Android may need more time to clear the account cache
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('✅ Déconnexion complète terminée - sélection de TOUS les comptes forcée');
+        // 3. Reduced delay for faster process (100ms instead of 500ms)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        console.log('✅ Déconnexion rapide terminée');
       } catch (signOutError) {
         // Non-fatal: Continue even if sign out fails
-        console.warn('⚠️ Erreur lors de la déconnexion Google (non bloquant):', signOutError);
+        console.warn('⚠️ Erreur déconnexion (non bloquant):', signOutError);
       }
 
       // Ouvrir l'UI native de Google (SDK Android/iOS)
@@ -194,35 +167,26 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
       console.log('✅ userInfo reçu, tentative de récupération de l\'idToken...');
 
-      // Récupérer l'ID Token (peut être dans userInfo directement ou via getTokens())
+      // OPTIMIZED: Get ID Token efficiently
+      // Try to get idToken from userInfo first, then fallback to getTokens()
       let idToken: string | null = (userInfo as any)?.idToken || null;
 
-      // Solution de secours : si idToken n'est pas présent, essayer getTokens()
-      // This is the most reliable way to get the idToken after sign-in
+      // If idToken not in userInfo, get it via getTokens() (most reliable method)
       if (!idToken) {
-        console.log('⚠️ idToken absent dans userInfo, tentative avec getTokens()...');
+        console.log('⚠️ idToken absent, récupération via getTokens()...');
         try {
           const tokens: any = await GoogleSignin.getTokens();
-          console.log('📦 Tokens récupérés:', Object.keys(tokens || {}));
           idToken = (tokens as any)?.idToken || null;
           
           if (idToken) {
-            console.log('✅ idToken récupéré via getTokens()');
-          } else {
-            console.warn('⚠️ getTokens() retourné mais idToken toujours null');
+            console.log('✅ idToken récupéré');
           }
         } catch (tokenError: any) {
-          console.error('❌ Erreur getTokens():', tokenError);
-          console.error('❌ Code erreur getTokens:', tokenError?.code);
-          console.error('❌ Message erreur getTokens:', tokenError?.message);
-          
-          // Only treat as cancellation if it's explicitly a cancellation error
-          // Other errors (network, etc.) should be treated as real errors, not cancellations
+          // Only treat as cancellation if explicitly cancelled
           if (tokenError?.code === statusCodes.SIGN_IN_CANCELLED || 
               tokenError?.code === 'SIGN_IN_CANCELLED' ||
-              tokenError?.message?.toLowerCase().includes('cancelled') ||
-              tokenError?.message?.toLowerCase().includes('canceled')) {
-            console.log('ℹ️ [useGoogleAuth] Connexion annulée lors de getTokens()');
+              tokenError?.message?.toLowerCase().includes('cancel')) {
+            console.log('ℹ️ Connexion annulée');
             result = {
               user: null,
               error: null,
@@ -230,54 +194,32 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
             setIsPrompting(false);
             return result;
           }
-          // If it's not a cancellation error, continue - we'll try to use userInfo.user
+          // Continue for other errors - will be handled below
         }
       } else {
-        console.log('✅ idToken présent directement dans userInfo');
+        console.log('✅ idToken présent dans userInfo');
       }
 
       console.log('🔑 idToken final:', idToken ? idToken.substring(0, 50) + '...' : 'VIDE');
 
-      // CRITICAL: If still no idToken, check if we have user info
-      // If userInfo has a user object, it means user selected an account
-      // We should try to proceed with authentication even without idToken initially
-      // The idToken might be available after authentication
+      // OPTIMIZED: Simplified token validation
+      // If no idToken after getTokens(), check if user selected an account
       if (!idToken) {
-        // Check if userInfo has user data - if yes, user selected an account
+        // If userInfo has user data, user selected an account but token failed
         if ((userInfo as any)?.user) {
-          console.log('⚠️ Pas d\'idToken mais userInfo.user présent - tentative de récupération...');
-          // Try one more time with getCurrentUser and getTokens
-          try {
-            const currentUser = await GoogleSignin.getCurrentUser();
-            if (currentUser) {
-              console.log('✅ getCurrentUser() retourné:', currentUser.user?.email);
-              const tokens: any = await GoogleSignin.getTokens();
-              idToken = (tokens as any)?.idToken || null;
-              if (idToken) {
-                console.log('✅ idToken récupéré via getCurrentUser() + getTokens()');
-              }
-            }
-          } catch (finalError: any) {
-            console.error('❌ Erreur lors de la récupération finale:', finalError);
-          }
-        }
-        
-        // If still no idToken after all attempts, it's likely a cancellation
-        // BUT: Only if userInfo is also empty/incomplete
-        if (!idToken && !(userInfo as any)?.user) {
-          console.log('ℹ️ [useGoogleAuth] Pas d\'ID Token et pas de userInfo.user - probablement annulé');
+          console.error('❌ Compte sélectionné mais idToken introuvable');
           result = {
             user: null,
-            error: null, // No error for cancellation
+            error: 'Impossible de récupérer le token. Veuillez réessayer.',
           };
           setIsPrompting(false);
           return result;
-        } else if (!idToken && (userInfo as any)?.user) {
-          // User selected account but no idToken - this is an error, not cancellation
-          console.error('❌ Utilisateur a sélectionné un compte mais idToken introuvable');
+        } else {
+          // No user data and no token = cancellation
+          console.log('ℹ️ Connexion annulée');
           result = {
             user: null,
-            error: 'Impossible de récupérer le token d\'authentification. Veuillez réessayer.',
+            error: null,
           };
           setIsPrompting(false);
           return result;

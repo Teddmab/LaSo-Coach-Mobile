@@ -21,17 +21,17 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
   ];
 
   const bottomPadding = Math.max(insets.bottom, 8);
-  const totalHeight = 12 + 24 + 8 + bottomPadding;
+  // Légèrement surélever la barre pour laisser un petit espace en bas
+  const bottomOffset = bottomPadding + 6;
 
   return (
     <View style={[
       styles.container, 
       { 
-        paddingBottom: bottomPadding,
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: bottomOffset,
+        left: 16,
+        right: 16,
         zIndex: 1000,
       }
     ]}>
@@ -60,25 +60,28 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingVertical: 12,
-    justifyContent: 'space-around',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 10,
+    borderRadius: 28,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
+    borderRadius: 22,
+    marginHorizontal: 4,
   },
   activeTab: {
-    // Active tab styling if needed
+    backgroundColor: theme.colors.primaryLight,
+    borderRadius: 22,
   },
 });
 

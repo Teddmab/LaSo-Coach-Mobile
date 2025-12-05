@@ -8,6 +8,7 @@ import SubscriptionBanner from '../../../components/SubscriptionBanner';
 import BottomNavigation from '../../../components/BottomNavigation';
 import MoreMenu from '../../../components/MoreMenu';
 import SubscriptionAlert from '../../../components/SubscriptionAlert';
+import NetworkStatus from '../../../components/NetworkStatus';
 import type { User } from '../../../types/auth';
 
 interface DashboardLayoutProps {
@@ -81,10 +82,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const bottomNavHeight = 12 + 24 + 8 + Math.max(insets.bottom, 8);
+  const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
+      {/* Banniere réseau flottante (offline / reconnexion) */}
+      <NetworkStatus />
       
       {/* Header fixe */}
       <View style={styles.headerContainer}>
@@ -102,8 +106,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         onRenew={onSubscriptionRenew}
       />
 
-      {/* Contenu avec padding pour la navigation */}
-      <View style={[styles.contentContainer, { paddingBottom: bottomNavHeight }]}>
+      {/* Contenu avec padding pour la navigation (légèrement réduit pour éviter un grand espace vide) */}
+      <View style={[styles.contentContainer, { paddingBottom: contentBottomPadding }]}>
         <DashboardContent
           isProfileComplete={isProfileComplete}
           dashboardData={dashboardData}

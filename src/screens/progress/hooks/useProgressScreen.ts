@@ -232,15 +232,26 @@ export const useProgressScreen = (
       setPhotoForm(prev => ({ ...prev, uploading: true, error: '' }));
 
       if (!photoForm.selectedPhoto) {
-        setPhotoForm(prev => ({ ...prev, error: 'Veuillez sélectionner une photo' }));
+        setPhotoForm(prev => ({ ...prev, error: 'Veuillez sélectionner une photo', uploading: false }));
         return;
       }
 
+      console.log('📤 Soumission photo - selectedPhoto:', {
+        hasPhoto: !!photoForm.selectedPhoto,
+        uri: photoForm.selectedPhoto?.uri ? photoForm.selectedPhoto.uri.substring(0, 50) + '...' : 'none',
+        type: photoForm.selectedPhoto?.type,
+        fileName: photoForm.selectedPhoto?.fileName,
+      });
+
       const validation: any = ProgressPhotosApi.validatePhoto(photoForm.selectedPhoto);
+      console.log('🔍 Résultat validation:', validation);
+      
       if (!validation.isValid) {
+        const errorMessage = (validation.errors || []).join(', ');
+        console.error('❌ Validation échouée:', errorMessage);
         setPhotoForm(prev => ({ 
           ...prev, 
-          error: (validation.errors || []).join(', '),
+          error: errorMessage,
           uploading: false,
         }));
         return;
@@ -292,19 +303,113 @@ export const useProgressScreen = (
 
   const handlePhotoSelection = async (): Promise<void> => {
     try {
+      // Request permissions (comme dans ProfileScreen)
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission refusée',
+          'Veuillez autoriser l\'accès à votre galerie pour ajouter une photo de progression'
+        );
+        return;
+      }
+
+      // Launch image picker (même logique que ProfileScreen)
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 4],
+        allowsEditing: false, // Désactivé pour éviter les problèmes de URI sur Android
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets[0]) {
+      if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
+        const imageUri = asset.uri;
+        
+        console.log('📸 Image asset sélectionné:', {
+          uri: imageUri,
+          type: asset.type,
+          fileName: asset.fileName,
+          width: asset.width,
+          height: asset.height,
+          fileSize: asset.fileSize
+        });
+        
+        // CRITICAL: Déterminer le type MIME correct
+        // Parfois ImagePicker retourne juste "image" au lieu de "image/jpeg" ou "image/png"
+        let mimeType = asset.type || 'image/jpeg';
+        
+        // Si le type est juste "image" sans sous-type, déterminer depuis l'URI ou fileName
+        if (mimeType === 'image' || !mimeType.includes('/')) {
+          console.log('⚠️ Type MIME incomplet, détermination depuis URI/fileName...');
+          const uri = imageUri || '';
+          const fileName = asset.fileName || asset.name || '';
+          
+          if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) {
+            mimeType = 'image/png';
+            console.log('✅ Type déterminé: image/png');
+          } else if (uri.match(/\.(jpg|jpeg)$/i) || fileName.match(/\.(jpg|jpeg)$/i)) {
+            mimeType = 'image/jpeg';
+            console.log('✅ Type déterminé: image/jpeg');
+          } else if (uri.match(/\.(gif)$/i) || fileName.match(/\.(gif)$/i)) {
+            mimeType = 'image/gif';
+            console.log('✅ Type déterminé: image/gif');
+          } else {
+            // Par défaut JPEG
+            mimeType = 'image/jpeg';
+            console.log('✅ Type par défaut: image/jpeg');
+          }
+        }
+        
+        console.log('📸 Type MIME final:', mimeType);
+        
+        // CRITICAL: Copier le fichier vers un emplacement accessible (comme dans ProfileScreen)
+        // Cela résout les problèmes de "Network request failed" sur Android avec content:// URIs
+        console.log('📁 Préparation du fichier pour upload...');
+        
+        // Utiliser ProfileApi.copyFileToAccessibleLocation (déjà importé)
+        const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
+        
+        // Préparer le nom de fichier avec la bonne extension
+        const fileName = asset.fileName || asset.name || `progress_${Date.now()}.jpg`;
+        const extension = mimeType.includes('png') ? 'png' : 
+                         mimeType.includes('gif') ? 'gif' : 
+                         'jpg';
+        const finalFileName = fileName.includes('.') 
+          ? fileName 
+          : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
+        
+        // Créer un objet asset avec l'URI accessible
+        // CRITICAL: S'assurer que le type MIME est bien défini pour la validation
+        const accessibleAsset = {
+          ...asset,
+          uri: accessibleUri, // Utiliser l'URI accessible
+          type: mimeType, // Type MIME explicite pour la validation
+          mimeType: mimeType, // Aussi en mimeType pour compatibilité
+          fileName: finalFileName,
+          // S'assurer que fileSize est présent si disponible
+          fileSize: asset.fileSize || asset.size,
+        };
+        
+        console.log('✅ Fichier préparé:', {
+          originalUri: imageUri.substring(0, 50) + '...',
+          accessibleUri: accessibleUri.substring(0, 50) + '...',
+          type: mimeType,
+          mimeType: mimeType,
+          name: finalFileName,
+          fileSize: accessibleAsset.fileSize
+        });
+        
+        console.log('✅ Asset accessible créé:', {
+          hasUri: !!accessibleAsset.uri,
+          hasType: !!accessibleAsset.type,
+          hasMimeType: !!accessibleAsset.mimeType,
+          hasFileName: !!accessibleAsset.fileName,
+          type: accessibleAsset.type,
+        });
+        
         setPhotoForm(prev => ({
           ...prev,
-          selectedPhoto: asset,
-          preview: asset.uri,
+          selectedPhoto: accessibleAsset,
+          preview: accessibleUri, // Utiliser l'URI accessible pour la prévisualisation
         }));
       }
     } catch (error) {

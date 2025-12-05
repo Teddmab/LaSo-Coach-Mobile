@@ -13,6 +13,13 @@ const NetworkStatus: React.FC = () => {
       const wasConnected = isConnected;
       setIsConnected(state.isConnected ?? false);
       
+      if (!state.isConnected) {
+        // Mode hors-ligne : afficher immédiatement la bannière rouge
+        setIsReconnecting(false);
+        fadeAnim.setValue(1);
+        return;
+      }
+
       // Show reconnecting state briefly when network comes back
       if (!wasConnected && state.isConnected) {
         setIsReconnecting(true);
@@ -37,7 +44,7 @@ const NetworkStatus: React.FC = () => {
   }, [isConnected, fadeAnim]);
 
   if (isConnected && !isReconnecting) {
-    return null; // Don't show anything when connected
+    return null; // Don't show anything when fully connecté
   }
 
   return (

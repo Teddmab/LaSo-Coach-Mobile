@@ -36,17 +36,60 @@ export class ProfileApi {
    */
   static async updateProfile(profileData) {
     try {
-      console.log('👤 Updating user profile...');
+      console.log('👤 Updating user profile (fetch, no axios)...');
       console.log('👤 Update data:', profileData);
-      
-      const response = await api.put('/profile', profileData);
-      
-      console.log('✅ Profile updated successfully');
-      console.log('👤 Update response:', response.data);
-      
-      return response.data;
+
+      // Récupérer le token Firebase pour l'authentification
+      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
+      const idToken = await firebaseAuthService.getIdToken();
+
+      if (!idToken) {
+        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
+      }
+
+      const url = `${Config.API_BASE_URL}/profile`;
+      console.log('🌐 Calling URL (PUT - like web version):', url);
+
+      const response = await fetch(url, {
+        method: 'PUT', // Utiliser PUT comme la version web (ProfileSetup.tsx ligne 361)
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      const text = await response.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        console.warn('⚠️ Profile update: response is not valid JSON, raw text:', text);
+      }
+
+      if (!response.ok) {
+        console.error('❌ Error updating profile (fetch):', {
+          status: response.status,
+          statusText: response.statusText,
+          body: json || text,
+        });
+        const message = json?.message || `Erreur lors de la mise à jour du profil (code ${response.status})`;
+        const error: any = new Error(message);
+        error.status = response.status;
+        error.data = json;
+        throw error;
+      }
+
+      console.log('✅ Profile updated successfully (fetch)');
+      console.log('👤 Update response:', json);
+      console.log('👤 Update response data:', json?.data);
+      console.log('👤 Update response profile:', json?.data?.profile);
+
+      // Retourner la réponse complète pour vérification
+      return json;
     } catch (error) {
-      console.error('❌ Error updating profile:', error);
+      console.error('❌ Error updating profile (fetch):', error);
       throw error;
     }
   }

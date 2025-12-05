@@ -113,9 +113,14 @@ class BadgeApi {
       
       console.log('📊 Parsed responseData:', responseData);
       console.log('📊 responseData.status:', responseData.status);
+      console.log('📊 responseData.success:', responseData.success);
       console.log('📊 responseData.data:', responseData.data);
       
-      if (responseData.status === 'success' && responseData.data) {
+      // Certains backends renvoient { status: 'success', data: {...} },
+      // d'autres renvoient { success: true, data: {...} }.
+      const isOk = (responseData.status === 'success' || responseData.success === true) && !!responseData.data;
+      
+      if (isOk) {
         const apiData = responseData.data;
         
         // Log the specific fields we need

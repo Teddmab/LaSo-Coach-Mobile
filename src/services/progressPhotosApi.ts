@@ -168,21 +168,99 @@ class ProgressPhotosApi {
 
   /**
    * Validate photo file
-   * @param {Object} photo - Photo file object
+   * @param {Object} photo - Photo file object (asset from ImagePicker)
    * @returns {Object} Validation result
    */
   static validatePhoto(photo) {
     const errors = [];
+    
+    console.log('🔍 Validation photo:', {
+      hasPhoto: !!photo,
+      photoKeys: photo ? Object.keys(photo) : [],
+      uri: photo?.uri ? photo.uri.substring(0, 50) + '...' : 'none',
+      type: photo?.type,
+      mimeType: photo?.mimeType,
+      fileName: photo?.fileName,
+      fileSize: photo?.fileSize
+    });
     
     if (!photo) {
       errors.push('Aucune photo sélectionnée');
       return { isValid: false, errors };
     }
     
-    // Check file type
+    // Check file type - ImagePicker asset peut avoir 'type' ou 'mimeType'
+    // CRITICAL: Parfois ImagePicker retourne juste "image" sans le sous-type
+    // Il faut extraire le type complet depuis l'URI ou le fileName
+    let photoType = photo.type || photo.mimeType || '';
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (photo.type && !allowedTypes.includes(photo.type.toLowerCase())) {
-      errors.push('Veuillez sélectionner une image valide (JPEG ou PNG)');
+    
+    // Si le type est juste "image" sans sous-type, essayer de le déterminer depuis l'URI ou fileName
+    if (photoType === 'image' || photoType === '') {
+      console.log('⚠️ Type MIME incomplet ou manquant, détermination depuis URI/fileName...');
+      const uri = photo.uri || '';
+      const fileName = photo.fileName || photo.name || '';
+      
+      // Déterminer le type depuis l'extension du fichier
+      if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) {
+        photoType = 'image/png';
+        console.log('✅ Type déterminé depuis extension: image/png');
+      } else if (uri.match(/\.(jpg|jpeg)$/i) || fileName.match(/\.(jpg|jpeg)$/i)) {
+        photoType = 'image/jpeg';
+        console.log('✅ Type déterminé depuis extension: image/jpeg');
+      } else if (uri.match(/\.(gif)$/i) || fileName.match(/\.(gif)$/i)) {
+        photoType = 'image/gif';
+        console.log('✅ Type déterminé depuis extension: image/gif');
+      } else if (uri.match(/\.(webp)$/i) || fileName.match(/\.(webp)$/i)) {
+        photoType = 'image/webp';
+        console.log('✅ Type déterminé depuis extension: image/webp');
+      } else {
+        // Par défaut, on assume JPEG si c'est un URI file:// (fichier copié)
+        if (uri.startsWith('file://')) {
+          photoType = 'image/jpeg';
+          console.log('✅ Type par défaut (file:// URI): image/jpeg');
+        }
+      }
+    }
+    
+    // Si on a un type, vérifier qu'il est autorisé
+    if (photoType) {
+      const normalizedType = photoType.toLowerCase();
+      if (!allowedTypes.includes(normalizedType)) {
+        console.warn('⚠️ Type MIME non autorisé:', normalizedType);
+        // Si c'est juste "image" sans sous-type, ne pas bloquer (le backend validera)
+        if (normalizedType !== 'image') {
+          errors.push('Veuillez sélectionner une image valide (JPEG ou PNG)');
+        } else {
+          console.log('ℹ️ Type "image" détecté, on continue (backend validera)');
+        }
+      } else {
+        console.log('✅ Type MIME valide:', normalizedType);
+      }
+    } else {
+      // Si pas de type mais qu'on a un URI, on accepte (le backend validera)
+      console.log('⚠️ Pas de type MIME détecté, validation par URI');
+      const uri = photo.uri || '';
+      if (!uri) {
+        errors.push('URI de l\'image manquante');
+      } else {
+        // Vérifier l'extension du fichier dans l'URI
+        // Les fichiers copiés peuvent avoir des noms génériques, donc on accepte si c'est un URI file://
+        const isFileUri = uri.startsWith('file://');
+        const isImageUri = uri.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+        
+        if (isFileUri) {
+          // Si c'est un URI file:// (fichier copié), on accepte même sans extension visible
+          // car le type est défini dans le FormData
+          console.log('✅ URI file:// détecté (fichier copié), validation acceptée');
+        } else if (isImageUri) {
+          console.log('✅ Extension de fichier valide détectée dans URI');
+        } else {
+          console.warn('⚠️ Extension de fichier non reconnue dans URI:', uri.substring(0, 50));
+          // Ne pas bloquer - le backend validera et on a déjà le type dans le FormData
+          console.log('ℹ️ Validation par URI échouée mais on continue (backend validera)');
+        }
+      }
     }
     
     // Check file size (5MB limit)
@@ -191,26 +269,43 @@ class ProgressPhotosApi {
       errors.push('L\'image ne doit pas dépasser 5MB');
     }
     
+    const isValid = errors.length === 0;
+    console.log('🔍 Résultat validation:', { isValid, errors });
+    
     return {
-      isValid: errors.length === 0,
+      isValid,
       errors
     };
   }
 
   /**
    * Create form data for photo upload
-   * @param {Object} photo - Photo file object
+   * @param {Object} photo - Photo file object (asset from ImagePicker avec URI accessible)
    * @param {Object} metadata - Additional metadata
    * @returns {FormData} Form data object
    */
   static createFormData(photo, metadata = {}) {
     const formData = new FormData();
     
-    // Add photo file
+    // CRITICAL: Utiliser l'URI accessible (file://) et le type MIME correct
+    // L'URI doit être accessible (copié via copyFileToAccessibleLocation)
+    const photoUri = photo.uri;
+    const photoType = photo.type || photo.mimeType || 'image/jpeg';
+    const photoName = photo.fileName || photo.name || `progress_${Date.now()}.jpg`;
+    
+    console.log('📤 Création FormData pour upload:', {
+      uri: photoUri.substring(0, 50) + '...',
+      uriType: photoUri.startsWith('file://') ? 'file://' : 
+               photoUri.startsWith('content://') ? 'content://' : 'unknown',
+      type: photoType,
+      name: photoName
+    });
+    
+    // Add photo file (comme dans ProfileScreen)
     formData.append('photo', {
-      uri: photo.uri,
-      type: photo.type || 'image/jpeg',
-      name: photo.fileName || 'photo.jpg'
+      uri: photoUri, // URI accessible (file://)
+      type: photoType,
+      name: photoName
     });
     
     // Add metadata

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from './Avatar';
@@ -35,10 +35,22 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   avatarFallbackText = '',
   showNotificationBadge = true,
 }) => {
+  // Animation douce du contenu gauche (logo / titre) lorsqu'on change d'écran
+  const leftOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    leftOpacity.setValue(0);
+    Animated.timing(leftOpacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [title, showLogo, leftOpacity]);
+
   return (
     <View style={[styles.header, showLogo && styles.headerWithLogo]}>
       {/* Left Side: Logo or Title */}
-      <View style={styles.headerLeft}>
+      <Animated.View style={[styles.headerLeft, { opacity: leftOpacity }]}>
         {showLogo ? (
           <Image 
             source={require('../../assets/logo.png')} 
@@ -48,7 +60,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         ) : (
           <Text style={styles.headerTitle}>{title}</Text>
         )}
-      </View>
+      </Animated.View>
 
       {/* Right Side: Action Buttons */}
       <View style={styles.headerRight}>
@@ -100,14 +112,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    minHeight: 56, // Hauteur minimale pour garantir la cohérence
+    minHeight: 64, // Hauteur fixe standard pour tous les écrans
   },
   headerWithLogo: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     minHeight: 64,
   },
   headerLeft: {

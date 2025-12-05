@@ -289,7 +289,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       Toast.show({ 
         type: 'success', 
         text1: 'Connexion réussie', 
-        text2: `Bienvenue ${user.firstName || user.name}!` 
+        text2: `Bienvenue ${user.firstName || user.name}!`,
+        visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
       });
       // Fallback: in case the auth state listener hasn't attached yet (race after delayed Firebase init), optimistically set user now
       if (!state.isAuthenticated) {
@@ -332,6 +333,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         type: 'success',
         text1: 'Connexion Google réussie',
         text2: `Bienvenue ${user.firstName || user.name}!`,
+        visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
       });
 
       return { user, error: null };
@@ -379,6 +381,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         type: 'success',
         text1: 'Inscription Google réussie',
         text2: `Bienvenue ${user.firstName || user.name}!`,
+        visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
       });
 
       return { user, error: null };
@@ -421,7 +424,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       Toast.show({ 
         type: 'success', 
         text1: 'Inscription réussie', 
-        text2: 'Votre compte a été créé avec succès' 
+        text2: 'Votre compte a été créé avec succès',
+        visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
       });
       
       console.log('✅ Registration successful via Firebase:', user.firstName || user.name);

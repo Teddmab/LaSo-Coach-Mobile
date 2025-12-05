@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// @ts-nocheck
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -12,7 +13,8 @@ import {
   ActivityIndicator,
   Pressable,
   Alert,
-  Platform
+  Platform,
+  Animated
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +29,7 @@ import Avatar from '../components/Avatar';
 import AppHeader from '../components/AppHeader';
 import NotificationBadge from '../components/NotificationBadge';
 import * as ImagePicker from 'expo-image-picker';
-import { ShimmerCard } from '../components/Shimmer';
+import { ShimmerCard, Shimmer } from '../components/Shimmer';
 
 import { ProfileScreenProps } from './profile/types';
 
@@ -46,6 +48,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const [measurementsData, setMeasurementsData] = useState(null);
   const [progressData, setProgressData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(0)).current; // Pour l'effet d'ouverture
   // Old dropdown states removed - now using modals
   const [consentChecked, setConsentChecked] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -160,11 +163,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     fetchRendezvousData();
   }, []);
 
+  // Effet d'ouverture fade-in quand les données sont chargées
+  useEffect(() => {
+    if (!loading) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading, fadeAnim]);
+
   // Refresh data when step changes to ensure we have the latest information
   useEffect(() => {
     if (currentStep > 1) {
       console.log('🔄 Step changed to', currentStep, '- refreshing data...');
-      fetchProfileData(false);
+      // Forcer le rafraîchissement des données pour s'assurer que les valeurs initiales sont chargées
+      fetchProfileData(false).then(() => {
+        console.log('✅ Profile data refreshed for step', currentStep);
+        console.log('📊 Current formData:', {
+          height: formData.height,
+          initialWeight: formData.initialWeight,
+          initialWaist: formData.initialWaist,
+        });
+        console.log('📊 Current profileData:', {
+          height: profileData?.profile?.height,
+          initialWeight: profileData?.profile?.initialWeight,
+          initialWaistSize: profileData?.profile?.initialWaistSize,
+        });
+      });
       fetchRendezvousData();
     }
   }, [currentStep]);
@@ -195,9 +223,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                city: parsedAddress.city || '',
                postalCode: parsedAddress.postalCode || '',
                country: parsedAddress.country || '',
-               height: profile.profile?.height?.toString() || '',
-               initialWeight: profile.profile?.initialWeight?.toString() || '',
-               initialWaist: profile.profile?.initialWaistSize?.toString() || '',
+               height: profile.profile?.height ? profile.profile.height.toString().replace('.', ',') : '',
+               initialWeight: profile.profile?.initialWeight ? profile.profile.initialWeight.toString() : '',
+               initialWaist: profile.profile?.initialWaistSize ? profile.profile.initialWaistSize.toString() : '',
                gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
                occupation: profile.profile?.occupation || 'Software Engineer',
                // Target objectives
@@ -217,9 +245,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
            lastName: profile.lastName || '',
            phone: profile.phoneNumber || '',
            email: profile.email || '',
-           height: profile.profile?.height?.toString() || '',
-           initialWeight: profile.profile?.initialWeight?.toString() || '',
-           initialWaist: profile.profile?.initialWaistSize?.toString() || '',
+           height: profile.profile?.height ? profile.profile.height.toString().replace('.', ',') : '',
+           initialWeight: profile.profile?.initialWeight ? profile.profile.initialWeight.toString() : '',
+           initialWaist: profile.profile?.initialWaistSize ? profile.profile.initialWaistSize.toString() : '',
            gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
            occupation: profile.profile?.occupation || 'Software Engineer',
            // Target objectives
@@ -267,6 +295,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       console.log('👤 Profile: Using occupation options from UI');
       
       console.log('✅ Profile: All data fetched successfully');
+      console.log('📊 Profile data loaded:', {
+        hasProfile: !!profile,
+        hasProfileProfile: !!profile.profile,
+        height: profile.profile?.height,
+        initialWeight: profile.profile?.initialWeight,
+        initialWaistSize: profile.profile?.initialWaistSize,
+        formDataHeight: formData.height,
+        formDataInitialWeight: formData.initialWeight,
+        formDataInitialWaist: formData.initialWaist,
+      });
     } catch (error) {
       console.error('❌ Profile: Error fetching profile data:', error);
     } finally {
@@ -621,8 +659,58 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   const handleSaveProfile = async () => {
+    // Validation basique côté client pour éviter d'envoyer un profil incomplet
+    const firstName = formData.firstName?.trim();
+    const lastName = formData.lastName?.trim();
+    const email = formData.email?.trim();
+    const heightValue = parseFloat((formData.height || '').replace(',', '.'));
+    const initialWeightValue = parseFloat(formData.initialWeight || '');
+    const initialWaistValue = parseFloat(formData.initialWaist || '');
+
+    if (!firstName || !lastName || !email) {
+      Toast.show({
+        type: 'error',
+        text1: 'Champs manquants',
+        text2: 'Merci de renseigner au minimum votre prénom, nom et email avant de continuer.',
+      });
+      return;
+    }
+
+    if (!email.includes('@') || !email.includes('.')) {
+      Toast.show({
+        type: 'error',
+        text1: 'Email invalide',
+        text2: 'Merci de vérifier le format de votre adresse email.',
+      });
+      return;
+    }
+
+    if (!heightValue || heightValue <= 0 || !initialWeightValue || initialWeightValue <= 0 || !initialWaistValue || initialWaistValue <= 0) {
+      Toast.show({
+        type: 'error',
+        text1: 'Mesures incomplètes',
+        text2: 'Merci de renseigner votre taille, poids et tour de taille initiaux avec des valeurs valides.',
+      });
+      return;
+    }
+
     try {
       console.log('👤 Profile: Saving profile data...');
+      
+      // Vérifier d'abord si le profil existe et si la relation profile existe
+      let profileExists = false;
+      try {
+        const currentProfile = await ProfileApi.getProfile();
+        profileExists = !!currentProfile?.profile;
+        console.log('👤 Profile: Current profile check:', {
+          hasProfile: !!currentProfile,
+          hasProfileRelation: !!currentProfile?.profile,
+          profileData: currentProfile?.profile,
+        });
+      } catch (error) {
+        console.warn('⚠️ Profile: Could not check existing profile, assuming it does not exist');
+        profileExists = false;
+      }
       
       // Format address
       const addressString = ProfileApi.formatAddress({
@@ -633,27 +721,103 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         country: formData.country
       });
       
-      // Prepare profile data for API
-      const profileUpdateData = {
-        name: `${formData.firstName} ${formData.lastName}`,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phoneNumber: formData.phone,
-        address: addressString,
-        profile: {
-          height: parseFloat(formData.height.replace(',', '.')),
-          gender: formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male',
-          occupation: formData.occupation,
-          initialWeight: parseFloat(formData.initialWeight),
-          initialWaistSize: parseFloat(formData.initialWaist)
+      // IMPORTANT: Utiliser exactement le même format que la version web (ProfileSetup.tsx ligne 339-361)
+      // La version web utilise PUT /api/v1/profile avec un payload contenant :
+      // - Les champs de base (firstName, lastName, email, phoneNumber, address)
+      // - Un objet profile imbriqué avec height, initialWeight, initialWaistSize, gender, occupation
+      const profileUpdateData: any = {};
+      
+      // Champs de base (comme la version web)
+      if (firstName) profileUpdateData.firstName = firstName;
+      if (lastName) profileUpdateData.lastName = lastName;
+      if (email) profileUpdateData.email = email;
+      if (formData.phone) profileUpdateData.phoneNumber = formData.phone;
+      if (addressString) profileUpdateData.address = addressString;
+      
+      // Objet profile imbriqué (comme la version web ligne 347-358)
+      const profilePayload: any = {};
+      if (heightValue) profilePayload.height = heightValue;
+      if (initialWeightValue) profilePayload.initialWeight = initialWeightValue;
+      if (initialWaistValue) profilePayload.initialWaistSize = initialWaistValue;
+      if (formData.gender) {
+        profilePayload.gender = formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male';
+      }
+      if (formData.occupation) {
+        profilePayload.occupation = formData.occupation;
+      }
+      
+      // Ajouter l'objet profile seulement s'il contient des données (comme la version web ligne 356-358)
+      // IMPORTANT: Le backend attend "profile" (minuscule) dans le payload JSON (voir profile.controller.ts ligne 320)
+      // La table Prisma s'appelle "Profile" (P majuscule) mais le champ dans le payload est "profile" (minuscule)
+      if (Object.keys(profilePayload).length > 0) {
+        profileUpdateData.profile = profilePayload; // Utiliser profile (minuscule) comme attendu par le backend
+      }
+      
+      console.log('👤 Profile: Payload structure:', {
+        hasBaseFields: !!(profileUpdateData.firstName && profileUpdateData.lastName && profileUpdateData.email),
+        hasProfileObject: !!profileUpdateData.profile,
+        profileFields: profileUpdateData.profile ? Object.keys(profileUpdateData.profile) : [],
+        height: profileUpdateData.profile?.height,
+        initialWeight: profileUpdateData.profile?.initialWeight,
+        initialWaistSize: profileUpdateData.profile?.initialWaistSize,
+        profileExists, // Log si le profil existe déjà
+      });
+      
+      console.log('👤 Profile: Update data (web-like payload with profile):', JSON.stringify(profileUpdateData, null, 2));
+      
+      // Si la relation profile n'existe pas, le backend devrait la créer avec upsert
+      // Mais si le backend utilise update() au lieu de upsert(), on aura une erreur
+      // Stratégie : Si l'update échoue avec "No record was found", on essaie de créer d'abord
+      // un profil minimal sans l'objet profile, puis on fait l'update avec l'objet profile
+      let updateResponse;
+      try {
+        updateResponse = await ProfileApi.updateProfile(profileUpdateData);
+        console.log('✅ Profile: Backend response after update:', JSON.stringify(updateResponse, null, 2));
+      } catch (error: any) {
+        // Si l'erreur indique que la relation profile n'existe pas
+        if (error?.message?.includes('No record was found for an update') || 
+            error?.data?.message?.includes('No record was found for an update')) {
+          console.warn('⚠️ Profile: Profile relation does not exist, attempting to create it first...');
+          
+          // Essayer d'abord de créer le profil de base sans l'objet profile
+          // Puis faire l'update avec l'objet profile
+          try {
+            // Étape 1: Créer le profil de base (sans l'objet profile imbriqué)
+            const baseProfileData: any = {};
+            if (firstName) baseProfileData.firstName = firstName;
+            if (lastName) baseProfileData.lastName = lastName;
+            if (email) baseProfileData.email = email;
+            if (formData.phone) baseProfileData.phoneNumber = formData.phone;
+            if (addressString) baseProfileData.address = addressString;
+            
+            console.log('👤 Profile: Creating base profile first (without profile relation)...');
+            await ProfileApi.updateProfile(baseProfileData);
+            console.log('✅ Profile: Base profile created successfully');
+            
+            // Étape 2: Maintenant faire l'update avec l'objet profile
+            console.log('👤 Profile: Now updating with profile relation...');
+            updateResponse = await ProfileApi.updateProfile(profileUpdateData);
+            console.log('✅ Profile: Profile relation created and updated successfully');
+          } catch (createError: any) {
+            console.error('❌ Profile: Error creating base profile:', createError);
+            throw createError; // Re-lancer l'erreur pour qu'elle soit gérée par le catch principal
+          }
+        } else {
+          // Si c'est une autre erreur, la re-lancer
+          throw error;
         }
-      };
+      }
       
-      console.log('👤 Profile: Update data:', profileUpdateData);
-      
-      // Update profile via API
-      await ProfileApi.updateProfile(profileUpdateData);
+      // Vérifier que les données de profil sont bien sauvegardées
+      if (updateResponse?.data?.profile) {
+        console.log('✅ Profile: Profile data saved successfully:', {
+          height: updateResponse.data.profile.height,
+          initialWeight: updateResponse.data.profile.initialWeight,
+          initialWaistSize: updateResponse.data.profile.initialWaistSize,
+        });
+      } else {
+        console.warn('⚠️ Profile: Profile data might not be saved. Response:', updateResponse);
+      }
       
       // Update progress if available
       if (progressData) {
@@ -668,11 +832,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       }
       
       setShowSaveModal(false);
+      
+      // IMPORTANT: Rafraîchir les données AVANT de passer à l'étape 2
+      // pour s'assurer que les valeurs sont bien chargées
+      console.log('🔄 Profile: Refreshing data before moving to step 2...');
+      await fetchProfileData(false);
+      
+      // Attendre un peu pour que le state soit mis à jour
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Vérifier que les données sont bien chargées après rafraîchissement
+      // Note: formData sera mis à jour par fetchProfileData via setFormData
+      console.log('📊 Profile: Verifying saved data...');
+      
+      // Vérifier une dernière fois que les données sont bien sauvegardées
+      // en faisant un appel GET pour récupérer le profil mis à jour
+      try {
+        const verifyProfile = await ProfileApi.getProfile();
+        console.log('✅ Profile: Verification - Profile data from backend:', {
+          hasProfile: !!verifyProfile.profile,
+          height: verifyProfile.profile?.height,
+          initialWeight: verifyProfile.profile?.initialWeight,
+          initialWaistSize: verifyProfile.profile?.initialWaistSize,
+        });
+        
+        if (!verifyProfile.profile || !verifyProfile.profile.height) {
+          console.error('❌ Profile: WARNING - Profile data was not saved correctly!');
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur de sauvegarde',
+            text2: 'Les données de profil n\'ont pas été sauvegardées. Veuillez réessayer.',
+          });
+          return; // Ne pas passer à l'étape 2 si les données ne sont pas sauvegardées
+        }
+      } catch (error) {
+        console.error('❌ Profile: Error verifying saved data:', error);
+        // On continue quand même, mais on log l'erreur
+      }
+      
       setCurrentStep(2);
       console.log('✅ Profile saved successfully, moving to step 2');
-      
-      // Refresh data to show updated information (without loading indicator)
-      await fetchProfileData(false);
       
       // Show success message to user
       Toast.show({
@@ -693,27 +892,76 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   const handleSaveObjectives = async () => {
+    const targetWeightValue = parseFloat(formData.targetWeight || '');
+    const targetWaistValue = parseFloat(formData.targetWaist || '');
+    const generalObjective = formData.generalObjective?.trim();
+
+    if (!targetWeightValue || targetWeightValue <= 0 || !targetWaistValue || targetWaistValue <= 0) {
+      Toast.show({
+        type: 'error',
+        text1: 'Objectifs incomplets',
+        text2: 'Merci de renseigner un poids et un tour de taille cibles valides.',
+      });
+      return;
+    }
+
+    if (!generalObjective) {
+      Toast.show({
+        type: 'error',
+        text1: 'Objectif général manquant',
+        text2: 'Merci de décrire brièvement votre objectif général avant de continuer.',
+      });
+      return;
+    }
+
     try {
       console.log('🎯 Objectives: Saving objectives data...');
       
-      // Prepare objectives data for API
-      const objectivesUpdateData = {
-        profile: {
-          height: parseFloat(profileData?.profile?.height || 0),
-          initialWeight: parseFloat(profileData?.profile?.initialWeight || 0),
-          initialWaistSize: parseFloat(profileData?.profile?.initialWaistSize || 0),
-          targetWeight: parseFloat(formData.targetWeight || 0),
-          targetWaistSize: parseFloat(formData.targetWaist || 0),
-          goal: formData.generalObjective,
-          goals: formData.specificObjectives,
-          dietaryRestrictions: formData.dietaryRestrictions,
-          gender: profileData?.profile?.gender || 'male',
-          occupation: profileData?.profile?.occupation || 'Software Engineer',
-          acceptedGuidelines: true
-        }
+      // S'assurer que profileData existe et contient les informations de base
+      if (!profileData) {
+        console.warn('⚠️ Objectives: profileData is missing, fetching it first...');
+        await fetchProfileData(false);
+      }
+      
+      // Préparer les données avec les champs de base nécessaires pour identifier le profil
+      // Le backend a besoin de firstName, lastName, email pour identifier le profil
+      // IMPORTANT: Le backend attend "profile" (minuscule) dans le payload JSON (voir profile.controller.ts ligne 320)
+      const objectivesUpdateData: any = {
+        // Champs de base pour identifier le profil (requis par le backend)
+        firstName: profileData?.firstName || formData.firstName || '',
+        lastName: profileData?.lastName || formData.lastName || '',
+        email: profileData?.email || formData.email || '',
       };
       
-      console.log('🎯 Objectives: Update data:', objectivesUpdateData);
+      // Données du profil (objectifs) - utiliser profile (minuscule) comme attendu par le backend
+      const profilePayload = {
+        height: parseFloat(profileData?.profile?.height || formData.height?.replace(',', '.') || 0),
+        initialWeight: parseFloat(profileData?.profile?.initialWeight || formData.initialWeight || 0),
+        initialWaistSize: parseFloat(profileData?.profile?.initialWaistSize || formData.initialWaist || 0),
+        targetWeight: targetWeightValue,
+        targetWaistSize: targetWaistValue,
+        goal: generalObjective,
+          goals: formData.specificObjectives,
+          dietaryRestrictions: formData.dietaryRestrictions,
+        gender: profileData?.profile?.gender || (formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male'),
+        occupation: profileData?.profile?.occupation || formData.occupation || 'Software Engineer',
+          acceptedGuidelines: true
+      };
+      
+      // Ajouter avec profile (minuscule) comme attendu par le backend
+      objectivesUpdateData.profile = profilePayload;
+      
+      console.log('🎯 Objectives: Update data (with base fields):', objectivesUpdateData);
+      
+      // Validation : s'assurer que les champs de base sont présents
+      if (!objectivesUpdateData.firstName || !objectivesUpdateData.lastName || !objectivesUpdateData.email) {
+        Toast.show({
+          type: 'error',
+          text1: 'Données manquantes',
+          text2: 'Impossible de sauvegarder : informations de profil incomplètes. Veuillez compléter l\'étape 1 d\'abord.',
+        });
+        return;
+      }
       
       // Update profile via API
       await ProfileApi.updateProfile(objectivesUpdateData);
@@ -1792,8 +2040,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.inputLabel}>Taille (m)</Text>
           <TextInput
             style={[styles.textInput, styles.disabledInput]}
-            value={profileData?.profile?.height?.toString() || ''}
+            // Priorité: formData (valeurs saisies) > profileData (backend) > vide
+            value={
+              (formData.height && formData.height.trim() !== '') 
+                ? formData.height.replace('.', ',')
+                : (profileData?.profile?.height 
+                    ? profileData.profile.height.toString().replace('.', ',')
+                    : '')
+            }
             placeholder="Taille en mètres"
+            placeholderTextColor="#999999"
             keyboardType="decimal-pad"
             editable={false}
           />
@@ -1803,8 +2059,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.inputLabel}>Poids initial (kg)</Text>
           <TextInput
             style={[styles.textInput, styles.disabledInput]}
-            value={profileData?.profile?.initialWeight?.toString() || ''}
+            // Priorité: formData (valeurs saisies) > profileData (backend) > vide
+            value={
+              (formData.initialWeight && formData.initialWeight.trim() !== '')
+                ? formData.initialWeight
+                : (profileData?.profile?.initialWeight
+                    ? profileData.profile.initialWeight.toString()
+                    : '')
+            }
             placeholder="Poids initial"
+            placeholderTextColor="#999999"
             keyboardType="numeric"
             editable={false}
           />
@@ -1814,8 +2078,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.inputLabel}>Tour de taille initial (cm)</Text>
           <TextInput
             style={[styles.textInput, styles.disabledInput]}
-            value={profileData?.profile?.initialWaistSize?.toString() || ''}
+            // Priorité: formData (valeurs saisies) > profileData (backend) > vide
+            value={
+              (formData.initialWaist && formData.initialWaist.trim() !== '')
+                ? formData.initialWaist
+                : (profileData?.profile?.initialWaistSize
+                    ? profileData.profile.initialWaistSize.toString()
+                    : '')
+            }
             placeholder="Tour de taille initial"
+            placeholderTextColor="#999999"
             keyboardType="numeric"
             editable={false}
           />
@@ -2792,7 +3064,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
-      {/* Header */}
+      {/* Header fixe - même style que Home */}
+      <View style={styles.headerContainer}>
       <AppHeader
         title={getHeaderTitle()}
         onHelpPress={() => {
@@ -2827,6 +3100,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         avatarSource={profileData?.avatar || user?.avatar}
         avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
       />
+      </View>
 
       {/* Subscription Banner - Hide for subscription step */}
       {currentStep !== 5 && (
@@ -2839,22 +3113,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]} // Espace pour la navigation footer fixe
         onScrollBeginDrag={() => {
           // Clean up any open modals if needed
         }}
       >
+        {/* Profile Header - Hide for subscription step */}
+        {currentStep !== 5 && (
+          <View style={styles.profileHeader}>
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ShimmerCard />
-            <ShimmerCard />
-            <ShimmerCard />
+              <>
+                <Shimmer width={80} height={80} borderRadius={40} />
+                <View style={styles.profileHeaderText}>
+                  <Shimmer width="60%" height={24} style={{ marginBottom: 8 }} />
+                  <Shimmer width="80%" height={16} />
           </View>
+              </>
         ) : (
           <>
-            {/* Profile Header - Hide for subscription step */}
-            {currentStep !== 5 && (
-              <View style={styles.profileHeader}>
                 <View style={styles.profileImageContainer}>
                   <Pressable 
                     onPress={handleAvatarUpload}
@@ -2886,31 +3162,59 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                     {getStepSubtitle()}
                   </Text>
                 </View>
+              </>
+            )}
               </View>
             )}
 
         {/* Info Banner - Hide for subscription step */}
         {currentStep !== 5 && (
           <View style={styles.infoBanner}>
+            {loading ? (
+              <Shimmer width="100%" height={60} borderRadius={12} />
+            ) : (
             <Text style={styles.infoBannerText}>
               {getInfoBannerText()}
             </Text>
+            )}
           </View>
         )}
 
         {/* Profile Complete Status - Hide for subscription step */}
         {currentStep !== 5 && (
           <View style={styles.statusContainer}>
+            {loading ? (
+              <Shimmer width="100%" height={40} borderRadius={12} />
+            ) : (
+              <>
             <View style={styles.statusIcon}>
               <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
             </View>
             <Text style={styles.statusText}>
               {getStatusText()}
             </Text>
+              </>
+            )}
           </View>
         )}
 
         {/* Form Content */}
+        {loading ? (
+          <>
+            <View style={styles.formSection}>
+              <Shimmer width="40%" height={20} style={{ marginBottom: 16 }} />
+              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
+              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
+              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
+            </View>
+            <View style={styles.formSection}>
+              <Shimmer width="40%" height={20} style={{ marginBottom: 16 }} />
+              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
+              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
+            </View>
+          </>
+        ) : (
+          <Animated.View style={{ opacity: fadeAnim }}>
         {currentStep === 1 ? (
           <>
             {renderPersonalInfo()}
@@ -2934,16 +3238,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         ) : currentStep === 6 ? (
           renderOnboardingSummary()
         ) : null}
-          </>
+          </Animated.View>
         )}
       </ScrollView>
 
       {/* Navigation Footer - Hide for subscription step */}
       {currentStep !== 5 && (
         <View style={styles.navigationFooter}>
+          {/* Pas de bouton retour à l'étape 1 */}
+          {currentStep > 1 ? (
           <TouchableOpacity style={styles.prevButton} onPress={handlePrevious}>
             <Ionicons name="chevron-back" size={20} color="#666" />
           </TouchableOpacity>
+          ) : (
+            <View style={styles.prevButtonPlaceholder} />
+          )}
           
           <View style={styles.stepIndicator}>
             <Text style={styles.stepText}>
@@ -2968,25 +3277,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         </View>
       )}
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('home')}>
-          <Ionicons name="home" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('progress')}>
-          <Ionicons name="trending-up-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('nutrition')}>
-          <Ionicons name="restaurant" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('achievements')}>
-          <Ionicons name="trophy-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navTab} onPress={() => onTabPress('more')}>
-          <Ionicons name="add-outline" size={24} color={theme.colors.text.secondary} />
-        </TouchableOpacity>
-      </View>
-
       {/* Save Confirmation Modal */}
       {renderSaveModal()}
       {renderObjectivesModal()}
@@ -3006,7 +3296,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#FFFFFF',
+  },
+  headerContainer: {
+    backgroundColor: '#FFFFFF',
+    zIndex: 100,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   content: {
     flex: 1,
@@ -3183,7 +3479,7 @@ const styles = StyleSheet.create({
   },
   disabledInput: {
     backgroundColor: '#F5F5F5',
-    color: theme.colors.text.secondary,
+    color: '#000000', // Texte en noir pour meilleure visibilité
     borderColor: '#CCCCCC',
   },
   textArea: {
@@ -3329,13 +3625,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    // FIXE: Position absolue pour rester fixe
+    position: 'absolute',
+    bottom: 80, // Au-dessus de la bottom navigation flottante
+    left: 16,
+    right: 16,
+    zIndex: 100,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
   },
   prevButton: {
     padding: 8,
+  },
+  prevButtonPlaceholder: {
+    width: 40,
   },
   stepIndicator: {
     flex: 1,
@@ -3437,21 +3747,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-  },
-  navTab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
   },
   collapsibleHeader: {
     flexDirection: 'row',

@@ -604,18 +604,19 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         endpoint: 'nutritionAPI.getDayCompletionStatus'
       });
       
-      const completionRes = await nutritionAPI.getDayCompletionStatus(currentPlan.id, planDay);
-      
-      if (completionRes.status === 'fulfilled') {
+      try {
+        const completionData = await nutritionAPI.getDayCompletionStatus(currentPlan.id, planDay);
         logger.debug('API Response: Completion status received', {
           status: 'success',
-          hasData: !!completionRes.value?.data,
-          completionData: completionRes.value?.data,
+          hasData: !!completionData,
+          completionData,
         });
-        setCompletionStatus(completionRes.value.data);
+        setCompletionStatus(completionData);
         logger.info('Completion status loaded');
-      } else {
-        logger.error('API Response: Completion status fetch failed', completionRes.reason);
+      } catch (error) {
+        logger.error('API Response: Completion status fetch failed', error?.message || error);
+        // On ne bloque pas l'écran si ce call échoue : on laisse simplement completionStatus à null
+        setCompletionStatus(null);
       }
       
       logger.groupEnd();

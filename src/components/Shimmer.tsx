@@ -12,7 +12,7 @@ interface ShimmerProps {
  * Composant Shimmer - Effet de chargement avec animation
  * Utilisé pour remplacer les ActivityIndicator
  */
-const Shimmer: React.FC<ShimmerProps> = ({
+export const Shimmer: React.FC<ShimmerProps> = ({
   width = '100%',
   height = 20,
   borderRadius = 8,

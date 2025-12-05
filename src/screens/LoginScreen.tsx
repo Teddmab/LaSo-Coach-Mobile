@@ -644,13 +644,10 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
       {showWelcomeSlides ? renderWelcomeSlides() : renderLoginForm()}
       {renderTermsModal()}
       
-      {/* Google Authentication Loader Overlay */}
+      {/* Google Authentication Loader Overlay - Grisé avec spinner */}
       {isGooglePrompting && (
         <View style={styles.loaderOverlay}>
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#FFFFFF" />
-            <Text style={styles.loaderText}>Connexion en cours...</Text>
-          </View>
+          <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
       )}
     </View>
@@ -950,31 +947,16 @@ const styles = StyleSheet.create({
   termsSeparator: {
     color: '#999',
   },
-  // Loader Overlay Styles
+  // Loader Overlay Styles - Overlay grisé avec spinner
   loaderOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(139, 195, 74, 0.95)', // Green background with transparency
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Overlay grisé semi-transparent
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
-  },
-  loaderContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 200,
-  },
-  loaderText: {
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#424242',
-    textAlign: 'center',
   },
 }); 
