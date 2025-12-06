@@ -29,9 +29,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { ShimmerCard, Shimmer } from '../components/Shimmer';
 
 import { ProfileScreenProps } from './profile/types';
+import { useOnboarding } from '../hooks/useOnboarding';
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress }) => {
   const [currentStep, setCurrentStep] = useState(initialStep);
+  const { completeProfileSetup, completeGoalsSetup, completeRecommendations, completeRendezVous, loading: onboardingLoading } = useOnboarding();
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showObjectivesModal, setShowObjectivesModal] = useState(false);
   const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
@@ -633,12 +635,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       }
       setShowRecommendationsModal(true);
     } else if (currentStep === 4) {
-      // Move to subscription step
-      setCurrentStep(5);
-    } else if (currentStep === 5) {
-      // Move to summary step
-      setCurrentStep(6);
-    } else if (currentStep === 6) {
       // Onboarding completed - redirect to home
       console.log('Onboarding completed, redirecting to home');
       onClose(); // This will close the profile screen and return to dashboard
@@ -692,180 +688,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
 
     try {
-      console.log('👤 Profile: Saving profile data...');
+      console.log('👤 Profile: Saving profile data using onboarding API (Step 1/4)...');
       
-      // Vérifier d'abord si le profil existe et si la relation profile existe
-      let profileExists = false;
-      try {
-        const currentProfile = await ProfileApi.getProfile();
-        profileExists = !!currentProfile?.profile;
-        console.log('👤 Profile: Current profile check:', {
-          hasProfile: !!currentProfile,
-          hasProfileRelation: !!currentProfile?.profile,
-          profileData: currentProfile?.profile,
-        });
-      } catch (error) {
-        console.warn('⚠️ Profile: Could not check existing profile, assuming it does not exist');
-        profileExists = false;
+      // Utiliser la méthode completeProfileSetup du hook useOnboarding
+      // qui correspond exactement à l'implémentation admin
+      const profileData = {
+        firstName,
+        lastName,
+        phoneNumber: formData.phone?.trim() || '',
+        addressLine1: formData.address1?.trim() || '',
+        addressLine2: formData.address2?.trim() || '',
+        city: formData.city?.trim() || '',
+        postalCode: formData.postalCode?.trim() || '',
+        country: formData.country?.trim() || '',
+        height: heightValue.toString(),
+        initialWeight: initialWeightValue.toString(),
+        initialWaistSize: initialWaistValue.toString(),
+        gender: formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male',
+        occupation: formData.occupation || ''
+      };
+      
+      const result = await completeProfileSetup(profileData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to complete Profile Setup');
       }
       
-      // Format address
-      const addressString = ProfileApi.formatAddress({
-        address1: formData.address1,
-        address2: formData.address2,
-        city: formData.city,
-        postalCode: formData.postalCode,
-        country: formData.country
-      });
-      
-      // IMPORTANT: Utiliser exactement le même format que la version web (ProfileSetup.tsx ligne 339-361)
-      // La version web utilise PUT /api/v1/profile avec un payload contenant :
-      // - Les champs de base (firstName, lastName, email, phoneNumber, address)
-      // - Un objet profile imbriqué avec height, initialWeight, initialWaistSize, gender, occupation
-      const profileUpdateData: any = {};
-      
-      // Champs de base (comme la version web)
-      if (firstName) profileUpdateData.firstName = firstName;
-      if (lastName) profileUpdateData.lastName = lastName;
-      if (email) profileUpdateData.email = email;
-      if (formData.phone) profileUpdateData.phoneNumber = formData.phone;
-      if (addressString) profileUpdateData.address = addressString;
-      
-      // Objet profile imbriqué (comme la version web ligne 347-358)
-      const profilePayload: any = {};
-      if (heightValue) profilePayload.height = heightValue;
-      if (initialWeightValue) profilePayload.initialWeight = initialWeightValue;
-      if (initialWaistValue) profilePayload.initialWaistSize = initialWaistValue;
-      if (formData.gender) {
-        profilePayload.gender = formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male';
-      }
-      if (formData.occupation) {
-        profilePayload.occupation = formData.occupation;
-      }
-      
-      // Ajouter l'objet profile seulement s'il contient des données (comme la version web ligne 356-358)
-      // IMPORTANT: Le backend attend "profile" (minuscule) dans le payload JSON (voir profile.controller.ts ligne 320)
-      // La table Prisma s'appelle "Profile" (P majuscule) mais le champ dans le payload est "profile" (minuscule)
-      if (Object.keys(profilePayload).length > 0) {
-        profileUpdateData.profile = profilePayload; // Utiliser profile (minuscule) comme attendu par le backend
-      }
-      
-      console.log('👤 Profile: Payload structure:', {
-        hasBaseFields: !!(profileUpdateData.firstName && profileUpdateData.lastName && profileUpdateData.email),
-        hasProfileObject: !!profileUpdateData.profile,
-        profileFields: profileUpdateData.profile ? Object.keys(profileUpdateData.profile) : [],
-        height: profileUpdateData.profile?.height,
-        initialWeight: profileUpdateData.profile?.initialWeight,
-        initialWaistSize: profileUpdateData.profile?.initialWaistSize,
-        profileExists, // Log si le profil existe déjà
-      });
-      
-      console.log('👤 Profile: Update data (web-like payload with profile):', JSON.stringify(profileUpdateData, null, 2));
-      
-      // Si la relation profile n'existe pas, le backend devrait la créer avec upsert
-      // Mais si le backend utilise update() au lieu de upsert(), on aura une erreur
-      // Stratégie : Si l'update échoue avec "No record was found", on essaie de créer d'abord
-      // un profil minimal sans l'objet profile, puis on fait l'update avec l'objet profile
-      let updateResponse;
-      try {
-        updateResponse = await ProfileApi.updateProfile(profileUpdateData);
-        console.log('✅ Profile: Backend response after update:', JSON.stringify(updateResponse, null, 2));
-      } catch (error: any) {
-        // Si l'erreur indique que la relation profile n'existe pas
-        if (error?.message?.includes('No record was found for an update') || 
-            error?.data?.message?.includes('No record was found for an update')) {
-          console.warn('⚠️ Profile: Profile relation does not exist, attempting to create it first...');
-          
-          // Essayer d'abord de créer le profil de base sans l'objet profile
-          // Puis faire l'update avec l'objet profile
-          try {
-            // Étape 1: Créer le profil de base (sans l'objet profile imbriqué)
-            const baseProfileData: any = {};
-            if (firstName) baseProfileData.firstName = firstName;
-            if (lastName) baseProfileData.lastName = lastName;
-            if (email) baseProfileData.email = email;
-            if (formData.phone) baseProfileData.phoneNumber = formData.phone;
-            if (addressString) baseProfileData.address = addressString;
-            
-            console.log('👤 Profile: Creating base profile first (without profile relation)...');
-            await ProfileApi.updateProfile(baseProfileData);
-            console.log('✅ Profile: Base profile created successfully');
-            
-            // Étape 2: Maintenant faire l'update avec l'objet profile
-            console.log('👤 Profile: Now updating with profile relation...');
-            updateResponse = await ProfileApi.updateProfile(profileUpdateData);
-            console.log('✅ Profile: Profile relation created and updated successfully');
-          } catch (createError: any) {
-            console.error('❌ Profile: Error creating base profile:', createError);
-            throw createError; // Re-lancer l'erreur pour qu'elle soit gérée par le catch principal
-          }
-        } else {
-          // Si c'est une autre erreur, la re-lancer
-          throw error;
-        }
-      }
-      
-      // Vérifier que les données de profil sont bien sauvegardées
-      if (updateResponse?.data?.profile) {
-        console.log('✅ Profile: Profile data saved successfully:', {
-          height: updateResponse.data.profile.height,
-          initialWeight: updateResponse.data.profile.initialWeight,
-          initialWaistSize: updateResponse.data.profile.initialWaistSize,
-        });
-      } else {
-        console.warn('⚠️ Profile: Profile data might not be saved. Response:', updateResponse);
-      }
-      
-      // Update progress if available
-      if (progressData) {
-        try {
-          await ProfileApi.updateProgress({
-            step: 'profile_setup',
-            completed: true
-          });
-        } catch (error) {
-          console.log('📊 Profile: Could not update progress');
-        }
-      }
+      console.log('✅ Profile: Profile Setup completed successfully (Step 1/4)');
+      console.log('📊 Response data:', result.data);
       
       setShowSaveModal(false);
       
-      // IMPORTANT: Rafraîchir les données AVANT de passer à l'étape 2
-      // pour s'assurer que les valeurs sont bien chargées
+      // Rafraîchir les données avant de passer à l'étape 2
       console.log('🔄 Profile: Refreshing data before moving to step 2...');
       await fetchProfileData(false);
       
       // Attendre un peu pour que le state soit mis à jour
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Vérifier que les données sont bien chargées après rafraîchissement
-      // Note: formData sera mis à jour par fetchProfileData via setFormData
-      console.log('📊 Profile: Verifying saved data...');
-      
-      // Vérifier une dernière fois que les données sont bien sauvegardées
-      // en faisant un appel GET pour récupérer le profil mis à jour
-      try {
-        const verifyProfile = await ProfileApi.getProfile();
-        console.log('✅ Profile: Verification - Profile data from backend:', {
-          hasProfile: !!verifyProfile.profile,
-          height: verifyProfile.profile?.height,
-          initialWeight: verifyProfile.profile?.initialWeight,
-          initialWaistSize: verifyProfile.profile?.initialWaistSize,
-        });
-        
-        if (!verifyProfile.profile || !verifyProfile.profile.height) {
-          console.error('❌ Profile: WARNING - Profile data was not saved correctly!');
-          Toast.show({
-            type: 'error',
-            text1: 'Erreur de sauvegarde',
-            text2: 'Les données de profil n\'ont pas été sauvegardées. Veuillez réessayer.',
-          });
-          return; // Ne pas passer à l'étape 2 si les données ne sont pas sauvegardées
-        }
-      } catch (error) {
-        console.error('❌ Profile: Error verifying saved data:', error);
-        // On continue quand même, mais on log l'erreur
-      }
       
       setCurrentStep(2);
       console.log('✅ Profile saved successfully, moving to step 2');
@@ -874,16 +733,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       Toast.show({
         type: 'success',
         text1: 'Profil sauvegardé',
-        text2: 'Vos informations ont été mises à jour avec succès',
+        text2: 'Vos informations ont été mises à jour avec succès (+100 points)',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Profile: Error saving profile:', error);
       
       // Show error message to user
       Toast.show({
         type: 'error',
         text1: 'Erreur de sauvegarde',
-        text2: 'Impossible de sauvegarder votre profil. Veuillez réessayer.',
+        text2: error?.message || 'Impossible de sauvegarder votre profil. Veuillez réessayer.',
       });
     }
   };
@@ -912,131 +771,90 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
 
     try {
-      console.log('🎯 Objectives: Saving objectives data...');
+      console.log('🎯 Objectives: Saving objectives data using onboarding API (Step 2/4)...');
       
-      // S'assurer que profileData existe et contient les informations de base
-      if (!profileData) {
-        console.warn('⚠️ Objectives: profileData is missing, fetching it first...');
-        await fetchProfileData(false);
-      }
-      
-      // Préparer les données avec les champs de base nécessaires pour identifier le profil
-      // Le backend a besoin de firstName, lastName, email pour identifier le profil
-      // IMPORTANT: Le backend attend "profile" (minuscule) dans le payload JSON (voir profile.controller.ts ligne 320)
-      const objectivesUpdateData: any = {
-        // Champs de base pour identifier le profil (requis par le backend)
-        firstName: profileData?.firstName || formData.firstName || '',
-        lastName: profileData?.lastName || formData.lastName || '',
-        email: profileData?.email || formData.email || '',
-      };
-      
-      // Données du profil (objectifs) - utiliser profile (minuscule) comme attendu par le backend
-      const profilePayload = {
-        height: parseFloat(profileData?.profile?.height || formData.height?.replace(',', '.') || 0),
-        initialWeight: parseFloat(profileData?.profile?.initialWeight || formData.initialWeight || 0),
-        initialWaistSize: parseFloat(profileData?.profile?.initialWaistSize || formData.initialWaist || 0),
-        targetWeight: targetWeightValue,
-        targetWaistSize: targetWaistValue,
+      // Utiliser la méthode completeGoalsSetup du hook useOnboarding
+      // qui correspond exactement à l'implémentation admin
+      const goalsData = {
+        targetWeight: targetWeightValue.toString(),
+        targetWaistSize: targetWaistValue.toString(),
         goal: generalObjective,
-          goals: formData.specificObjectives,
-          dietaryRestrictions: formData.dietaryRestrictions,
-        gender: profileData?.profile?.gender || (formData.gender === 'Male' ? 'male' : formData.gender === 'Female' ? 'female' : 'male'),
-        occupation: profileData?.profile?.occupation || formData.occupation || 'Software Engineer',
-          acceptedGuidelines: true
+        goals: formData.specificObjectives || [],
+        dietaryRestrictions: formData.dietaryRestrictions || []
       };
       
-      // Ajouter avec profile (minuscule) comme attendu par le backend
-      objectivesUpdateData.profile = profilePayload;
+      const result = await completeGoalsSetup(goalsData);
       
-      console.log('🎯 Objectives: Update data (with base fields):', objectivesUpdateData);
-      
-      // Validation : s'assurer que les champs de base sont présents
-      if (!objectivesUpdateData.firstName || !objectivesUpdateData.lastName || !objectivesUpdateData.email) {
-        Toast.show({
-          type: 'error',
-          text1: 'Données manquantes',
-          text2: 'Impossible de sauvegarder : informations de profil incomplètes. Veuillez compléter l\'étape 1 d\'abord.',
-        });
-        return;
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to complete Goals Setup');
       }
       
-      // Update profile via API
-      await ProfileApi.updateProfile(objectivesUpdateData);
-      
-      // Update progress if available
-      if (progressData) {
-        try {
-          await ProfileApi.updateProgress({
-            step: 'goals_setup',
-            completed: true
-          });
-        } catch (error) {
-          console.log('📊 Objectives: Could not update progress');
-        }
-      }
+      console.log('✅ Objectives: Goals Setup completed successfully (Step 2/4)');
+      console.log('📊 Response data:', result.data);
       
       setShowObjectivesModal(false);
       setCurrentStep(3);
       console.log('✅ Objectives saved successfully, moving to step 3');
       
-      // Refresh data to show updated information (without loading indicator)
+      // Refresh data to show updated information
       await fetchProfileData(false);
       
       // Show success message to user
       Toast.show({
         type: 'success',
         text1: 'Objectifs sauvegardés',
-        text2: 'Vos objectifs ont été enregistrés avec succès',
+        text2: 'Vos objectifs ont été enregistrés avec succès (+30 points)',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Objectives: Error saving objectives:', error);
       
       // Show error message to user
       Toast.show({
         type: 'error',
         text1: 'Erreur de sauvegarde',
-        text2: 'Impossible de sauvegarder vos objectifs. Veuillez réessayer.',
+        text2: error?.message || 'Impossible de sauvegarder vos objectifs. Veuillez réessayer.',
       });
     }
   };
 
   const handleSaveRecommendations = async () => {
     try {
-      console.log('📋 Recommendations: Saving recommendations data...');
+      console.log('📋 Recommendations: Saving recommendations data using onboarding API (Step 3/4)...');
       
-      // Update progress if available
-      if (progressData) {
-        try {
-          await ProfileApi.updateProgress({
-            step: 'recommendations',
-            completed: true
-          });
-        } catch (error) {
-          console.log('📊 Recommendations: Could not update progress');
-        }
+      // Utiliser la méthode completeRecommendations du hook useOnboarding
+      // qui correspond exactement à l'implémentation admin
+      const photoConsent = consentChecked;
+      
+      const result = await completeRecommendations(photoConsent);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to complete Recommendations');
       }
+      
+      console.log('✅ Recommendations: Recommendations completed successfully (Step 3/4)');
+      console.log('📊 Response data:', result.data);
       
       setShowRecommendationsModal(false);
       setCurrentStep(4);
       console.log('✅ Recommendations saved successfully, moving to step 4');
       
-      // Refresh data to show updated information (without loading indicator)
+      // Refresh data to show updated information
       await fetchProfileData(false);
       
       // Show success message to user
       Toast.show({
         type: 'success',
         text1: 'Recommandations sauvegardées',
-        text2: 'Vos recommandations ont été enregistrées avec succès',
+        text2: 'Vos recommandations ont été enregistrées avec succès (+20 points)',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Recommendations: Error saving recommendations:', error);
       
       // Show error message to user
       Toast.show({
         type: 'error',
         text1: 'Erreur de sauvegarde',
-        text2: 'Impossible de sauvegarder vos recommandations. Veuillez réessayer.',
+        text2: error?.message || 'Impossible de sauvegarder vos recommandations. Veuillez réessayer.',
       });
     }
   };
@@ -1209,9 +1027,25 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       console.log('📅 Rendezvous data:', rendezvousData);
       console.log('📅 About to call ProfileApi.createRendezvous...');
 
-      // Create rendezvous via API
-      const response = await ProfileApi.createRendezvous(rendezvousData);
-      console.log('✅ Rendezvous created successfully:', response);
+      // Utiliser la méthode completeRendezVous du hook useOnboarding
+      // qui correspond exactement à l'implémentation admin (Step 4/4)
+      console.log('📅 Rendezvous: Creating rendez-vous using onboarding API (Step 4/4)...');
+      
+      const rendezVousData = {
+        scheduledAt: appointmentDate.toISOString(),
+        subject: formData.appointmentSubject,
+        duration: parseInt(formData.appointmentDuration.replace(' minutes', '')),
+        notes: formData.appointmentNotes || undefined
+      };
+      
+      const result = await completeRendezVous(rendezVousData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to complete Rendez-vous');
+      }
+      
+      console.log('✅ Rendezvous: Rendez-vous completed successfully (Step 4/4)');
+      console.log('📊 Response data:', result.data);
 
       // Close the appointment form modal
       setShowAppointmentModal(false);
@@ -1221,15 +1055,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       // Show confirmation modal
       setShowConfirmationModal(true);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error confirming appointment:', error);
       
       // Handle specific API errors
-      let errorMessage = 'Impossible de confirmer le rendez-vous. Veuillez réessayer.';
+      let errorMessage = error?.message || 'Impossible de confirmer le rendez-vous. Veuillez réessayer.';
       
-      if (error.response?.status === 422) {
+      if (error?.status === 422 || errorMessage.includes('24h')) {
         errorMessage = 'Le rendez-vous doit être prévu au moins 24h à l\'avance.';
-      } else if (error.response?.status === 409) {
+      } else if (error?.status === 409 || errorMessage.includes('disponible')) {
         errorMessage = 'Ce créneau n\'est plus disponible. Merci de choisir un autre horaire.';
       }
 
@@ -1250,33 +1084,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   const handleConfirmationModalAction = async () => {
     try {
-      // Update progress if available
-      if (progressData) {
-        try {
-          await ProfileApi.updateProgress({
-            step: 'rendezvous',
-            completed: true
-          });
-        } catch (error) {
-          console.log('📊 Rendezvous: Could not update progress');
-        }
-      }
-
       // Close confirmation modal
       setShowConfirmationModal(false);
 
-      // Move to step 5 (subscription)
-      setCurrentStep(5);
-      console.log('✅ Moving to subscription step');
+      // Onboarding completed - redirect to home
+      // Note: completeRendezVous a déjà créé le rendez-vous et mis à jour la progression
+      console.log('✅ Onboarding completed (Step 4/4), redirecting to home');
+      onClose(); // This will close the profile screen and return to dashboard
 
       // Show success message
       Toast.show({
         type: 'success',
         text1: 'Rendez-vous confirmé',
-        text2: 'Votre rendez-vous a été programmé avec succès',
+        text2: 'Votre rendez-vous a été programmé avec succès (+25 points)',
       });
 
-      // Refresh data to show updated information (without loading indicator)
+      // Refresh data to show updated information
       await fetchProfileData(false);
       await fetchRendezvousData();
 
@@ -2851,10 +2674,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <View style={styles.stepCheckIcon}>
             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
           </View>
-          <Text style={styles.stepSummaryText}>Mon Profile</Text>
+          <Text style={styles.stepSummaryText}>1. Mon Profil</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+25pts</Text>
+            <Text style={styles.pointsText}>+100pts</Text>
           </View>
         </View>
         
@@ -2865,7 +2688,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.stepSummaryText}>2. Mes Objectifs</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+40pts</Text>
+            <Text style={styles.pointsText}>+30pts</Text>
           </View>
         </View>
         
@@ -2887,18 +2710,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.stepSummaryText}>4. Rendez-vous</Text>
           <Text style={styles.stepStatusText}>Complété</Text>
           <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+10pts</Text>
-          </View>
-        </View>
-        
-        <View style={styles.stepSummaryItem}>
-          <View style={styles.stepCheckIcon}>
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.stepSummaryText}>5. Mon Abonnement</Text>
-          <Text style={styles.stepStatusText}>Complété</Text>
-          <View style={styles.pointsBadge}>
-            <Text style={styles.pointsText}>+85pts</Text>
+            <Text style={styles.pointsText}>+25pts</Text>
           </View>
         </View>
       </View>
@@ -2908,19 +2720,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return 'Mon Profile';
+        return 'Étape 1/4 - Mon Profil';
       case 2:
-        return '2. Mes Objectifs';
+        return 'Étape 2/4 - Mes Objectifs';
       case 3:
-        return '3. Recommandations';
+        return 'Étape 3/4 - Recommandations';
       case 4:
-        return '4. Rendez-vous';
-      case 5:
-        return '5. Mon Abonnement';
-      case 6:
-        return 'Onboarding Terminé';
+        return 'Étape 4/4 - Rendez-vous';
       default:
-        return `${currentStep}. Étape ${currentStep}`;
+        return `Étape ${currentStep}/4`;
     }
   };
 
@@ -2934,10 +2742,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         return 'Prenez connaissance des recommandations et instructions personnalisées.';
       case 4:
         return 'Planifiez votre première session de coaching.';
-      case 5:
-        return 'Choisissez et activez votre formule d\'abonnement.';
-      case 6:
-        return 'Félicitations ! Votre parcours d\'onboarding est terminé.';
       default:
         return 'Continuez votre parcours.';
     }
@@ -2950,8 +2754,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       return (completedSteps / progressData.totalSteps) * 100;
     }
     
-    // Fallback to step-based progress
-    return (currentStep / 6) * 100;
+    // Fallback to step-based progress (4 steps)
+    return (currentStep / 4) * 100;
   };
 
   const getPoints = () => {
@@ -3023,17 +2827,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         return 'Recommandations complété';
       case 4:
         return 'Rendez-vous complété';
-      case 5:
-        return 'Abonnement complété';
-      case 6:
-        return 'Onboarding terminé';
       default:
         return 'Étape complétée';
     }
   };
 
   const getNextButtonText = () => {
-    if (currentStep === 6) {
+    if (currentStep === 4) {
       return 'Terminé';
     }
     return currentStep === 2 ? 'Suivant' : '';
@@ -3041,8 +2841,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   return (
     <>
-      {/* Subscription Banner - Hide for subscription step */}
-      {currentStep !== 5 && (
+      {/* Subscription Banner */}
+      {currentStep <= 4 && (
         <SubscriptionBanner 
           subscriptionData={subscriptionData}
           onRenew={handleSubscriptionRenew}
@@ -3057,8 +2857,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           // Clean up any open modals if needed
         }}
       >
-        {/* Profile Header - Hide for subscription step */}
-        {currentStep !== 5 && (
+        {/* Profile Header */}
+        {currentStep <= 4 && (
           <View style={styles.profileHeader}>
         {loading ? (
               <>
@@ -3106,8 +2906,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
               </View>
             )}
 
-        {/* Info Banner - Hide for subscription step */}
-        {currentStep !== 5 && (
+        {/* Info Banner */}
+        {currentStep <= 4 && (
           <View style={styles.infoBanner}>
             {loading ? (
               <Shimmer width="100%" height={60} borderRadius={12} />
@@ -3119,8 +2919,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           </View>
         )}
 
-        {/* Profile Complete Status - Hide for subscription step */}
-        {currentStep !== 5 && (
+        {/* Profile Complete Status */}
+        {currentStep <= 4 && (
           <View style={styles.statusContainer}>
             {loading ? (
               <Shimmer width="100%" height={40} borderRadius={12} />
@@ -3165,23 +2965,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           renderRecommendationsForm()
         ) : currentStep === 4 ? (
           renderAppointmentForm()
-        ) : currentStep === 5 ? (
-          <SubscriptionScreen
-            navigation={navigation}
-            onClose={() => setCurrentStep(4)}
-            onNext={() => setCurrentStep(6)}
-            onTabPress={onTabPress}
-            activeTab={activeTab}
-            isStandalone={false}
-          />
-        ) : currentStep === 6 ? (
-          renderOnboardingSummary()
         ) : null}
           </Animated.View>
         )}
+      </ScrollView>
 
-      {/* Navigation Footer - Hide for subscription step */}
-      {currentStep !== 5 && (
+      {/* Navigation Footer - Juste au-dessus de la barre de navigation fixe */}
+      {currentStep <= 4 && (
         <View style={styles.navigationFooter}>
           {/* Pas de bouton retour à l'étape 1 */}
           {currentStep > 1 ? (
@@ -3194,7 +2984,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           
           <View style={styles.stepIndicator}>
             <Text style={styles.stepText}>
-              Étape {currentStep} sur 6
+              Étape {currentStep} sur 4
             </Text>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${getStepProgress()}%` }]} />
@@ -3214,7 +3004,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           </TouchableOpacity>
         </View>
       )}
-      </ScrollView>
 
       {/* Save Confirmation Modal */}
       {renderSaveModal()}
@@ -3242,7 +3031,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 30, // Padding normal maintenant que la barre n'est plus flottante
   },
   loadingContainer: {
     flex: 1,
@@ -3561,19 +3350,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginHorizontal: 16,
-    // FIXE: Position absolue pour rester fixe
-    position: 'absolute',
-    bottom: 80, // Au-dessus de la bottom navigation flottante
-    left: 16,
-    right: 16,
-    zIndex: 100,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 6,
+    paddingBottom: 20, // Padding généreux en bas pour éviter d'être cachée par la barre de navigation
+    width: '100%', // Prend toute la largeur de l'écran
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0', // Bordure supérieure pour séparer du contenu
+    marginBottom: 45, // Espacement pour remonter la barre au-dessus de la barre de navigation fixe
   },
   prevButton: {
     padding: 8,

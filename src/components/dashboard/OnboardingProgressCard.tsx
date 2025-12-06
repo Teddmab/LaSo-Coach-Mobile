@@ -140,6 +140,16 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
                 )}
               </View>
 
+              {/* Step Number (Étape X/4) */}
+              <Text
+                style={[
+                  styles.stepNumber,
+                  state === 'upcoming' && styles.stepNumberUpcoming,
+                ]}
+              >
+                Étape {index + 1}/4
+              </Text>
+
               {/* Step Label */}
               <Text
                 style={[
@@ -232,6 +242,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderColor: '#E5E7EB',
     opacity: 0.6,
+  },
+  stepNumber: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#2C340E',
+    textAlign: 'center',
+    marginBottom: 2,
+    opacity: 0.8,
+  },
+  stepNumberUpcoming: {
+    opacity: 0.5,
   },
   stepLabel: {
     fontSize: 11,

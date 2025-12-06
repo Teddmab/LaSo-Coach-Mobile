@@ -20,16 +20,13 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
     { id: 'more', icon: 'add-outline', activeIcon: 'add' }
   ];
 
-  const bottomPadding = Math.max(insets.bottom, 8);
-  // Légèrement surélever la barre pour laisser un petit espace en bas
-  const bottomOffset = bottomPadding + 6;
+  const bottomPadding = Math.max(insets.bottom, 16); // Padding généreux pour le safe area
 
   return (
     <View style={[
       styles.container, 
       { 
-        marginBottom: bottomPadding,
-        marginHorizontal: 16,
+        paddingBottom: bottomPadding,
       }
     ]}>
       {tabs.map((tab) => (
@@ -43,7 +40,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
           activeOpacity={0.7}
         >
           <Ionicons
-            name={activeTab === tab.id ? tab.activeIcon : tab.icon}
+            name={(activeTab === tab.id ? tab.activeIcon : tab.icon) as any}
             size={24}
             color={activeTab === tab.id ? theme.colors.primary : theme.colors.text.secondary}
           />
@@ -57,28 +54,23 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingTop: 9, // Padding généreux en haut
+    paddingHorizontal: 16, // Padding généreux sur les côtés
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 10,
-    borderRadius: 28,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0', // Bordure supérieure pour séparer du contenu
+    width: '100%', // Prend toute la largeur de l'écran
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 22,
-    marginHorizontal: 4,
+    paddingVertical: 12, // Padding généreux vertical
   },
   activeTab: {
-    backgroundColor: theme.colors.primaryLight,
-    borderRadius: 22,
+    backgroundColor: theme.colors.primaryLight, // Arrière-plan vert clair pour l'onglet actif
+    borderRadius: 12, // Coins arrondis pour une meilleure UX
   },
 });
 

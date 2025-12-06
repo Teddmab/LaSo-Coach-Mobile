@@ -25,6 +25,7 @@ export const API_CONFIG = {
     // Profile endpoints
     profile: {
       get: '/auth/profile',      // ✅ Correction: Backend expose /auth/profile
+      create: '/profile',         // ✅ POST /profile - Créer le Profile si inexistant
       update: '/profile',
       delete: '/profile',
       avatar: '/profile/avatar',  // Will be /api/v1/profile/avatar or /profile/avatar depending on API_BASE_URL
@@ -49,6 +50,9 @@ export const API_CONFIG = {
       updateStep: (stepId) => `/onboarding/steps/${stepId}`,
       complete: '/onboarding/complete',
       measurements: '/onboarding/measurements',
+      // New endpoints for 4-step onboarding flow
+      // Note: PATCH /onboarding/progress is used for updating progress (not userProgress)
+      rendezvous: '/onboarding/rendezvous', // POST
     },
     // Achievements endpoints
     achievements: {
