@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
 import { CommunityScreenProps } from './community/types';
@@ -15,6 +16,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
   selectedPostId,
   onPostPress,
 }) => {
+  const insets = useSafeAreaInsets();
   const {
     commentText,
     showCreatePostModal,
@@ -54,7 +56,10 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
           ref={scrollViewRef}
           style={styles.content} 
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 100 + insets.bottom } // Espace pour la barre de navigation + safe area
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
         >
@@ -81,7 +86,10 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
           ) : communityPosts.length > 0 ? (
             communityPosts.map((post, index) => (
               <View key={post.id}>
-                <TouchableOpacity onPress={() => onPostPress && onPostPress(post)}>
+                <TouchableOpacity 
+                  onPress={() => onPostPress && onPostPress(post)}
+                  activeOpacity={1}
+                >
                   <PostCard
                     post={post}
                     currentUserId={currentUser?.id}
@@ -131,34 +139,61 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    backgroundColor: '#F0F2F5',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: (styleProps: any) => {
+      // Calculer l'espace nécessaire pour la barre de navigation
+      // Barre de navigation: paddingTop (9) + icône (24) + paddingVertical (12*2) + paddingBottom (max(insets.bottom, 16))
+      // On ajoute un peu plus pour être sûr que les boutons sont visibles
+      const insets = styleProps?.insets || { bottom: 0 };
+      const bottomNavHeight = 9 + 24 + 24 + Math.max(insets.bottom || 16, 16);
+      return bottomNavHeight + 20; // 20px d'espace supplémentaire
+    },
+    backgroundColor: '#F0F2F5',
   },
   introCard: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingVertical: 14,
+    marginHorizontal: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
+    // Ombre légère
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   introAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    borderWidth: 0.5,
+    borderColor: '#E4E6EB',
   },
   introText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+    fontSize: 15,
+    color: '#65676B',
     flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#F0F2F5',
+    borderRadius: 20,
   },
   postDivider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: 0,
+    height: 8,
+    backgroundColor: '#F0F2F5',
   },
   sectionContainer: {
     padding: 20,

@@ -133,10 +133,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     };
   }, [currentScreen, activeTab, handleTabPress, setCurrentScreen]);
 
-  // Check if profile is complete
+  // Check if profile is complete (4 steps: profile_setup, goals_setup, recommendations, rendezvous)
+  const completedSteps = dashboardData?.onboarding?.data?.completedSteps || [];
   const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
-    (dashboardData?.onboarding?.data?.completedSteps && 
-     dashboardData.onboarding.data.completedSteps.length >= 6);
+    (completedSteps.includes('profile_setup') &&
+     completedSteps.includes('goals_setup') &&
+     completedSteps.includes('recommendations') &&
+     completedSteps.includes('rendezvous'));
 
   // Mémoriser l'avatar pour éviter les rechargements à chaque changement de page
   const avatarData = useMemo(() => {
@@ -163,17 +166,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
-    try {
-      setShowPlansBottomSheet(true);
-      await loadSubscriptionPlans();
-    } catch (error: any) {
-      console.error('❌ Error opening subscription plans:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible de charger les plans d\'abonnement',
-      });
-    }
+    // Rediriger vers la page d'abonnement dédiée
+    setCurrentScreen('subscription');
   };
 
   const loadSubscriptionPlans = async (): Promise<void> => {
@@ -186,7 +180,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       );
       setSubscriptionPlans(validPlans);
     } catch (error: any) {
-      console.error('❌ Error loading subscription plans:', error);
       throw error;
     } finally {
       setLoadingPlans(false);
@@ -198,12 +191,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       setSelectedPlan(plan);
       setShowPaymentFlow(true);
     } catch (error: any) {
-      console.error('❌ Error selecting plan:', error);
     }
   };
 
   const handlePaymentSuccess = async (paymentData: any): Promise<void> => {
-    console.log('✅ Payment successful:', paymentData);
     Toast.show({
       type: 'success',
       text1: 'Abonnement activé',
@@ -216,7 +207,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   };
 
   const handlePaymentError = (error: any): void => {
-    console.error('❌ Payment error:', error);
     Toast.show({
       type: 'error',
       text1: 'Erreur de paiement',
@@ -231,16 +221,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   const handleMealPress = async (meal: any): Promise<void> => {
     // Meal press handler logic
-    console.log('🍽️ Meal pressed:', meal);
   };
 
   const handlePostPress = (post: any): void => {
-    console.log('📱 Dashboard: Post pressed:', post.id);
     setCurrentScreen('community');
   };
 
   const handleCommentPress = (postId: string): void => {
-    console.log('💬 Dashboard: Comment pressed for post:', postId);
   };
 
   const handleMarkContentComplete = async (contentId: string): Promise<void> => {
@@ -248,7 +235,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       await AgendaApi.markContentComplete(contentId);
       await fetchAgendaData();
     } catch (error: any) {
-      console.error('❌ Error marking content as complete:', error);
     }
   };
 
@@ -263,11 +249,84 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         onLogout();
       }
     } catch (error: any) {
-      console.error('❌ Error during logout:', error);
     }
   };
 
   // Screen routing logic
+  // IMPORTANT: Vérifier currentScreen AVANT activeTab pour permettre la navigation vers settings depuis n'importe quel tab
+  if (currentScreen === 'settings') {
+    return (
+      <>
+        <FixedLayout
+        headerTitle="Configurations"
+        activeTab={activeTab}
+        onTabPress={handleTabPress}
+        onHelpPress={() => setCurrentScreen('faq')}
+        onNotificationPress={() => setCurrentScreen('notifications')}
+        onProfilePress={() => setCurrentScreen('settings')}
+        avatarSource={avatarData.avatarSource}
+        avatarFallbackText={avatarData.avatarFallbackText}
+      >
+        <SettingsScreen 
+          user={user} 
+          onLogout={handleLogout} 
+          onTabPress={handleTabPress}
+          activeTab={activeTab}
+          onClose={(target?: string) => {
+            
+            // Handle profile sub-items - map to ProfileScreen steps
+            if (target === 'profile' || target === 'mon-profile') {
+              setCurrentScreen('profile');
+              handleProfileStepPress(1); // Mon Profile
+            } else if (target === 'mes-objectifs') {
+              setCurrentScreen('profile');
+              handleProfileStepPress(2); // Mes Objectifs
+            } else if (target === 'recommandations') {
+              setCurrentScreen('profile');
+              handleProfileStepPress(3); // Recommandations
+            } else if (target === 'rendez-vous') {
+              setCurrentScreen('profile');
+              handleProfileStepPress(4); // Rendez-vous
+            } else if (target === 'confirmation') {
+              setCurrentScreen('profile');
+              handleProfileStepPress(6); // Confirmation
+            } else if (target === 'subscription') {
+              setCurrentScreen('subscription');
+            } else if (target === 'security') {
+              setCurrentScreen('security');
+            } else if (target === 'language') {
+              setCurrentScreen('language');
+            } else if (target === 'notifications') {
+              setCurrentScreen('notification-settings');
+            } else if (target === 'privacy-policy') {
+              setWebViewSource('settings');
+              setCurrentScreen('privacy-policy');
+            } else if (target === 'terms-of-service') {
+              setWebViewSource('settings');
+              setCurrentScreen('terms-of-service');
+            } else if (target === 'platform-rules') {
+              setWebViewSource('settings');
+              setCurrentScreen('platform-rules');
+            } else if (target === 'contact-support') {
+              setCurrentScreen('contact-support');
+            } else if (target === 'about') {
+              setCurrentScreen('about');
+            } else {
+              // Default: go back to home
+              setCurrentScreen('home');
+            }
+          }}
+        />
+      </FixedLayout>
+      <MoreMenu 
+        visible={showMoreMenu}
+        onClose={handleMoreMenuClose}
+        onMenuItemPress={handleMoreMenuItemPress}
+      />
+    </>
+    );
+  }
+
   if (currentScreen === 'faq') {
     return (
       <>
@@ -280,7 +339,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
             // Already on FAQ page
           }}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -310,7 +371,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onNotificationPress={() => {
             // Already on notifications page
           }}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
           showNotificationBadge={false}
@@ -341,7 +404,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -371,7 +436,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -403,7 +470,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -433,7 +502,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -464,7 +535,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -495,7 +568,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -535,7 +610,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           activeTab={activeTab}
           onClose={(target?: string) => {
-            console.log('Settings onClose called with target:', target);
             
             // Handle profile sub-items - map to ProfileScreen steps
             if (target === 'profile' || target === 'mon-profile') {
@@ -618,7 +692,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -627,7 +703,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
             onLogout={handleLogout} 
             onTabPress={handleTabPress}
             activeTab={activeTab}
-            onClose={() => setCurrentScreen('settings')}
+            onClose={(target?: string) => {
+              if (target === 'home') {
+                // Refresh dashboard data when onboarding is completed
+                onRefresh();
+                setCurrentScreen('home');
+              } else {
+                setCurrentScreen('settings');
+              }
+            }}
             initialStep={initialProfileStep}
             onFAQPress={() => setCurrentScreen('faq')}
             navigation={navigation}
@@ -666,7 +750,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
@@ -694,7 +780,9 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onTabPress={handleTabPress}
           onHelpPress={() => setCurrentScreen('faq')}
           onNotificationPress={() => setCurrentScreen('notifications')}
-          onProfilePress={() => setCurrentScreen('settings')}
+          onProfilePress={() => {
+            setCurrentScreen('settings');
+          }}
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
