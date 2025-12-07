@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ProfileApi } from '../../../services/profileApi';
@@ -87,51 +87,60 @@ export const useProgressScreen = (
     try {
       setLoading(true);
       
-      try {
-        const progressRes = await api.get('/progress/overview');
-        if (progressRes.data?.success && progressRes.data?.data) {
-          const data = progressRes.data.data;
-          setProfile(data.profile?.profile || data.profile);
-          setMeasurements(data.measurements || []);
-          setProgressPhotos(data.progressPhotos || []);
-          
-          const profileData = data.profile?.profile || data.profile;
-          if (profileData) {
-            setInitialMeasurements({
-              weight: profileData.initialWeight,
-              waistSize: profileData.initialWaistSize,
-              date: profileData.createdAt || new Date().toISOString(),
-            });
-          }
-          return;
-        }
-      } catch (progressError) {
-        console.log('[ProgressScreen] ⚠️ Progress overview endpoint failed, trying individual endpoints');
-      }
-      
+      // Comme dans la version web, récupérer les données séparément
+      // Le frontend web utilise /progress/overview pour profile/measurements mais récupère les photos séparément
       const [profileRes, measurementsRes, photosRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
         api.get('/onboarding/measurements'),
-        ProgressPhotosApi.getProgressPhotos(),
+        api.get('/progress-photos'), // Récupérer les photos séparément comme dans la version web
       ]);
 
       const profileData = profileRes.status === 'fulfilled' ? profileRes.value : null;
       const measurementsData = measurementsRes.status === 'fulfilled'
         ? (measurementsRes.value.data?.data?.measurements || measurementsRes.value.data?.measurements || [])
         : [];
+      
+      // Adapter la récupération des photos comme dans la version web
+      // La version web utilise: response.data.data || []
+      // Le backend retourne: { success: true, data: [...], pagination: {...} }
       const photosData = photosRes.status === 'fulfilled'
-        ? (photosRes.value.success ? (photosRes.value.data || []) : [])
+        ? (photosRes.value.data?.data || [])
         : [];
+
+      console.log('[ProgressScreen] 📸 Photos récupérées:', {
+        count: photosData.length,
+        responseStructure: photosRes.status === 'fulfilled' ? {
+          hasSuccess: !!photosRes.value.data?.success,
+          hasData: !!photosRes.value.data?.data,
+          dataType: Array.isArray(photosRes.value.data?.data) ? 'array' : typeof photosRes.value.data?.data,
+          dataLength: Array.isArray(photosRes.value.data?.data) ? photosRes.value.data.data.length : 'N/A'
+        } : 'failed',
+        photos: photosData.map(p => ({
+          id: p.id,
+          hasUrl: !!(p.url || p.imageUrl),
+          hasWeight: !!(p.weight && p.weight > 0),
+          weight: p.weight,
+          url: p.url || p.imageUrl,
+          date: p.date || p.createdAt
+        }))
+      });
 
       setProfile(profileData);
       setMeasurements(measurementsData);
       setProgressPhotos(photosData);
       
+      console.log('[ProgressScreen] ✅ Données mises à jour:', {
+        profile: !!profileData,
+        measurementsCount: measurementsData.length,
+        photosCount: photosData.length
+      });
+      
       if (profileData) {
+        const profile = (profileData as any).profile || profileData;
         setInitialMeasurements({
-          weight: (profileData as any).initialWeight,
-          waistSize: (profileData as any).initialWaistSize,
-          date: (profileData as any).createdAt || new Date().toISOString(),
+          weight: profile.initialWeight,
+          waistSize: profile.initialWaistSize,
+          date: profile.createdAt || (profileData as any).createdAt || new Date().toISOString(),
         });
       } else {
         setProfile({
@@ -262,27 +271,33 @@ export const useProgressScreen = (
         notes: photoForm.notes,
       });
 
-      const result = await ProgressPhotosApi.addProgressPhoto(formData);
+      // Utiliser directement l'API comme dans la version web
+      const response = await api.post('/progress-photos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-      if (result.success) {
-        await fetchAllData();
-        setPhotoForm({
-          weight: '',
-          notes: '',
-          selectedPhoto: null,
-          preview: null,
-          uploading: false,
-          error: '',
-        });
-        setShowPhotoModal(false);
-        Alert.alert('Succès', 'Photo ajoutée avec succès!');
-      } else {
-        setPhotoForm(prev => ({ 
-          ...prev, 
-          error: result.error || 'Erreur lors de l\'ajout de la photo',
-          uploading: false,
-        }));
-      }
+      console.log('[ProgressScreen] 📸 Photo ajoutée, réponse:', {
+        success: response.data?.success,
+        data: response.data?.data,
+        fullResponse: response.data
+      });
+
+      // Rafraîchir les photos comme dans la version web (fetchProgressPhotos)
+      // Le frontend web appelle fetchProgressPhotos() après l'ajout
+      await fetchAllData();
+      
+      setPhotoForm({
+        weight: '',
+        notes: '',
+        selectedPhoto: null,
+        preview: null,
+        uploading: false,
+        error: '',
+      });
+      setShowPhotoModal(false);
+      Alert.alert('Succès', 'Photo ajoutée avec succès!');
     } catch (error: any) {
       console.error('[ProgressScreen] ❌ Error adding photo:', error);
       let errorMessage = 'Erreur lors de l\'ajout de la photo';
@@ -419,9 +434,15 @@ export const useProgressScreen = (
   };
 
   const handleDeleteMeasurement = async (measurementId: string): Promise<void> => {
+    // Check if this measurement comes from a photo
+    const measurement = combinedMeasurements.find(m => m.id === measurementId);
+    const isFromPhoto = measurement?.isFromPhoto || false;
+    
     Alert.alert(
-      'Supprimer la mesure',
-      'Êtes-vous sûr de vouloir supprimer cette mesure ?',
+      isFromPhoto ? 'Supprimer la photo' : 'Supprimer la mesure',
+      isFromPhoto 
+        ? 'Êtes-vous sûr de vouloir supprimer cette photo de progression ?'
+        : 'Êtes-vous sûr de vouloir supprimer cette mesure ?',
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -429,12 +450,20 @@ export const useProgressScreen = (
           style: 'destructive',
           onPress: async () => {
             try {
-              await api.delete(`/onboarding/measurements/${measurementId}`);
-              await fetchAllData();
-              Alert.alert('Succès', 'Mesure supprimée avec succès!');
+              if (isFromPhoto) {
+                // Delete the photo instead
+                await ProgressPhotosApi.deleteProgressPhoto(measurementId);
+                await fetchAllData();
+                Alert.alert('Succès', 'Photo supprimée avec succès!');
+              } else {
+                // Delete the measurement
+                await api.delete(`/onboarding/measurements/${measurementId}`);
+                await fetchAllData();
+                Alert.alert('Succès', 'Mesure supprimée avec succès!');
+              }
             } catch (error) {
-              console.error('[ProgressScreen] ❌ Error deleting measurement:', error);
-              Alert.alert('Erreur', 'Erreur lors de la suppression de la mesure');
+              console.error('[ProgressScreen] ❌ Error deleting:', error);
+              Alert.alert('Erreur', `Erreur lors de la suppression${isFromPhoto ? ' de la photo' : ' de la mesure'}`);
             }
           },
         },
@@ -453,7 +482,9 @@ export const useProgressScreen = (
           style: 'destructive',
           onPress: async () => {
             try {
+              // Utiliser directement l'API comme dans la version web
               await api.delete(`/progress-photos/${photoId}`);
+              // Rafraîchir les photos comme dans la version web
               await fetchAllData();
               Alert.alert('Succès', 'Photo supprimée avec succès!');
             } catch (error) {
@@ -467,11 +498,24 @@ export const useProgressScreen = (
   };
 
   const getPhotoUrl = (photo: ProgressPhoto): string | null => {
+    // Adapter comme la version web: photo.url.startsWith('http') ? photo.url : `${API_CONFIG.baseURL?.replace('/api/v1', '')}${photo.url}`
     const photoUrl = photo.url || photo.imageUrl;
-    if (!photoUrl) return null;
-    return photoUrl.startsWith('http') 
-      ? photoUrl 
-      : `${(API_CONFIG as any).BASE_URL?.replace('/api/v1', '') || ''}${photoUrl}`;
+    
+    if (!photoUrl) {
+      return null;
+    }
+    
+    // Si l'URL est déjà absolue, la retourner telle quelle
+    if (photoUrl.startsWith('http')) {
+      return photoUrl;
+    }
+    
+    // Construire l'URL complète comme dans la version web
+    const baseUrl = API_CONFIG.BASE_URL || '';
+    const rootUrl = baseUrl.replace('/api/v1', '');
+    const fullUrl = `${rootUrl}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
+    
+    return fullUrl;
   };
 
   const getAvatarUrl = (avatarPath?: string | null): string | null => {
@@ -482,9 +526,37 @@ export const useProgressScreen = (
     return `${root}${avatarPath.startsWith('/') ? '' : '/'}${avatarPath}`;
   };
 
-  const currentWeight = getCurrentWeight(measurements, profile?.profile?.weight);
-  const currentWaistSize = getCurrentWaistSize(measurements, profile?.profile?.waistSize);
-  const chartData = generateChartData(initialMeasurements, measurements);
+  // Combine measurements with progress photos that have weight
+  // Photos with weight should appear in recent measurements (comme dans la version web)
+  const combinedMeasurements = React.useMemo(() => {
+    const allMeasurements = [...measurements];
+    
+    // Add progress photos that have weight as measurements
+    // Dans la version web, les photos avec poids apparaissent dans le tableau des mesures
+    progressPhotos.forEach(photo => {
+      if (photo.weight && photo.weight > 0) {
+        // Convert photo to measurement format
+        // Note: Photos may not have waistSize, so we use null/undefined instead of 0
+        allMeasurements.push({
+          id: photo.id || `photo-${photo.createdAt}`,
+          weight: photo.weight,
+          waistSize: null as any, // Photos don't have waist size, use null
+          notes: photo.notes || 'Photo de progression',
+          createdAt: photo.createdAt || photo.date || new Date().toISOString(),
+          isFromPhoto: true, // Flag to identify it came from a photo
+        });
+      }
+    });
+    
+    // Sort by date (most recent first)
+    return allMeasurements.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [measurements, progressPhotos]);
+
+  const currentWeight = getCurrentWeight(combinedMeasurements, profile?.profile?.weight);
+  const currentWaistSize = getCurrentWaistSize(combinedMeasurements, profile?.profile?.waistSize);
+  const chartData = generateChartData(initialMeasurements, combinedMeasurements);
 
   return {
     activeTab,
@@ -493,6 +565,7 @@ export const useProgressScreen = (
     profileData,
     initialMeasurements,
     measurements,
+    combinedMeasurements,
     progressPhotos,
     subscriptionData,
     loading,
