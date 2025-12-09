@@ -480,36 +480,39 @@ class FirebaseAuthService {
         await signOut(auth);
       }
       
-      // 2. CRITICAL: Sign out from Google Sign-In to destroy session COMPLETELY
-      // This prevents automatic reconnection when user tries to login again
+      // 2. CRITICAL: Sign out from Google Sign-In and REVOKE access COMPLETELY
+      // This ensures that on next login, user will see ALL accounts, not just auto-reconnect
+      // We revoke access to completely remove the cached account from device
       try {
         const { GoogleSignin } = require('@react-native-google-signin/google-signin');
         
-        
         // Check if user is signed in with Google
-        const isSignedIn = await GoogleSignin.isSignedIn();
+        let currentUser = null;
+        try {
+          currentUser = await GoogleSignin.getCurrentUser();
+        } catch (error) {
+          // Ignore - user might not be signed in
+        }
         
-        if (isSignedIn) {
-          // Revoke access FIRST to completely destroy the session and cached account
+        if (currentUser) {
+          // User is signed in - revoke access FIRST to completely destroy the session
           // This removes all cached account information from device
           try {
             await GoogleSignin.revokeAccess();
           } catch (revokeError) {
-          }
-          
-          // Then sign out from Google Sign-In
-          await GoogleSignin.signOut();
-        } else {
-          // Even if not signed in, try to clear any cached state
-          try {
-            await GoogleSignin.signOut(); // Safe to call even if not signed in
-          } catch (clearError) {
-            // Ignore errors when not signed in
+            // Ignore - continue anyway
           }
         }
         
-        // Small delay to ensure disconnection is complete
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Then sign out from Google Sign-In (even if not signed in, to clear any state)
+        try {
+          await GoogleSignin.signOut();
+        } catch (signOutError) {
+          // Ignore errors - non-fatal
+        }
+        
+        // Longer delay to ensure disconnection is complete
+        await new Promise(resolve => setTimeout(resolve, 300));
       } catch (googleError) {
         // Non-fatal: Log but don't throw - Firebase logout is more important
       }

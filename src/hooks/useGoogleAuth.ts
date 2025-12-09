@@ -88,37 +88,64 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       }
 
 
-      // OPTIMIZED: Simplified disconnection process for faster sign-in
-      // Only perform essential cleanup to force account selection
+      // IMPORTANT: Force complete disconnection to show all accounts
+      // We need to revoke access AND sign out to completely clear the session
+      // This ensures user sees ALL accounts and can choose any account, not just the previous one
       try {
-        
-        // 1. Quick revoke access to clear cached account
+        // 1. Check if user is currently signed in
+        let currentUser = null;
         try {
-          await GoogleSignin.revokeAccess();
-        } catch (revokeError: any) {
-          // Ignore - continue anyway
+          currentUser = await GoogleSignin.getCurrentUser();
+        } catch (error) {
+          // Ignore - user might not be signed in
         }
         
-        // 2. Quick sign out to clear session
+        // 2. If user is signed in, revoke access FIRST to completely remove cached account
+        // This removes all account information from device cache
+        if (currentUser) {
+          try {
+            await GoogleSignin.revokeAccess();
+          } catch (revokeError: any) {
+            // Ignore - continue anyway
+          }
+        }
+        
+        // 3. Sign out from Google Sign-In to clear the session (even if not signed in)
+        // This ensures clean state
         try {
           await GoogleSignin.signOut();
         } catch (signOutError: any) {
           // Ignore - continue anyway
         }
         
-        // 3. Reduced delay for faster process (100ms instead of 500ms)
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (signOutError) {
-        // Non-fatal: Continue even if sign out fails
+        // 4. Longer delay to ensure disconnection is complete
+        // Google needs time to clear the session cache
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 5. Verify disconnection by checking if still signed in
+        // If still signed in, try revokeAccess again
+        try {
+          const stillSignedIn = await GoogleSignin.getCurrentUser();
+          if (stillSignedIn) {
+            // Force revoke again
+            try {
+              await GoogleSignin.revokeAccess();
+              await GoogleSignin.signOut();
+              await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (error) {
+              // Ignore
+            }
+          }
+        } catch (error) {
+          // Good - user is not signed in
+        }
+      } catch (disconnectError: any) {
+        // Non-fatal: Continue even if disconnection fails
       }
 
-      // Ouvrir l'UI native de Google (SDK Android/iOS)
-      // PAS de WebView ! C'est l'UI native de Google
-      // After complete disconnection, this should show ALL accounts on the device
-      // Note: signIn() without parameters should show account picker with all accounts
-      // However, Android may still show the last used account first
-      // To force showing all accounts, we pass an empty object or no parameters
-      // The SDK should then show the account picker with all available accounts
+      // Always call signIn() to show account picker with ALL available accounts
+      // After revokeAccess() + signOut(), Google will show ALL accounts without any preference
+      // User can choose any account from the list
       const userInfo: any = await GoogleSignin.signIn();
 
 
