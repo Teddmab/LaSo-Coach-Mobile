@@ -79,7 +79,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       if (completed.includes('profile_setup')) bonus += 100;
       if (completed.includes('goals_setup')) bonus += 30;
       if (completed.includes('recommandations') || completed.includes('recommendations')) bonus += 20;
-      if (completed.includes('appointment')) bonus += 25;
+      if (completed.includes('rendezvous')) bonus += 25;
 
       totalPoints = bonus;
     }
@@ -99,7 +99,16 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Profile Completion Card, Complete Card, or Progress Section */}
+      {/* Profile Completion Card or Progress Section */}
+      {/* 
+        IMPORTANT: Show ProfileCompletionCard only if onboarding is NOT complete.
+        Onboarding is complete when ALL 4 steps are done:
+        1. profile_setup
+        2. goals_setup  
+        3. recommendations
+        4. rendezvous
+        Once all 4 steps are complete, ProfileCompletionCard disappears and is replaced by ProgressCard.
+      */}
       {!isProfileComplete ? (
         <ProfileCompletionCard 
           key={`profile-completion-${dashboardData?.onboarding?.data?.completedSteps?.length || 0}-${dashboardData?.fetchedAt || 'initial'}`}
@@ -111,11 +120,11 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         />
       ) : (
         <>
-          {/* Profile Completion Badge - Outside the card */}
-          <View style={styles.completionBadgeContainer}>
-            <View style={styles.completionBadge}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              <Text style={styles.completionBadgeText}>Profil complété (175 pts)</Text>
+          {/* Badge vert minimaliste pour profil complété */}
+          <View style={styles.profileCompleteBadge}>
+            <View style={styles.badgeContent}>
+              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+              <Text style={styles.badgeText}>Profil complété +175 pts</Text>
             </View>
           </View>
           <ProgressCard 
@@ -123,7 +132,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             dashboardData={dashboardData} 
             onRefresh={onProgressRefresh}
             onProgressPress={onTabPress}
-            isProfileComplete={false}
           />
         </>
       )}
@@ -184,6 +192,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
                 key={item.id}
                 content={item}
                 onMarkComplete={onMarkContentComplete}
+                onPress={() => console.log('Content pressed:', item)}
               />
             ))
           ) : (
@@ -213,6 +222,28 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+  },
+  profileCompleteBadge: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  badgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  badgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#15803D',
   },
   agoraSection: {
     marginTop: 20,
@@ -249,28 +280,6 @@ const styles = StyleSheet.create({
   agoraEmptyText: {
     marginTop: 12,
     color: theme.colors.text.secondary,
-  },
-  completionBadgeContainer: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  completionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E9',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#4CAF50',
-  },
-  completionBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#2E7D32',
-    marginLeft: 6,
   },
 });
 

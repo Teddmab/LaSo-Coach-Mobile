@@ -189,14 +189,36 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Handle new notification from WebSocket
+  /**
+   * Handle new notification from WebSocket
+   * 
+   * IMPORTANT COMPORTEMENT POUR LES MESSAGES:
+   * - Quand vous envoyez un message: Vous NE recevez PAS de notification (filtrée ici)
+   * - Quand quelqu'un vous envoie un message: Vous recevez la notification (passée ici)
+   * 
+   * Ceci garantit que vous ne voyez jamais vos propres notifications de messages,
+   * mais que vos correspondants voient bien les notifications de vos messages.
+   */
   const handleNewNotification = useCallback((notification: Notification): void => {
     // CRITICAL: Filter out notifications for messages sent by the current user
     // For CHAT_MESSAGE notifications, check if the sender is the current user
+    // This ensures that when you send a message, you don't see your own notification
+    // but the recipient will see it
     if (notification.type === 'CHAT_MESSAGE' || notification.type === 'chat_message') {
-      // Get current user ID - check multiple possible ID fields
-      const currentUserId = user?.id || user?.uid;
-      const currentUserEmail = user?.email;
+      if (!user) {
+        console.warn('⚠️ [NotificationContext] No user available to filter notification');
+        return; // Don't show notifications if user is not authenticated
+      }
+
+      // Get current user ID - check multiple possible ID fields (backend might use different formats)
+      // Priority: backend id > Firebase uid > userId (if exists)
+      const currentUserId = user?.id || user?.uid || (user as any)?.userId;
+      const currentUserEmail = user?.email?.toLowerCase()?.trim();
+      
+      if (!currentUserId && !currentUserEmail) {
+        console.warn('⚠️ [NotificationContext] Cannot identify current user (no ID or email)');
+        return; // Don't show notifications if we can't identify the user
+      }
       
       // Check multiple possible sender ID fields (backend might use different ID format)
       // Also check directly on notification object (some backends put it there)
@@ -204,40 +226,64 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const senderId = notification.data?.senderId || 
                        notification.data?.sender?.id || 
                        notification.data?.sender?.userId ||
+                       notification.data?.userId ||
                        notificationAny.senderId ||
-                       notificationAny.sender?.id;
+                       notificationAny.sender?.id ||
+                       notificationAny.userId;
       const senderEmail = notification.data?.sender?.email || 
                           notification.data?.senderEmail ||
+                          notification.data?.email ||
                           notificationAny.sender?.email ||
-                          notificationAny.senderEmail;
+                          notificationAny.senderEmail ||
+                          notificationAny.email;
+      
+      // Normalize sender email for comparison
+      const senderEmailNormalized = senderEmail ? String(senderEmail).toLowerCase().trim() : null;
       
       // Convert both to strings for comparison to handle integer vs string mismatches
-      const currentUserIdStr = currentUserId ? String(currentUserId) : null;
-      const senderIdStr = senderId ? String(senderId) : null;
+      const currentUserIdStr = currentUserId ? String(currentUserId).trim() : null;
+      const senderIdStr = senderId ? String(senderId).trim() : null;
       
       // Try multiple ID comparison strategies
+      // CRITICAL: Be thorough - check exact match, substring match (for UUID variations), and reverse
       const idMatch = currentUserIdStr && senderIdStr && (
+        // Exact match (most common case)
         senderIdStr === currentUserIdStr ||
-        // Also check if one is a substring of the other (handles UUID vs short ID)
+        // Substring match (handles UUID vs short ID, or partial matches)
         senderIdStr.includes(currentUserIdStr) ||
-        currentUserIdStr.includes(senderIdStr)
+        currentUserIdStr.includes(senderIdStr) ||
+        // Also check if IDs match when normalized (remove dashes, spaces, etc.)
+        senderIdStr.replace(/[-_\s]/g, '') === currentUserIdStr.replace(/[-_\s]/g, '')
       );
       
-      // Also check by email as fallback
-      const emailMatch = currentUserEmail && senderEmail && 
-        currentUserEmail.toLowerCase().trim() === senderEmail.toLowerCase().trim();
+      // Email comparison - most reliable when IDs don't match
+      const emailMatch = currentUserEmail && senderEmailNormalized && 
+        currentUserEmail === senderEmailNormalized;
       
-      // If sender matches current user, don't show notification
+      // CRITICAL: If sender matches current user by ID OR email, don't show notification
+      // This ensures you never see notifications for your own messages
       if (idMatch || emailMatch) {
-        // DEBUG: Log when we filter out own notification (can be removed later)
-        // console.log('🔕 Filtered out notification for own message', {
-        //   currentUserId: currentUserIdStr,
-        //   senderId: senderIdStr,
-        //   idMatch,
-        //   emailMatch
-        // });
-        return; // Don't show notification for own messages
+        console.log('🔕 [NotificationContext] FILTRÉ - Notification pour votre propre message ignorée', {
+          currentUserId: currentUserIdStr,
+          currentUserEmail: currentUserEmail,
+          senderId: senderIdStr,
+          senderEmail: senderEmailNormalized,
+          idMatch,
+          emailMatch,
+          notificationId: notification.id,
+          notificationType: notification.type,
+        });
+        return; // CRITICAL: Don't show notification for own messages - exit early
       }
+      
+      // DEBUG: Log when notification passes filter (for debugging)
+      console.log('✅ [NotificationContext] Notification passée - message d\'un autre utilisateur', {
+        senderId: senderIdStr,
+        senderEmail: senderEmailNormalized,
+        currentUserId: currentUserIdStr,
+        currentUserEmail: currentUserEmail,
+        notificationId: notification.id,
+      });
     }
     
     // Update local state

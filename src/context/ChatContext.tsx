@@ -302,6 +302,7 @@ export const ChatProvider = ({ children }) => {
 
   /**
    * Show local notification for new message
+   * CRITICAL: Never show notifications for messages sent by the current user
    */
   const showMessageNotification = useCallback(async (message, conversation) => {
     // CRITICAL: Double-check that this message is NOT from the current user
@@ -331,6 +332,39 @@ export const ChatProvider = ({ children }) => {
     }
     
     try {
+      // CRITICAL: Double-check that this is NOT from the current user
+      // This is a safety check in case the caller didn't check properly
+      const currentUserId = user?.id || user?.uid || user?.userId;
+      const currentUserEmail = user?.email;
+      const messageSenderId = message.senderId || message.sender?.id || message.sender?.userId;
+      const messageSenderEmail = message.sender?.email;
+      
+      // Convert both to strings for comparison
+      const currentUserIdStr = currentUserId ? String(currentUserId) : null;
+      const messageSenderIdStr = messageSenderId ? String(messageSenderId) : null;
+      
+      // Check if sender matches current user
+      const idMatch = currentUserIdStr && messageSenderIdStr && (
+        messageSenderIdStr === currentUserIdStr ||
+        messageSenderIdStr.includes(currentUserIdStr) ||
+        currentUserIdStr.includes(messageSenderIdStr)
+      );
+      
+      const emailMatch = currentUserEmail && messageSenderEmail && 
+        currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
+      
+      const isFromCurrentUser = idMatch || emailMatch;
+      
+      // CRITICAL: Never show notification for own messages
+      if (isFromCurrentUser) {
+        console.log('🔕 [showMessageNotification] Blocked notification for own message:', {
+          messageId: message.id,
+          senderId: messageSenderIdStr,
+          currentUserId: currentUserIdStr,
+        });
+        return; // Don't show notification for own messages
+      }
+      
       const senderName = message.sender?.name || 
                         message.sender?.firstName || 
                         conversation?.name || 

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { StripeProvider } from '@stripe/stripe-react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
@@ -12,8 +13,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
-import SplashScreen from './src/screens/SplashScreen';
-import { ActivityIndicator, View, StyleSheet, Linking } from 'react-native';
+import SplashScreen from './src/components/SplashScreen';
+import { ActivityIndicator, View, StyleSheet, Linking, BackHandler, Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import NetworkStatus from './src/components/NetworkStatus';
@@ -24,8 +25,12 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
   const { isAuthenticated, authReady, loading } = useAuth();
-  const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const [showSplash, setShowSplash] = useState(true);
+  const backHandlerRef = useRef<{ lastBackPress: number; isOnHome: boolean }>({
+    lastBackPress: 0,
+    isOnHome: false,
+  });
 
   // Global deep link handler
   const handleDeepLink = (url: string | null) => {
@@ -123,7 +128,72 @@ function AppContent() {
     };
   }, []);
 
-  // Afficher le splash screen pendant 3 secondes
+  // Handle Android back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!navigationRef.current) {
+        return false;
+      }
+
+      const navigationState = navigationRef.current.getRootState();
+      const currentRoute = navigationState?.routes[navigationState?.index];
+      const isOnHome = currentRoute?.name === 'Dashboard';
+
+      // Check if we're on the Dashboard (home screen)
+      if (isOnHome) {
+        const now = Date.now();
+        const DOUBLE_PRESS_DELAY = 2000; // 2 seconds
+
+        // If last back press was recent, exit app
+        if (
+          backHandlerRef.current.isOnHome &&
+          now - backHandlerRef.current.lastBackPress < DOUBLE_PRESS_DELAY
+        ) {
+          Alert.alert(
+            'Quitter l\'application',
+            'Voulez-vous vraiment quitter l\'application ?',
+            [
+              { text: 'Annuler', style: 'cancel' },
+              { text: 'Quitter', onPress: () => BackHandler.exitApp() },
+            ]
+          );
+          return true;
+        }
+
+        // First press on home - show message and track time
+        backHandlerRef.current.lastBackPress = now;
+        backHandlerRef.current.isOnHome = true;
+        Toast.show({
+          type: 'info',
+          text1: 'Appuyez à nouveau pour quitter',
+          position: 'bottom',
+          visibilityTime: 2000,
+        });
+        return true;
+      } else {
+        // Not on home - normal navigation back
+        if (navigationRef.current?.canGoBack()) {
+          navigationRef.current.goBack();
+          return true;
+        }
+        return false;
+      }
+    });
+
+    // Track navigation state to know when we're on home
+    const unsubscribe = navigationRef.current?.addListener('state', () => {
+      const navigationState = navigationRef.current?.getRootState();
+      const currentRoute = navigationState?.routes[navigationState?.index];
+      backHandlerRef.current.isOnHome = currentRoute?.name === 'Dashboard';
+    });
+
+    return () => {
+      backHandler.remove();
+      unsubscribe?.();
+    };
+  }, []);
+
+  // Show splash screen first
   if (showSplash) {
     return <SplashScreen onFinish={() => setShowSplash(false)} />;
   }
@@ -171,28 +241,37 @@ export default function App() {
   // Initialize TokenManager at app startup
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
-    console.log('🔐 [Startup] Initializing app dependencies...');
-    initializeTokenManager();
-    
-    // Try to fetch Stripe key from backend if not in config
-    if (!Config.STRIPE_PUBLISHABLE_KEY || Config.STRIPE_PUBLISHABLE_KEY === 'pk_test_placeholder') {
-      console.log('🔑 [Stripe] Attempting to fetch publishable key from backend...');
-      const SubscriptionApi = require('./src/services/subscriptionApi').default;
-      SubscriptionApi.getStripePublishableKey()
-        .then((backendKey: string | null) => {
-          if (backendKey) {
-            console.log('✅ [Stripe] Publishable key loaded from backend');
-            setStripeKey(backendKey);
-          } else {
-            console.warn('⚠️ [Stripe] Publishable key not found in backend. Using placeholder.');
-            console.warn('⚠️ [Stripe] Please add STRIPE_PUBLISHABLE_KEY to your .env file or configure backend endpoint /payments/config');
-          }
-        })
-        .catch((error: Error) => {
-          console.warn('⚠️ [Stripe] Could not fetch key from backend:', error.message);
-        });
-    } else {
-      console.log('✅ [Stripe] Publishable key loaded from configuration');
+    try {
+      console.log('🔐 [Startup] Initializing app dependencies...');
+      initializeTokenManager();
+      
+      // Try to fetch Stripe key from backend if not in config
+      if (!Config.STRIPE_PUBLISHABLE_KEY || Config.STRIPE_PUBLISHABLE_KEY === 'pk_test_placeholder') {
+        console.log('🔑 [Stripe] Attempting to fetch publishable key from backend...');
+        // Use dynamic import to avoid crash if module not available
+        import('./src/services/subscriptionApi')
+          .then((module) => {
+            const SubscriptionApi = module.default;
+            return SubscriptionApi.getStripePublishableKey();
+          })
+          .then((backendKey: string | null) => {
+            if (backendKey) {
+              console.log('✅ [Stripe] Publishable key loaded from backend');
+              setStripeKey(backendKey);
+            } else {
+              console.warn('⚠️ [Stripe] Publishable key not found in backend. Using placeholder.');
+            }
+          })
+          .catch((error: Error) => {
+            console.warn('⚠️ [Stripe] Could not fetch key from backend:', error.message);
+            // Don't crash app if Stripe key fetch fails
+          });
+      } else {
+        console.log('✅ [Stripe] Publishable key loaded from configuration');
+      }
+    } catch (error: any) {
+      console.error('❌ [Startup] Error initializing app dependencies:', error);
+      // Don't crash - continue with default values
     }
   }, []);
   
@@ -201,22 +280,24 @@ export default function App() {
   
   return (
     <ErrorBoundary>
-      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-        <AuthProvider>
-          <NotificationProvider>
-            <ChatProvider>
-              <NetworkStatus />
-              <AppContent />
-            </ChatProvider>
-          </NotificationProvider>
-        </AuthProvider>
-        <Toast 
-          position="top"
-          visibilityTime={5000}
-          autoHide={true}
-          topOffset={50}
-        />
-      </StripeProvider>
+      <SafeAreaProvider>
+        <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+          <AuthProvider>
+            <NotificationProvider>
+              <ChatProvider>
+                <NetworkStatus />
+                <AppContent />
+              </ChatProvider>
+            </NotificationProvider>
+          </AuthProvider>
+          <Toast 
+            position="top"
+            visibilityTime={5000}
+            autoHide={true}
+            topOffset={50}
+          />
+        </StripeProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

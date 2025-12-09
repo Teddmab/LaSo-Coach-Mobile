@@ -3,19 +3,35 @@ import { useState, useCallback } from 'react';
 export const useDashboardNavigation = () => {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [currentScreen, setCurrentScreen] = useState<string>('home');
+  const [previousScreen, setPreviousScreen] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
   const [initialProfileStep, setInitialProfileStep] = useState<number>(1);
 
   const handleTabPress = useCallback((tabId: string): void => {
     if (tabId === 'more') {
       setShowMoreMenu(true);
+      console.log('Tab pressed: more - showing menu');
     } else if (['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile', 'subscription', 'language', 'notification-settings'].includes(tabId)) {
       // Écrans spéciaux qui ne sont pas des onglets de navigation
-      setCurrentScreen(tabId);
+      console.log('Screen navigation:', tabId);
+      setCurrentScreen((prevScreen) => {
+        // Store previous screen before navigating (unless we're already on that screen)
+        if (prevScreen !== tabId && prevScreen !== 'home' && prevScreen !== 'settings') {
+          setPreviousScreen(prevScreen);
+        }
+        return tabId;
+      });
     } else {
       // Onglets de navigation principaux
+      console.log('Tab pressed:', tabId);
       setActiveTab(tabId);
-      setCurrentScreen(tabId);
+      setCurrentScreen((prevScreen) => {
+        // Store previous screen before navigating
+        if (prevScreen !== tabId && prevScreen !== 'home') {
+          setPreviousScreen(prevScreen);
+        }
+        return tabId;
+      });
     }
   }, []);
 
@@ -29,6 +45,7 @@ export const useDashboardNavigation = () => {
     };
     
     const pageName = pageNames[itemId] || itemId;
+    console.log('📊 Page Navigation:', pageName);
     
     switch (itemId) {
       case 'chat':
@@ -47,6 +64,7 @@ export const useDashboardNavigation = () => {
         setCurrentScreen('settings');
         break;
       default:
+        console.log('Unknown menu item:', itemId);
     }
     
     setShowMoreMenu(false);
@@ -66,20 +84,38 @@ export const useDashboardNavigation = () => {
       6: 'Confirmation',
     };
     
-    setCurrentScreen('profile');
+    console.log('📊 Page Navigation:', `Profile - ${stepNames[stepId] || `Step ${stepId}`}`);
+    setCurrentScreen((prevScreen) => {
+      // Store previous screen before navigating to profile
+      if (prevScreen !== 'profile' && prevScreen !== 'home') {
+        setPreviousScreen(prevScreen);
+      }
+      return 'profile';
+    });
     setInitialProfileStep(stepId);
+  }, []);
+
+  const setCurrentScreenWithPrevious = useCallback((screen: string): void => {
+    setCurrentScreen((prevScreen) => {
+      // Store previous screen before navigating (unless we're already on that screen or going to home)
+      if (prevScreen !== screen && prevScreen !== 'home' && screen !== 'home') {
+        setPreviousScreen(prevScreen);
+      }
+      return screen;
+    });
   }, []);
 
   return {
     activeTab,
     currentScreen,
+    previousScreen,
     showMoreMenu,
     initialProfileStep,
     handleTabPress,
     handleMoreMenuItemPress,
     handleMoreMenuClose,
     handleProfileStepPress,
-    setCurrentScreen,
+    setCurrentScreen: setCurrentScreenWithPrevious,
     setActiveTab,
   };
 };

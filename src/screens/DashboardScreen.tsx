@@ -67,6 +67,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     handleMoreMenuClose,
     handleProfileStepPress,
     setCurrentScreen,
+    previousScreen,
   } = useDashboardNavigation();
 
   // Local state
@@ -134,12 +135,26 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   }, [currentScreen, activeTab, handleTabPress, setCurrentScreen]);
 
   // Check if profile is complete (4 steps: profile_setup, goals_setup, recommendations, rendezvous)
+  // If backend returns isComplete: true, trust that. Otherwise, verify all 4 steps are completed
   const completedSteps = dashboardData?.onboarding?.data?.completedSteps || [];
-  const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || 
-    (completedSteps.includes('profile_setup') &&
-     completedSteps.includes('goals_setup') &&
-     completedSteps.includes('recommendations') &&
-     completedSteps.includes('rendezvous'));
+  const allFourStepsCompleted = 
+    completedSteps.includes('profile_setup') &&
+    completedSteps.includes('goals_setup') &&
+    completedSteps.includes('recommendations') &&
+    completedSteps.includes('rendezvous');
+  
+  const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || allFourStepsCompleted;
+  
+  // Debug log to help verify completion status
+  if (__DEV__) {
+    console.log('📊 [DashboardScreen] Profile completion check:', {
+      isCompleteFromBackend: dashboardData?.onboarding?.data?.isComplete,
+      completedSteps,
+      allFourStepsCompleted,
+      isProfileComplete,
+      stepCount: completedSteps.length,
+    });
+  }
 
   // Mémoriser l'avatar pour éviter les rechargements à chaque changement de page
   const avatarData = useMemo(() => {
@@ -709,7 +724,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
                 onRefresh();
                 setCurrentScreen('home');
               } else {
-                setCurrentScreen('settings');
+                // Return to previous screen if it exists, otherwise go to settings
+                if (previousScreen) {
+                  setCurrentScreen(previousScreen);
+                } else {
+                  setCurrentScreen('settings');
+                }
               }
             }}
             initialStep={initialProfileStep}

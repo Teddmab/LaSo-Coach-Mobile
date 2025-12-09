@@ -1,21 +1,59 @@
-// CRITICAL: react-native-gesture-handler MUST be imported first
 import 'react-native-gesture-handler';
-
 // Polyfills that must load BEFORE firebase/auth to avoid component registration race conditions
 import 'react-native-url-polyfill/auto';
+import { registerRootComponent } from 'expo';
+
+// Global error handler to catch unhandled errors
+if (typeof global.ErrorUtils !== 'undefined') {
+  const originalHandler = global.ErrorUtils.getGlobalHandler();
+  global.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    console.error('🚨 GLOBAL ERROR HANDLER:', error);
+    console.error('🚨 Is Fatal:', isFatal);
+    console.error('🚨 Stack:', error.stack);
+    
+    // Call original handler
+    if (originalHandler) {
+      originalHandler(error, isFatal);
+    }
+  });
+}
+
+// Handle unhandled promise rejections (React Native specific)
+if (typeof global !== 'undefined') {
+  // Intercept unhandled promise rejections
+  if (typeof global.onunhandledrejection === 'undefined') {
+    (global as any).onunhandledrejection = (event: any) => {
+      console.error('🚨 UNHANDLED PROMISE REJECTION:', event?.reason || event);
+      if (event?.reason) {
+        console.error('🚨 Rejection reason:', event.reason);
+        if (event.reason?.stack) {
+          console.error('🚨 Stack:', event.reason.stack);
+        }
+      }
+    };
+  }
+}
 
 // Provide atob/btoa if missing (Firebase may rely on these in RN Hermes environment)
 if (typeof global.btoa === 'undefined') {
-	(global as any).btoa = (data: string) => Buffer.from(data, 'binary').toString('base64');
+	try {
+		(global as any).btoa = (data: string) => Buffer.from(data, 'binary').toString('base64');
+	} catch (error) {
+		console.error('❌ Error setting up btoa polyfill:', error);
+	}
 }
 if (typeof global.atob === 'undefined') {
-	(global as any).atob = (data: string) => Buffer.from(data, 'base64').toString('binary');
+	try {
+		(global as any).atob = (data: string) => Buffer.from(data, 'base64').toString('binary');
+	} catch (error) {
+		console.error('❌ Error setting up atob polyfill:', error);
+	}
 }
 
 // Ensure Firebase Auth module registers its components before any lazy initialization
 import 'firebase/auth';
 
-import { registerRootComponent } from 'expo';
+// Import App component using ES6 import (standard for TypeScript)
 import App from './App';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

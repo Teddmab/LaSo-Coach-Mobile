@@ -20,7 +20,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
     { id: 'more', icon: 'add-outline', activeIcon: 'add' }
   ];
 
-  const bottomPadding = Math.max(insets.bottom, 16); // Padding généreux pour le safe area
+  // Use a minimum safe area bottom padding, defaulting to 16 if insets aren't ready yet
+  // This ensures consistent positioning even on first launch
+  const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom, 16) : 16;
 
   return (
     <View style={[

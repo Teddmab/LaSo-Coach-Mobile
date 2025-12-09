@@ -6,7 +6,7 @@ import CircularProgress from '../CircularProgress';
 import DashboardService from '../../services/dashboardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createLogger } from '../../utils/logger';
-import { ShimmerCard } from '../Shimmer';
+import { Shimmer } from '../Shimmer';
 
 // Create logger instance for this component
 const logger = createLogger('ProgressCard');
@@ -291,8 +291,28 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
         </View>
         
         <View style={styles.loadingContainer}>
-          <ShimmerCard />
-          <ShimmerCard />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.progressRow}
+            style={styles.progressRowContainer}
+          >
+            {/* Shimmer pour les cercles de progression */}
+            <View style={styles.circleWrapper}>
+              <Shimmer width={90} height={90} borderRadius={45} />
+              <View style={styles.shimmerLabelContainer}>
+                <Shimmer width={60} height={14} borderRadius={4} style={styles.shimmerLabel} />
+                <Shimmer width={40} height={12} borderRadius={4} style={styles.shimmerSubLabel} />
+              </View>
+            </View>
+            <View style={styles.circleWrapper}>
+              <Shimmer width={90} height={90} borderRadius={45} />
+              <View style={styles.shimmerLabelContainer}>
+                <Shimmer width={60} height={14} borderRadius={4} style={styles.shimmerLabel} />
+                <Shimmer width={40} height={12} borderRadius={4} style={styles.shimmerSubLabel} />
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </View>
     );
@@ -506,7 +526,17 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
+    paddingVertical: 20,
+  },
+  shimmerLabelContainer: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  shimmerLabel: {
+    marginBottom: 4,
+  },
+  shimmerSubLabel: {
+    marginTop: 4,
   },
   loadingText: {
     marginTop: 12,

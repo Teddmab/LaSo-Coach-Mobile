@@ -46,7 +46,10 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   const insets = useSafeAreaInsets();
   
   // Calculer la hauteur de la barre de navigation (utilisée pour éviter que le contenu passe sous la barre)
-  const bottomNavHeight = 12 + 24 + 8 + Math.max(insets.bottom, 8);
+  // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
+  // This ensures consistent positioning even on first launch
+  const safeBottomInset = insets.bottom > 0 ? Math.max(insets.bottom, 8) : 8;
+  const bottomNavHeight = 12 + 24 + 8 + safeBottomInset;
   const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
   
   return (
@@ -114,7 +117,8 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10000, // Z-index très élevé pour rester au-dessus de tout
     paddingHorizontal: 0, // Les marges sont gérées par BottomNavigation lui-même
-    paddingBottom: 5, // Le padding bottom est géré par BottomNavigation avec useSafeAreaInsets
+    // Note: paddingBottom est géré par BottomNavigation avec useSafeAreaInsets
+    // Ne pas ajouter de paddingBottom ici pour éviter le double padding
     // IMPORTANT: Cette barre ne doit JAMAIS bouger avec le clavier
     // Elle reste toujours en bas de l'écran, même quand le clavier est ouvert
     // Utiliser elevation pour Android pour s'assurer qu'elle reste au-dessus
