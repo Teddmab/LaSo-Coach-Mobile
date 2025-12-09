@@ -32,10 +32,8 @@ export class SubscriptionService {
    */
   static async getSubscriptionStatus() {
     try {
-      console.log('💳 Fetching subscription status...');
       
       if (Config.OFFLINE_MODE) {
-        console.log('📱 Using OFFLINE mode for subscription status');
         await new Promise(resolve => setTimeout(resolve, 500));
         return {
           status: SUBSCRIPTION_STATUS.EXPIRED,
@@ -65,17 +63,14 @@ export class SubscriptionService {
         };
       }
 
-      console.log('🌐 Making API call to:', '/profile');
       const response = await api.get('/profile');
       
       // Debug response
       debugResponse(response, 'Subscription Status');
       
-      console.log('✅ Subscription status fetched successfully');
       
       // Parse the profile data structure
       const rawData = response.data.data || response.data;
-      console.log('💳 Raw profile data for subscription:', JSON.stringify(rawData, null, 2));
       
       // Extract subscription information
       const subscription = rawData.subscription;
@@ -133,18 +128,9 @@ export class SubscriptionService {
         isTrial: subscription?.isTrial || false
       };
       
-      console.log('💳 Parsed subscription data:', subscriptionData);
       return subscriptionData;
       
     } catch (error) {
-      console.error('❌ Error fetching subscription status:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
-      
       // Return default expired status on error
       return {
         status: SUBSCRIPTION_STATUS.EXPIRED,
@@ -191,7 +177,6 @@ export class SubscriptionService {
       return subscriptionData.status === SUBSCRIPTION_STATUS.ACTIVE || 
              subscriptionData.status === SUBSCRIPTION_STATUS.EXPIRING_SOON;
     } catch (error) {
-      console.error('❌ Error checking premium access:', error);
       return false;
     }
   }
@@ -205,7 +190,6 @@ export class SubscriptionService {
       const subscriptionData = await this.getSubscriptionStatus();
       return subscriptionData.requiresRenewal;
     } catch (error) {
-      console.error('❌ Error checking renewal requirement:', error);
       return true; // Default to requiring renewal on error
     }
   }
@@ -226,7 +210,6 @@ export class SubscriptionService {
       
       return null;
     } catch (error) {
-      console.error('❌ Error getting alert type:', error);
       return 'expired'; // Default to expired on error
     }
   }

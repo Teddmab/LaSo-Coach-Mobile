@@ -12,21 +12,15 @@ class AchievementsApi {
    */
   static async getAchievementsSummary() {
     try {
-      console.log('🏆 AchievementsApi: Fetching achievements summary from profile endpoint...');
-      console.log('🌐 API Endpoint:', '/profile'); // Base URL already includes /api/v1
       
       const response = await api.get('/profile');
       
-      console.log('✅ AchievementsApi: Profile data fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       // Extract badgeProgress and tasccProgress from profile response
       const profileData = response.data;
       const badgeProgress = profileData?.badgeProgress;
       const tasccProgress = profileData?.tasccProgress;
       
-      console.log('📊 Extracted badgeProgress:', badgeProgress);
-      console.log('📊 Extracted tasccProgress:', tasccProgress);
       
       // Transform data to match BadgeProgressWidget structure as per specification
       const transformedData = {
@@ -51,15 +45,12 @@ class AchievementsApi {
         )
       };
       
-      console.log('📊 Transformed achievements data:', transformedData);
       
       return {
         success: true,
         data: transformedData
       };
     } catch (error) {
-      console.error('❌ AchievementsApi: Error fetching achievements summary:', error);
-      console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -89,21 +80,15 @@ class AchievementsApi {
    */
   static async getBadgesProgress() {
     try {
-      console.log('🏆 AchievementsApi: Fetching badges progress...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.achievements.badges);
       
       const response = await api.get(API_CONFIG.endpoints.achievements.badges);
       
-      console.log('✅ AchievementsApi: Badges progress fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       return {
         success: true,
         data: response.data
       };
     } catch (error) {
-      console.error('❌ AchievementsApi: Error fetching badges progress:', error);
-      console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -122,21 +107,15 @@ class AchievementsApi {
    */
   static async getUserPoints() {
     try {
-      console.log('🏆 AchievementsApi: Fetching user points...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.achievements.points);
       
       const response = await api.get(API_CONFIG.endpoints.achievements.points);
       
-      console.log('✅ AchievementsApi: User points fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       return {
         success: true,
         data: response.data
       };
     } catch (error) {
-      console.error('❌ AchievementsApi: Error fetching user points:', error);
-      console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -155,21 +134,15 @@ class AchievementsApi {
    */
   static async getAllBadges() {
     try {
-      console.log('🏆 AchievementsApi: Fetching all badges...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.achievements.allBadges);
       
       const response = await api.get(API_CONFIG.endpoints.achievements.allBadges);
       
-      console.log('✅ AchievementsApi: All badges fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       return {
         success: true,
         data: response.data
       };
     } catch (error) {
-      console.error('❌ AchievementsApi: Error fetching all badges:', error);
-      console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data

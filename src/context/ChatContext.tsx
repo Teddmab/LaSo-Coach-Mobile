@@ -42,7 +42,6 @@ export const ChatProvider = ({ children }) => {
    */
   const attemptReconnect = useCallback((reason = 'unknown') => {
     if (!isAuthenticated || !user) {
-      console.log('⚠️ Cannot reconnect: user not authenticated');
       return;
     }
 
@@ -51,19 +50,16 @@ export const ChatProvider = ({ children }) => {
     
     // Check if socket exists and is connected or connecting
     if (socket && (socket.connected || socket.connecting)) {
-      console.log(`✅ WebSocket already connected/connecting (reason: ${reason})`);
       return; // Don't interfere with existing connection
     }
     
     // Only reconnect if truly disconnected and socket doesn't exist
     if (!isConnected && !socket) {
-      console.log(`🔄 Attempting to reconnect WebSocket (reason: ${reason})...`);
       // Use reconnect() which uses existing socket if available
       // This prevents creating duplicate instances
       chatSocketService.reconnect();
     } else if (!isConnected && socket) {
       // Socket exists but not connected - let Socket.IO's built-in reconnection handle it
-      console.log(`ℹ️ Socket exists but disconnected - Socket.IO will auto-reconnect (reason: ${reason})`);
       // Don't manually reconnect - Socket.IO handles it automatically
     }
   }, [isAuthenticated, user]);
@@ -76,7 +72,6 @@ export const ChatProvider = ({ children }) => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         // App has come to the foreground
-        console.log('📱 App came to foreground');
         // Only reconnect if actually disconnected - Socket.IO handles reconnection automatically
         const socket = chatSocketService.getSocket();
         const isConnected = chatSocketService.getConnectionStatus();
@@ -86,7 +81,6 @@ export const ChatProvider = ({ children }) => {
             attemptReconnect('app_state_active');
           }, 500);
         } else {
-          console.log('ℹ️ Socket exists/connected - letting Socket.IO handle reconnection');
         }
       }
     });
@@ -106,11 +100,9 @@ export const ChatProvider = ({ children }) => {
       const isConnected = state.isConnected && state.isInternetReachable;
       
       if (isConnected) {
-        console.log('🌐 Network connected - Socket.IO will auto-reconnect if needed');
         // Don't manually reconnect - Socket.IO handles it automatically
         // Manual reconnection creates duplicate socket instances
       } else {
-        console.log('🌐 Network disconnected - Socket.IO will auto-reconnect when network returns');
         // Network is down, socket.io will handle reconnection automatically
       }
     });
@@ -136,16 +128,12 @@ export const ChatProvider = ({ children }) => {
         currentDimensions.height !== previousDimensions.height;
       
       if (dimensionsChanged) {
-        console.log('📐 Screen dimensions changed (Galaxy Fold screen switch detected)');
-        console.log(`   Previous: ${previousDimensions.width}x${previousDimensions.height}`);
-        console.log(`   Current: ${currentDimensions.width}x${currentDimensions.height}`);
         
         // Update stored dimensions
         lastScreenDimensions.current = currentDimensions;
         
         // Don't manually reconnect - Socket.IO handles reconnection automatically
         // Manual reconnection creates duplicate socket instances
-        console.log('ℹ️ Socket.IO will auto-reconnect if needed after screen switch');
       }
     });
 
@@ -175,7 +163,6 @@ export const ChatProvider = ({ children }) => {
     
     if (!isAuthenticated || !user) {
       // User logged out - disconnect immediately
-      console.log('🔌 User logged out - disconnecting WebSocket');
       chatSocketService.disconnect();
       setIsSocketConnected(false);
       connectCallbacksRef.current = null;
@@ -187,7 +174,6 @@ export const ChatProvider = ({ children }) => {
     shouldDisconnectRef.value = true; // Will disconnect on cleanup if still true
 
     const handleConnect = async () => {
-      console.log('✅ Chat WebSocket connected');
       setIsSocketConnected(true);
       setError(null); // Clear any previous errors
       
@@ -198,24 +184,18 @@ export const ChatProvider = ({ children }) => {
       // Backend requirement: Join rooms early enough to receive chat:message events
       // Do this synchronously in the connect handler to ensure rooms are joined ASAP
       try {
-        console.log('🔄 Fetching conversations to join rooms immediately after connection...');
         const conversationsList = await loadConversations(true); // Pass true to return data
         
         // Join all chat rooms immediately after fetching conversations
         if (conversationsList && conversationsList.length > 0) {
-          console.log(`🔄 Immediately joining ${conversationsList.length} chat rooms...`);
           conversationsList.forEach(conv => {
             if (conv.id) {
-              console.log(`  → Joining room: chat:${conv.id}`);
               chatSocketService.joinChat(conv.id);
             }
           });
-          console.log('✅ All chat rooms joined immediately after connection');
         } else {
-          console.log('ℹ️ No conversations to join yet');
         }
       } catch (error) {
-        console.error('❌ Error loading conversations on connect:', error);
       }
       
       // Also refresh unread count
@@ -223,7 +203,6 @@ export const ChatProvider = ({ children }) => {
     };
 
     const handleDisconnect = (reason) => {
-      console.log('❌ Chat WebSocket disconnected:', reason);
       setIsSocketConnected(false);
       // Note: Rooms will be automatically rejoined when socket reconnects
       // via the useEffect that watches isSocketConnected and conversations
@@ -239,7 +218,6 @@ export const ChatProvider = ({ children }) => {
                                  errorMessage.includes('reconnect');
       
       if (!isReconnectionError) {
-        console.error('❌ Chat WebSocket error:', error);
         // Only set error state for non-reconnection errors
         setError(errorMessage || 'WebSocket connection error');
       }
@@ -256,12 +234,10 @@ export const ChatProvider = ({ children }) => {
     const isAlreadyConnected = chatSocketService.getConnectionStatus();
     
     if (existingSocket && (existingSocket.connected || existingSocket.connecting)) {
-      console.log('ℹ️ Socket already exists and is connected/connecting - updating callbacks only');
       // Socket already exists - just update callbacks, don't disconnect/reconnect
       shouldDisconnectRef.value = false; // Don't disconnect existing connection
     } else {
       // No existing connection - create new one
-      console.log('🔌 Creating new WebSocket connection...');
       chatSocketService.connect(handleConnect, handleDisconnect, handleError);
     }
 
@@ -274,7 +250,6 @@ export const ChatProvider = ({ children }) => {
       const shouldDisconnect = shouldDisconnectRef.value && (!isAuthenticated || !user);
       
       if (shouldDisconnect) {
-        console.log('🔌 Cleaning up WebSocket connection (logout or unmount)');
         // Clear any pending reconnection timeouts
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
@@ -285,7 +260,6 @@ export const ChatProvider = ({ children }) => {
         cleanupSocketListeners();
         connectCallbacksRef.current = null;
       } else {
-        console.log('ℹ️ Skipping WebSocket cleanup - user still authenticated and socket in use');
         // Just update callbacks, don't disconnect
         connectCallbacksRef.current = { handleConnect, handleDisconnect, handleError };
       }
@@ -308,23 +282,19 @@ export const ChatProvider = ({ children }) => {
       return;
     }
 
-    console.log(`🔄 Joining ${conversations.length} chat rooms (WebSocket connected)...`);
     
     // Join all chat rooms
     conversations.forEach(conv => {
       if (conv.id) {
-        console.log(`  → Joining room: chat:${conv.id}`);
         chatSocketService.joinChat(conv.id);
       }
     });
     
-    console.log('✅ All chat rooms joined');
     
     // Also ensure active chat room is joined (in case it's not in conversations list)
     if (activeChatId) {
       const isAlreadyInConversations = conversations.some(conv => conv.id === activeChatId);
       if (!isAlreadyInConversations) {
-        console.log(`🔄 Joining active chat room (not in conversations list): ${activeChatId}`);
         chatSocketService.joinChat(activeChatId);
       }
     }
@@ -334,6 +304,32 @@ export const ChatProvider = ({ children }) => {
    * Show local notification for new message
    */
   const showMessageNotification = useCallback(async (message, conversation) => {
+    // CRITICAL: Double-check that this message is NOT from the current user
+    // This is a safety check before showing any notification
+    const currentUserId = user?.id || user?.uid;
+    const currentUserEmail = user?.email;
+    const messageSenderId = message.senderId || message.sender?.id || message.sender?.userId;
+    const messageSenderEmail = message.sender?.email;
+    
+    // Convert to strings for comparison
+    const currentUserIdStr = currentUserId ? String(currentUserId) : null;
+    const messageSenderIdStr = messageSenderId ? String(messageSenderId) : null;
+    
+    // Check if sender matches current user
+    const idMatch = currentUserIdStr && messageSenderIdStr && (
+      messageSenderIdStr === currentUserIdStr ||
+      messageSenderIdStr.includes(currentUserIdStr) ||
+      currentUserIdStr.includes(messageSenderIdStr)
+    );
+    
+    const emailMatch = currentUserEmail && messageSenderEmail && 
+      currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
+    
+    // If this is our own message, don't show notification
+    if (idMatch || emailMatch) {
+      return; // Don't show notification for own messages
+    }
+    
     try {
       const senderName = message.sender?.name || 
                         message.sender?.firstName || 
@@ -341,7 +337,6 @@ export const ChatProvider = ({ children }) => {
                         'Someone';
       const messagePreview = message.content?.substring(0, 100) || 'New message';
       
-      console.log('📱 Showing notification for message:', { senderName, messagePreview });
       
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -357,11 +352,9 @@ export const ChatProvider = ({ children }) => {
         trigger: null, // Show immediately
       });
       
-      console.log('✅ Notification scheduled successfully');
     } catch (error) {
-      console.error('❌ Error showing message notification:', error);
     }
-  }, []);
+  }, [user]);
 
   /**
    * Handle new message from WebSocket
@@ -376,7 +369,6 @@ export const ChatProvider = ({ children }) => {
   const handleNewMessage = useCallback((message) => {
     const chatId = message.chatId || message.chat?.id;
     if (!chatId) {
-      console.warn('⚠️ [handleNewMessage] Received message without chatId:', message);
       return;
     }
 
@@ -409,26 +401,10 @@ export const ChatProvider = ({ children }) => {
     const isFromCurrentUser = idMatch || emailMatch;
     
     // Enhanced logging to debug ID mismatches
-    console.log('📨 [handleNewMessage] Message received:', 
-      `ID:${message.id}`, 
-      `Chat:${chatId}`,
-      `SenderID:${messageSenderIdStr || 'null'}`,
-      `SenderEmail:${messageSenderEmail || 'null'}`,
-      `CurrentID:${currentUserIdStr || 'null'}`,
-      `CurrentEmail:${currentUserEmail || 'null'}`,
-      `IDMatch:${idMatch}`,
-      `EmailMatch:${emailMatch}`,
-      `IsMine:${isFromCurrentUser}`,
-      `Content:${message.content?.substring(0, 30)}...`
-    );
     
     // Log full user and sender objects for debugging (only if mismatch)
     if (!isFromCurrentUser && message.content) {
-      console.log('🔍 [handleNewMessage] ID mismatch - full objects:', {
-        userObject: { id: user?.id, uid: user?.uid, userId: user?.userId, email: user?.email },
-        messageSender: message.sender,
-        messageSenderId: message.senderId,
-      });
+      // User and sender objects logged for debugging
     }
 
     // Check if this is the active chat
@@ -445,7 +421,6 @@ export const ChatProvider = ({ children }) => {
       // Also check if this real message should replace an optimistic one
       const existingMessageIndex = existingMessages.findIndex(m => m.id === message.id);
       if (existingMessageIndex !== -1) {
-        console.log('⚠️ [handleNewMessage] Message already exists, skipping:', message.id);
         messageWasAddedRef.value = false;
         return prev; // Don't update state for duplicates
       }
@@ -475,11 +450,6 @@ export const ChatProvider = ({ children }) => {
         // Even if sender IDs don't match exactly (different formats), if content matches
         // and we know it's from us, it's definitely the same message
         if (isFromCurrentUser) {
-          console.log('🔄 [handleNewMessage] Found optimistic message to replace (content match + isFromCurrentUser):', {
-            optimisticId: m.id,
-            realId: message.id,
-            content: m.content?.substring(0, 30),
-          });
           return true;
         }
         
@@ -492,12 +462,6 @@ export const ChatProvider = ({ children }) => {
         const isRecent = (now - optimisticTime) < 5000; // Within 5 seconds
         
         if (isRecent && contentMatches) {
-          console.log('🔄 [handleNewMessage] Found recent optimistic message to replace (content match + timing):', {
-            optimisticId: m.id,
-            realId: message.id,
-            content: m.content?.substring(0, 30),
-            timeDiff: now - optimisticTime,
-          });
           return true;
         }
         
@@ -506,11 +470,6 @@ export const ChatProvider = ({ children }) => {
                              String(m.senderId) === String(messageSenderId);
         
         if (senderMatches && contentMatches) {
-          console.log('🔄 [handleNewMessage] Found optimistic message from other user to replace:', {
-            optimisticId: m.id,
-            realId: message.id,
-            senderId: messageSenderId,
-          });
           return true;
         }
         
@@ -519,12 +478,6 @@ export const ChatProvider = ({ children }) => {
       
       if (optimisticIndex !== -1) {
         // Replace optimistic message with real one
-        console.log('🔄 [handleNewMessage] Replacing optimistic message with real message:', {
-          optimisticId: existingMessages[optimisticIndex].id,
-          realId: message.id,
-          contentMatch: true,
-          isFromCurrentUser,
-        });
         const newMessages = [...existingMessages];
         newMessages[optimisticIndex] = message; // Replace optimistic with real
         messageWasAddedRef.value = true;
@@ -538,17 +491,12 @@ export const ChatProvider = ({ children }) => {
       // CRITICAL: If message is from current user but no optimistic message found,
       // it might be a duplicate or already processed - skip it to prevent duplicates
       if (isFromCurrentUser) {
-        console.warn('⚠️ [handleNewMessage] Message from current user but no optimistic message found - likely duplicate, skipping:', {
-          messageId: message.id,
-          content: message.content?.substring(0, 50),
-        });
         messageWasAddedRef.value = false;
         return prev; // Don't add duplicate messages from current user
       }
       
       // CRITICAL: Force new array reference to ensure FlatList re-renders
       messageWasAddedRef.value = true;
-      console.log('✅ [handleNewMessage] Adding NEW message to chat:', chatId, message.id);
       return {
         ...prev,
         [chatId]: [...(prev[chatId] || []), message], // Force new array reference
@@ -558,7 +506,6 @@ export const ChatProvider = ({ children }) => {
     // CRITICAL: Only process notifications and updates for NEW messages
     // If message was a duplicate, exit early and don't process further
     if (!messageWasAddedRef.value) {
-      console.log('⚠️ [handleNewMessage] Duplicate message - skipping notification/updates');
       return; // Exit early - don't process duplicates
     }
 
@@ -567,11 +514,6 @@ export const ChatProvider = ({ children }) => {
     // They should NOT trigger notifications or conversation updates
     // IMPORTANT: Check isFromCurrentUser BEFORE processing notifications
     if (isFromCurrentUser) {
-      console.log('ℹ️ [handleNewMessage] Message is from current user - skipping notifications and conversation updates', {
-        messageId: message.id,
-        senderId: messageSenderId,
-        currentUserId: currentUserId,
-      });
       // Still update conversation's last message for UI consistency, but skip notifications
       setConversations(prev => {
         const conversationIndex = prev.findIndex(conv => conv.id === chatId);
@@ -592,11 +534,6 @@ export const ChatProvider = ({ children }) => {
     }
     
     // From this point on, we only process messages from OTHER users
-    console.log('✅ [handleNewMessage] Processing message from other user:', {
-      messageId: message.id,
-      senderId: messageSenderId,
-    });
-
     // Update conversation's last message and get conversation for notification
     // CRITICAL: Also move conversation to top of list (most recent first)
     // This code only runs for messages from OTHER users
@@ -608,13 +545,11 @@ export const ChatProvider = ({ children }) => {
       if (conversationIndex === -1) {
         // Conversation not found - fetch from API asynchronously
         // Per backend guide: Load conversation via REST API
-        console.warn('⚠️ [handleNewMessage] Conversation not found in list, fetching from API...', chatId);
         
         // Fetch conversation asynchronously
         chatApi.getConversationById(chatId)
           .then(conversation => {
             if (conversation) {
-              console.log('✅ [handleNewMessage] Conversation fetched from API:', conversation.id);
               
               // Add conversation to list
               setConversations(prevConvs => {
@@ -634,7 +569,6 @@ export const ChatProvider = ({ children }) => {
                 // Join the room for future messages
                 const socket = chatSocketService.getSocket();
                 if (socket && socket.connected) {
-                  console.log(`🔄 [handleNewMessage] Joining room for fetched conversation: chat:${chatId}`);
                   chatSocketService.joinChat(chatId);
                 }
                 
@@ -649,7 +583,6 @@ export const ChatProvider = ({ children }) => {
             }
           })
           .catch(error => {
-            console.error('❌ [handleNewMessage] Failed to fetch conversation from API:', error);
             // Create minimal conversation as fallback
             const minimalConversation = {
               id: chatId,
@@ -691,13 +624,6 @@ export const ChatProvider = ({ children }) => {
       newConversations.splice(conversationIndex, 1); // Remove from current position
       newConversations.unshift(updatedConv); // Add to top
       
-      console.log('✅ [handleNewMessage] Updated conversation in list:', {
-        chatId,
-        newUnreadCount: updatedConv.unreadCount,
-        hasLastMessage: !!updatedConv.lastMessage,
-        movedToTop: true,
-      });
-      
       return newConversations;
     });
 
@@ -720,7 +646,6 @@ export const ChatProvider = ({ children }) => {
     const finalIsFromCurrentUser = finalIdMatch || finalEmailMatch;
     
     if (finalIsFromCurrentUser) {
-      console.log('ℹ️ [handleNewMessage] Final check: Message is from current user - skipping notification');
       return; // Exit early - don't show notifications for own messages
     }
     
@@ -731,7 +656,6 @@ export const ChatProvider = ({ children }) => {
         conversationForNotification = { id: chatId, lastMessage: message };
       }
       
-      console.log('🔔 [handleNewMessage] Showing notification for new message from other user:', message.id);
       showMessageNotification(message, conversationForNotification);
       
       // Refresh unread count and conversations from API (backend is source of truth)
@@ -739,7 +663,6 @@ export const ChatProvider = ({ children }) => {
       loadUnreadCount();
       loadConversations(); // Refresh conversations to get accurate unread counts
     } else {
-      console.log('ℹ️ [handleNewMessage] Chat is active, skipping notification');
     }
   }, [activeChatId, showMessageNotification, loadUnreadCount, loadConversations]);
 
@@ -765,7 +688,6 @@ export const ChatProvider = ({ children }) => {
       const count = await chatApi.getUnreadCount();
       setUnreadCount(count);
     } catch (err) {
-      console.error('Error loading unread count:', err);
     }
   }, []);
 
@@ -781,39 +703,55 @@ export const ChatProvider = ({ children }) => {
    * - Backend automatically increments unread count, so refresh from API
    */
   const handleChatNotification = useCallback(async (notification) => {
-    console.log('🔔 [handleChatNotification] Received notification event:', {
-      type: notification.type,
-      chatId: notification.data?.chatId,
-      messageId: notification.data?.messageId,
-    });
-    
     // Handle chat message notifications
     if (notification.type === 'CHAT_MESSAGE' || notification.type === 'chat_message') {
+      // CRITICAL: Filter out notifications for messages sent by the current user
+      // Get current user ID - check multiple possible ID fields
+      const currentUserId = user?.id || user?.uid;
+      const currentUserEmail = user?.email;
+      
+      // Check multiple possible sender ID fields (backend might use different ID format)
+      const senderId = notification.data?.senderId || 
+                       notification.data?.sender?.id || 
+                       notification.data?.sender?.userId;
+      const senderEmail = notification.data?.sender?.email || 
+                          notification.data?.senderEmail;
+      
+      // Convert both to strings for comparison to handle integer vs string mismatches
+      const currentUserIdStr = currentUserId ? String(currentUserId) : null;
+      const senderIdStr = senderId ? String(senderId) : null;
+      
+      // Try multiple ID comparison strategies
+      const idMatch = currentUserIdStr && senderIdStr && (
+        senderIdStr === currentUserIdStr ||
+        // Also check if one is a substring of the other (handles UUID vs short ID)
+        senderIdStr.includes(currentUserIdStr) ||
+        currentUserIdStr.includes(senderIdStr)
+      );
+      
+      // Also check by email as fallback
+      const emailMatch = currentUserEmail && senderEmail && 
+        currentUserEmail.toLowerCase().trim() === senderEmail.toLowerCase().trim();
+      
+      // If sender matches current user, don't process notification
+      if (idMatch || emailMatch) {
+        return; // Don't process notification for own messages
+      }
+      
       // Per backend guide: chatId is in notification.data.chatId (NOT directly on notification)
       const chatId = notification.data?.chatId || notification.chatId;
       const messageId = notification.data?.messageId;
       const isActiveChat = chatId === activeChatId;
       
       if (!chatId) {
-        console.warn('⚠️ [handleChatNotification] Notification missing chatId:', notification);
         return;
       }
-      
-      console.log('🔔 [handleChatNotification] Chat message notification:', {
-        chatId,
-        messageId,
-        isActiveChat,
-        hasTitle: !!notification.title,
-        hasMessage: !!notification.message,
-      });
       
       // NOTE: Notification display is now handled by NotificationContext
       // ChatContext only handles chat-specific logic (conversation updates, room joining)
       // This prevents duplicate notifications and ensures all notifications go through NotificationContext
       if (isActiveChat) {
-        console.log('ℹ️ [handleChatNotification] Chat is active, NotificationContext will handle notification display');
       } else {
-        console.log('ℹ️ [handleChatNotification] Chat not active, NotificationContext will show notification');
       }
       
       // Per backend guide: notification.data.message does NOT contain full message object
@@ -824,11 +762,9 @@ export const ChatProvider = ({ children }) => {
         
         if (conversationIndex === -1) {
           // Conversation not in list - fetch from API
-          console.warn('⚠️ [handleChatNotification] Conversation not in list, fetching from API...', chatId);
           chatApi.getConversationById(chatId)
             .then(conversation => {
               if (conversation) {
-                console.log('✅ [handleChatNotification] Conversation fetched from API:', conversation.id);
                 setConversations(prevConvs => {
                   const exists = prevConvs.some(c => c.id === chatId);
                   if (exists) {
@@ -849,7 +785,6 @@ export const ChatProvider = ({ children }) => {
                   // Join the room for future messages
                   const socket = chatSocketService.getSocket();
                   if (socket && socket.connected) {
-                    console.log(`🔄 [handleChatNotification] Joining room: chat:${chatId}`);
                     chatSocketService.joinChat(chatId);
                   }
                   
@@ -858,7 +793,6 @@ export const ChatProvider = ({ children }) => {
               }
             })
             .catch(error => {
-              console.error('❌ [handleChatNotification] Failed to fetch conversation:', error);
             });
           
           return prev; // Return unchanged temporarily
@@ -888,9 +822,8 @@ export const ChatProvider = ({ children }) => {
       // Don't manually increment - refresh from API
       await loadUnreadCount();
     } else {
-      console.log('🔔 [handleChatNotification] Non-chat notification type:', notification.type);
     }
-  }, [activeChatId, loadUnreadCount]);
+  }, [activeChatId, loadUnreadCount, user]);
 
   /**
    * Set up WebSocket event listeners
@@ -902,20 +835,17 @@ export const ChatProvider = ({ children }) => {
     // CRITICAL: Listen for new messages - this is the SINGLE SOURCE OF TRUTH
     // All messages (including ones we send) come through this event
     const messageUnsubscribe = chatSocketService.onMessage((message) => {
-      console.log('📨 [WebSocket] New message received (single source of truth):', message);
       handleNewMessage(message);
     });
     messageUnsubscribers.current['global'] = messageUnsubscribe;
 
     // Listen for new chats
     chatCreatedUnsubscriber.current = chatSocketService.onChatCreated((chat) => {
-      console.log('💬 WebSocket chat created:', chat);
       handleNewChat(chat);
     });
 
     // Listen for notifications
     notificationUnsubscriber.current = chatSocketService.onNotification((notification) => {
-      console.log('🔔 WebSocket notification:', notification);
       handleChatNotification(notification);
     });
   }, [handleNewMessage, handleNewChat, handleChatNotification]);
@@ -959,7 +889,6 @@ export const ChatProvider = ({ children }) => {
         return conversationsList;
       }
     } catch (err) {
-      console.error('Error loading conversations:', err);
       setError(err.message || 'Failed to load conversations');
       if (returnData) {
         return [];
@@ -983,7 +912,6 @@ export const ChatProvider = ({ children }) => {
       }));
       return data;
     } catch (err) {
-      console.error('Error loading messages:', err);
       setError(err.message || 'Failed to load messages');
       throw err;
     } finally {
@@ -1021,7 +949,6 @@ export const ChatProvider = ({ children }) => {
     };
 
     // Add optimistic message to UI immediately
-    console.log('📤 [ChatContext] Adding optimistic message:', optimisticMessage.id);
     setMessages(prev => ({
       ...prev,
       [chatId]: [...(prev[chatId] || []), optimisticMessage],
@@ -1029,11 +956,9 @@ export const ChatProvider = ({ children }) => {
 
     try {
       setError(null);
-      console.log('📤 [ChatContext] Sending message via API:', { chatId, contentLength: content.length });
       
       // Send via API - backend will broadcast chat:message event
       const realMessage = await chatApi.sendMessage(chatId, content);
-      console.log('✅ [ChatContext] Message sent to API - waiting for WebSocket broadcast...', realMessage?.id);
       
       // The WebSocket 'chat:message' event will replace the optimistic message
       // We don't need to manually replace it here because handleNewMessage will handle it
@@ -1041,7 +966,6 @@ export const ChatProvider = ({ children }) => {
       
       return realMessage;
     } catch (err) {
-      console.error('❌ [ChatContext] Error sending message:', err);
       
       // Remove optimistic message on failure
       setMessages(prev => ({
@@ -1072,7 +996,6 @@ export const ChatProvider = ({ children }) => {
       // Mark chat as read
       await markChatAsRead(chatId);
     } catch (err) {
-      console.error('Error opening chat:', err);
       setError(err.message || 'Failed to open chat');
     }
   }, [messages, loadMessages]);
@@ -1104,7 +1027,6 @@ export const ChatProvider = ({ children }) => {
 
       return chat;
     } catch (err) {
-      console.error('Error creating one-to-one chat:', err);
       setError(err.message || 'Failed to create chat');
       throw err;
     }
@@ -1129,7 +1051,6 @@ export const ChatProvider = ({ children }) => {
 
       return chat;
     } catch (err) {
-      console.error('Error creating group chat:', err);
       setError(err.message || 'Failed to create group chat');
       throw err;
     }
@@ -1146,7 +1067,6 @@ export const ChatProvider = ({ children }) => {
       
       // CRITICAL: Emit WebSocket event to notify other participants (per backend guide)
       if (chatSocketService.getConnectionStatus() && chatSocketService.getSocket()) {
-        console.log('📡 Emitting chat:read event for chat:', chatId);
         chatSocketService.getSocket().emit('chat:read', { chatId });
       }
       
@@ -1166,7 +1086,6 @@ export const ChatProvider = ({ children }) => {
       // Update unread count
       await loadUnreadCount();
     } catch (err) {
-      console.error('Error marking chat as read:', err);
     }
   }, []);
 

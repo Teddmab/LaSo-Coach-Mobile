@@ -17,24 +17,9 @@ export const nutritionAPI: {
    */
   async getPlans() {
     try {
-      console.log('🥗 API Request: GET /nutrition/plans');
-      console.log('🥗 Making fresh GET request (not OPTIONS preflight)');
       const response = await api.get('/nutrition/plans');
-      console.log('✅ GET /nutrition/plans - 200 OK');
-      console.log('✅ Response data structure:', {
-        hasData: !!response.data?.data,
-        plansCount: response.data?.data?.plans?.length || 0,
-        responseKeys: Object.keys(response.data || {})
-      });
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching nutrition plans:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
       throw error;
     }
   },
@@ -46,12 +31,9 @@ export const nutritionAPI: {
    */
   async getProfile() {
     try {
-      console.log('👤 Fetching user profile...');
       const response = await api.get('/profile');
-      console.log('✅ User profile fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching user profile:', error);
       throw error;
     }
   },
@@ -63,12 +45,9 @@ export const nutritionAPI: {
    */
   async getCurrentSubscription() {
     try {
-      console.log('💳 Fetching current subscription...');
       const response = await api.get('/subscriptions/current');
-      console.log('✅ Current subscription fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching current subscription:', error);
       throw error;
     }
   },
@@ -81,12 +60,9 @@ export const nutritionAPI: {
    */
   async getCompletionStatus(planId) {
     try {
-      console.log(`🥗 Fetching completion status for plan: ${planId}`);
       const response = await api.get(`/meals/plans/${planId}/completion-status`);
-      console.log('✅ Completion status fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching completion status:', error);
       throw error;
     }
   },
@@ -100,12 +76,9 @@ export const nutritionAPI: {
    */
   async completeMeal(mealId, data = {}) {
     try {
-      console.log(`🥗 Completing meal: ${mealId}`);
       const response = await api.post(`/meals/${mealId}/complete`, data);
-      console.log('✅ Meal completed successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error completing meal:', error);
       throw error;
     }
   },
@@ -118,12 +91,9 @@ export const nutritionAPI: {
    */
   async likeMeal(mealId) {
     try {
-      console.log(`👍 Liking meal: ${mealId}`);
       const response = await api.post(`/meals/${mealId}/like`);
-      console.log('✅ Meal liked successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error liking meal:', error);
       throw error;
     }
   },
@@ -136,12 +106,9 @@ export const nutritionAPI: {
    */
   async dislikeMeal(mealId) {
     try {
-      console.log(`👎 Disliking meal: ${mealId}`);
       const response = await api.post(`/meals/${mealId}/dislike`);
-      console.log('✅ Meal disliked successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error disliking meal:', error);
       throw error;
     }
   },
@@ -154,12 +121,9 @@ export const nutritionAPI: {
    */
   async removeMealInteraction(mealId) {
     try {
-      console.log(`🔄 Removing meal interaction: ${mealId}`);
       const response = await api.delete(`/meals/${mealId}/interaction`);
-      console.log('✅ Meal interaction removed successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error removing meal interaction:', error);
       throw error;
     }
   },
@@ -172,12 +136,9 @@ export const nutritionAPI: {
    */
   async getMealInteraction(mealId) {
     try {
-      console.log(`📊 Fetching meal interaction status: ${mealId}`);
       const response = await api.get(`/meals/${mealId}/interaction`);
-      console.log('✅ Meal interaction status fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching meal interaction status:', error);
       throw error;
     }
   },
@@ -191,12 +152,9 @@ export const nutritionAPI: {
    */
   async submitMealFeedback(mealId, feedback) {
     try {
-      console.log(`💬 Submitting meal feedback: ${mealId}`);
       const response = await api.post(`/meals/${mealId}/feedback`, feedback);
-      console.log('✅ Meal feedback submitted successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error submitting meal feedback:', error);
       throw error;
     }
   },
@@ -210,12 +168,9 @@ export const nutritionAPI: {
    */
   async getDayCompletionStatus(planId, day) {
     try {
-      console.log(`📅 Fetching day completion status: plan ${planId}, day ${day}`);
       const response = await api.get(`/meals/plans/${planId}/day/${day}/completion`);
-      console.log('✅ Day completion status fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching day completion status:', error);
       throw error;
     }
   }

@@ -22,7 +22,6 @@ const chatApi: {
       const response = await api.get(API_CONFIG.endpoints.chat.conversations);
       return response.data?.data || response.data || [];
     } catch (error) {
-      console.error('Error fetching conversations:', error);
       throw error;
     }
   },
@@ -37,7 +36,6 @@ const chatApi: {
       const response = await api.get(API_CONFIG.endpoints.chat.conversation(chatId));
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error fetching conversation:', error);
       throw error;
     }
   },
@@ -61,7 +59,6 @@ const chatApi: {
       const response = await api.get(API_CONFIG.endpoints.chat.messages(chatId), { params });
       return response.data?.data || response.data || [];
     } catch (error) {
-      console.error('Error fetching messages:', error);
       throw error;
     }
   },
@@ -79,7 +76,6 @@ const chatApi: {
       });
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error sending message:', error);
       throw error;
     }
   },
@@ -96,7 +92,6 @@ const chatApi: {
       });
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error creating one-to-one chat:', error);
       throw error;
     }
   },
@@ -117,7 +112,6 @@ const chatApi: {
       });
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error creating group chat:', error);
       throw error;
     }
   },
@@ -138,7 +132,6 @@ const chatApi: {
       });
       return response.data?.data || response.data;
     } catch (error) {
-      console.error('Error finding or creating chat:', error);
       throw error;
     }
   },
@@ -152,7 +145,6 @@ const chatApi: {
       const response = await api.get(API_CONFIG.endpoints.chat.unreadCount);
       return response.data?.data?.count || response.data?.count || 0;
     } catch (error) {
-      console.error('Error fetching unread count:', error);
       throw error;
     }
   },
@@ -166,7 +158,6 @@ const chatApi: {
     try {
       await api.post(API_CONFIG.endpoints.chat.markRead(chatId));
     } catch (error) {
-      console.error('Error marking chat as read:', error);
       throw error;
     }
   },

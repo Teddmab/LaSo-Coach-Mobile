@@ -10,17 +10,9 @@ export const useSubscription = () => {
   const checkSubscriptionStatus = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
-      console.log('💳 Dashboard: Checking subscription status...');
       const data = await SubscriptionService.getSubscriptionStatus();
       
       const subscriptionData: any = data;
-      console.log('💳 Dashboard: Subscription status:', {
-        status: subscriptionData.status,
-        isExpired: subscriptionData.isExpired,
-        isExpiringSoon: subscriptionData.isExpiringSoon,
-        daysRemaining: subscriptionData.daysRemaining,
-        isTrial: subscriptionData.isTrial
-      });
       
       // Show modal ONLY if status is EXPIRED, INACTIVE, or CANCELLED
       const statusRequiresModal = subscriptionData.status === 'EXPIRED' || 
@@ -36,7 +28,6 @@ export const useSubscription = () => {
       
       setSubscriptionData(subscriptionData);
     } catch (error: any) {
-      console.error('❌ Dashboard: Error checking subscription status:', error);
       // Default to expired status on error
       setSubscriptionData({
         status: SUBSCRIPTION_STATUS.EXPIRED,

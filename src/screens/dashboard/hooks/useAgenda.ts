@@ -10,12 +10,9 @@ export const useAgenda = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('📅 Dashboard: Fetching agenda data...');
       const response: any = await AgendaApi.getAgenda();
       setAgendaData(response.data || []);
-      console.log('✅ Dashboard: Agenda data loaded successfully');
     } catch (error: any) {
-      console.error('❌ Dashboard: Error fetching agenda data:', error);
       setError(error.message || 'Erreur lors du chargement de l\'agenda');
     } finally {
       setLoading(false);

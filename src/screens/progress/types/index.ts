@@ -15,6 +15,7 @@ export interface Measurement {
   waistSize: number;
   notes?: string;
   createdAt: string;
+  isFromPhoto?: boolean; // Flag to identify if measurement came from a progress photo
 }
 
 export interface InitialMeasurement {

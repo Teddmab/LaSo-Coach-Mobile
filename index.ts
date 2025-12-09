@@ -1,7 +1,8 @@
+// CRITICAL: react-native-gesture-handler MUST be imported first
 import 'react-native-gesture-handler';
+
 // Polyfills that must load BEFORE firebase/auth to avoid component registration race conditions
 import 'react-native-url-polyfill/auto';
-import { registerRootComponent } from 'expo';
 
 // Provide atob/btoa if missing (Firebase may rely on these in RN Hermes environment)
 if (typeof global.btoa === 'undefined') {
@@ -14,6 +15,7 @@ if (typeof global.atob === 'undefined') {
 // Ensure Firebase Auth module registers its components before any lazy initialization
 import 'firebase/auth';
 
+import { registerRootComponent } from 'expo';
 import App from './App';
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

@@ -56,7 +56,6 @@ const ChallengeCompletionModal: React.FC<ChallengeCompletionModalProps> = ({
                 setSelectedPhoto(result.assets[0].uri);
               }
             } catch (error) {
-              console.error('Error taking photo:', error);
               Toast.show({
                 type: 'error',
                 text1: 'Erreur',
@@ -90,7 +89,6 @@ const ChallengeCompletionModal: React.FC<ChallengeCompletionModalProps> = ({
                 setSelectedPhoto(result.assets[0].uri);
               }
             } catch (error) {
-              console.error('Error selecting photo:', error);
               Toast.show({
                 type: 'error',
                 text1: 'Erreur',
@@ -133,7 +131,6 @@ const ChallengeCompletionModal: React.FC<ChallengeCompletionModalProps> = ({
       setTextInput('');
       onClose();
     } catch (error) {
-      console.error('Error submitting challenge:', error);
     } finally {
       setUploading(false);
     }

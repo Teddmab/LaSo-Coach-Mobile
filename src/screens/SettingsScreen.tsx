@@ -24,7 +24,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   } = useSettings();
 
   const handleSettingPress = (itemId: string): void => {
-    console.log('Settings item pressed:', itemId);
 
     // Handle expandable sections
     const item = SETTINGS_ITEMS.find(setting => setting.id === itemId);
@@ -52,21 +51,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   const handleSubItemPress = (subItemId: string): void => {
-    console.log('Sub-item pressed:', subItemId);
     if (onClose) {
       onClose(subItemId);
     }
   };
 
   const handleSubscriptionRenew = (): void => {
-    console.log('🔄 Settings: Navigating to subscription renewal page');
     if (onClose) {
       onClose('profile');
     }
   };
 
   const handleLogout = (): void => {
-    console.log('Logout pressed');
     if (onLogout) {
       onLogout();
     }

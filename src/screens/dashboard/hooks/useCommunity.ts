@@ -10,12 +10,9 @@ export const useCommunity = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('👥 Dashboard: Fetching community posts...');
       const response: any = await CommunityApi.getPosts();
       setCommunityPosts((response.data as any)?.posts || []);
-      console.log('✅ Dashboard: Community posts loaded successfully');
     } catch (error: any) {
-      console.error('❌ Dashboard: Error fetching community posts:', error);
       setError(error.message || 'Erreur lors du chargement des posts');
     } finally {
       setLoading(false);
@@ -28,7 +25,6 @@ export const useCommunity = () => {
 
   const handleLikePress = useCallback(async (postId: string): Promise<void> => {
     try {
-      console.log('👍 Dashboard: Liking post:', postId);
       await CommunityApi.likePost(postId);
       
       setCommunityPosts(prevPosts => 
@@ -39,9 +35,7 @@ export const useCommunity = () => {
         )
       );
       
-      console.log('👍 Dashboard: Post liked successfully');
     } catch (error: any) {
-      console.error('❌ Dashboard: Error liking post:', error);
       throw error;
     }
   }, []);

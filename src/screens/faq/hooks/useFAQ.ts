@@ -22,7 +22,6 @@ export const useFAQ = () => {
       const data = await faqApi.getFAQs();
       setState(prev => ({ ...prev, faqs: data || [], loading: false }));
     } catch (error) {
-      console.error('Error fetching FAQs:', error);
       setState(prev => ({ ...prev, loading: false }));
     }
   };

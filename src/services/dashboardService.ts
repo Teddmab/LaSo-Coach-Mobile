@@ -16,9 +16,7 @@ export class DashboardService {
    */
   static async getOnboardingProgress() {
     try {
-      console.log('🎯 Fetching onboarding progress...');
       if (Config.OFFLINE_MODE) {
-        console.log('📱 Using OFFLINE mode for onboarding progress');
         // Mock data for offline mode
         await new Promise(resolve => setTimeout(resolve, 500));
         return {
@@ -30,22 +28,13 @@ export class DashboardService {
         };
       }
 
-      console.log('🌐 Making API call to:', '/onboarding/progress');
       const response = await api.get('/onboarding/progress');
       
       // Debug response
       debugResponse(response, 'Onboarding Progress');
       
-      console.log('✅ Onboarding progress fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching onboarding progress:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
       throw error;
     }
   }
@@ -56,9 +45,7 @@ export class DashboardService {
    */
   static async getProfile() {
     try {
-      console.log('👤 Fetching profile data...');
       if (Config.OFFLINE_MODE) {
-        console.log('📱 Using OFFLINE mode for profile');
         // Mock data for offline mode
         await new Promise(resolve => setTimeout(resolve, 500));
         return {
@@ -77,18 +64,14 @@ export class DashboardService {
         };
       }
 
-      console.log('🌐 Making API call to:', '/profile');
       const response = await api.get('/profile');
       
       // Debug response
       debugResponse(response, 'Profile Data');
       
-      console.log('✅ Profile data fetched successfully');
       
       // Parse the profile data structure
       const rawData = response.data.data || response.data;
-      console.log('👤 Raw profile data:', JSON.stringify(rawData, null, 2));
-      console.log('👤 Avatar from API:', rawData.avatar);
       
       // Extract the profile information
       const profileData = {
@@ -111,24 +94,10 @@ export class DashboardService {
       // Validate that we have the required data
       if (!profileData.initialWeight || !profileData.targetWeight || !profileData.initialWaistSize || !profileData.targetWaistSize) {
         // Ne plus bloquer le dashboard si certaines données manquent
-        console.warn('⚠️ Profile data is incomplete - using partial data and defaults for progress', {
-          hasInitialWeight: !!profileData.initialWeight,
-          hasTargetWeight: !!profileData.targetWeight,
-          hasInitialWaistSize: !!profileData.initialWaistSize,
-          hasTargetWaistSize: !!profileData.targetWaistSize,
-        });
       }
       
-      console.log('👤 Parsed profile data:', profileData);
       return profileData;
     } catch (error) {
-      console.error('❌ Error fetching profile:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
       throw error;
     }
   }
@@ -139,7 +108,6 @@ export class DashboardService {
    */
   static async getLatestMeasurements() {
     try {
-      console.log('📏 Fetching latest measurements...');
       if (Config.OFFLINE_MODE) {
         // Mock data for offline mode
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -159,24 +127,20 @@ export class DashboardService {
         };
       }
 
-      console.log('🌐 Making API call to:', '/onboarding/measurements');
       const response = await api.get('/onboarding/measurements');
       
       // Debug response
       debugResponse(response, 'Measurements Data');
       
-      console.log('✅ Measurements data fetched successfully');
       
       // Parse the measurements data structure
       const rawData = response.data.data || response.data;
-      console.log('📏 Raw measurements data:', JSON.stringify(rawData, null, 2));
       
       // Extract the latest measurement from the array
       let latestMeasurement = null;
       if (rawData.measurements && rawData.measurements.length > 0) {
         // Get the most recent measurement (assuming they're ordered by date)
         latestMeasurement = rawData.measurements[0];
-        console.log('📏 Latest measurement found:', latestMeasurement);
       }
       
       // Return the parsed data structure
@@ -190,23 +154,11 @@ export class DashboardService {
       // Validate that we have the required data
       if (parsedData.weight === undefined || parsedData.waistSize === undefined) {
         // Ne plus lever d'exception ici : on laisse le reste du dashboard utiliser des valeurs par défaut
-        console.warn('⚠️ Latest measurement data is incomplete - returning null so UI can fallback', {
-          hasWeight: parsedData.weight !== undefined,
-          hasWaistSize: parsedData.waistSize !== undefined,
-        });
         return null;
       }
       
-      console.log('📏 Parsed measurements data:', parsedData);
       return parsedData;
     } catch (error) {
-      console.error('❌ Error fetching measurements:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
       throw error;
     }
   }
@@ -217,7 +169,6 @@ export class DashboardService {
    */
   static async getTasccProgress() {
     try {
-      console.log('🏆 Fetching TASCC progress...');
       if (Config.OFFLINE_MODE) {
         // Mock data for offline mode
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -241,17 +192,14 @@ export class DashboardService {
         };
       }
 
-      console.log('🌐 Making API call to:', '/tascc/progress');
       const response = await api.get('/tascc/progress');
       
       // Debug response
       debugResponse(response, 'TASCC Progress');
       
-      console.log('✅ TASCC progress fetched successfully');
       
       // Parse the TASCC data structure
       const rawData = response.data.data || response.data;
-      console.log('🏆 Raw TASCC data:', JSON.stringify(rawData, null, 2));
       
       // Extract the TASCC information
       const tasccData = {
@@ -271,16 +219,8 @@ export class DashboardService {
         throw new Error('TASCC data is incomplete - missing total points');
       }
       
-      console.log('🏆 Parsed TASCC data:', tasccData);
       return tasccData;
     } catch (error) {
-      console.error('❌ Error fetching TASCC progress:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
       throw error;
     }
   }
@@ -291,9 +231,6 @@ export class DashboardService {
    */
   static async getDashboardData() {
     try {
-      console.log('📊 Fetching dashboard data...');
-      console.log('🌐 API Base URL:', Config.API_BASE_URL);
-      console.log('🔄 OFFLINE_MODE:', Config.OFFLINE_MODE);
       
       // Fetch all data in parallel for better performance
       const [
@@ -303,31 +240,19 @@ export class DashboardService {
         tasccProgress
       ] = await Promise.all([
         this.getOnboardingProgress().catch(err => {
-          console.warn('⚠️ Onboarding progress fetch failed:', err.message);
           return null;
         }),
         this.getProfile().catch(err => {
-          console.warn('⚠️ Profile fetch failed:', err.message);
           return null;
         }),
         this.getLatestMeasurements().catch(err => {
-          console.warn('⚠️ Measurements fetch failed:', err.message);
           return null;
         }),
         this.getTasccProgress().catch(err => {
-          console.warn('⚠️ TASCC progress fetch failed:', err.message);
           return null;
         })
       ]);
 
-      console.log('✅ Dashboard data fetched successfully');
-      console.log('📊 Fetched data summary:', {
-        onboarding: onboardingProgress ? 'loaded' : 'null',
-        profile: profile ? 'loaded' : 'null', 
-        measurements: measurements ? 'loaded' : 'null',
-        tascc: tasccProgress ? 'loaded' : 'null'
-      });
-      
       return {
         onboarding: onboardingProgress,
         profile,
@@ -336,7 +261,6 @@ export class DashboardService {
         fetchedAt: new Date().toISOString(),
       };
     } catch (error) {
-      console.error('❌ Error fetching dashboard data:', error);
       throw error;
     }
   }
@@ -355,13 +279,10 @@ export class DashboardService {
 
     // Validate that we have all required data
     if (!profile) {
-      console.warn('⚠️ Profile data missing, using fallback values');
     }
     if (!measurements) {
-      console.warn('⚠️ Measurements data missing, using fallback values');
     }
     if (!tascc) {
-      console.warn('⚠️ TASCC data missing, using fallback values');
     }
 
     // Weight progress calculation - use backend data with fallbacks
@@ -468,7 +389,6 @@ export class DashboardService {
    */
   static async getProgressOverview() {
     try {
-      console.log('📊 DashboardService: Fetching progress data from profile and measurements...');
       
       // Fetch data from both endpoints as per specification
       const [profileRes, measurementsRes] = await Promise.all([
@@ -476,8 +396,6 @@ export class DashboardService {
         api.get('/onboarding/measurements') // Base URL already includes /api/v1
       ]);
       
-      console.log('📊 DashboardService: Profile data:', profileRes.data);
-      console.log('📊 DashboardService: Measurements data:', measurementsRes.data);
       
       // Extract data according to specification
       const profile = profileRes.data?.data?.profile || profileRes.data?.profile;
@@ -489,7 +407,6 @@ export class DashboardService {
         ? measurements[measurements.length - 1] 
         : null;
       
-      console.log('📊 DashboardService: Latest measurement:', latestMeasurement);
       
       // Calculate current values with priority order as per specification
       const currentWeight = latestMeasurement?.weight ?? profile?.weight ?? profile?.initialWeight ?? 0;
@@ -529,11 +446,9 @@ export class DashboardService {
         maxPoints: 5000
       };
       
-      console.log('✅ DashboardService: Progress data calculated successfully:', progressData);
       return progressData;
       
     } catch (error) {
-      console.error('❌ DashboardService: Error fetching progress data:', error);
       return await this.getFallbackProgressData();
     }
   }
@@ -544,20 +459,16 @@ export class DashboardService {
    */
   static async getOnboardingProgress() {
     try {
-      console.log('🎯 DashboardService: Fetching onboarding progress from new endpoint...');
       
       const result = await OnboardingApi.getOnboardingProgress();
       
       if (result.success) {
-        console.log('✅ DashboardService: Onboarding progress fetched successfully');
         return result.data;
       } else {
-        console.log('⚠️ DashboardService: Onboarding progress failed, using fallback');
         // Fallback to existing method if new endpoint fails
         return await this.getFallbackOnboardingData();
       }
     } catch (error) {
-      console.error('❌ DashboardService: Error fetching onboarding progress:', error);
       // Fallback to existing method on error
       return await this.getFallbackOnboardingData();
     }
@@ -569,7 +480,6 @@ export class DashboardService {
    */
   static async getAchievementsSummary() {
     try {
-      console.log('🏆 DashboardService: Fetching achievements summary from BadgeApi (same as DefisScreen/AchievementsScreen)...');
       
       // Use BadgeApi.getAllBadges() - same endpoint as DefisScreen and AchievementsScreen
       const result = await BadgeApi.getAllBadges();
@@ -578,16 +488,9 @@ export class DashboardService {
       const nextBadgeResult = await BadgeApi.getNextBadge();
       
       if (result.success && result.data) {
-        console.log('✅ DashboardService: Badges data fetched successfully');
         
         const badges = result.data.badges || [];
         const summary = result.data.summary || {};
-        
-        console.log('📊 DashboardService: Badges data structure:', {
-          badgesCount: badges.length,
-          summary: summary,
-          firstBadge: badges[0],
-        });
         
         // Find current badge - check summary first, then find from badges array
         // The current badge should be the one with isUnlocked=true and currentLevel > 0
@@ -626,70 +529,9 @@ export class DashboardService {
         if (nextBadgeResult.success && nextBadgeResult.data) {
           const nextBadgeData = nextBadgeResult.data;
           
-          // COMPREHENSIVE LOGGING FOR TROUBLESHOOTING
-          console.log('🔍 DashboardService: ========== FULL NEXT BADGE API RESPONSE ==========');
-          console.log('📦 Complete nextBadgeResult:', JSON.stringify(nextBadgeResult, null, 2));
-          console.log('📦 Complete nextBadgeData object:', JSON.stringify(nextBadgeData, null, 2));
-          console.log('📊 Next badge data structure:', {
-            allUnlocked: nextBadgeData.allUnlocked,
-            hasCurrentWorkingBadge: !!nextBadgeData.currentWorkingBadge,
-            currentWorkingBadge: nextBadgeData.currentWorkingBadge,
-            hasNextBadge: !!nextBadgeData.nextBadge,
-            nextBadge: nextBadgeData.nextBadge,
-            pointsToFinishCurrentBadge: nextBadgeData.pointsToFinishCurrentBadge,
-            maxPointsForCurrentBadge: nextBadgeData.maxPointsForCurrentBadge,
-            pointsToStartNextBadgeLevel1: nextBadgeData.pointsToStartNextBadgeLevel1,
-            journeyTotalToNextBadgeLevel1: nextBadgeData.journeyTotalToNextBadgeLevel1,
-          });
-          
-          if (nextBadgeData.currentWorkingBadge) {
-            console.log('📊 Current Working Badge details:', {
-              id: nextBadgeData.currentWorkingBadge.id,
-              displayName: nextBadgeData.currentWorkingBadge.displayName,
-              sequenceOrder: nextBadgeData.currentWorkingBadge.sequenceOrder,
-              hasNextLevel: !!nextBadgeData.currentWorkingBadge.nextLevel,
-              nextLevel: nextBadgeData.currentWorkingBadge.nextLevel,
-            });
-            
-            if (nextBadgeData.currentWorkingBadge.nextLevel) {
-              console.log('📊 Next Level details:', {
-                level: nextBadgeData.currentWorkingBadge.nextLevel.level,
-                pointsRequired: nextBadgeData.currentWorkingBadge.nextLevel.pointsRequired,
-                pointsEarned: nextBadgeData.currentWorkingBadge.nextLevel.pointsEarned,
-                pointsRemaining: nextBadgeData.currentWorkingBadge.nextLevel.pointsRemaining,
-                progressPercent: nextBadgeData.currentWorkingBadge.nextLevel.progressPercent,
-                description: nextBadgeData.currentWorkingBadge.nextLevel.description,
-              });
-            }
-            
-            // Log remainingLevelsInBadge if available
-            if (nextBadgeData.currentWorkingBadge.remainingLevelsInBadge) {
-              console.log('📊 Remaining Levels in Badge:', {
-                totalPointsRemainingAllLevels: nextBadgeData.currentWorkingBadge.remainingLevelsInBadge.totalPointsRemainingAllLevels,
-                levels: nextBadgeData.currentWorkingBadge.remainingLevelsInBadge.levels,
-              });
-            }
-          }
-          
-          if (nextBadgeData.nextBadge) {
-            console.log('📊 Next Badge details:', {
-              id: nextBadgeData.nextBadge.id,
-              name: nextBadgeData.nextBadge.name,
-              displayName: nextBadgeData.nextBadge.displayName,
-              icon: nextBadgeData.nextBadge.icon,
-              color: nextBadgeData.nextBadge.color,
-              sequenceOrder: nextBadgeData.nextBadge.sequenceOrder,
-              hasFirstLevel: !!nextBadgeData.nextBadge.firstLevel,
-              firstLevel: nextBadgeData.nextBadge.firstLevel,
-            });
-          }
-          
-          console.log('🔍 DashboardService: ===================================================');
-          
           // Use the next badge API response for accurate next badge information
           if (nextBadgeData.allUnlocked) {
             // All badges unlocked
-            console.log('✅ DashboardService: All badges unlocked');
             pointsNeededForNext = 0;
             nextBadgeName = null;
           } else if (nextBadgeData.currentWorkingBadge) {
@@ -699,22 +541,11 @@ export class DashboardService {
             const pointsToFinish = nextBadgeData.pointsToFinishCurrentBadge;
             const maxPointsForBadge = nextBadgeData.maxPointsForCurrentBadge;
             
-            console.log('🔍 DashboardService: Extracting badge progress fields from API response:', {
-              'nextBadgeData object keys': Object.keys(nextBadgeData),
-              'pointsToFinishCurrentBadge value': pointsToFinish,
-              'pointsToFinishCurrentBadge type': typeof pointsToFinish,
-              'maxPointsForCurrentBadge value': maxPointsForBadge,
-              'maxPointsForCurrentBadge type': typeof maxPointsForBadge,
-            });
-            
             // Validate and use pointsToFinishCurrentBadge (remaining points to finish)
             // This should be a number representing remaining points to finish the current badge
             if (pointsToFinish !== undefined && pointsToFinish !== null && !isNaN(pointsToFinish)) {
               pointsNeededForNext = Number(pointsToFinish);
-              console.log('✅ DashboardService: Using pointsToFinishCurrentBadge:', pointsNeededForNext);
             } else {
-              console.warn('⚠️ DashboardService: pointsToFinishCurrentBadge is invalid, defaulting to 0');
-              console.warn('⚠️ DashboardService: Raw value:', pointsToFinish);
               pointsNeededForNext = 0;
             }
             
@@ -727,33 +558,20 @@ export class DashboardService {
               : null;
             
             if (maxPoints !== null) {
-              console.log('✅ DashboardService: Using maxPointsForCurrentBadge:', maxPoints);
+              // Max points available
             } else {
               // Use debug log instead of warning - this is normal in some cases (e.g., all badges unlocked)
-              console.log('ℹ️ DashboardService: maxPointsForCurrentBadge not available, will use fallback calculation');
             }
             
             // Use current badge name (since we're completing the current badge)
             nextBadgeName = nextBadgeData.currentWorkingBadge.displayName || null;
             
-            console.log('✅ DashboardService: Final calculated values:', {
-              pointsNeededForNext,
-              maxPointsForCurrentBadge: maxPoints,
-              nextBadgeName,
-              currentBadgeId: nextBadgeData.currentWorkingBadge.id,
-              source: 'data.pointsToFinishCurrentBadge and data.maxPointsForCurrentBadge from GET /api/v1/mobile/badges/next',
-            });
-            
             // Store maxPoints in a variable that will be added to transformedData
             // We'll add this to the transformedData object below
             nextBadgeData._maxPointsForCurrentBadge = maxPoints;
-          } else {
-            console.warn('⚠️ DashboardService: No currentWorkingBadge in response');
-            console.warn('⚠️ DashboardService: Available keys in nextBadgeData:', Object.keys(nextBadgeData));
           }
         } else {
           // Fallback to old logic if next badge API fails
-          console.warn('⚠️ DashboardService: Next badge API failed, using fallback logic');
           
           if (currentBadgeObj) {
             // Check if badge has levels array
@@ -837,27 +655,12 @@ export class DashboardService {
         };
         
         // LOGGING: Final transformed data that will be passed to AchievementsCard
-        console.log('🔍 DashboardService: ========== FINAL TRANSFORMED DATA ==========');
-        console.log('📊 Transformed data structure:', JSON.stringify(transformedData, null, 2));
-        console.log('📊 Key values for AchievementsCard:', {
-          currentBadge: transformedData.currentBadge,
-          currentBadgeLevel: transformedData.currentBadgeLevel,
-          totalPoints: transformedData.totalPoints,
-          pointsNeededForNext: transformedData.pointsNeededForNext,
-          nextBadgeName: transformedData.nextBadgeName,
-          unlockedBadges: transformedData.unlockedBadges,
-          totalBadges: transformedData.totalBadges,
-          progressPercentage: transformedData.progressPercentage,
-        });
-        console.log('🔍 DashboardService: ============================================');
         return transformedData;
       } else {
-        console.log('⚠️ DashboardService: Badges data fetch failed, using fallback');
         // Fallback to existing method if new endpoint fails
         return await this.getFallbackAchievementsData();
       }
     } catch (error) {
-      console.error('❌ DashboardService: Error fetching achievements summary:', error);
       // Fallback to existing method on error
       return await this.getFallbackAchievementsData();
     }
@@ -869,7 +672,6 @@ export class DashboardService {
    */
   static async getFallbackOnboardingData() {
     try {
-      console.log('🔄 DashboardService: Using fallback onboarding data...');
       
       // Get dashboard data and extract onboarding info
       const dashboardData = await this.getDashboardData();
@@ -883,7 +685,6 @@ export class DashboardService {
         }
       };
     } catch (error) {
-      console.error('❌ DashboardService: Error in fallback onboarding data:', error);
       return {
         data: {
           completedSteps: [],
@@ -900,13 +701,11 @@ export class DashboardService {
    */
   static async getFallbackAchievementsData() {
     try {
-      console.log('🔄 DashboardService: Using fallback achievements data...');
       
       // Get dashboard data and extract achievements info
       const dashboardData = await this.getDashboardData();
       const achievementsData = dashboardData?.achievements;
       
-      console.log('📊 DashboardService: Raw dashboard achievements data:', achievementsData);
       
       // Transform the data to match expected structure
       const transformedData = {
@@ -919,11 +718,9 @@ export class DashboardService {
         globalProgress: achievementsData?.globalProgress || 0
       };
       
-      console.log('📊 DashboardService: Transformed achievements data:', transformedData);
       
       return transformedData;
     } catch (error) {
-      console.error('❌ DashboardService: Error in fallback achievements data:', error);
       return {
         totalPoints: 0,
         currentBadge: null,
@@ -942,7 +739,6 @@ export class DashboardService {
    */
   static async getFallbackProgressData() {
     try {
-      console.log('📊 DashboardService: Using fallback progress data...');
       
       // Get dashboard data and calculate progress
       const dashboardData = await this.getDashboardData();
@@ -950,7 +746,6 @@ export class DashboardService {
       
       return calculatedProgress;
     } catch (error) {
-      console.error('❌ DashboardService: Error in fallback progress data:', error);
       // Return default progress data
       return {
         weight: {

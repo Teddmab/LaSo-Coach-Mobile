@@ -66,18 +66,12 @@ export default function SubscriptionPaymentFlow({
   // Réinitialiser les états quand le modal s'ouvre
   useEffect(() => {
     if (visible && plan) {
-      console.log('💳 SubscriptionPaymentFlow: Plan received:', {
-        id: plan?.id,
-        name: plan?.name,
-        price: plan?.price,
-        visible: visible
-      });
+      // Plan data available
       resetFlow();
       // Calculer la date de début de l'abonnement (immédiatement)
       const startDate = new Date();
       setSubscriptionStartDate(startDate);
     } else if (visible && !plan) {
-      console.warn('⚠️ SubscriptionPaymentFlow: visible but no plan provided');
     }
   }, [visible, plan]);
 
@@ -131,11 +125,9 @@ export default function SubscriptionPaymentFlow({
     // Pour les plans gratuits : activation directe (pas de steps)
     try {
       setProcessing(true);
-      console.log('💳 Activating free subscription for plan:', plan.id);
       
       const subscriptionData = await SubscriptionApi.activateFreeTrial(plan.id);
       
-      console.log('✅ Free subscription activated:', subscriptionData);
       
       setSuccess(true);
       setCurrentStep(4);
@@ -148,7 +140,6 @@ export default function SubscriptionPaymentFlow({
         });
       }
     } catch (error) {
-      console.error('❌ Error activating free subscription:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de l\'activation de l\'abonnement gratuit';
       setError(errorMessage);
       setCurrentStep(4);
@@ -185,7 +176,6 @@ export default function SubscriptionPaymentFlow({
     if (selectedPaymentMethod === 'stripe') {
       try {
         setProcessing(true);
-        console.log('💳 Creating Stripe checkout session when clicking Continue...');
         
         const sessionData = {
           subscriptionPlanId: plan.id,
@@ -194,12 +184,10 @@ export default function SubscriptionPaymentFlow({
 
         const checkoutData = await SubscriptionApi.createStripeCheckoutSession(sessionData);
         
-        console.log('💳 Stripe session response:', checkoutData);
         
         // Si le backend retourne une URL, ouvrir directement la webview
         if (checkoutData?.url || checkoutData?.checkoutUrl) {
           const stripeUrl = checkoutData.url || checkoutData.checkoutUrl;
-          console.log('✅ Stripe checkout URL received, opening webview directly:', stripeUrl);
           setStripeCheckoutUrl(stripeUrl);
           setShowStripeWebView(true);
           // Passer à l'étape 2 qui affichera la webview
@@ -211,16 +199,13 @@ export default function SubscriptionPaymentFlow({
         if (checkoutData?.sessionId && checkoutData?.clientSecret) {
           setStripeSessionId(checkoutData.sessionId);
           setStripeClientSecret(checkoutData.clientSecret);
-          console.log('✅ Stripe session created successfully (SDK natif), showing CardField');
           setCurrentStep(2); // Passer à l'étape 2 qui affichera le CardField
           return;
         }
         
         // Si ni URL ni sessionId/clientSecret, erreur
-        console.error('❌ Invalid Stripe response:', checkoutData);
         throw new Error('Réponse Stripe invalide: URL ou sessionId/clientSecret requis');
       } catch (error) {
-        console.error('❌ Error creating Stripe session:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la session de paiement';
         setError(errorMessage);
         setCurrentStep(4);
@@ -231,7 +216,6 @@ export default function SubscriptionPaymentFlow({
       // Pour PayPal, créer la commande et ouvrir la webview
       try {
         setProcessing(true);
-        console.log('💳 Creating PayPal order when clicking Continue...');
         
         const orderData = {
           subscriptionPlanId: plan.id,
@@ -240,14 +224,11 @@ export default function SubscriptionPaymentFlow({
 
         const paypalData = await SubscriptionApi.createPayPalOrder(orderData);
         
-        console.log('💳 PayPal order response:', paypalData);
         
         // Pour PayPal, le backend doit retourner orderId ET approvalUrl pour la webview
         if (paypalData?.orderId && paypalData?.approvalUrl) {
           setPaypalOrderId(paypalData.orderId);
           setPaypalApprovalUrl(paypalData.approvalUrl);
-          console.log('✅ PayPal order created successfully');
-          console.log('🔗 PayPal approval URL:', paypalData.approvalUrl);
           
           // Afficher la webview PayPal
           setShowPayPalWebView(true);
@@ -255,14 +236,11 @@ export default function SubscriptionPaymentFlow({
         } else if (paypalData?.orderId) {
           // Si seulement orderId, on continue sans webview (ancien flow)
           setPaypalOrderId(paypalData.orderId);
-          console.log('✅ PayPal order created successfully (no approval URL)');
           setCurrentStep(2);
         } else {
-          console.error('❌ Invalid PayPal response:', paypalData);
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
       } catch (error) {
-        console.error('❌ Error creating PayPal order:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
         setError(errorMessage);
         setCurrentStep(4);
@@ -321,10 +299,8 @@ export default function SubscriptionPaymentFlow({
       // La session a déjà été créée dans handlePaymentMethodSelect
       // On a déjà sessionId et clientSecret, on peut passer à la confirmation
       if (stripeSessionId && stripeClientSecret) {
-        console.log('✅ Stripe SDK ready, proceeding to confirmation');
         setCurrentStep(3);
       } else {
-        console.error('❌ Stripe session not ready');
         setError('Session Stripe non disponible. Veuillez réessayer.');
         setCurrentStep(4);
       }
@@ -332,7 +308,6 @@ export default function SubscriptionPaymentFlow({
       // Créer la commande PayPal avec le backend
       try {
         setProcessing(true);
-        console.log('💳 Creating PayPal order for plan:', plan.id);
         
         const orderData = {
           subscriptionPlanId: plan.id,
@@ -341,28 +316,22 @@ export default function SubscriptionPaymentFlow({
 
         const paypalData = await SubscriptionApi.createPayPalOrder(orderData);
         
-        console.log('💳 PayPal order response:', paypalData);
         
         // Pour PayPal, le backend doit retourner orderId ET approvalUrl pour la webview
         if (paypalData?.orderId && paypalData?.approvalUrl) {
           setPaypalOrderId(paypalData.orderId);
           setPaypalApprovalUrl(paypalData.approvalUrl);
-          console.log('✅ PayPal order created successfully');
-          console.log('🔗 PayPal approval URL:', paypalData.approvalUrl);
           
           // Afficher la webview PayPal
           setShowPayPalWebView(true);
         } else if (paypalData?.orderId) {
           // Si seulement orderId, on continue sans webview (ancien flow)
           setPaypalOrderId(paypalData.orderId);
-          console.log('✅ PayPal order created successfully (no approval URL)');
           setCurrentStep(3);
         } else {
-          console.error('❌ Invalid PayPal response:', paypalData);
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
       } catch (error) {
-        console.error('❌ Error creating PayPal order:', error);
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
         setError(errorMessage);
         setCurrentStep(4);
@@ -377,13 +346,11 @@ export default function SubscriptionPaymentFlow({
    */
   const handlePayPalApproval = async (payerId) => {
     try {
-      console.log('💳 PayPal approval received, payerId:', payerId);
       setPaypalPayerId(payerId);
       
       // Passer à l'étape de confirmation
       setCurrentStep(3);
     } catch (error) {
-      console.error('❌ Error handling PayPal approval:', error);
       setError('Erreur lors de l\'approbation PayPal');
       setCurrentStep(4);
     }
@@ -398,9 +365,6 @@ export default function SubscriptionPaymentFlow({
       setProcessing(true);
       setError(null);
 
-      console.log('💳 Confirming payment...');
-      console.log('💳 Payment method:', selectedPaymentMethod);
-      console.log('💳 Plan ID:', plan?.id);
 
       let subscriptionData;
 
@@ -410,8 +374,6 @@ export default function SubscriptionPaymentFlow({
           throw new Error('Client secret Stripe manquant');
         }
 
-        console.log('💳 Confirming Stripe payment with SDK...');
-        console.log('💳 Client secret:', stripeClientSecret?.substring(0, 20) + '...');
         
         // Utiliser le SDK Stripe pour confirmer le paiement
         const { error: stripeError, paymentIntent } = await confirmPayment(stripeClientSecret, {
@@ -419,7 +381,6 @@ export default function SubscriptionPaymentFlow({
         });
 
         if (stripeError) {
-          console.error('❌ Stripe payment confirmation error:', stripeError);
           throw new Error(stripeError.message || 'Erreur lors de la confirmation du paiement Stripe');
         }
 
@@ -427,8 +388,6 @@ export default function SubscriptionPaymentFlow({
           throw new Error('Aucune information de paiement retournée par Stripe');
         }
 
-        console.log('✅ Stripe payment confirmed via SDK');
-        console.log('💳 Payment Intent ID:', paymentIntent.id);
         
         // Envoyer les données au backend pour finaliser l'abonnement
         const paymentData = {
@@ -462,8 +421,6 @@ export default function SubscriptionPaymentFlow({
         throw new Error('Méthode de paiement invalide');
       }
 
-      console.log('✅ Payment confirmed successfully');
-      console.log('💳 Subscription data:', subscriptionData);
 
       setSuccess(true);
       setCurrentStep(4);
@@ -478,7 +435,6 @@ export default function SubscriptionPaymentFlow({
         });
       }
     } catch (error) {
-      console.error('❌ Error confirming payment:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors du traitement du paiement';
       setError(errorMessage);
       setCurrentStep(4);
@@ -773,7 +729,6 @@ export default function SubscriptionPaymentFlow({
             onNavigationStateChange={async (navState) => {
               // Détecter les URLs de retour Stripe
               const url = navState.url;
-              console.log('🔗 Stripe WebView navigation:', url);
               
               // Détecter succès (retour avec session_id ou success)
               // URLs Stripe de succès peuvent être : 
@@ -788,8 +743,6 @@ export default function SubscriptionPaymentFlow({
                                    urlObj.searchParams.get('sessionId');
                   
                   if (sessionId || url.includes('success')) {
-                    console.log('✅ Stripe payment successful in webview');
-                    console.log('✅ Session ID:', sessionId);
                     
                     // Sauvegarder le sessionId pour la confirmation
                     if (sessionId) {
@@ -801,7 +754,6 @@ export default function SubscriptionPaymentFlow({
                     // Confirmer le paiement avec le backend
                     try {
                       setProcessing(true);
-                      console.log('💳 Confirming Stripe payment with backend...');
                       
                       const paymentData = {
                         sessionId: sessionId || stripeSessionId,
@@ -811,8 +763,6 @@ export default function SubscriptionPaymentFlow({
                       
                       const subscriptionData = await SubscriptionApi.confirmStripePayment(paymentData);
                       
-                      console.log('✅ Stripe payment confirmed with backend');
-                      console.log('💳 Subscription data:', subscriptionData);
                       
                       setSuccess(true);
                       setCurrentStep(4);
@@ -827,7 +777,6 @@ export default function SubscriptionPaymentFlow({
                         });
                       }
                     } catch (confirmError) {
-                      console.error('❌ Error confirming Stripe payment:', confirmError);
                       const errorMessage = confirmError.response?.data?.message || confirmError.message || 'Erreur lors de la confirmation du paiement';
                       setError(errorMessage);
                       setCurrentStep(4);
@@ -838,13 +787,11 @@ export default function SubscriptionPaymentFlow({
                     return;
                   }
                 } catch (e) {
-                  console.warn('⚠️ Error parsing Stripe URL:', e);
                 }
               }
               
               // Détecter annulation
               if (url.includes('cancel') || url.includes('cancelled')) {
-                console.log('❌ Stripe payment cancelled');
                 setShowStripeWebView(false);
                 Toast.show({
                   type: 'info',
@@ -881,7 +828,6 @@ export default function SubscriptionPaymentFlow({
               onNavigationStateChange={(navState) => {
                 // Détecter les URLs de retour PayPal
                 const url = navState.url;
-                console.log('🔗 PayPal WebView navigation:', url);
                 
                 // Détecter succès (retour avec payerId ou token)
                 if (url.includes('PayerID=') || url.includes('payerId=') || url.includes('token=')) {
@@ -892,20 +838,17 @@ export default function SubscriptionPaymentFlow({
                                    urlObj.searchParams.get('token');
                     
                     if (payerId) {
-                      console.log('✅ PayPal payerId detected:', payerId);
                       setShowPayPalWebView(false);
                       // Passer à l'étape de confirmation avec payerId
                       handlePayPalApproval(payerId);
                       return;
                     }
                   } catch (e) {
-                    console.warn('⚠️ Error parsing PayPal URL:', e);
                   }
                 }
                 
                 // Détecter annulation
                 if (url.includes('cancel=true') || url.includes('cancelled=true') || url.includes('canceled=true')) {
-                  console.log('❌ PayPal payment cancelled');
                   setShowPayPalWebView(false);
                   Toast.show({
                     type: 'info',

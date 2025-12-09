@@ -48,7 +48,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     if (onTabPress) {
       onTabPress('faq');
     } else if (navigation) {
-      console.log('Navigate to FAQ');
     }
   };
 

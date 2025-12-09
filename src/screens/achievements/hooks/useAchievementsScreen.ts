@@ -24,7 +24,6 @@ let Haptics: any = null;
 try {
   Haptics = require('expo-haptics');
 } catch (e) {
-  console.log('⚠️ expo-haptics not available, haptic feedback disabled');
 }
 
 export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
@@ -177,7 +176,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         setShowBlurOverlay(true);
       }
     } catch (error) {
-      console.error('❌ Achievements: Error checking subscription status:', error);
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,
@@ -192,7 +190,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
       const data = await ProfileApi.getProfile();
       setProfileData(data);
     } catch (error) {
-      console.error('❌ Achievements: Error fetching profile data:', error);
     }
   };
 
@@ -219,7 +216,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         setLeaderboardData([]);
       }
     } catch (error) {
-      console.error('❌ Achievements: Error fetching leaderboard data:', error);
       setLeaderboardData([]);
     } finally {
       setLoading(false);
@@ -250,7 +246,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         setUserPosition(null);
       }
     } catch (error) {
-      console.error('❌ Achievements: Error fetching user position:', error);
       setUserPosition(null);
     } finally {
       setUserPositionLoading(false);
@@ -276,7 +271,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         setFeaturedBadge(null);
       }
     } catch (error) {
-      console.error('❌ Achievements: Error fetching badges:', error);
       setBadges([]);
       setBadgesSummary(null);
     } finally {
@@ -302,7 +296,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         setChallenges([]);
       }
     } catch (error) {
-      console.error('❌ Achievements: Error fetching challenges:', error);
       setChallenges([]);
     } finally {
       setChallengesLoading(false);
@@ -314,7 +307,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
       const data = await DashboardService.getAchievementsSummary();
       setAchievementsData(data);
     } catch (error) {
-      console.error('❌ Achievements: Error fetching achievements data:', error);
       setAchievementsData(null);
     }
   };
@@ -327,7 +319,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         fetchChallenges();
       }
     } catch (error) {
-      console.error('❌ Achievements: Error assigning challenge:', error);
     }
   };
 
@@ -350,7 +341,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Achievements: Error leaving challenge:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -424,7 +414,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Achievements: Error completing challenge:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -492,7 +481,6 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Achievements: Error fetching badge details:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',

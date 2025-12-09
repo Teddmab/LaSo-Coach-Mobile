@@ -8,7 +8,6 @@ export async function loadPersistedUser() {
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) {
-    console.log('⚠️ Failed to load persisted user:', e.message);
     return null;
   }
 }
@@ -28,7 +27,6 @@ export async function savePersistedUser(user) {
     };
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(minimal));
   } catch (e) {
-    console.log('⚠️ Failed to persist user:', e.message);
   }
 }
 
@@ -36,6 +34,5 @@ export async function clearPersistedUser() {
   try {
     await AsyncStorage.removeItem(USER_KEY);
   } catch (e) {
-    console.log('⚠️ Failed to clear persisted user:', e.message);
   }
 }

@@ -23,7 +23,6 @@ export const useAgenda = () => {
         const data = await ProfileApi.getProfile();
         setProfileData(data);
       } catch (error) {
-        console.error('[AgendaScreen] ❌ Error fetching profile:', error);
       }
     };
     fetchProfile();
@@ -37,7 +36,6 @@ export const useAgenda = () => {
       setRendezvousData(data as RendezvousData);
       setShowRendezvousForm(!data);
     } catch (error) {
-      console.log('No existing rendezvous found');
       setRendezvousData(null);
       setShowRendezvousForm(true);
     } finally {
@@ -105,7 +103,6 @@ export const useAgenda = () => {
       await fetchRendezvous();
       setShowRendezvousForm(false);
     } catch (error: any) {
-      console.error('Error creating rendezvous:', error);
       
       if (error.response?.status === 409) {
         Toast.show({

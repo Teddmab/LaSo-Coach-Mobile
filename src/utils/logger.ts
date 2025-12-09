@@ -175,9 +175,7 @@ export const createLogger = (context: string, options: LoggerOptions = {}): Logg
       if (!enabled || !isLoggingEnabled(context, 'debug')) return;
       const formatted = formatMessage(context, 'debug', message);
       if (data) {
-        console.log(formatted, data);
       } else {
-        console.log(formatted);
       }
     },
     
@@ -188,9 +186,7 @@ export const createLogger = (context: string, options: LoggerOptions = {}): Logg
       if (!enabled || !isLoggingEnabled(context, 'info')) return;
       const formatted = formatMessage(context, 'info', message);
       if (data) {
-        console.log(formatted, data);
       } else {
-        console.log(formatted);
       }
     },
     
@@ -201,9 +197,7 @@ export const createLogger = (context: string, options: LoggerOptions = {}): Logg
       if (!enabled || !isLoggingEnabled(context, 'warn')) return;
       const formatted = formatMessage(context, 'warn', message);
       if (data) {
-        console.warn(formatted, data);
       } else {
-        console.warn(formatted);
       }
     },
     
@@ -214,9 +208,7 @@ export const createLogger = (context: string, options: LoggerOptions = {}): Logg
       if (!enabled || !isLoggingEnabled(context, 'error')) return;
       const formatted = formatMessage(context, 'error', message);
       if (error) {
-        console.error(formatted, error);
       } else {
-        console.error(formatted);
       }
     },
     
@@ -243,7 +235,6 @@ export const createLogger = (context: string, options: LoggerOptions = {}): Logg
  */
 export const updateLogConfig = (updates: Partial<LogConfig>): void => {
   Object.assign(LOG_CONFIG, updates);
-  console.log('📝 Log configuration updated:', LOG_CONFIG);
 };
 
 /**

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import CircularProgress from '../CircularProgress';
@@ -49,9 +49,10 @@ interface ProgressCardProps {
   onRefresh?: () => void;
   onAddMetric?: () => void; // Optional: open metric selection/additional chart
   onProgressPress?: (tab: string) => void; // Optional: navigate to progress tab
+  isProfileComplete?: boolean; // Optional: show completion badge
 }
 
-const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress }) => {
+const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress, isProfileComplete = false }) => {
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -50,15 +50,11 @@ interface MockAPI {
  */
 const ensureFirebaseAuthInitialized = async (): Promise<void> => {
   try {
-    console.log('🔐 [Init] Checking Firebase auth state for initial ID token...');
     const token = await firebaseAuthService.getIdToken();
     if (token) {
-      console.log('✅ [Init] Firebase ID token available - auth ready');
     } else {
-      console.log('ℹ️ [Init] No Firebase ID token yet (user not logged in)');
     }
   } catch (error: any) {
-    console.warn('⚠️ [Init] Firebase auth warmup failed:', error?.message);
   }
 };
 
@@ -81,21 +77,14 @@ export const setNavigationRef = (navigation: NavigationContainerRef<any>): void 
  */
 export const testConnection = async (): Promise<boolean> => {
   try {
-    console.log(`🔌 Testing connection to: ${Config.API_BASE_URL}`);
     
     // Try a simple health check or login endpoint
     const response = await axios.get(`${Config.API_BASE_URL}/health`, {
       timeout: 10000, // 10 second timeout for connection test
     });
     
-    console.log('✅ API connection successful:', response.status);
     return true;
   } catch (error: any) {
-    console.error('❌ API connection failed:', {
-      message: error.message,
-      code: error.code,
-      status: error.response?.status,
-    });
     return false;
   }
 };
@@ -157,7 +146,6 @@ api.interceptors.request.use(
   async (config: any) => {
     try {
       if (__DEV__) {
-        console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`);
       }
 
       // Handle FormData - remove Content-Type only if not explicitly set
@@ -167,28 +155,19 @@ api.interceptors.request.use(
         if (!config.headers || !config.headers['Content-Type']) {
           delete config.headers?.['Content-Type'];
           if (__DEV__) {
-            console.log('📎 FormData detected - Content-Type will be set automatically by axios');
           }
         } else {
           if (__DEV__) {
-            console.log('📎 FormData detected - Using explicit Content-Type from config');
           }
         }
         if (__DEV__) {
-          console.log('📎 FormData details:', {
-            isFormData: config.data instanceof FormData,
-            hasParts: typeof (config.data as any)._parts !== 'undefined',
-            partsCount: (config.data as any)._parts ? (config.data as any)._parts.length : 0
-          });
+          // FormData detected
         }
       }
 
       // Log full URL before making request
       const fullUrl = `${config.baseURL || Config.API_BASE_URL}${config.url || ''}`;
       if (__DEV__) {
-        console.log('🔗 Full request URL:', fullUrl);
-        console.log('🔗 Base URL:', config.baseURL || Config.API_BASE_URL);
-        console.log('🔗 Request path:', config.url);
       }
 
       const idToken = await firebaseAuthService.getIdToken();
@@ -197,23 +176,18 @@ api.interceptors.request.use(
           config.headers.Authorization = `Bearer ${idToken}`;
         }
         if (__DEV__) {
-          console.log('✅ Authorization header set with Firebase ID token');
         }
       } else if (__DEV__) {
-        console.warn('ℹ️ No Firebase ID token available for request');
       }
 
       return config;
     } catch (error: any) {
-      console.error('❌ Error in request interceptor while retrieving Firebase token:', error?.message);
       if (__DEV__) {
-        console.error('Debug:', error);
       }
       return config;
     }
   },
   (error: AxiosError) => {
-    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -225,17 +199,13 @@ api.interceptors.response.use(
   (response: AxiosResponse) => {
     // Only log in development mode
     if (__DEV__) {
-      console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
     }
     return response;
   },
   async (error: AxiosError) => {
     // Log errors with appropriate detail level
     if (__DEV__) {
-      console.log('❌ API Error:', error.config?.method?.toUpperCase(), error.config?.url);
-      console.log('Status:', error.response?.status, error.response?.statusText);
       if (error.response?.data) {
-        console.log('Error data:', error.response.data);
       }
     }
     
@@ -255,21 +225,17 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        console.log('🔄 Attempting Firebase ID token refresh...');
         const newIdToken = await firebaseAuthService.getIdToken(true);
 
         if (newIdToken && originalRequest.headers) {
           originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
-          console.log('✅ Firebase ID token refreshed successfully');
           return api(originalRequest);
         }
       } catch (refreshError: any) {
-        console.error('❌ Firebase token refresh failed:', refreshError);
 
         try {
           await firebaseAuthService.logout();
         } catch (logoutError: any) {
-          console.warn('⚠️ Logout after token refresh failure also failed:', logoutError?.message);
         }
 
         if (navigationRef) {
@@ -291,7 +257,6 @@ api.interceptors.response.use(
 export const handleAuthError = (error: any): string => {
   // Debug error structure only in dev
   if (__DEV__) {
-    console.log('🔍 handleAuthError:', error.response?.status || error.code || error.message);
   }
 
   // Check for network errors first (most common)
@@ -427,7 +392,6 @@ export const retryRequest = async <T>(
       
       // Wait before retrying with exponential backoff
       const waitTime = delay * Math.pow(2, attempt);
-      console.log(`Retry attempt ${attempt + 1}/${maxRetries} after ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -440,13 +404,9 @@ export const retryRequest = async <T>(
  */
 export const safeJsonParse = (text: string, context: string = 'Unknown'): any | null => {
   try {
-    console.log(`🔍 Parsing JSON for ${context}:`, text.substring(0, 200) + (text.length > 200 ? '...' : ''));
     const parsed = JSON.parse(text);
-    console.log(`✅ JSON parsed successfully for ${context}:`, parsed);
     return parsed;
   } catch (error: any) {
-    console.error(`❌ JSON parse error for ${context}:`, error.message);
-    console.error(`❌ Raw text:`, text);
     return null;
   }
 };
@@ -455,23 +415,9 @@ export const safeJsonParse = (text: string, context: string = 'Unknown'): any | 
  * Debug response with detailed logging
  */
 export const debugResponse = (response: AxiosResponse, context: string = 'API Response'): void => {
-  console.log(`🔍 ===== ${context.toUpperCase()} DEBUG =====`);
-  console.log('📥 Status:', response.status, response.statusText);
-  console.log('📥 Headers:', JSON.stringify(response.headers, null, 2));
-  console.log('📥 Data type:', typeof response.data);
-  console.log('📥 Data:', JSON.stringify(response.data, null, 2));
-  
   if (response.data) {
-    console.log('📥 Data structure:', {
-      isObject: typeof response.data === 'object',
-      isArray: Array.isArray(response.data),
-      keys: Object.keys(response.data),
-      hasData: 'data' in response.data,
-      hasMessage: 'message' in response.data,
-      hasError: 'error' in response.data
-    });
+    // Response data available
   }
-  console.log(`🔍 ===== ${context.toUpperCase()} DEBUG END =====`);
 };
 
 interface FetchOptions {
@@ -495,9 +441,6 @@ export const debugFetch = async (
   context: string = 'API Request'
 ): Promise<FetchResponse> => {
   try {
-    console.log(`🔍 ${context} - Using fetch for debugger visibility`);
-    console.log(`📤 Fetch URL: ${url}`);
-    console.log(`📤 Fetch options:`, JSON.stringify(options, null, 2));
     
     const response = await fetch(url, {
       ...options,
@@ -508,39 +451,25 @@ export const debugFetch = async (
       },
     });
     
-    console.log(`📥 ${context} - Status: ${response.status} ${response.statusText}`);
-    console.log(`📥 ${context} - Headers:`, Object.fromEntries(response.headers.entries()));
     
     // Get response text first
     const responseText = await response.text();
-    console.log(`📥 ${context} - Raw response text:`, responseText);
     
     // Parse JSON safely
     let data = null;
     try {
       data = JSON.parse(responseText);
-      console.log(`✅ ${context} - JSON parsed successfully:`, data);
     } catch (parseError: any) {
-      console.error(`❌ ${context} - JSON parse error:`, parseError.message);
-      console.error(`❌ ${context} - Raw text:`, responseText);
     }
     
     // Make response data visible to debugger
     if (__DEV__) {
       // This makes the response visible in React Native debugger
-      console.log(`🔍 DEBUGGER_VISIBLE_${context.toUpperCase()}:`, {
-        url,
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        data: data,
-        rawText: responseText
-      });
+      // Response data available
     }
     
     return { data, status: response.status, ok: response.ok };
   } catch (error: any) {
-    console.error(`❌ ${context} - Fetch error:`, error);
     throw error;
   }
 };
@@ -554,7 +483,6 @@ export const createDebuggerVisibleRequest = async (
   context: string = 'API Request'
 ): Promise<FetchResponse> => {
   try {
-    console.log(`🔍 ${context} - Creating debugger visible request`);
     
     // Use XMLHttpRequest to make it visible in debugger network tab
     return new Promise((resolve, reject) => {
@@ -575,41 +503,27 @@ export const createDebuggerVisibleRequest = async (
       
       xhr.onload = function() {
         try {
-          console.log(`📥 ${context} - XHR Status: ${xhr.status}`);
-          console.log(`📥 ${context} - XHR Response:`, xhr.responseText);
           
           const data = JSON.parse(xhr.responseText);
-          console.log(`✅ ${context} - XHR Parsed:`, data);
           
           // Make it visible to debugger
           if (__DEV__) {
-            console.log(`🔍 DEBUGGER_XHR_${context.toUpperCase()}:`, {
-              url,
-              method: options.method || 'GET',
-              status: xhr.status,
-              statusText: xhr.statusText,
-              headers: xhr.getAllResponseHeaders(),
-              data: data,
-              rawText: xhr.responseText
-            });
+            // XHR response data available
           }
           
           resolve({ data, status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300 });
         } catch (error: any) {
-          console.error(`❌ ${context} - XHR Parse error:`, error);
           reject(error);
         }
       };
       
       xhr.onerror = function() {
-        console.error(`❌ ${context} - XHR Error:`, xhr.statusText);
         reject(new Error(xhr.statusText));
       };
       
       xhr.send(options.body || null);
     });
   } catch (error: any) {
-    console.error(`❌ ${context} - XHR Request error:`, error);
     throw error;
   }
 };
@@ -646,7 +560,6 @@ export const authAPI = {
   async loginWithGoogle(idToken: string): Promise<LoginResponse> {
     // DEBUG: temporarily log outgoing body to diagnose missing idToken issues
     try {
-      console.log('DEBUG outgoing POST /auth/login body (unmasked) - idToken length:', idToken ? idToken.length : 'null');
     } catch (e) {
       // ignore
     }
@@ -713,7 +626,6 @@ export const authAPI = {
     });
     
     if (__DEV__) {
-      console.log('🔐 getProfile response received');
     }
     
     // Handle different response structures
@@ -806,10 +718,8 @@ export const authAPI = {
     try {
       // Simple POST request without body - the token is in the Authorization header
       const response = await api.post('/auth/logout');
-      console.log('🚪 Logout API response:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Logout API error:', error);
       // Continue with local logout even if API fails
     }
   },

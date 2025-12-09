@@ -17,7 +17,6 @@ export const notificationsAPI = {
    */
   async getNotifications(params = {}) {
     try {
-      console.log('🔔 Fetching notifications...', params);
       const queryParams = new URLSearchParams();
       
       if (params.page) queryParams.append('page', params.page);
@@ -28,10 +27,8 @@ export const notificationsAPI = {
       const url = `/notifications${queryString ? `?${queryString}` : ''}`;
       
       const response = await api.get(url);
-      console.log('✅ Notifications fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching notifications:', error);
       throw error;
     }
   },
@@ -43,12 +40,9 @@ export const notificationsAPI = {
    */
   async getUnreadCount() {
     try {
-      console.log('🔔 Fetching unread notifications count...');
       const response = await api.get('/notifications/unread/count');
-      console.log('✅ Unread count fetched successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching unread count:', error);
       throw error;
     }
   },
@@ -61,12 +55,9 @@ export const notificationsAPI = {
    */
   async markAsRead(notificationId) {
     try {
-      console.log(`🔔 Marking notification ${notificationId} as read...`);
       const response = await api.patch(`/notifications/${notificationId}/read`);
-      console.log('✅ Notification marked as read successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error marking notification as read:', error);
       throw error;
     }
   },
@@ -78,12 +69,9 @@ export const notificationsAPI = {
    */
   async markAllAsRead() {
     try {
-      console.log('🔔 Marking all notifications as read...');
       const response = await api.patch('/notifications/read/all');
-      console.log('✅ All notifications marked as read successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error marking all notifications as read:', error);
       throw error;
     }
   },
@@ -100,12 +88,9 @@ export const notificationsAPI = {
    */
   async createNotification(notificationData) {
     try {
-      console.log('🔔 Creating notification...', notificationData);
       const response = await api.post('/notifications', notificationData);
-      console.log('✅ Notification created successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error creating notification:', error);
       throw error;
     }
   }
@@ -131,27 +116,22 @@ export class NotificationWebSocketManager {
    */
   async connect(token) {
     try {
-      console.log('🔌 Connecting to notifications WebSocket...');
       
       // Use the same WebSocket base URL as chat (from .env file)
       // The notification endpoint is typically at /ws/notifications
       const wsBaseUrl = Config.WS_BASE_URL;
       const wsUrl = `${wsBaseUrl}/ws/notifications?token=${token}`;
       
-      console.log('🔌 Using WebSocket URL from Config:', wsUrl);
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
-        console.log('✅ WebSocket connected successfully');
         this.reconnectAttempts = 0;
         
         // Send initial auth payload expected by backend and subscribe
         try {
           const authMessage = JSON.stringify({ action: 'auth', auth: { token } });
           this.ws.send(authMessage);
-          console.log('📡 Sent WebSocket auth payload (masked):', token ? `${token.substring(0,6)}...${token.slice(-6)}` : 'null');
         } catch (err) {
-          console.warn('⚠️ Failed to send WS auth payload:', err?.message);
         }
         // Subscribe to notifications
         this.subscribe();
@@ -162,16 +142,13 @@ export class NotificationWebSocketManager {
       };
       
       this.ws.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code, event.reason);
         this.handleReconnect();
       };
       
       this.ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
       };
       
     } catch (error) {
-      console.error('❌ Error connecting to WebSocket:', error);
       throw error;
     }
   }
@@ -186,7 +163,6 @@ export class NotificationWebSocketManager {
         channel: 'notifications'
       };
       this.ws.send(JSON.stringify(subscribeMessage));
-      console.log('📡 Subscribed to notifications channel');
     }
   }
 
@@ -197,7 +173,6 @@ export class NotificationWebSocketManager {
   handleMessage(event) {
     try {
       const data = JSON.parse(event.data);
-      console.log('📨 Received WebSocket message:', data);
       
       if (data.type === 'notification') {
         this.notifyListeners('new_notification', data.notification);
@@ -205,7 +180,6 @@ export class NotificationWebSocketManager {
         this.notifyListeners('unread_count_update', data.count);
       }
     } catch (error) {
-      console.error('❌ Error parsing WebSocket message:', error);
     }
   }
 
@@ -247,7 +221,6 @@ export class NotificationWebSocketManager {
         try {
           callback(data);
         } catch (error) {
-          console.error('❌ Error in event listener:', error);
         }
       });
     }
@@ -259,7 +232,6 @@ export class NotificationWebSocketManager {
   handleReconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`🔄 Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       
       setTimeout(() => {
         // Get fresh token and reconnect
@@ -269,7 +241,6 @@ export class NotificationWebSocketManager {
         }
       }, this.reconnectInterval);
     } else {
-      console.error('❌ Max reconnection attempts reached');
     }
   }
 
@@ -290,7 +261,6 @@ export class NotificationWebSocketManager {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
-      console.log('🔌 WebSocket disconnected');
     }
   }
 }

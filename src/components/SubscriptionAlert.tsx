@@ -62,7 +62,6 @@ const SubscriptionAlert = ({
       onRenew();
     } else {
       // Default behavior - navigate to subscription page
-      console.log('🔄 Navigating to subscription renewal page');
       // This will be handled by the parent component
     }
   };

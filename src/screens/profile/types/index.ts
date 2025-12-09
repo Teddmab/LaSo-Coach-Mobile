@@ -5,7 +5,7 @@ export interface ProfileScreenProps {
   onLogout?: () => void;
   onTabPress?: (tabId: string) => void;
   activeTab?: string;
-  onClose?: () => void;
+  onClose?: (target?: string) => void;
   initialStep?: number;
   navigation?: any;
   onFAQPress?: () => void;

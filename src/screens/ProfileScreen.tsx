@@ -177,20 +177,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   // Refresh data when step changes to ensure we have the latest information
   useEffect(() => {
     if (currentStep > 1) {
-      console.log('🔄 Step changed to', currentStep, '- refreshing data...');
       // Forcer le rafraîchissement des données pour s'assurer que les valeurs initiales sont chargées
       fetchProfileData(false).then(() => {
-        console.log('✅ Profile data refreshed for step', currentStep);
-        console.log('📊 Current formData:', {
-          height: formData.height,
-          initialWeight: formData.initialWeight,
-          initialWaist: formData.initialWaist,
-        });
-        console.log('📊 Current profileData:', {
-          height: profileData?.profile?.height,
-          initialWeight: profileData?.profile?.initialWeight,
-          initialWaistSize: profileData?.profile?.initialWaistSize,
-        });
+        // Data refreshed
       });
       fetchRendezvousData();
     }
@@ -201,7 +190,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       if (showLoading) {
         setLoading(true);
       }
-      console.log('👤 Profile: Fetching profile data...');
       
       // Fetch profile data
       const profile = await ProfileApi.getProfile();
@@ -210,7 +198,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       // Parse address if it exists
       if (profile.address) {
         const parsedAddress = ProfileApi.parseAddress(profile.address);
-        console.log('👤 Parsed address:', parsedAddress);
                      const newFormData = {
                ...formData,
                firstName: profile.firstName || '',
@@ -234,7 +221,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
                dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
              };
-        console.log('👤 Setting form data with address:', newFormData);
         setFormData(newFormData);
       } else {
         // Set basic profile data even if no address
@@ -256,7 +242,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
            specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
                           dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
          };
-        console.log('👤 Setting form data without address:', newFormData);
         setFormData(newFormData);
       }
       
@@ -265,7 +250,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         const measurements = await ProfileApi.getMeasurements();
         setMeasurementsData(measurements);
       } catch (error) {
-        console.log('📏 Profile: No measurements data available');
         setMeasurementsData(null);
       }
       
@@ -274,7 +258,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         const progress = await ProfileApi.getProgress();
         setProgressData(progress);
       } catch (error) {
-        console.log('📊 Profile: No progress data available');
         setProgressData(null);
       }
       
@@ -291,21 +274,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         'Retired',
         'Other'
       ]);
-      console.log('👤 Profile: Using occupation options from UI');
-      
-      console.log('✅ Profile: All data fetched successfully');
-      console.log('📊 Profile data loaded:', {
-        hasProfile: !!profile,
-        hasProfileProfile: !!profile.profile,
-        height: profile.profile?.height,
-        initialWeight: profile.profile?.initialWeight,
-        initialWaistSize: profile.profile?.initialWaistSize,
-        formDataHeight: formData.height,
-        formDataInitialWeight: formData.initialWeight,
-        formDataInitialWaist: formData.initialWaist,
-      });
     } catch (error) {
-      console.error('❌ Profile: Error fetching profile data:', error);
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -315,11 +284,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   const checkSubscriptionStatus = async () => {
     try {
-      console.log('💳 Profile: Checking subscription status...');
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
     } catch (error) {
-      console.error('❌ Profile: Error checking subscription status:', error);
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,
@@ -331,7 +298,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const fetchRendezvousData = async () => {
     try {
       setRendezvousLoading(true);
-      console.log('📅 Profile: Fetching rendezvous data...');
       
       const rendezvous = await ProfileApi.getCurrentRendezvous();
       setRendezvousData(rendezvous);
@@ -352,9 +318,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         }));
       }
       
-      console.log('✅ Profile: Rendezvous data fetched successfully');
     } catch (error) {
-      console.error('❌ Profile: Error fetching rendezvous data:', error);
       setRendezvousData(null);
     } finally {
       setRendezvousLoading(false);
@@ -362,7 +326,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   const handleSubscriptionRenew = () => {
-    console.log('🔄 Profile: Navigating to subscription renewal page');
     // Since we're already on the profile screen, just ensure we're on step 5
     setCurrentStep(5);
   };
@@ -402,7 +365,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         setConsentChecked(JSON.parse(consent));
       }
     } catch (error) {
-      console.log('📋 Could not load consent state:', error);
     }
   };
 
@@ -411,17 +373,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     try {
       await AsyncStorage.setItem('onboarding_consent', JSON.stringify(checked));
     } catch (error) {
-      console.log('📋 Could not save consent state:', error);
     }
   };
 
   // Handle avatar upload
   const handleAvatarUpload = async () => {
-    console.log('📸 Starting avatar upload...');
     
     // Prevent multiple uploads
     if (avatarUploading) {
-      console.log('📸 Upload already in progress, ignoring...');
       return;
     }
     
@@ -455,32 +414,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         // CRITICAL FIX: Use URI directly as returned by ImagePicker
         // Do NOT modify the URI - ImagePicker already returns the correct format
         // Modifying it can cause FileNotFoundException on Android
-        console.log('📸 Image asset:', {
-          uri: imageUri,
-          type: asset.type,
-          fileName: asset.fileName,
-          width: asset.width,
-          height: asset.height,
-          fileSize: asset.fileSize
-        });
-        
-        // CRITICAL: On Android, content:// URIs need special handling
-        // The URI format from ImagePicker should work, but we log it for debugging
-        console.log('📸 Image URI details:', {
-          uri: imageUri,
-          uriType: imageUri.startsWith('content://') ? 'content://' : 
-                   imageUri.startsWith('file://') ? 'file://' : 'unknown',
-          type: asset.type || 'image/jpeg',
-          fileName: asset.fileName || asset.name || `avatar_${Date.now()}.jpg`,
-          fileSize: asset.fileSize,
-          width: asset.width,
-          height: asset.height
-        });
         
         // CRITICAL FIX: Copy content:// URI to accessible location on Android
         // This ensures the file is accessible for upload (fixes "Network request failed")
         const mimeType = asset.type || 'image/jpeg';
-        console.log('📁 Preparing file for upload...');
         const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
         
         // Prepare file name with proper extension
@@ -501,18 +438,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           type: mimeType,
           name: finalFileName
         });
-        
-        console.log('📤 FormData prepared for upload:', {
-          originalUri: imageUri.substring(0, 50) + '...',
-          accessibleUri: accessibleUri.substring(0, 50) + '...',
-          uriType: accessibleUri.startsWith('file://') ? 'file://' : 'content://',
-          type: mimeType,
-          name: finalFileName
-        });
-        console.log('📤 Uploading avatar...');
         const response = await ProfileApi.uploadAvatar(formData);
-        console.log('✅ Avatar uploaded successfully');
-        console.log('📥 Full response structure:', JSON.stringify(response, null, 2));
         
         // Update profile data with new avatar
         // Backend returns: { success: true, message: "Success", data: { message: "...", avatarUrl: "..." } }
@@ -523,7 +449,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                        response?.data?.avatar ||             // Format alternatif
                        response?.avatar;                     // Format direct
         
-        console.log('🔍 Extracted avatarUrl:', avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null');
         
         // CRITICAL: Verify that the URL is a valid S3 URL (not a local path)
         if (avatarUrl) {
@@ -531,8 +456,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           const isValidUrl = avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://');
           
           if (!isValidUrl) {
-            console.error('❌ Invalid avatar URL format (not a valid S3 URL):', avatarUrl);
-            console.error('❌ URL appears to be a local path. This indicates S3 upload may have failed.');
             Toast.show({
               type: 'error',
               text1: 'Erreur d\'upload',
@@ -548,10 +471,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                          avatarUrl.match(/https?:\/\/.*\.s3\.[\w\-]+\.amazonaws\.com/);
           
           if (!isS3Url) {
-            console.warn('⚠️ Avatar URL does not appear to be an S3 URL:', avatarUrl.substring(0, 50));
-            console.warn('⚠️ This might be a CDN or other storage URL. Continuing anyway...');
           } else {
-            console.log('✅ Valid S3 URL detected:', avatarUrl.substring(0, 50) + '...');
           }
           
           setProfileData(prev => ({
@@ -565,16 +485,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             text2: 'Votre photo de profil a été mise à jour avec succès',
           });
         } else {
-          console.warn('⚠️ No avatar URL found in response');
-          console.warn('⚠️ Response structure:', {
-            hasResponse: !!response,
-            hasData: !!response?.data,
-            hasDataData: !!response?.data?.data,
-            keys: response ? Object.keys(response) : [],
-            dataKeys: response?.data ? Object.keys(response.data) : [],
-            dataDataKeys: response?.data?.data ? Object.keys(response.data.data) : [],
-          });
-          console.warn('⚠️ Full response:', JSON.stringify(response, null, 2));
           Toast.show({
             type: 'warning',
             text1: 'Avatar téléchargé',
@@ -583,7 +493,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         }
       }
     } catch (error) {
-      console.error('❌ Error uploading avatar:', error);
       
       // Provide user-friendly error messages
       let errorMessage = 'Impossible de télécharger votre avatar. Veuillez réessayer.';
@@ -636,19 +545,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       setShowRecommendationsModal(true);
     } else if (currentStep === 4) {
       // Onboarding completed - redirect to home
-      console.log('Onboarding completed, redirecting to home');
       onClose(); // This will close the profile screen and return to dashboard
     } else {
       // Handle next step for other steps
-      console.log('Next step from step:', currentStep);
     }
+  };
+
+  // Check if onboarding is completed (all 4 steps)
+  const isOnboardingComplete = () => {
+    if (!progressData || !progressData.completedSteps) return false;
+    const completedSteps = progressData.completedSteps;
+    return (
+      completedSteps.includes('profile_setup') &&
+      completedSteps.includes('goals_setup') &&
+      completedSteps.includes('recommendations') &&
+      completedSteps.includes('rendezvous')
+    );
   };
 
   const handlePrevious = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
-    console.log('Previous step to:', currentStep - 1);
+  };
+
+  const handleNextView = () => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -688,7 +612,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
 
     try {
-      console.log('👤 Profile: Saving profile data using onboarding API (Step 1/4)...');
       
       // Utiliser la méthode completeProfileSetup du hook useOnboarding
       // qui correspond exactement à l'implémentation admin
@@ -714,20 +637,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         throw new Error(result.error || 'Failed to complete Profile Setup');
       }
       
-      console.log('✅ Profile: Profile Setup completed successfully (Step 1/4)');
-      console.log('📊 Response data:', result.data);
       
       setShowSaveModal(false);
       
       // Rafraîchir les données avant de passer à l'étape 2
-      console.log('🔄 Profile: Refreshing data before moving to step 2...');
       await fetchProfileData(false);
       
       // Attendre un peu pour que le state soit mis à jour
       await new Promise(resolve => setTimeout(resolve, 500));
       
       setCurrentStep(2);
-      console.log('✅ Profile saved successfully, moving to step 2');
       
       // Show success message to user
       Toast.show({
@@ -736,7 +655,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text2: 'Vos informations ont été mises à jour avec succès (+100 points)',
       });
     } catch (error: any) {
-      console.error('❌ Profile: Error saving profile:', error);
       
       // Show error message to user
       Toast.show({
@@ -771,7 +689,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
 
     try {
-      console.log('🎯 Objectives: Saving objectives data using onboarding API (Step 2/4)...');
       
       // Utiliser la méthode completeGoalsSetup du hook useOnboarding
       // qui correspond exactement à l'implémentation admin
@@ -789,12 +706,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         throw new Error(result.error || 'Failed to complete Goals Setup');
       }
       
-      console.log('✅ Objectives: Goals Setup completed successfully (Step 2/4)');
-      console.log('📊 Response data:', result.data);
       
       setShowObjectivesModal(false);
       setCurrentStep(3);
-      console.log('✅ Objectives saved successfully, moving to step 3');
       
       // Refresh data to show updated information
       await fetchProfileData(false);
@@ -806,7 +720,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text2: 'Vos objectifs ont été enregistrés avec succès (+30 points)',
       });
     } catch (error: any) {
-      console.error('❌ Objectives: Error saving objectives:', error);
       
       // Show error message to user
       Toast.show({
@@ -819,7 +732,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   const handleSaveRecommendations = async () => {
     try {
-      console.log('📋 Recommendations: Saving recommendations data using onboarding API (Step 3/4)...');
       
       // Utiliser la méthode completeRecommendations du hook useOnboarding
       // qui correspond exactement à l'implémentation admin
@@ -831,12 +743,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         throw new Error(result.error || 'Failed to complete Recommendations');
       }
       
-      console.log('✅ Recommendations: Recommendations completed successfully (Step 3/4)');
-      console.log('📊 Response data:', result.data);
       
       setShowRecommendationsModal(false);
       setCurrentStep(4);
-      console.log('✅ Recommendations saved successfully, moving to step 4');
       
       // Refresh data to show updated information
       await fetchProfileData(false);
@@ -848,7 +757,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text2: 'Vos recommandations ont été enregistrées avec succès (+20 points)',
       });
     } catch (error: any) {
-      console.error('❌ Recommendations: Error saving recommendations:', error);
       
       // Show error message to user
       Toast.show({
@@ -861,21 +769,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   const handleCancelSave = () => {
     setShowSaveModal(false);
-    console.log('Save cancelled');
   };
 
   const handleCancelObjectives = () => {
     setShowObjectivesModal(false);
-    console.log('Objectives save cancelled');
   };
 
   const handleCancelRecommendations = () => {
     setShowRecommendationsModal(false);
-    console.log('Recommendations save cancelled');
   };
 
   const handleBookAppointment = () => {
-    console.log('📅 handleBookAppointment called');
     
     // Reset form data to empty values for new appointment
     setFormData(prev => ({
@@ -888,16 +792,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     
     setShowBookingForm(true);
     setShowAppointmentModal(true);
-    console.log('📅 Opening appointment booking form');
   };
 
   const handleRescheduleAppointment = () => {
-    console.log('📅 handleRescheduleAppointment called');
-    console.log('📅 Current showBookingForm:', showBookingForm);
-    console.log('📅 Current showAppointmentModal:', showAppointmentModal);
-    console.log('📅 Current showSaveModal:', showSaveModal);
-    console.log('📅 Current showObjectivesModal:', showObjectivesModal);
-    console.log('📅 Current showRecommendationsModal:', showRecommendationsModal);
     
     // Close any other modals first
     setShowSaveModal(false);
@@ -930,14 +827,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     // Set the appointment modal states
     setShowBookingForm(true);
     setShowAppointmentModal(true);
-    console.log('📅 Opening reschedule appointment form');
-    console.log('📅 showBookingForm set to true');
   };
 
   const handleConfirmAppointment = async () => {
     try {
-      console.log('📅 Confirming appointment...');
-      console.log('📅 Appointment date string:', formData.appointmentDate);
       
       // Validate required fields
       if (!formData.appointmentDate || !formData.appointmentSubject) {
@@ -989,10 +882,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           throw new Error('Invalid date format');
         }
         
-        console.log('📅 Parsed appointment date:', appointmentDate);
-        console.log('📅 Appointment date ISO string:', appointmentDate.toISOString());
       } catch (error) {
-        console.error('❌ Date parsing error:', error);
         Toast.show({
           type: 'error',
           text1: 'Format de date invalide',
@@ -1024,12 +914,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         notes: formData.appointmentNotes || ''
       };
 
-      console.log('📅 Rendezvous data:', rendezvousData);
-      console.log('📅 About to call ProfileApi.createRendezvous...');
 
       // Utiliser la méthode completeRendezVous du hook useOnboarding
       // qui correspond exactement à l'implémentation admin (Step 4/4)
-      console.log('📅 Rendezvous: Creating rendez-vous using onboarding API (Step 4/4)...');
       
       const rendezVousData = {
         scheduledAt: appointmentDate.toISOString(),
@@ -1044,8 +931,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         throw new Error(result.error || 'Failed to complete Rendez-vous');
       }
       
-      console.log('✅ Rendezvous: Rendez-vous completed successfully (Step 4/4)');
-      console.log('📊 Response data:', result.data);
 
       // Close the appointment form modal
       setShowAppointmentModal(false);
@@ -1056,7 +941,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       setShowConfirmationModal(true);
 
     } catch (error: any) {
-      console.error('❌ Error confirming appointment:', error);
       
       // Handle specific API errors
       let errorMessage = error?.message || 'Impossible de confirmer le rendez-vous. Veuillez réessayer.';
@@ -1079,7 +963,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     setShowAppointmentModal(false);
     setShowBookingForm(false);
     setShowDurationDropdown(false);
-    console.log('📅 Appointment modal cancelled');
   };
 
   const handleConfirmationModalAction = async () => {
@@ -1087,24 +970,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       // Close confirmation modal
       setShowConfirmationModal(false);
 
-      // Onboarding completed - redirect to home
-      // Note: completeRendezVous a déjà créé le rendez-vous et mis à jour la progression
-      console.log('✅ Onboarding completed (Step 4/4), redirecting to home');
-      onClose(); // This will close the profile screen and return to dashboard
-
-      // Show success message
-      Toast.show({
-        type: 'success',
-        text1: 'Rendez-vous confirmé',
-        text2: 'Votre rendez-vous a été programmé avec succès (+25 points)',
-      });
-
       // Refresh data to show updated information
       await fetchProfileData(false);
       await fetchRendezvousData();
 
+      // Show success message
+      Toast.show({
+        type: 'success',
+        text1: 'Onboarding terminé !',
+        text2: 'Votre profil est maintenant complété. Vous avez obtenu 175 points !',
+        visibilityTime: 4000,
+      });
+
+      // Wait a bit for the toast to be visible, then close and redirect to home
+      setTimeout(() => {
+        // Onboarding completed - redirect to home
+        // Note: completeRendezVous a déjà créé le rendez-vous et mis à jour la progression
+        // Pass 'home' to onClose to indicate we should go to dashboard, not settings
+        if (onClose) {
+          onClose('home');
+        }
+      }, 500);
+
     } catch (error) {
-      console.error('❌ Error in confirmation modal action:', error);
+      // Still close even if there's an error
+      if (onClose) {
+        onClose('home');
+      }
     }
   };
 
@@ -1139,7 +1031,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   const handleSubscribe = (planType) => {
-    console.log('Subscribe to:', planType);
     // Handle subscription logic
   };
 
@@ -1225,11 +1116,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   );
 
   const renderAppointmentModal = () => {
-    console.log('📅 renderAppointmentModal - showAppointmentModal:', showAppointmentModal);
-    console.log('📅 renderAppointmentModal - showBookingForm:', showBookingForm);
-    console.log('📅 renderAppointmentModal - showSaveModal:', showSaveModal);
-    console.log('📅 renderAppointmentModal - showObjectivesModal:', showObjectivesModal);
-    console.log('📅 renderAppointmentModal - showRecommendationsModal:', showRecommendationsModal);
     
     return (
     <Modal
@@ -1252,7 +1138,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                 <TouchableOpacity 
                   style={styles.dateTimeInputWrapper}
                   onPress={() => {
-                    console.log('📅 Date input pressed, closing appointment modal and opening date modal');
                     setShowAppointmentModal(false);
                     setTimeout(() => {
                       setShowDateModal(true);
@@ -1547,7 +1432,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   }
 
   function renderDateModal() {
-    console.log('📅 renderDateModal called, showDateModal:', showDateModal);
     return (
     <Modal
       visible={showDateModal}
@@ -1661,11 +1545,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                       minute: '2-digit',
                       second: '2-digit'
                     });
-                    console.log('📅 Date selected:', formattedDate);
                     updateFormData('appointmentDate', formattedDate);
                     setShowDateModal(false);
                     setTimeout(() => {
-                      console.log('📅 Reopening appointment modal');
                       setShowAppointmentModal(true);
                       setShowBookingForm(true);
                     }, 300);
@@ -2761,19 +2643,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const getPoints = () => {
     switch (currentStep) {
       case 1:
-        return '+25pts';
-      case 2:
-        return '+40pts';
-      case 3:
-        return '+10pts';
-      case 4:
-        return '+3pts';
-      case 5:
-        return '+85pts';
-      case 6:
         return '+100pts';
-      default:
+      case 2:
+        return '+30pts';
+      case 3:
+        return '+20pts';
+      case 4:
         return '+25pts';
+      default:
+        return '+0pts';
     }
   };
 
@@ -2973,6 +2851,54 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       {/* Navigation Footer - Juste au-dessus de la barre de navigation fixe */}
       {currentStep <= 4 && (
         <View style={styles.navigationFooter}>
+          {isOnboardingComplete() ? (
+            // Mode visualisation - Onboarding complété
+            <>
+              <TouchableOpacity 
+                style={styles.prevButton} 
+                onPress={handlePrevious}
+                disabled={currentStep === 1}
+              >
+                <Ionicons 
+                  name="chevron-back" 
+                  size={20} 
+                  color={currentStep === 1 ? "#CCC" : "#666"} 
+                />
+              </TouchableOpacity>
+              
+              <View style={styles.stepIndicator}>
+                <Text style={styles.stepTextCompleted}>
+                  Étape {currentStep}/4 - Terminé
+                </Text>
+                <View style={styles.completedBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+                  <Text style={styles.completedText}>Profil complété</Text>
+                </View>
+              </View>
+              
+              <View style={styles.pointsContainer}>
+                <Text style={styles.pointsLabel}>Total:</Text>
+                <Text style={styles.pointsValue}>175pts</Text>
+              </View>
+              
+              <TouchableOpacity 
+                style={styles.nextButton} 
+                onPress={handleNextView}
+                disabled={currentStep === 4}
+              >
+                <Text style={[styles.nextButtonText, currentStep === 4 && styles.nextButtonTextDisabled]}>
+                  Suivant
+                </Text>
+                <Ionicons 
+                  name="chevron-forward" 
+                  size={20} 
+                  color={currentStep === 4 ? "#CCC" : "#FFFFFF"} 
+                />
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Mode normal - Onboarding en cours
+            <>
           {/* Pas de bouton retour à l'étape 1 */}
           {currentStep > 1 ? (
           <TouchableOpacity style={styles.prevButton} onPress={handlePrevious}>
@@ -2984,7 +2910,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           
           <View style={styles.stepIndicator}>
             <Text style={styles.stepText}>
-              Étape {currentStep} sur 4
+                  Étape {currentStep} sur 4
             </Text>
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${getStepProgress()}%` }]} />
@@ -3002,6 +2928,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             </Text>
             <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
           </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -3372,6 +3300,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+  stepTextCompleted: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  completedText: {
+    fontSize: 10,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
   progressBar: {
     height: 4,
     backgroundColor: '#E0E0E0',
@@ -3410,6 +3357,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginRight: 8,
+  },
+  nextButtonTextDisabled: {
+    color: '#CCC',
   },
   modalOverlay: {
     flex: 1,

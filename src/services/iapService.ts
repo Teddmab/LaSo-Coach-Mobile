@@ -32,23 +32,18 @@ class IAPService {
    */
   async initialize() {
     if (this.isInitialized) {
-      console.log('💳 IAP already initialized');
       return true;
     }
 
     try {
-      console.log('💳 Initializing IAP connection...');
       await initConnection();
       this.isInitialized = true;
-      console.log('✅ IAP connection initialized successfully');
       return true;
     } catch (error) {
-      console.error('❌ Error initializing IAP:', error);
       
       // E_IAP_NOT_AVAILABLE is expected on unsupported platforms (web, Windows, simulators without IAP configured)
       // This is NOT a fatal error - the app should continue with limited functionality
       if (error.code === 'E_IAP_NOT_AVAILABLE') {
-        console.log('ℹ️ IAP not available on this platform - continuing without native purchases');
         return false;
       }
       
@@ -72,11 +67,9 @@ class IAPService {
       }
       await endConnection();
       this.isInitialized = false;
-      console.log('✅ IAP connection closed');
     } catch (error) {
       // E_IAP_NOT_AVAILABLE during disconnect is expected and safe to ignore
       if (error.code !== 'E_IAP_NOT_AVAILABLE') {
-        console.error('❌ Error closing IAP connection:', error);
       }
     }
   }
@@ -88,26 +81,21 @@ class IAPService {
    */
   async getAvailableProducts(productIds) {
     try {
-      console.log('💳 Fetching available products:', productIds);
       
       if (!this.isInitialized) {
         const initialized = await this.initialize();
         if (!initialized) {
-          console.log('ℹ️ IAP not initialized - returning empty products');
           return [];
         }
       }
 
       const products = await getProducts({ skus: productIds });
-      console.log('✅ Products fetched successfully:', products);
       
       return products;
     } catch (error) {
-      console.error('❌ Error fetching products:', error);
       
       // Return empty array instead of throwing for E_IAP_NOT_AVAILABLE
       if (error.code === 'E_IAP_NOT_AVAILABLE') {
-        console.log('ℹ️ IAP not available - returning empty products');
         return [];
       }
       
@@ -123,7 +111,6 @@ class IAPService {
    */
   async requestPurchase(productId, isSubscription = true) {
     try {
-      console.log('💳 Requesting purchase for:', productId);
       
       if (!this.isInitialized) {
         await this.initialize();
@@ -142,11 +129,9 @@ class IAPService {
         });
       }
 
-      console.log('✅ Purchase request initiated');
       // Purchase result will be handled by purchaseUpdatedListener
       return null;
     } catch (error) {
-      console.error('❌ Error requesting purchase:', error);
       throw error;
     }
   }
@@ -169,7 +154,6 @@ class IAPService {
 
       // Listen for successful purchases
       this.purchaseUpdateSubscription = purchaseUpdatedListener(async (purchase) => {
-        console.log('💳 Purchase updated:', purchase);
         
         try {
           const receipt = purchase.transactionReceipt;
@@ -184,7 +168,6 @@ class IAPService {
             await this.acknowledgePurchase(purchase);
           }
         } catch (error) {
-          console.error('❌ Error processing purchase update:', error);
           if (onPurchaseError) {
             onPurchaseError(error);
           }
@@ -193,19 +176,15 @@ class IAPService {
 
       // Listen for purchase errors
       this.purchaseErrorSubscription = purchaseErrorListener((error) => {
-        console.error('❌ Purchase error:', error);
         if (onPurchaseError) {
           onPurchaseError(error);
         }
       });
       
-      console.log('✅ IAP purchase listeners attached');
     } catch (error) {
       // E_IAP_NOT_AVAILABLE or other initialization errors
       if (error.code !== 'E_IAP_NOT_AVAILABLE') {
-        console.error('❌ Error setting up purchase listeners:', error);
       } else {
-        console.log('ℹ️ IAP listeners not available (platform not supported)');
       }
       // Don't throw - allow app to continue without IAP
     }
@@ -218,7 +197,6 @@ class IAPService {
    */
   async acknowledgePurchase(purchase) {
     try {
-      console.log('💳 Acknowledging purchase:', purchase.productId);
       
       if (Platform.OS === 'ios') {
         // iOS: Finish transaction
@@ -234,9 +212,7 @@ class IAPService {
         await finishTransaction({ purchase, isConsumable: false });
       }
       
-      console.log('✅ Purchase acknowledged successfully');
     } catch (error) {
-      console.error('❌ Error acknowledging purchase:', error);
       throw error;
     }
   }
@@ -248,18 +224,15 @@ class IAPService {
    */
   async restorePurchases() {
     try {
-      console.log('💳 Restoring previous purchases...');
       
       if (!this.isInitialized) {
         await this.initialize();
       }
 
       const purchases = await getAvailablePurchases();
-      console.log('✅ Previous purchases restored:', purchases);
       
       return purchases || [];
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
       throw error;
     }
   }

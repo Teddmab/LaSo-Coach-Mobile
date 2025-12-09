@@ -96,7 +96,6 @@ export default function PasswordResetScreen({ navigation, route }: PasswordReset
       await forgotPassword(email.trim());
       setStep(2);
     } catch (error: any) {
-      console.error('❌ Email submission failed:', error.message);
       // Error handling is done in the AuthContext with Toast
     }
   };
@@ -117,7 +116,6 @@ export default function PasswordResetScreen({ navigation, route }: PasswordReset
         setStep(3);
       }
     } catch (error: any) {
-      console.error('❌ Token verification failed:', error.message);
       // Error handling is done in the AuthContext with Toast
     }
   };
@@ -167,7 +165,6 @@ export default function PasswordResetScreen({ navigation, route }: PasswordReset
         ]
       );
     } catch (error: any) {
-      console.error('❌ Password reset failed:', error.message);
       // Error handling is done in the AuthContext with Toast
     }
   };

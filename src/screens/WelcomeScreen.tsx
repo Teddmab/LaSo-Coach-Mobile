@@ -15,7 +15,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 
   const handleGetStarted = (): void => {
     // For now, just log - we'll implement navigation later
-    console.log('Get Started pressed');
     if (navigation) {
       navigation.navigate('Register');
     }

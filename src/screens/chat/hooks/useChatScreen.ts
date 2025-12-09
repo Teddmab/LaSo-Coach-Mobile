@@ -34,7 +34,6 @@ export const useChatScreen = () => {
         const data = await ProfileApi.getProfile();
         setProfileData(data);
       } catch (error) {
-        console.error('[ChatScreen] ❌ Error fetching profile:', error);
       }
     };
     fetchProfile();

@@ -13,13 +13,9 @@ class BadgeApi {
    */
   static async getAllBadges() {
     try {
-      console.log('🏆 BadgeApi: Fetching all badges...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.mobile.badges.getAll);
       
       const response = await api.get(API_CONFIG.endpoints.mobile.badges.getAll);
       
-      console.log('✅ BadgeApi: All badges fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       // Handle both axios response structure and direct data
       const responseData = response.data || response;
@@ -36,13 +32,6 @@ class BadgeApi {
         error: 'Invalid response format',
       };
     } catch (error) {
-      console.error('❌ BadgeApi: Error fetching all badges:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      
       return {
         success: false,
         error: error.message || 'Failed to fetch badges',
@@ -56,13 +45,9 @@ class BadgeApi {
    */
   static async getSummary() {
     try {
-      console.log('🏆 BadgeApi: Fetching badge summary...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.mobile.badges.getSummary);
       
       const response = await api.get(API_CONFIG.endpoints.mobile.badges.getSummary);
       
-      console.log('✅ BadgeApi: Badge summary fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       // Handle both axios response structure and direct data
       const responseData = response.data || response;
@@ -79,13 +64,6 @@ class BadgeApi {
         error: 'Invalid response format',
       };
     } catch (error) {
-      console.error('❌ BadgeApi: Error fetching badge summary:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      
       return {
         success: false,
         error: error.message || 'Failed to fetch badge summary',
@@ -99,22 +77,13 @@ class BadgeApi {
    */
   static async getNextBadge() {
     try {
-      console.log('🏆 BadgeApi: Fetching next badge information...');
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.mobile.badges.getNext);
       
       const response = await api.get(API_CONFIG.endpoints.mobile.badges.getNext);
       
-      console.log('✅ BadgeApi: Next badge information fetched successfully');
-      console.log('📊 Full response object:', response);
-      console.log('📊 Response.data:', response.data);
       
       // Handle both axios response structure and direct data
       const responseData = response.data || response;
       
-      console.log('📊 Parsed responseData:', responseData);
-      console.log('📊 responseData.status:', responseData.status);
-      console.log('📊 responseData.success:', responseData.success);
-      console.log('📊 responseData.data:', responseData.data);
       
       // Certains backends renvoient { status: 'success', data: {...} },
       // d'autres renvoient { success: true, data: {...} }.
@@ -124,13 +93,6 @@ class BadgeApi {
         const apiData = responseData.data;
         
         // Log the specific fields we need
-        console.log('🔍 BadgeApi: Checking required fields in response:');
-        console.log('📊 apiData keys:', Object.keys(apiData));
-        console.log('📊 apiData.pointsToFinishCurrentBadge:', apiData.pointsToFinishCurrentBadge);
-        console.log('📊 apiData.maxPointsForCurrentBadge:', apiData.maxPointsForCurrentBadge);
-        console.log('📊 apiData.currentWorkingBadge:', apiData.currentWorkingBadge);
-        console.log('📊 apiData.nextBadge:', apiData.nextBadge);
-        console.log('📊 apiData.allUnlocked:', apiData.allUnlocked);
         
         return {
           success: true,
@@ -138,22 +100,12 @@ class BadgeApi {
         };
       }
       
-      console.warn('⚠️ BadgeApi: Invalid response format');
-      console.warn('⚠️ BadgeApi: responseData.status:', responseData.status);
-      console.warn('⚠️ BadgeApi: Has responseData.data:', !!responseData.data);
       
       return {
         success: false,
         error: 'Invalid response format',
       };
     } catch (error) {
-      console.error('❌ BadgeApi: Error fetching next badge information:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      
       return {
         success: false,
         error: error.message || 'Failed to fetch next badge information',
@@ -168,8 +120,6 @@ class BadgeApi {
    */
   static async getBadgeById(badgeId) {
     try {
-      console.log('🏆 BadgeApi: Fetching badge by ID:', badgeId);
-      console.log('🌐 API Endpoint:', API_CONFIG.endpoints.mobile.badges.getById(badgeId));
       
       if (!badgeId) {
         return {
@@ -180,8 +130,6 @@ class BadgeApi {
       
       const response = await api.get(API_CONFIG.endpoints.mobile.badges.getById(badgeId));
       
-      console.log('✅ BadgeApi: Badge fetched successfully');
-      console.log('📊 Response data:', response.data);
       
       // Handle both axios response structure and direct data
       const responseData = response.data || response;
@@ -198,13 +146,6 @@ class BadgeApi {
         error: 'Invalid response format',
       };
     } catch (error) {
-      console.error('❌ BadgeApi: Error fetching badge by ID:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      
       return {
         success: false,
         error: error.message || 'Failed to fetch badge',

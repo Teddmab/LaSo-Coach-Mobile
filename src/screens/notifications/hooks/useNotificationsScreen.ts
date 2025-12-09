@@ -34,7 +34,6 @@ export const useNotificationsScreen = (selectedTab: NotificationTab) => {
         const data = await ProfileApi.getProfile();
         setProfileData(data);
       } catch (error) {
-        console.error('[NotificationsScreen] ❌ Error fetching profile:', error);
       }
     };
     fetchProfile();
@@ -73,7 +72,6 @@ export const useNotificationsScreen = (selectedTab: NotificationTab) => {
         }));
       }
     } catch (error) {
-      console.error('❌ Error fetching notifications:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',

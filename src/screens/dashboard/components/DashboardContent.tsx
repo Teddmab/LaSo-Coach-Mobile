@@ -99,7 +99,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
-      {/* Profile Completion Card or Progress Section */}
+      {/* Profile Completion Card, Complete Card, or Progress Section */}
       {!isProfileComplete ? (
         <ProfileCompletionCard 
           key={`profile-completion-${dashboardData?.onboarding?.data?.completedSteps?.length || 0}-${dashboardData?.fetchedAt || 'initial'}`}
@@ -110,12 +110,22 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           onSubscriptionRenew={onSubscriptionRenew}
         />
       ) : (
-        <ProgressCard 
-          key={dashboardData?.fetchedAt || 'initial'}
-          dashboardData={dashboardData} 
-          onRefresh={onProgressRefresh}
-          onProgressPress={onTabPress}
-        />
+        <>
+          {/* Profile Completion Badge - Outside the card */}
+          <View style={styles.completionBadgeContainer}>
+            <View style={styles.completionBadge}>
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+              <Text style={styles.completionBadgeText}>Profil complété (175 pts)</Text>
+            </View>
+          </View>
+          <ProgressCard 
+            key={dashboardData?.fetchedAt || 'initial'}
+            dashboardData={dashboardData} 
+            onRefresh={onProgressRefresh}
+            onProgressPress={onTabPress}
+            isProfileComplete={false}
+          />
+        </>
       )}
 
       {/* Achievements Card */}
@@ -174,7 +184,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
                 key={item.id}
                 content={item}
                 onMarkComplete={onMarkContentComplete}
-                onPress={() => console.log('Content pressed:', item)}
               />
             ))
           ) : (
@@ -240,6 +249,28 @@ const styles = StyleSheet.create({
   agoraEmptyText: {
     marginTop: 12,
     color: theme.colors.text.secondary,
+  },
+  completionBadgeContainer: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  completionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  completionBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2E7D32',
+    marginLeft: 6,
   },
 });
 

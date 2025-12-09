@@ -28,55 +28,46 @@ class ChatSocketService {
     // REMEDIATION STEP 5: Keep singleton socket instance - no manual destroy/recreate loop
     // If socket exists and is connected, don't create another
     if (this.socket && this.socket.connected) {
-      console.log('🔌 Socket already connected (singleton enforced)');
       return;
     }
     
     // REMEDIATION STEP 7: Ensure only one handshake in flight
     if (this.handshakeInFlight) {
-      console.log('🔌 Handshake already in flight, waiting...');
       let attempts = 0;
       while (this.handshakeInFlight && attempts < 10) {
         await new Promise(resolve => setTimeout(resolve, 500));
         attempts++;
         if (this.socket && this.socket.connected) {
-          console.log('🔌 Socket connected while waiting');
           return;
         }
       }
       if (this.handshakeInFlight) {
-        console.warn('⚠️ Handshake still in flight after timeout');
         return;
       }
     }
     
     // If socket exists and is connecting, wait for it to complete
     if (this.socket && this.socket.connecting) {
-      console.log('🔌 Socket already connecting, waiting for connection...');
       let attempts = 0;
       while (this.socket.connecting && attempts < 10) {
         await new Promise(resolve => setTimeout(resolve, 500));
         attempts++;
         if (this.socket.connected) {
-          console.log('🔌 Socket connected while waiting');
           return;
         }
       }
       if (this.socket.connecting) {
-        console.warn('⚠️ Socket still connecting after timeout, but not creating duplicate');
         return;
       }
     }
     
     // If we're in the process of connecting (but socket doesn't exist yet), wait
     if (this.isConnecting) {
-      console.log('🔌 Connection in progress, waiting...');
       let attempts = 0;
       while (this.isConnecting && attempts < 10) {
         await new Promise(resolve => setTimeout(resolve, 500));
         attempts++;
         if (this.isConnected || (this.socket && this.socket.connected)) {
-          console.log('🔌 Socket connected while waiting');
           return;
         }
       }
@@ -87,49 +78,35 @@ class ChatSocketService {
       this.handshakeInFlight = true;
       
       // REMEDIATION STEP 4a: Confirm Firebase token is available
-      console.log('🔐 Step 1: Confirming Firebase token...');
       const idToken = await firebaseAuthService.getIdToken();
       if (!idToken) {
-        console.error('❌ No Firebase ID token available for WebSocket connection');
         this.isConnecting = false;
         this.handshakeInFlight = false;
         if (onError) onError(new Error('No authentication token available'));
         return;
       }
-      console.log('✅ Firebase token confirmed');
       
       // REMEDIATION STEP 4b: Warm up service with lightweight API call
       // Backend requirement: Instance must be warm before Socket.IO connection
       // This prevents "x-render-routing: no-server" 404 errors from cold starts
-      console.log('🔥 Step 2: Warming up service with health check...');
       try {
         const healthResponse = await axios.get(`${Config.API_BASE_URL}/health`, {
           timeout: 10000,
         });
-        console.log('✅ Service warmed up:', healthResponse.status);
         
         // Backend recommendation: Brief delay after warmup to ensure instance is ready
         await new Promise(resolve => setTimeout(resolve, 500));
-        console.log('✅ Warmup delay complete, instance should be ready');
       } catch (healthError) {
-        console.warn('⚠️ Health check failed (non-fatal, continuing):', healthError.message);
         // Don't block connection if health check fails, but log it
         // Still add brief delay to allow instance to wake up
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const wsUrl = Config.WS_BASE_URL;
-      console.log('🔌 Connecting to WebSocket server:', {
-        url: wsUrl,
-        hasToken: !!idToken,
-        tokenLength: idToken.length,
-        tokenPrefix: idToken.substring(0, 20) + '...',
-      });
 
       // Only clean up if socket exists and is truly disconnected
       // Don't aggressively tear down - let Socket.IO handle reconnection
       if (this.socket && !this.socket.connected && !this.socket.connecting) {
-        console.log('🧹 Cleaning up disconnected socket...');
         // Remove all event listeners from old socket
         this.socket.io.off('reconnect_attempt');
         this.socket.io.off('reconnect');
@@ -139,7 +116,6 @@ class ChatSocketService {
         this.socket = null;
       } else if (this.socket && (this.socket.connected || this.socket.connecting)) {
         // Socket is already connected or connecting - don't create duplicate
-        console.log('ℹ️ Socket already exists and is connected/connecting, skipping new connection');
         this.isConnecting = false;
         return;
       }
@@ -167,7 +143,6 @@ class ChatSocketService {
         connectionUrl = connectionUrl.replace(/\/$/, '');
       } catch (e) {
         // Fallback: aggressive regex removal if URL parsing fails
-        console.warn('⚠️ URL parsing failed, using regex fallback:', e);
         connectionUrl = connectionUrl.replace(/:443\/?$/, ''); // Remove :443 at end
         connectionUrl = connectionUrl.replace(/:443\//, '/'); // Remove :443 before /
         connectionUrl = connectionUrl.replace(/:443/, ''); // Remove any remaining :443
@@ -180,7 +155,6 @@ class ChatSocketService {
       // CRITICAL: Final verification and force removal of any port
       // Socket.IO might add port back, so we do a final aggressive cleanup
       if (connectionUrl.includes(':443') || connectionUrl.includes(':80')) {
-        console.error('❌ CRITICAL: URL still contains port after processing!', connectionUrl);
         // Force remove any remaining port using regex
         connectionUrl = connectionUrl.replace(/:\d+/, '');
       }
@@ -188,16 +162,8 @@ class ChatSocketService {
       // Additional safety: Remove any port pattern that might have been added
       connectionUrl = connectionUrl.replace(/:\d+(\/|$)/, '$1');
       
-      console.log('🔍 URL processing (remediation step 1):', {
-        original: wsUrl,
-        final: connectionUrl,
-        hasPort: connectionUrl.includes(':443') || connectionUrl.includes(':80'),
-        urlLength: connectionUrl.length,
-      });
-      
       // Final assertion: URL must not have a port
       if (connectionUrl.match(/:\d+/)) {
-        console.error('❌ FATAL: URL still has port pattern! Forcing removal...');
         connectionUrl = connectionUrl.replace(/:\d+/, '');
       }
       
@@ -216,29 +182,6 @@ class ChatSocketService {
       // CRITICAL: Use standard Socket.IO client with default path (/socket.io)
       // Backend confirms: Only /socket.io is valid, no path cycling needed
       // Let Socket.IO handle reconnection automatically
-      console.log('🔌 Connecting to Socket.IO server:', {
-        url: connectionUrl,
-        originalUrl: wsUrl,
-        path: 'default (/socket.io)',
-        transport: 'websocket-only (no polling)',
-        upgrade: false,
-        hasToken: !!tokenWithoutBearer,
-        tokenLength: tokenWithoutBearer.length,
-        tokenPrefix: tokenWithoutBearer.substring(0, 30) + '...',
-        config: {
-          transports: ['websocket'],
-          upgrade: false,
-          rememberUpgrade: false,
-        },
-      });
-      
-      // Log the exact connection URL that will be used
-      console.log('🔍 Connection details:', {
-        finalUrl: connectionUrl,
-        willConnectTo: `${connectionUrl}/socket.io/`,
-        authTokenPresent: !!tokenWithoutBearer,
-        authTokenLength: tokenWithoutBearer?.length || 0,
-      });
       
       // CRITICAL: Use standard Socket.IO client configuration (matches Admin FE)
       // Backend confirmed: Admin FE uses standard socket.io-client with default behavior
@@ -274,20 +217,12 @@ class ChatSocketService {
           ? connectionTime - this.firstHandshakeTimestamp 
           : null;
         
-        console.log('✅✅✅ Connected to chat server:', {
-          socketId: this.socket.id,
-          connected: this.socket.connected,
-          transport: this.socket.io?.engine?.transport?.name,
-          handshakeDuration: handshakeDuration ? `${handshakeDuration}ms` : 'unknown',
-          timestamp: new Date(connectionTime).toISOString(),
-        });
         this.isConnected = true;
         this.isConnecting = false;
         this.handshakeInFlight = false;
         this.reconnectAttempts = 0;
         
         // CRITICAL: Subscribe to notifications after connection (per backend guide)
-        console.log('📡 Subscribing to notifications...');
         this.socket.emit('subscribe:notifications');
         
         // Note: Rooms will be joined immediately in handleConnect callback
@@ -298,23 +233,18 @@ class ChatSocketService {
       
       // Add additional event listeners for debugging
       this.socket.io.on('error', (error) => {
-        console.log('🔴 [Socket.IO] io error event fired:', error);
       });
       
       this.socket.io.on('reconnect_attempt', (attemptNumber) => {
-        console.log(`🔄 [Socket.IO] Reconnect attempt ${attemptNumber}`);
       });
       
       this.socket.io.on('reconnect', (attemptNumber) => {
-        console.log(`✅ [Socket.IO] Reconnected after ${attemptNumber} attempts`);
       });
       
       this.socket.io.on('reconnect_failed', () => {
-        console.log('❌ [Socket.IO] Reconnect failed');
       });
 
       this.socket.on('disconnect', (reason) => {
-        console.log('❌ Disconnected from chat server:', reason);
         this.isConnected = false;
         this.joinedRooms.clear();
         if (onDisconnect) onDisconnect(reason);
@@ -331,10 +261,6 @@ class ChatSocketService {
         const isActuallyConnected = this.socket?.connected || this.isConnected;
         
         if (isActuallyConnected) {
-          console.log('⚠️ Transport error but socket is connected (non-fatal):', {
-            message: errorMessage,
-            socketId: this.socket?.id,
-          });
           return;
         }
         
@@ -352,61 +278,10 @@ class ChatSocketService {
           actualRequestUrl = `${this.connectionUrl}/socket.io/?EIO=4&transport=websocket`;
         }
         
-        console.error('❌ Socket connection error (detailed):', {
-          message: errorMessage,
-          type: errorType,
-          description: errorDescription,
-          status: responseStatus,
-          requestUrl: requestUrl,
-          cfRay: cfRay, // Cloudflare ray ID for debugging
-          responseHeaders: responseHeaders,
-          url: this.connectionUrl,
-          path: 'default (/socket.io)',
-          transport: 'websocket-only',
-          hasToken: !!this.tokenWithoutBearer,
-          tokenLength: this.tokenWithoutBearer?.length || 0,
-          tokenPrefix: this.tokenWithoutBearer?.substring(0, 20) + '...',
-          socketId: this.socket?.id,
-          socketConnected: this.socket?.connected,
-          socketConnecting: this.socket?.connecting,
-          handshakeTimestamp: this.firstHandshakeTimestamp 
-            ? new Date(this.firstHandshakeTimestamp).toISOString() 
-            : 'N/A',
-          errorResponse: errorContext?._response || errorContext?.response,
-        });
-        
         // REMEDIATION STEP 8: Capture details for 404 with x-render-routing:no-server
         if (responseStatus === 404 || (typeof responseStatus === 'object' && responseStatus?.message?.includes('404'))) {
-          console.error('🚨 404 ERROR - Path not found!');
-          console.error('   Connection URL:', this.connectionUrl);
-          console.error('   Requested URL:', actualRequestUrl || requestUrl || 'Unable to determine');
-          console.error('   Error Message:', errorMessage);
-          console.error('   Error Description:', typeof errorDescription === 'object' ? errorDescription?.message : errorDescription);
-          console.error('   CF-Ray:', cfRay);
-          console.error('   Response Headers:', JSON.stringify(responseHeaders, null, 2));
-          console.error('   Full Error Context:', JSON.stringify(errorContext, null, 2));
-          console.error('');
-          console.error('   ⚠️ This is likely a Render cold start / routing issue!');
-          console.error('   The request was terminated by Render edge router BEFORE reaching backend.');
-          console.error('   This happens when:');
-          console.error('     1. Instance is cold starting / not ready');
-          console.error('     2. Socket.IO connects before REST warmup completes');
-          console.error('     3. Edge/CDN interaction with WebSocket upgrade protocol');
-          console.error('');
-          console.error('   ✅ Path is correct: /socket.io/ (backend confirmed)');
-          console.error('   ✅ URL is correct: https://lasocoach-backend.onrender.com');
-          console.error('   ✅ Configuration matches backend recommendations');
-          console.error('');
-          console.error('   🔍 NEXT STEPS:');
-          console.error('   1. Ensure warmup REST call succeeds before socket init');
-          console.error('   2. Check if instance is cold (Render free tier sleeps)');
-          console.error('   3. Verify backend logs show request reached Node process');
-          console.error('   4. If no backend logs, this confirms edge router termination');
           
           if (responseHeaders['x-render-routing'] === 'no-server') {
-            console.error('');
-            console.error('   🚨 CRITICAL: x-render-routing: no-server detected!');
-            console.error('   This indicates a Render routing issue');
           }
         }
         
@@ -429,7 +304,6 @@ class ChatSocketService {
         // Only log actual errors, not connection errors (which are handled above)
         const errorMessage = error?.message || 'Unknown error';
         if (!errorMessage.includes('websocket') && !errorMessage.includes('connection')) {
-          console.error('❌ Socket error:', error);
           if (onError) onError(error);
         }
       });
@@ -438,19 +312,16 @@ class ChatSocketService {
       this.socket.io.on('reconnect_attempt', (attemptNumber) => {
         // Only log every 10th reconnection attempt to reduce log spam
         if (attemptNumber % 10 === 0 || attemptNumber <= 3) {
-          console.log(`🔄 WebSocket reconnection attempt ${attemptNumber} (this is normal during network issues)`);
         }
       });
 
       this.socket.io.on('reconnect', (attemptNumber) => {
-        console.log(`✅ Reconnected after ${attemptNumber} attempts`);
         this.isConnected = true;
         this.isConnecting = false;
         this.handshakeInFlight = false; // Reset handshake flag on reconnect
         this.reconnectAttempts = 0;
         
         // CRITICAL: Subscribe to notifications after reconnection
-        console.log('📡 Re-subscribing to notifications after reconnect...');
         this.socket.emit('subscribe:notifications');
         
         // Note: Rooms will be rejoined by the useEffect in ChatContext
@@ -459,16 +330,13 @@ class ChatSocketService {
       });
 
       this.socket.io.on('reconnect_failed', () => {
-        console.error('❌ Reconnection failed after maximum attempts');
         this.isConnecting = false;
         this.isConnected = false;
         // Don't call onError here - let the user manually retry or wait for next connection attempt
         // The socket.io client will keep trying to reconnect
-        console.log('ℹ️ Socket.io will continue attempting to reconnect in the background');
       });
 
     } catch (error) {
-      console.error('❌ Error initializing WebSocket connection:', error);
       this.isConnecting = false;
       this.handshakeInFlight = false;
       if (onError) onError(error);
@@ -480,7 +348,6 @@ class ChatSocketService {
    */
   disconnect() {
     if (this.socket) {
-      console.log('🔌 Disconnecting from chat server');
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
@@ -499,14 +366,11 @@ class ChatSocketService {
     if (this.socket) {
       // Socket exists - use its built-in reconnect
       if (!this.socket.connected && !this.socket.connecting) {
-        console.log('🔄 Manually triggering socket reconnection...');
         this.socket.connect();
       } else {
-        console.log('ℹ️ Socket already connected/connecting, Socket.IO will handle reconnection');
       }
     } else {
       // No socket - need to call connect() to create one
-      console.log('ℹ️ No socket exists - call connect() to create new connection');
     }
   }
   
@@ -516,7 +380,6 @@ class ChatSocketService {
    */
   updateAuthToken(newToken) {
     if (!this.socket) {
-      console.warn('⚠️ Cannot update auth token: socket does not exist');
       return;
     }
     
@@ -530,10 +393,8 @@ class ChatSocketService {
     
     // If disconnected, reconnect with new token
     if (!this.socket.connected) {
-      console.log('🔄 Reconnecting with updated auth token...');
       this.socket.connect();
     } else {
-      console.log('✅ Auth token updated (socket already connected)');
     }
   }
 
@@ -543,16 +404,13 @@ class ChatSocketService {
    */
   joinChat(chatId) {
     if (!this.socket || !this.isConnected) {
-      console.warn('⚠️ Cannot join chat: socket not connected');
       return;
     }
 
     if (this.joinedRooms.has(chatId)) {
-      console.log(`ℹ️ Already joined chat: ${chatId}`);
       return;
     }
 
-    console.log(`🔌 Joining chat room: ${chatId}`);
     this.socket.emit('chat:join', { chatId });
     this.joinedRooms.add(chatId);
   }
@@ -570,7 +428,6 @@ class ChatSocketService {
       return;
     }
 
-    console.log(`🔌 Leaving chat room: ${chatId}`);
     this.socket.emit('chat:leave', { chatId });
     this.joinedRooms.delete(chatId);
   }
@@ -581,7 +438,6 @@ class ChatSocketService {
    */
   markNotificationRead(notificationId) {
     if (!this.socket || !this.isConnected) {
-      console.warn('⚠️ Cannot mark notification read: socket not connected');
       return;
     }
 
@@ -595,18 +451,10 @@ class ChatSocketService {
    */
   onMessage(callback) {
     if (!this.socket) {
-      console.warn('⚠️ Cannot subscribe to messages: socket not initialized');
       return () => {};
     }
 
     const listener = (message) => {
-      console.log('📨 [chatSocketService] Raw WebSocket message received:', {
-        messageId: message?.id,
-        chatId: message?.chatId || message?.chat?.id,
-        hasContent: !!message?.content,
-        senderId: message?.senderId || message?.sender?.id,
-        fullMessage: message,
-      });
       callback(message);
     };
 
@@ -633,7 +481,6 @@ class ChatSocketService {
     }
 
     const listener = (chat) => {
-      console.log('💬 New chat created:', chat);
       callback(chat);
     };
 
@@ -659,7 +506,6 @@ class ChatSocketService {
     }
 
     const listener = (participant) => {
-      console.log('➕ Participant added:', participant);
       callback(participant);
     };
 
@@ -685,7 +531,6 @@ class ChatSocketService {
     }
 
     const listener = (participantId) => {
-      console.log('➖ Participant removed:', participantId);
       callback(participantId);
     };
 
@@ -711,11 +556,6 @@ class ChatSocketService {
     }
 
     const listener = (notification) => {
-      console.log('🔔 [chatSocketService] New notification received:', {
-        type: notification.type,
-        title: notification.title,
-        hasData: !!notification.data,
-      });
       // CRITICAL: Handle ALL notification types, not just CHAT_MESSAGE
       // Backend sends all notifications (challenges, achievements, etc.) through this event
       callback(notification);
@@ -743,7 +583,6 @@ class ChatSocketService {
     }
 
     const listener = (data) => {
-      console.log('💰 Points updated:', data);
       callback(data);
     };
 
@@ -769,7 +608,6 @@ class ChatSocketService {
     }
 
     const listener = (data) => {
-      console.log('🏆 Badge level unlocked:', data);
       callback(data);
     };
 
@@ -795,7 +633,6 @@ class ChatSocketService {
     }
 
     const listener = (data) => {
-      console.log('🔄 Badge updated:', data);
       callback(data);
     };
 
@@ -835,13 +672,10 @@ class ChatSocketService {
       }
       healthUrl = `${healthUrl}/ws-health`;
       
-      console.log('🔍 Checking WebSocket health:', healthUrl);
       const response = await axios.get(healthUrl, { timeout: 10000 });
       
-      console.log('✅ WebSocket health check:', response.data);
       return response.data;
     } catch (error) {
-      console.error('❌ WebSocket health check failed:', error.message);
       throw error;
     }
   }

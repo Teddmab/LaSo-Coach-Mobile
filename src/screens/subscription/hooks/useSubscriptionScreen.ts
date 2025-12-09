@@ -47,7 +47,6 @@ export const useSubscriptionScreen = (
         setInvoices(historyResponse);
       }
     } catch (error) {
-      console.error('❌ Error initializing subscription screen:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur de chargement',
@@ -82,7 +81,6 @@ export const useSubscriptionScreen = (
         setInvoices(historyResponse);
       }
     } catch (error) {
-      console.error('❌ Error refreshing subscription:', error);
     }
   }, []);
 
@@ -100,7 +98,6 @@ export const useSubscriptionScreen = (
           await refreshProfile();
         }
       } catch (error) {
-        console.log('⚠️ Error refreshing on focus:', error);
       }
     });
 
@@ -148,7 +145,6 @@ export const useSubscriptionScreen = (
   }, [refreshSubscriptionData, refreshProfile]);
 
   const handlePaymentError = useCallback((error: any) => {
-    console.error('❌ Payment error:', error);
     setShowPaymentFlow(false);
     setSelectedPlan(null);
   }, []);
@@ -176,7 +172,6 @@ export const useSubscriptionScreen = (
         setInvoices([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching subscription history:', error);
       setInvoices([]);
     } finally {
       setLoadingInvoices(false);

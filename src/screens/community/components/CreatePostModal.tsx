@@ -44,7 +44,7 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
           <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
             <Text style={styles.cancelText}>Annuler</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Créer un post</Text>
+          <Text style={styles.title}>Créer une publication</Text>
           <TouchableOpacity
             onPress={onPublish}
             disabled={isPublishing || (!postText.trim() && selectedImages.length === 0)}
@@ -108,54 +108,67 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#F0F2F5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    borderBottomColor: '#E4E6EB',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   cancelButton: {
-    padding: 4,
+    padding: 8,
   },
   cancelText: {
     fontSize: 16,
-    color: theme.colors.text.secondary,
+    color: '#1877F2',
+    fontWeight: '500',
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#050505',
   },
   publishButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 16,
+    backgroundColor: '#1877F2',
+    paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
+    minWidth: 80,
+    alignItems: 'center',
   },
   publishButtonDisabled: {
-    backgroundColor: theme.colors.border,
-    opacity: 0.5,
+    backgroundColor: '#E4E6EB',
+    opacity: 0.6,
   },
   publishText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   content: {
     flex: 1,
     padding: 16,
+    backgroundColor: '#FFFFFF',
   },
   textInput: {
     fontSize: 16,
-    color: theme.colors.text.primary,
-    minHeight: 100,
+    color: '#050505',
+    minHeight: 120,
     marginBottom: 16,
+    lineHeight: 22,
   },
   imagesContainer: {
     flexDirection: 'row',
@@ -167,6 +180,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '48%',
     aspectRatio: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   image: {
     width: '100%',
@@ -176,10 +191,11 @@ const styles = StyleSheet.create({
   },
   removeImageButton: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 12,
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
+    padding: 6,
   },
   addImageButton: {
     flexDirection: 'row',
@@ -187,16 +203,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     borderWidth: 2,
-    borderColor: theme.colors.border,
+    borderColor: '#E4E6EB',
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: 12,
     marginTop: 8,
+    backgroundColor: '#F0F2F5',
   },
   addImageText: {
-    fontSize: 16,
-    color: theme.colors.primary,
+    fontSize: 15,
+    color: '#1877F2',
     marginLeft: 8,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 });
 

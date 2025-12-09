@@ -54,17 +54,8 @@ class DeviceInfoService {
         collectedAt: new Date().toISOString(),
       };
 
-      console.log('📱 Device Info collected:', {
-        platform: deviceInfo.platform,
-        manufacturer: deviceInfo.manufacturer,
-        modelName: deviceInfo.modelName,
-        osVersion: deviceInfo.osVersion,
-        isDevice: deviceInfo.isDevice,
-      });
-
       return deviceInfo;
     } catch (error) {
-      console.error('❌ Error getting device info:', error);
       // Retourner un objet minimal en cas d'erreur
       return {
         platform: Platform.OS,
@@ -93,7 +84,6 @@ class DeviceInfoService {
       // Pour l'instant, on retourne null
       return null;
     } catch (error) {
-      console.warn('⚠️ Could not get Android ID:', error);
       return null;
     }
   }

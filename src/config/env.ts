@@ -13,20 +13,7 @@ import {
   STRIPE_PUBLISHABLE_KEY,
 } from '@env';
 
-// ✅ DEBUG: Vérifier chargement variables .env
-console.log('🔍 [DEBUG ENV] Variables chargées depuis @env:', {
-  API_BASE_URL: API_BASE_URL || '❌ UNDEFINED',
-  API_BASE_URL_DEV: API_BASE_URL_DEV || '❌ UNDEFINED',
-  API_TIMEOUT: API_TIMEOUT || '❌ UNDEFINED',
-});
-
 const extraEnv = Constants.expoConfig?.extra?.env ?? {};
-
-// ✅ DEBUG: Vérifier app.json config
-console.log('🔍 [DEBUG ENV] Variables depuis app.json:', {
-  apiBaseUrl: extraEnv.apiBaseUrl || '❌ UNDEFINED',
-  apiBaseUrlDev: extraEnv.apiBaseUrlDev || '❌ UNDEFINED',
-});
 
 // Determine the appropriate API URL based on environment
 const getApiBaseUrl = (): string => {
@@ -38,32 +25,21 @@ const getApiBaseUrl = (): string => {
   
   // Try to get dev URL from various sources (check app config first)
   const devUrl = extraEnv.apiBaseUrlDev || API_BASE_URL_DEV;
-  console.log('🔍 Dev URL sources:', { extraEnv: extraEnv.apiBaseUrlDev, envVar: API_BASE_URL_DEV, forceProd });
   
   // ✅ FIX: Utiliser production si forcé OU si on est en dev mais pas de backend local
   // (localhost:3000 n'existe probablement pas si backend est sur Render)
   if (forceProd || !isDev) {
     const prodUrl = extraEnv.apiBaseUrl || API_BASE_URL || 'https://laso-coach-backend.onrender.com/api/v1';
-    console.log('🚀 Using production API:', prodUrl);
-    console.log('🔍 [DEBUG] Source URL:', {
-      fromAppJson: extraEnv.apiBaseUrl ? '✅ app.json' : '❌',
-      fromEnv: API_BASE_URL ? '✅ .env' : '❌',
-      fallback: (!extraEnv.apiBaseUrl && !API_BASE_URL) ? '✅ hardcoded' : '❌',
-      reason: forceProd ? 'forceProd=true' : 'production build',
-    });
     return prodUrl;
   }
   
   // Use dev URL in development (seulement si backend local existe)
   if (isDev && devUrl && devUrl !== 'http://localhost:3000/api/v1') {
-    console.log('🔧 Using development API:', devUrl);
     return devUrl;
   }
   
   // Fallback: Production même en dev si pas de backend local
   const prodUrl = extraEnv.apiBaseUrl || API_BASE_URL || 'https://laso-coach-backend.onrender.com/api/v1';
-  console.log('🚀 Using production API (fallback):', prodUrl);
-  console.log('⚠️ [DEBUG] Dev URL non disponible, utilisation production');
   return prodUrl;
 };
 
@@ -113,24 +89,13 @@ const Config = {
         // Convert to WebSocket protocol
         return normalizeWebSocketUrl(origin);
       } catch (e) {
-        console.warn('⚠️ Failed to derive WebSocket URL from API URL:', e);
         return null;
       }
     };
 
-    // Debug: Log all potential sources
-    console.log('🔍 WebSocket URL sources:', {
-      extraEnv: extraEnv.wsBaseUrl,
-      envVar: WS_BASE_URL,
-      envVarDev: WS_BASE_URL_DEV,
-      isDev: __DEV__,
-      apiBaseUrl: getApiBaseUrl(),
-    });
-
     // Check app.json config first
     if (extraEnv.wsBaseUrl) {
       const normalized = normalizeWebSocketUrl(extraEnv.wsBaseUrl);
-      console.log('🔌 Using WebSocket URL from app.json:', normalized);
       return normalized || '';
     }
     // Check .env file
@@ -145,26 +110,18 @@ const Config = {
         
         // If domains don't match, derive from API URL instead
         if (wsUrlObj.hostname !== apiUrlObj.hostname) {
-          console.warn('⚠️ WebSocket URL domain mismatch detected!');
-          console.warn('   WebSocket domain:', wsUrlObj.hostname);
-          console.warn('   API domain:', apiUrlObj.hostname);
-          console.warn('   Deriving WebSocket URL from API URL to ensure consistency...');
           const derivedWsUrl = deriveWebSocketUrlFromApi(apiBaseUrl);
           if (derivedWsUrl) {
-            console.log('🔌 Using derived WebSocket URL (from API):', derivedWsUrl);
             return derivedWsUrl;
           }
         }
       } catch (e) {
-        console.warn('⚠️ Failed to verify WebSocket URL domain match:', e);
       }
-      console.log('🔌 Using WebSocket URL from .env:', normalized, '(original:', WS_BASE_URL, ')');
       return normalized || '';
     }
     // Check dev URL from .env
     if (__DEV__ && WS_BASE_URL_DEV) {
       const normalized = normalizeWebSocketUrl(WS_BASE_URL_DEV);
-      console.log('🔌 Using WebSocket dev URL from .env:', normalized);
       return normalized || '';
     }
     
@@ -173,14 +130,11 @@ const Config = {
     const apiBaseUrl = getApiBaseUrl();
     const derivedWsUrl = deriveWebSocketUrlFromApi(apiBaseUrl);
     if (derivedWsUrl) {
-      console.log('🔌 Derived WebSocket URL from API base URL:', derivedWsUrl, '(from API:', apiBaseUrl, ')');
       return derivedWsUrl;
     }
     
     // Fallback (should not be used if API URL is properly configured)
     const fallback = __DEV__ ? 'ws://localhost:5001' : 'wss://laso-coach-backend.onrender.com';
-    console.warn('⚠️ Using fallback WebSocket URL (configure .env file):', fallback);
-    console.warn('⚠️ Make sure WS_BASE_URL is set in your .env file');
     return fallback;
   })(),
   
@@ -204,17 +158,7 @@ const Config = {
 
 // Log configuration in development
 if (__DEV__) {
-  console.log('🔧 App Configuration:', {
-    NODE_ENV: Config.NODE_ENV,
-    API_BASE_URL: Config.API_BASE_URL,
-    API_BASE_URL_DEV: Config.API_BASE_URL_DEV,
-    WS_BASE_URL: Config.WS_BASE_URL,
-    IS_DEV: Config.IS_DEV,
-    API_TIMEOUT: Config.API_TIMEOUT,
-    DEBUG_MODE: Config.DEBUG_MODE,
-    OFFLINE_MODE: Config.OFFLINE_MODE,
-    STRIPE_PUBLISHABLE_KEY: Config.STRIPE_PUBLISHABLE_KEY ? `${Config.STRIPE_PUBLISHABLE_KEY.substring(0, 12)}...` : '❌ NOT SET',
-  });
+  // Configuration loaded
 }
 
 export default Config;

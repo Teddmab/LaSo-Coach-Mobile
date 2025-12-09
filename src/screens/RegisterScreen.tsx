@@ -165,13 +165,11 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
 
       await register(registrationData);
       // User will be set by auth context
-      console.log('✅ Registration successful');
       
       // Show success modal
       // Note: user will be available via auth context after successful registration
       setShowSuccessModal(true);
     } catch (error: any) {
-      console.error('❌ Registration failed:', error?.message || error);
       // Error handling is done in the AuthContext with Toast
     }
   };

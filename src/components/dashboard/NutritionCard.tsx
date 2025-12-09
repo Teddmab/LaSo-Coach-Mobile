@@ -218,16 +218,13 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
         
         // Fetch nutrition plans
         const plansResponse = await nutritionAPI.getPlans();
-        console.log('🥗 Plans response:', plansResponse);
         
         if (plansResponse.success && plansResponse.data.plans && plansResponse.data.plans.length > 0) {
           const currentPlan = plansResponse.data.plans[0]; // Get the first plan for now
-          console.log('🥗 Current plan:', currentPlan);
           
           // Fetch completion status for the current plan
           try {
             const completionResponse = await nutritionAPI.getCompletionStatus(currentPlan.id);
-            console.log('🥗 Completion response:', completionResponse);
             
             const nutritionData = {
               plan: currentPlan,
@@ -243,7 +240,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             
             setNutritionData(nutritionData);
           } catch (completionError) {
-            console.error('❌ Error fetching completion status:', completionError);
             // Use plan data without completion status
             const nutritionData = {
               plan: currentPlan,
@@ -259,11 +255,9 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             setNutritionData(nutritionData);
           }
         } else {
-          console.log('🥗 No nutrition plans available');
           setNutritionData(null);
         }
       } catch (error) {
-        console.error('❌ Error fetching nutrition data:', error);
         // Fallback to mock data for development
         setNutritionData(mockNutritionData);
       } finally {
@@ -568,7 +562,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
                 isWeekend && !(selectedDay === index + 1) && styles.dateButtonWeekend
               ]}
               onPress={() => {
-                console.log('🥗 Day navigation: Selected day', index + 1);
                 setSelectedDay(index + 1);
               }}
             >
@@ -622,7 +615,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
                     style={styles.mealImage}
                     resizeMode="cover"
                     onError={(error) => {
-                      console.log('❌ Image loading error for meal:', meal.name, error);
                     }}
                     defaultSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
                   />
@@ -687,7 +679,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             //     // Refresh data after completion
             //     // fetchNutritionData();
             //   } catch (error) {
-            //     console.error('Error marking day as complete:', error);
             //   }
             // }
           }}

@@ -22,40 +22,46 @@ const FeaturedBadge: React.FC<FeaturedBadgeProps> = ({ badge, onPress }) => {
       onPress={() => onPress(badge)}
       activeOpacity={0.8}
     >
-      <View style={styles.iconContainer}>
-        {badgeImage ? (
-          <Image 
-            source={badgeImage} 
-            style={styles.icon}
-            resizeMode="contain"
-          />
-        ) : (
-          <View style={[styles.iconPlaceholder, { backgroundColor: `${(badge as any).color || '#3B82F6'}20` }]}>
-            <Ionicons name="trophy" size={64} color={(badge as any).color || '#3B82F6'} />
-          </View>
-        )}
-        {(badge as any).currentLevel > 0 && (
-          <View style={styles.levelIndicator}>
-            <Text style={styles.levelIndicatorText}>{(badge as any).currentLevel}</Text>
-          </View>
-        )}
-      </View>
-
       <View style={styles.info}>
-        <View style={styles.header}>
+        {/* Badge et nom alignés ensemble */}
+        <View style={styles.badgeHeader}>
+          <View style={styles.iconContainer}>
+            {badgeImage ? (
+              <Image 
+                source={badgeImage} 
+                style={styles.icon}
+                resizeMode="contain"
+              />
+            ) : (
+              <View style={[styles.iconPlaceholder, { backgroundColor: `${(badge as any).color || '#3B82F6'}20` }]}>
+                <Ionicons name="trophy" size={64} color={(badge as any).color || '#3B82F6'} />
+              </View>
+            )}
+            {(badge as any).currentLevel > 0 && (
+              <View style={styles.levelIndicator}>
+                <Text style={styles.levelIndicatorText}>{(badge as any).currentLevel}</Text>
+              </View>
+            )}
+          </View>
+          
           <View style={styles.titleContainer}>
             <Text style={styles.label}>Badge</Text>
             <Text style={styles.name}>
               {(badge as any).displayName || badge.name?.toUpperCase()}
             </Text>
+            {isAvailable && (
+              <TouchableOpacity style={styles.availableButton}>
+                <Text style={styles.availableButtonText}>DISPONIBLE</Text>
+                <View style={styles.availableDot} />
+              </TouchableOpacity>
+            )}
           </View>
-          {isAvailable && (
-            <TouchableOpacity style={styles.availableButton}>
-              <Text style={styles.availableButtonText}>DISPONIBLE</Text>
-              <View style={styles.availableDot} />
-            </TouchableOpacity>
-          )}
         </View>
+
+        {/* Description qui prend tout l'espace en dessous */}
+        <Text style={styles.description}>
+          {badge.description || 'Description du badge'}
+        </Text>
 
         <View style={styles.stats}>
           <Text style={styles.stat}>
@@ -65,10 +71,6 @@ const FeaturedBadge: React.FC<FeaturedBadgeProps> = ({ badge, onPress }) => {
             Points gagnés: {(badge as any).totalPointsEarned || 0}
           </Text>
         </View>
-
-        <Text style={styles.description}>
-          {badge.description || 'Description du badge'}
-        </Text>
 
         <View style={styles.progress}>
           <Text style={styles.levelText}>
@@ -104,12 +106,19 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     borderRadius: 16,
     padding: 20,
-    flexDirection: 'row',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  info: {
+    flex: 1,
+  },
+  badgeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   iconContainer: {
     position: 'relative',
@@ -141,15 +150,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  info: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
   },
   titleContainer: {
     flex: 1,
@@ -197,6 +197,7 @@ const styles = StyleSheet.create({
     color: '#7F8C8D',
     marginBottom: 12,
     lineHeight: 20,
+    width: '100%',
   },
   progress: {
     marginBottom: 8,

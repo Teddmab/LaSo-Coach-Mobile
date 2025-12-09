@@ -89,36 +89,7 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
 
   // Debug logging to show expected data structure (BadgeProgressWidget)
   React.useEffect(() => {
-    console.log('🔍 AchievementsCard: ========== RECEIVED DATA ==========');
-    console.log('📦 Complete badgesData prop:', JSON.stringify(badgesData, null, 2));
-    console.log('📊 Extracted values:', {
-      userPoints: badgesData?.totalPoints,
-      currentBadge: badgesData?.currentBadge,
-      currentBadgeDescription: badgesData?.currentBadgeDescription,
-      currentBadgeLevel: badgesData?.currentBadgeLevel,
-      pointsNeededForNext: badgesData?.pointsNeededForNext,
-      maxPointsForCurrentBadge: badgesData?.maxPointsForCurrentBadge,
-      nextBadgeName: badgesData?.nextBadgeName,
-      unlockedBadges: badgesData?.unlockedBadges,
-      totalBadges: badgesData?.totalBadges,
-      progressPercentage: badgesData?.progressPercentage,
-      isCurrent: badgesData?.isCurrent,
-    });
-    console.log('📊 Computed values:', {
-      userPoints,
-      currentBadge,
-      currentBadgeDescription,
-      currentBadgeLevel,
-      pointsNeededForNext,
-      maxPointsForCurrentBadge,
-      pointsEarnedForCurrentBadge,
-      nextBadgeName,
-      unlockedBadges,
-      totalBadges,
-      progressPercentage,
-      globalProgressPercentage,
-    });
-    console.log('🔍 AchievementsCard: ===================================');
+    // Data structure logged for debugging
   }, [badgesData]);
 
   const handlePress = () => {
@@ -126,7 +97,6 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
     const requiresRenewal = subscriptionData?.requiresRenewal || false;
     
     if (requiresRenewal && onSubscriptionRenew) {
-      console.log('💳 Achievements card blocked - subscription renewal required');
       onSubscriptionRenew();
       return;
     }

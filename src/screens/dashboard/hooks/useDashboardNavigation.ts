@@ -9,14 +9,11 @@ export const useDashboardNavigation = () => {
   const handleTabPress = useCallback((tabId: string): void => {
     if (tabId === 'more') {
       setShowMoreMenu(true);
-      console.log('Tab pressed: more - showing menu');
     } else if (['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile', 'subscription', 'language', 'notification-settings'].includes(tabId)) {
       // Écrans spéciaux qui ne sont pas des onglets de navigation
-      console.log('Screen navigation:', tabId);
       setCurrentScreen(tabId);
     } else {
       // Onglets de navigation principaux
-      console.log('Tab pressed:', tabId);
       setActiveTab(tabId);
       setCurrentScreen(tabId);
     }
@@ -32,7 +29,6 @@ export const useDashboardNavigation = () => {
     };
     
     const pageName = pageNames[itemId] || itemId;
-    console.log('📊 Page Navigation:', pageName);
     
     switch (itemId) {
       case 'chat':
@@ -51,7 +47,6 @@ export const useDashboardNavigation = () => {
         setCurrentScreen('settings');
         break;
       default:
-        console.log('Unknown menu item:', itemId);
     }
     
     setShowMoreMenu(false);
@@ -71,7 +66,6 @@ export const useDashboardNavigation = () => {
       6: 'Confirmation',
     };
     
-    console.log('📊 Page Navigation:', `Profile - ${stepNames[stepId] || `Step ${stepId}`}`);
     setCurrentScreen('profile');
     setInitialProfileStep(stepId);
   }, []);

@@ -55,7 +55,6 @@ export const calculateBillingPeriod = (startDate?: string, endDate?: string): st
       return 'Annuelle';
     }
   } catch (error) {
-    console.error('Error calculating billing period:', error);
     return 'Mensuelle';
   }
 };

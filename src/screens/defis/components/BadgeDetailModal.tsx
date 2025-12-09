@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Modal, ScrollView, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Badge } from '../types';
+import { getBadgeImage } from '../utils/defisUtils';
 
 interface BadgeDetailModalProps {
   visible: boolean;
@@ -15,6 +16,8 @@ const BadgeDetailModal: React.FC<BadgeDetailModalProps> = ({
   onClose,
 }) => {
   if (!badge) return null;
+
+  const badgeImage = getBadgeImage(badge.name);
 
   return (
     <Modal
@@ -36,10 +39,11 @@ const BadgeDetailModal: React.FC<BadgeDetailModalProps> = ({
             {/* Badge Header */}
             <View style={styles.badgeHeader}>
               <View style={[styles.iconContainer, { backgroundColor: `${(badge as any).color || '#3B82F6'}20` }]}>
-                {(badge as any).icon ? (
+                {badgeImage ? (
                   <Image 
-                    source={{ uri: (badge as any).icon }} 
+                    source={badgeImage} 
                     style={styles.icon}
+                    resizeMode="contain"
                   />
                 ) : (
                   <Ionicons name="trophy" size={48} color={(badge as any).color || '#3B82F6'} />

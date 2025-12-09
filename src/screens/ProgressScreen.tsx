@@ -29,6 +29,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
     profileData,
     initialMeasurements,
     measurements,
+    combinedMeasurements,
     progressPhotos,
     subscriptionData,
     loading,
@@ -116,7 +117,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
             <ProgressChart 
               chartData={chartData}
               initialMeasurements={initialMeasurements}
-              measurements={measurements as any}
+              measurements={combinedMeasurements as any}
               onDataPointPress={(dataPoint: any, index: number) => {
                 console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);
               }}

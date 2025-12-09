@@ -19,19 +19,12 @@ const AgoraContentCard = ({ content, onMarkComplete, onPress }) => {
   const hasVideo = !!videoId;
 
   const handleMarkComplete = () => {
-    console.log('✅ AgoraContentCard: Marking content as complete:', content.id);
     if (onMarkComplete) {
       onMarkComplete(content.id);
     }
   };
 
   const handlePress = () => {
-    console.log('📱 AgoraContentCard: Content pressed:', {
-      id: content.id,
-      title: content.title,
-      points: content.points,
-      hasVideo: hasVideo
-    });
     if (onPress) {
       onPress(content);
     }
@@ -50,10 +43,6 @@ const AgoraContentCard = ({ content, onMarkComplete, onPress }) => {
               height={120}
               videoId={videoId}
               play={playing}
-              onChangeState={event => console.log(event)}
-              onReady={() => console.log("ready")}
-              onError={e => console.log(e)}
-              onPlaybackQualityChange={q => console.log(q)}
               initialPlayerParams={{
                 preventFullScreen: true,
                 cc_lang_pref: "us",

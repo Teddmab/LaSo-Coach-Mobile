@@ -42,6 +42,8 @@ const PostCard: React.FC<PostCardProps> = ({
   const authorName = post.user?.firstName || post.user?.name || 'Utilisateur';
   const authorAvatar = post.user?.avatar || '';
   const postContent = post.content || '';
+  // Le backend retourne mediaUrls qui est un tableau de strings
+  // Adapter comme dans la version web qui utilise post.mediaUrls
   const images = post.mediaUrls || [];
   const likesCount = Number(post._count?.likes || 0);
   const commentsCount = Number(post._count?.comments || 0);
@@ -76,39 +78,49 @@ const PostCard: React.FC<PostCardProps> = ({
         ) : null}
       </View>
 
-      {/* Post Actions */}
+      {/* Post Actions - Style Facebook */}
       <View style={styles.actions}>
         <TouchableOpacity 
-          style={styles.actionButton}
+          style={[styles.actionButton, isLiked && styles.actionButtonActive]}
           onPress={() => onLike(post.id)}
+          activeOpacity={0.7}
         >
           <Ionicons 
             name={isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={isLiked ? "#F44336" : theme.colors.text.primary} 
+            size={20} 
+            color={isLiked ? "#F44336" : "#65676B"} 
           />
-          {likesCount > 0 ? (
-            <Text style={styles.actionText}>{likesCount}</Text>
-          ) : null}
+          <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
+            {isLiked ? 'J\'aime' : 'J\'aime'}
+          </Text>
+          {likesCount > 0 && (
+            <Text style={[styles.actionText, isLiked && styles.actionTextActive, { marginLeft: 4 }]}>
+              ({likesCount})
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => onCommentIconPress(post.id)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="chatbubble-outline" size={24} color={theme.colors.text.primary} />
-          {commentsCount > 0 ? (
-            <Text style={styles.actionText}>{commentsCount}</Text>
-          ) : null}
+          <Ionicons name="chatbubble-outline" size={20} color="#65676B" />
+          <Text style={styles.actionText}>Commenter</Text>
+          {commentsCount > 0 && (
+            <Text style={[styles.actionText, { marginLeft: 4 }]}>
+              ({commentsCount})
+            </Text>
+          )}
         </TouchableOpacity>
-
-        <View style={styles.actionSpacer} />
 
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => onShare(post.id)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="share-outline" size={24} color={theme.colors.text.primary} />
+          <Ionicons name="share-outline" size={20} color="#65676B" />
+          <Text style={styles.actionText}>Partager</Text>
         </TouchableOpacity>
       </View>
 
@@ -128,67 +140,95 @@ const PostCard: React.FC<PostCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.surface,
-    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    // Ombre style Facebook
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
+    marginRight: 10,
+    borderWidth: 0.5,
+    borderColor: '#E4E6EB',
   },
   authorInfo: {
     flex: 1,
   },
   authorName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: theme.colors.text.primary,
+    color: '#050505',
     marginBottom: 2,
   },
   postTime: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
+    fontSize: 13,
+    color: '#65676B',
   },
   moreButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
   },
   content: {
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingBottom: 12,
   },
   postText: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
+    fontSize: 15,
+    color: '#050505',
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E4E6EB',
   },
   actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
-    paddingVertical: 4,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginHorizontal: 2,
   },
   actionText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
+    marginLeft: 6,
+    fontSize: 15,
+    color: '#65676B',
+    fontWeight: '600',
   },
   actionSpacer: {
     flex: 1,
+  },
+  actionButtonActive: {
+    backgroundColor: '#F0F2F5',
+  },
+  actionTextActive: {
+    color: '#F44336',
   },
 });
 

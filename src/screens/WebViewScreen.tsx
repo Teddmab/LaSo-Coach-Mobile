@@ -48,7 +48,6 @@ const WebViewScreen: React.FC<WebViewScreenProps> = ({
           onLoadEnd={() => setLoading(false)}
           onError={(syntheticEvent) => {
             const { nativeEvent } = syntheticEvent;
-            console.error('WebView error: ', nativeEvent);
             setLoading(false);
           }}
         />

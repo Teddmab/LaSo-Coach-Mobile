@@ -11,7 +11,6 @@ export const useDashboardData = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🏠 Dashboard: Fetching data for home tab...');
       
       // Fetch dashboard data and profile data in parallel
       const [dashboardData, profileData] = await Promise.all([
@@ -30,9 +29,7 @@ export const useDashboardData = () => {
       };
       
       setDashboardData(enhancedData);
-      console.log('🏠 Dashboard: Data loaded successfully with latest profile info');
     } catch (error: any) {
-      console.error('❌ Dashboard: Error fetching dashboard data:', error);
       setError(error.message || 'Erreur lors du chargement des données');
     } finally {
       setLoading(false);

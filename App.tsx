@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +12,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import SplashScreen from './src/screens/SplashScreen';
 import { ActivityIndicator, View, StyleSheet, Linking } from 'react-native';
 import Toast from 'react-native-toast-message';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -24,6 +25,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 function AppContent() {
   const { isAuthenticated, authReady, loading } = useAuth();
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const [showSplash, setShowSplash] = useState(true);
 
   // Global deep link handler
   const handleDeepLink = (url: string | null) => {
@@ -120,6 +122,11 @@ function AppContent() {
       linkingSubscription?.remove();
     };
   }, []);
+
+  // Afficher le splash screen pendant 3 secondes
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />;
+  }
 
   // Show loading screen while auth is initializing
   if (!authReady || loading) {

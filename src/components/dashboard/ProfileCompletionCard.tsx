@@ -18,11 +18,7 @@ const ProfileCompletionCard = ({
 }) => {
   // Force re-render when onboarding data changes
   React.useEffect(() => {
-    console.log('🎯 ProfileCompletionCard - Onboarding data changed:', {
-      onboardingData,
-      completedSteps: onboardingData?.data?.completedSteps,
-      currentStep: onboardingData?.data?.currentStep
-    });
+    // Data structure logged for debugging
   }, [onboardingData]);
 
   // Only 4 steps as per design
@@ -57,8 +53,8 @@ const ProfileCompletionCard = ({
         isCurrent = currentStep === 'recommendations';
         break;
       case 4: // Rendez-vous
-        completed = completedSteps.includes('appointment');
-        isCurrent = currentStep === 'appointment';
+        completed = completedSteps.includes('rendezvous');
+        isCurrent = currentStep === 'rendezvous';
         break;
     }
 
@@ -82,7 +78,6 @@ const ProfileCompletionCard = ({
     const requiresRenewal = subscriptionData?.requiresRenewal || false;
     
     if (requiresRenewal && onSubscriptionRenew) {
-      console.log('💳 Profile completion blocked - subscription renewal required');
       onSubscriptionRenew();
       return;
     }

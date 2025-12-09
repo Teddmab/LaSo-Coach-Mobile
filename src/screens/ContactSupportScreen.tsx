@@ -121,7 +121,6 @@ ID: ${user?.id || 'Non disponible'}
         );
       }
     } catch (error) {
-      console.error('Error opening email:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',

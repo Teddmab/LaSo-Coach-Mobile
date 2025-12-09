@@ -17,22 +17,17 @@ export const useSettings = () => {
 
   const fetchProfileData = async (): Promise<void> => {
     try {
-      console.log('👤 Settings: Fetching profile data...');
       const data = await ProfileApi.getProfile();
       setProfileData(data);
-      console.log('✅ Settings: Profile data fetched successfully');
     } catch (error) {
-      console.error('❌ Settings: Error fetching profile data:', error);
     }
   };
 
   const checkSubscriptionStatus = async (): Promise<void> => {
     try {
-      console.log('💳 Settings: Checking subscription status...');
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
     } catch (error) {
-      console.error('❌ Settings: Error checking subscription status:', error);
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,

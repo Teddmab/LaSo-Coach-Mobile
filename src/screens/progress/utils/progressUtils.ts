@@ -57,13 +57,16 @@ export const generateChartData = (
   
   sortedMeasurements.forEach(measurement => {
     const weight = parseFloat(String(measurement.weight));
-    const waistSize = parseFloat(String(measurement.waistSize));
+    const waistSize = measurement.waistSize !== null && measurement.waistSize !== undefined 
+      ? parseFloat(String(measurement.waistSize)) 
+      : null;
     
-    if (!isNaN(weight) && !isNaN(waistSize)) {
+    // Include measurements with at least weight (photos may not have waistSize)
+    if (!isNaN(weight) && weight > 0) {
       chartData.push({
         date: measurement.createdAt,
         weight: weight,
-        waistSize: waistSize,
+        waistSize: waistSize !== null && !isNaN(waistSize) ? waistSize : 0, // Use 0 if no waistSize
         notes: measurement.notes || '',
         isInitial: false,
       });

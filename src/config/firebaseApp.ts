@@ -42,12 +42,9 @@ const existingApps = getApps();
 
 if (existingApps.length === 0) {
   // First time initialization
-  console.log('🔥 Initializing Firebase App...');
   firebaseApp = initializeApp(firebaseConfig);
-  console.log('✅ Firebase App initialized:', firebaseApp.name);
 } else {
   // Firebase already initialized (hot reload scenario)
-  console.log('♻️ Firebase App already initialized');
   firebaseApp = existingApps[0];
 }
 
@@ -61,9 +58,7 @@ function attemptAuthInit(stage) {
     firebaseAuthInstance = initializeAuth(firebaseApp, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
-    console.log(`✅ Firebase Auth initialized (initializeAuth + AsyncStorage) [stage=${stage}]`);
   } catch (e) {
-    console.error(`❌ initializeAuth failed at stage=${stage}:`, e.message);
   }
 }
 
@@ -74,9 +69,7 @@ if (!firebaseAuthInstance) {
     if (!firebaseAuthInstance) {
       try {
         firebaseAuthInstance = getAuth(firebaseApp);
-        console.log('✅ Firebase Auth fallback getAuth initialized after delays');
       } catch (finalErr) {
-        console.error('❌ Final fallback getAuth failed:', finalErr.message);
         // Last resort: compat API fallback
         try {
           const compatApp = require('firebase/compat/app');
@@ -85,9 +78,7 @@ if (!firebaseAuthInstance) {
             compatApp.initializeApp(firebaseConfig);
           }
           firebaseAuthInstance = compatApp.auth();
-          console.log('✅ Firebase Auth compat fallback initialized');
         } catch (compatErr) {
-          console.error('❌ Compat fallback failed:', compatErr.message);
         }
       }
     }

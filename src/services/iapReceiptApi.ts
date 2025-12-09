@@ -16,7 +16,6 @@ class IAPReceiptApi {
    */
   static async validateiOSReceipt(receiptData) {
     try {
-      console.log('🧾 Validating iOS receipt...');
       
       const response = await api.post('/payments/validate-ios-receipt', {
         receiptData: receiptData.transactionReceipt,
@@ -25,10 +24,8 @@ class IAPReceiptApi {
         originalTransactionId: receiptData.originalTransactionId,
       });
 
-      console.log('✅ iOS receipt validated successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error validating iOS receipt:', error);
       throw this.handleValidationError(error);
     }
   }
@@ -40,7 +37,6 @@ class IAPReceiptApi {
    */
   static async validateAndroidReceipt(receiptData) {
     try {
-      console.log('🧾 Validating Android receipt...');
       
       const response = await api.post('/payments/validate-android-receipt', {
         purchaseToken: receiptData.purchaseToken,
@@ -50,10 +46,8 @@ class IAPReceiptApi {
         transactionReceipt: receiptData.transactionReceipt,
       });
 
-      console.log('✅ Android receipt validated successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error validating Android receipt:', error);
       throw this.handleValidationError(error);
     }
   }
@@ -65,7 +59,6 @@ class IAPReceiptApi {
    */
   static async validateReceipt(receiptData) {
     try {
-      console.log('🧾 Starting receipt validation for platform:', receiptData.platform);
       
       if (receiptData.platform === 'ios') {
         return await this.validateiOSReceipt(receiptData);
@@ -75,7 +68,6 @@ class IAPReceiptApi {
         throw new Error('Unsupported platform for receipt validation');
       }
     } catch (error) {
-      console.error('❌ Receipt validation failed:', error);
       throw error;
     }
   }
@@ -88,17 +80,14 @@ class IAPReceiptApi {
    */
   static async syncSubscriptionStatus(userId) {
     try {
-      console.log('🔄 Syncing subscription status with backend...');
       
       const response = await api.post('/payments/sync-subscription-status', {
         userId,
         platform: Platform.OS,
       });
 
-      console.log('✅ Subscription status synced');
       return response.data;
     } catch (error) {
-      console.error('❌ Error syncing subscription status:', error);
       throw error;
     }
   }
@@ -111,7 +100,6 @@ class IAPReceiptApi {
    */
   static async restorePurchases(purchases) {
     try {
-      console.log('🔄 Restoring purchases on backend...');
       
       // Extract receipt data from each purchase
       const receipts = purchases.map(purchase => ({
@@ -130,10 +118,8 @@ class IAPReceiptApi {
         platform: Platform.OS,
       });
 
-      console.log('✅ Purchases restored successfully');
       return response.data;
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
       throw error;
     }
   }
@@ -187,7 +173,6 @@ class IAPReceiptApi {
    */
   static async createNativeSubscription(productId, receiptData) {
     try {
-      console.log('💳 Creating native subscription...');
       
       const response = await api.post('/subscriptions/create-native', {
         productId,
@@ -195,10 +180,8 @@ class IAPReceiptApi {
         receiptData,
       });
 
-      console.log('✅ Native subscription created');
       return response.data;
     } catch (error) {
-      console.error('❌ Error creating native subscription:', error);
       throw this.handleValidationError(error);
     }
   }
@@ -210,14 +193,11 @@ class IAPReceiptApi {
    */
   static async getNativeProducts() {
     try {
-      console.log('💳 Fetching native product mapping...');
       
       const response = await api.get('/subscriptions/native-products');
 
-      console.log('✅ Native products fetched');
       return response.data;
     } catch (error) {
-      console.error('❌ Error fetching native products:', error);
       
       // Return default mapping as fallback
       return {

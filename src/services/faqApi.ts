@@ -15,7 +15,6 @@ const faqApi = {
       const response = await api.get(API_CONFIG.endpoints.faq.public);
       return response.data?.data || response.data || [];
     } catch (error) {
-      console.error('Error fetching FAQs:', error);
       throw error;
     }
   },

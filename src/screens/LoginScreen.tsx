@@ -90,15 +90,12 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     isPrompting: isGooglePrompting,
   } = useGoogleAuth();
   
-  console.log('📱 LoginScreen rendered, Google auth available:', isGoogleAvailable);
   /**
    * Handle Google login
    */
   const handleGoogleLogin = async (): Promise<void> => {
-    console.log('🎯 Google login button clicked!');
     setErrors({});
     const result = await triggerGoogleSignIn();
-    console.log('🎯 Google login result:', result);
     // Only show error if there's an actual error (not cancellation)
     if (result?.error) {
       setErrors({ general: result.error });
@@ -116,12 +113,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
         const skipWelcomeSlides = route.params?.skipWelcomeSlides || false;
         const hasSeenWelcomeSlides = await AsyncStorage.getItem('hasSeenWelcomeSlides');
         
-        console.log('🎭 Welcome slides check:', { 
-          skipWelcomeSlides, 
-          hasSeenWelcomeSlides, 
-          showWelcomeSlides 
-        });
-        
         // For debugging: Always show welcome slides for now
         // TODO: Remove this after testing
         const forceShowWelcomeSlides = route.params?.forceShowWelcomeSlides || false;
@@ -130,14 +121,11 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
         // 1. User hasn't seen them AND not skipping, OR
         // 2. Force show is enabled
         if ((!hasSeenWelcomeSlides && !skipWelcomeSlides) || forceShowWelcomeSlides) {
-          console.log('🎭 Showing welcome slides');
           setShowWelcomeSlides(true);
         } else {
-          console.log('🎭 Hiding welcome slides - user has already seen them');
           setShowWelcomeSlides(false);
         }
       } catch (error) {
-        console.error('❌ Error checking welcome slides state:', error);
         setShowWelcomeSlides(false);
       }
     };
@@ -184,25 +172,20 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
       const result = await login(email.trim(), password);
       
       if (result.user) {
-        console.log('✅ Login successful:', result.user.firstName);
         // Navigation will be handled by the authentication flow
         // The app will automatically redirect to dashboard
       } else if (result.error) {
-        console.log('❌ Login failed with error:', result.error);
         // Set the error message under the password field
         setErrors({ password: result.error });
       } else {
-        console.log('❌ Login failed - unexpected result');
         setErrors({ general: 'Une erreur inattendue est survenue. Veuillez réessayer.' });
       }
     } catch (error: any) {
-      console.error('❌ Login failed with exception:', error.message);
       
       // Handle specific error types
       if (error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
         setErrors({ general: 'Erreur de connexion. Vérifiez votre connexion internet.' });
       } else if (error.message?.includes('Transform') || error.message?.includes('invariant')) {
-        console.log('🎭 Animation/Transform error detected - this is a UI issue');
         // Don't show this error to user as it's a technical issue
       } else {
         // Set a general error for other types
@@ -227,12 +210,10 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
     try {
       await forgotPassword(email.trim());
-      console.log('✅ Password reset email sent');
       
       // Navigate to password reset screen
       navigation.navigate('PasswordReset');
     } catch (error: any) {
-      console.error('❌ Password reset failed:', error.message);
     }
   };
 
@@ -240,7 +221,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
    * Navigate to register screen
    */
   const handleRegister = (): void => {
-    console.log('Navigate to register screen');
     navigation.navigate('Register');
   };
 
@@ -281,7 +261,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
       await AsyncStorage.setItem('hasSeenWelcomeSlides', 'true');
       setShowWelcomeSlides(false);
       } catch (error: any) {
-        console.error('❌ Error saving welcome slides state:', error);
         setShowWelcomeSlides(false);
       }
     };
@@ -637,7 +616,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     </View>
   );
 
-  console.log('🎭 LoginScreen render - showWelcomeSlides:', showWelcomeSlides);
   
   return (
     <View style={styles.rootContainer}>

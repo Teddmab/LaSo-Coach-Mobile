@@ -51,9 +51,6 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
   const currentStep = progress?.currentStep || 'profile_setup';
 
   // DEBUG: Log the progress data
-  console.log('🎯 OnboardingProgressCard - progress data:', JSON.stringify(progress, null, 2));
-  console.log('🎯 OnboardingProgressCard - completedSteps:', completedSteps);
-  console.log('🎯 OnboardingProgressCard - currentStep:', currentStep);
 
   // Calculate which steps are completed, current, or upcoming
   const getStepState = (stepKey) => {
@@ -77,7 +74,6 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
     // For this flow, all steps are clickable except if they require profile_setup
     if (stepIndex > 0 && !completedSteps.includes('profile_setup')) {
       // Show alert that profile must be completed first
-      console.log('⚠️ Please complete profile setup first');
       return;
     }
 

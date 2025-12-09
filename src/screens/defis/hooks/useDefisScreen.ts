@@ -19,7 +19,6 @@ let Haptics: any = null;
 try {
   Haptics = require('expo-haptics');
 } catch (e) {
-  console.log('⚠️ expo-haptics not available, haptic feedback disabled');
 }
 
 export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
@@ -131,7 +130,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
     } catch (error) {
-      console.error('❌ Defis: Error checking subscription status:', error);
       setSubscriptionData({
         status: 'EXPIRED',
         isExpired: true,
@@ -145,7 +143,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
       const data = await ProfileApi.getProfile();
       setProfileData(data);
     } catch (error) {
-      console.error('❌ Defis: Error fetching profile data:', error);
     }
   };
 
@@ -168,7 +165,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         setFeaturedBadge(null);
       }
     } catch (error) {
-      console.error('❌ Defis: Error fetching badges:', error);
       setBadges([]);
       setSummary(null);
     } finally {
@@ -195,7 +191,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         setChallenges([]);
       }
     } catch (error) {
-      console.error('❌ Defis: Error fetching challenges:', error);
       setChallenges([]);
     } finally {
       setChallengesLoading(false);
@@ -221,7 +216,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Defis: Error assigning challenge:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -249,7 +243,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Defis: Error leaving challenge:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -354,7 +347,6 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         });
       }
     } catch (error) {
-      console.error('❌ Defis: Error fetching badge details:', error);
       Toast.show({
         type: 'error',
         text1: 'Erreur',

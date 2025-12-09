@@ -105,33 +105,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const refreshAuthState = async (): Promise<void> => {
     try {
-      console.log('🔄 Manually refreshing auth state...');
       await firebaseAuthService.ensureAuth();
       const currentUser = firebaseAuthService.getCurrentUser();
       
       if (currentUser) {
-        console.log('✅ Auth state refreshed - user found:', currentUser.email);
         dispatch({ type: AUTH_ACTIONS.SET_USER, payload: currentUser });
       } else {
         // Check Firebase directly
         const auth = firebaseAuthService.getAuth();
         if (auth?.currentUser) {
           // Firebase has a user but service doesn't - fetch profile
-          console.log('🔄 Firebase has user, fetching profile...');
           const profile = await firebaseAuthService.getUserProfile();
           if (profile) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: profile });
-            console.log('✅ Auth state refreshed from Firebase');
           } else {
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
           }
         } else {
-          console.log('ℹ️ No user found in Firebase');
           dispatch({ type: AUTH_ACTIONS.LOGOUT });
         }
       }
     } catch (error: any) {
-      console.error('❌ Error refreshing auth state:', error);
       // Don't logout on error - keep current state
     }
   };
@@ -140,7 +134,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Initialize authentication state on app launch
    */
   useEffect(() => {
-    console.log('🔐 Starting Firebase auth initialization...');
     let unsubscribe: (() => void) = () => {};
     let fallbackTimeout: NodeJS.Timeout | null = null;
 
@@ -149,11 +142,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const persisted = await loadPersistedUser();
         if (persisted && !state.user) {
-          console.log('💾 Rehydrated user from AsyncStorage (pre-listener):', persisted.email);
           dispatch({ type: AUTH_ACTIONS.SET_USER, payload: persisted });
         }
       } catch (e: any) {
-        console.log('⚠️ Failed to rehydrate user:', e.message);
       }
     };
 
@@ -162,12 +153,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await prehydrateFromStorage();
         // Wait for Firebase Auth to be ready
         await firebaseAuthService.ensureAuth();
-        console.log('🔐 Firebase Auth is ready, setting up auth state listener...');
 
         // If Firebase already has a current user and we have not resolved yet, optimistically set it
         const firebaseCurrent = firebaseAuthService.getAuth().currentUser;
         if (firebaseCurrent && !initialAuthResolvedRef.current && !state.user) {
-          console.log('🔐 Found Firebase currentUser before listener event, optimistic set');
           dispatch({
             type: AUTH_ACTIONS.SET_USER,
             payload: {
@@ -181,35 +170,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         // Listen to Firebase auth state changes
         unsubscribe = firebaseAuthService.onAuthStateChange((user: User | null) => {
-          console.log('🔐 Firebase auth state changed:', user ? `User: ${user.email}` : 'No user');
           if (!initialAuthResolvedRef.current) {
             initialAuthResolvedRef.current = true;
             if (fallbackTimeout) {
               clearTimeout(fallbackTimeout);
               fallbackTimeout = null;
-              console.log('🛑 Cleared auth fallback timeout after first auth event');
             }
           }
 
           if (user) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
             savePersistedUser(user); // persist snapshot
-            console.log('✅ User authenticated via Firebase (listener):', user.firstName || user.name);
             
             // Event Trigger 1: After auth success - Enregistrer l'appareil
             // (Déjà fait dans firebaseAuthServiceNew.js, mais on le fait aussi ici pour être sûr)
             deviceApi.registerDevice().catch((error: any) => {
-              console.warn('⚠️ [AuthContext] Échec enregistrement appareil après auth (non bloquant):', error.message);
             });
           } else {
             clearPersistedUser();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
-            console.log('🔐 No Firebase user, logged out (listener)');
           }
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
         });
       } catch (error: any) {
-        console.error('❌ Firebase auth initialization error:', error);
         // Don't force logout here; just mark ready so UI can show login if needed
         dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
       }
@@ -220,7 +203,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Fallback: mark authReady but DO NOT logout blindly (keep any rehydrated user)
     fallbackTimeout = setTimeout(() => {
       if (initialAuthResolvedRef.current) return; // Listener already fired
-      console.log('⚠️ Auth init fallback reached before listener. Marking ready without forcing logout.');
       dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
     }, 6000); // Slightly longer to allow fold/unfold/device slow init
 
@@ -239,11 +221,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const subscription = AppState.addEventListener('change', (nextAppState: string) => {
       if (nextAppState === 'active' && state.isAuthenticated) {
         // App has come to the foreground and user is authenticated
-        console.log('📱 [DeviceApi] App revient au premier plan - Mise à jour lastSeenAt et appVersion...');
         
         // Mettre à jour les informations de l'appareil (lastSeenAt, appVersion)
         deviceApi.registerDevice().catch((error: any) => {
-          console.warn('⚠️ [DeviceApi] Échec mise à jour appareil au foreground (non bloquant):', error.message);
         });
       }
     });
@@ -260,12 +240,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     // Attendre que l'auth soit prête et que l'utilisateur soit authentifié
     if (state.authReady && state.isAuthenticated && state.user) {
-      console.log('📱 [DeviceApi] Cold start - Utilisateur déjà connecté, enregistrement appareil...');
       
       // Enregistrer l'appareil une fois au démarrage (avec un petit délai pour éviter les appels multiples)
       const timeoutId = setTimeout(() => {
         deviceApi.registerDevice().catch((error: any) => {
-          console.warn('⚠️ [DeviceApi] Échec enregistrement appareil au cold start (non bloquant):', error.message);
         });
       }, 2000); // Délai de 2 secondes pour laisser l'app se stabiliser
 
@@ -285,7 +263,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const user = await firebaseAuthService.login({ email, password });
       
       // User state will be updated via Firebase auth state listener
-      console.log('✅ Login successful via Firebase:', user.firstName || user.name);
       Toast.show({ 
         type: 'success', 
         text1: 'Connexion réussie', 
@@ -294,14 +271,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       // Fallback: in case the auth state listener hasn't attached yet (race after delayed Firebase init), optimistically set user now
       if (!state.isAuthenticated) {
-        console.log('⚙️ Fallback user dispatch after login (listener may not have fired yet)');
         dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
         dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
       }
       
       return { user, error: null };
     } catch (error: any) {
-      console.error('❌ Login error:', error);
       const errorMessage = error.message || 'Erreur de connexion inconnue';
       
       Toast.show({
@@ -338,13 +313,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return { user, error: null };
     } catch (error: any) {
-      console.error('❌ Google login error:', error);
 
       let errorMessage = 'Impossible de se connecter avec Google. Veuillez réessayer.';
 
       if (error?.code === 'GOOGLE_SIGN_IN_CANCELLED' || error?.code === 'SIGN_IN_CANCELLED') {
         // CRITICAL: User cancelled - do NOT show error, just return
-        console.log('ℹ️ [loginWithGoogle] Connexion Google annulée par l\'utilisateur');
         return { user: null, error: null };
       } else if (error?.message) {
         errorMessage = error.message;
@@ -386,14 +359,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return { user, error: null };
     } catch (error: any) {
-      console.error('❌ Google registration error:', error);
 
       let errorMessage = 'Impossible de créer un compte avec Google. Veuillez réessayer.';
 
       if (error?.code === 'GOOGLE_SIGN_IN_CANCELLED' || error?.code === 'SIGN_IN_CANCELLED') {
         // CRITICAL: User cancelled - do NOT proceed with authentication
         // Return null error to indicate user choice (not an error)
-        console.log('ℹ️ [registerWithGoogle] Inscription Google annulée par l\'utilisateur');
         return { user: null, error: null };
       } else if (error?.message) {
         errorMessage = error.message;
@@ -428,9 +399,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
       });
       
-      console.log('✅ Registration successful via Firebase:', user.firstName || user.name);
     } catch (error: any) {
-      console.error('❌ Registration error:', error);
       const errorMessage = error.message || 'Erreur d\'inscription inconnue';
       
       Toast.show({
@@ -460,9 +429,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         text2: 'À bientôt!',
       });
 
-      console.log('✅ User logged out successfully via Firebase');
     } catch (error: any) {
-      console.error('❌ Logout error:', error);
       // Still update state even if Firebase logout fails
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     } finally {
@@ -483,12 +450,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const user = await firebaseAuthService.getUserProfile();
       if (user) {
         dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
-        console.log('✅ Profile refreshed successfully via Firebase');
         return user;
       }
       return null;
     } catch (error: any) {
-      console.error('❌ Failed to refresh profile via Firebase:', error);
       const errorMessage = error.message || 'Erreur lors du rafraîchissement du profil';
       
       Toast.show({
@@ -516,7 +481,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         text2: 'Vos informations ont été sauvegardées',
       });
 
-      console.log('✅ Profile updated successfully via Firebase');
       return user;
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de la mise à jour du profil';
@@ -547,7 +511,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         text2: 'Vérifiez votre boîte mail pour réinitialiser votre mot de passe',
       });
 
-      console.log('✅ Password reset email sent via Firebase');
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de l\'envoi de l\'email de réinitialisation';
       
@@ -570,7 +533,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
 
       const response = await firebaseAuthService.verifyPasswordResetToken(token);
-      console.log('✅ Reset token verified via backend');
       return response;
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de la vérification du code';
@@ -602,7 +564,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         text2: 'Vous pouvez maintenant vous connecter avec votre nouveau mot de passe',
       });
 
-      console.log('✅ Password reset completed via backend');
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de la réinitialisation du mot de passe';
 
@@ -632,7 +593,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         text2: 'Votre mot de passe a été changé avec succès',
       });
 
-      console.log('✅ Password updated successfully via Firebase');
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur lors de la mise à jour du mot de passe';
       

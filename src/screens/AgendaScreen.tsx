@@ -37,7 +37,6 @@ const AgendaScreen: React.FC<AgendaScreenProps> = ({
         await Linking.openURL(link);
       }
     } catch (error) {
-      console.error('Error opening meeting link:', error);
     }
   };
 

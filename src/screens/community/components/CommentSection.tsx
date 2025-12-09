@@ -50,8 +50,9 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             <TouchableOpacity
               style={styles.submitButton}
               onPress={onCommentSubmit}
+              activeOpacity={0.7}
             >
-              <Ionicons name="send" size={18} color={theme.colors.primary} />
+              <Ionicons name="send" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -91,47 +92,52 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#F0F2F5',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   commentAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    marginRight: 12,
+    marginRight: 10,
     marginTop: 4,
+    borderWidth: 0.5,
+    borderColor: '#E4E6EB',
   },
   inputWrapper: {
     flex: 1,
     position: 'relative',
   },
   input: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    backgroundColor: theme.colors.background,
+    fontSize: 15,
+    color: '#050505',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    paddingRight: 40,
-    minHeight: 36,
+    paddingVertical: 10,
+    paddingRight: 45,
+    minHeight: 40,
     maxHeight: 100,
+    borderWidth: 1,
+    borderColor: '#E4E6EB',
   },
   submitButton: {
     position: 'absolute',
     right: 8,
-    top: 8,
-    padding: 4,
+    top: 10,
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: '#1877F2',
   },
   commentsContainer: {
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   loading: {
     paddingVertical: 12,
@@ -140,32 +146,40 @@ const styles = StyleSheet.create({
   commentItem: {
     flexDirection: 'row',
     marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
   },
   commentItemAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+    borderWidth: 0.5,
+    borderColor: '#E4E6EB',
   },
   commentItemContent: {
     flex: 1,
+    paddingTop: 2,
   },
   commentItemAuthor: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.text.primary,
-    marginBottom: 2,
+    color: '#050505',
+    marginBottom: 4,
   },
   commentItemText: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    lineHeight: 18,
+    fontSize: 15,
+    color: '#050505',
+    lineHeight: 20,
   },
   noCommentsText: {
     fontSize: 14,
-    color: theme.colors.text.secondary,
+    color: '#65676B',
     textAlign: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
+    fontStyle: 'italic',
   },
 });
 

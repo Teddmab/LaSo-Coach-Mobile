@@ -6,10 +6,10 @@
 
 // Store original console methods
 const originalConsole = {
-  log: console.log.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-  info: console.info.bind(console),
+  log: console.log,
+  info: console.info,
+  warn: console.warn,
+  error: console.error,
 };
 
 // WebSocket/Chat related keywords that should be shown
@@ -358,37 +358,26 @@ const shouldShowLog = (args) => {
   return true;
 };
 
-/**
- * Filtered console.log
- */
-console.log = (...args) => {
+// Override console methods with filtered versions
+console.log = function(...args: any[]) {
   if (shouldShowLog(args)) {
     originalConsole.log(...args);
   }
 };
 
-/**
- * Filtered console.info
- */
-console.info = (...args) => {
+console.info = function(...args: any[]) {
   if (shouldShowLog(args)) {
     originalConsole.info(...args);
   }
 };
 
-/**
- * Filtered console.warn
- */
-console.warn = (...args) => {
+console.warn = function(...args: any[]) {
   if (shouldShowLog(args)) {
     originalConsole.warn(...args);
   }
 };
 
-/**
- * Filtered console.error
- */
-console.error = (...args) => {
+console.error = function(...args: any[]) {
   if (shouldShowLog(args)) {
     originalConsole.error(...args);
   }

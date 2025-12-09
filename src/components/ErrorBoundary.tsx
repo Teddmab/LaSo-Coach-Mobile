@@ -25,12 +25,9 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Log error for debugging
-    console.error('🚨 ErrorBoundary caught an error:', error);
-    console.error('🚨 Error info:', errorInfo);
     
     // Check if it's an animation/transform error
     if (error.message?.includes('Transform') || error.message?.includes('invariant')) {
-      console.log('🎭 Animation error detected - attempting to recover...');
       // For animation errors, we can try to recover by resetting state
       setTimeout(() => {
         this.setState({ hasError: false, error: null });
@@ -42,7 +39,6 @@ class ErrorBoundary extends Component<Props, State> {
     if (error.message?.includes('Network Error') || 
         error.message?.includes('Request failed') ||
         error.message?.includes('status code')) {
-      console.log('🌐 Network/API error detected - letting components handle it');
       // Don't show error boundary for network errors
       return;
     }
@@ -52,7 +48,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = async (): Promise<void> => {
-    console.log('🔄 ErrorBoundary: Retry triggered - rechecking auth state');
     
     try {
       // Manually trigger Firebase auth state check
@@ -63,20 +58,16 @@ class ErrorBoundary extends Component<Props, State> {
       // Get the current Firebase auth instance
       const auth = firebaseAuthService.getAuth();
       if (auth?.currentUser) {
-        console.log('✅ ErrorBoundary: Firebase user found, auth state will be restored');
         // The auth state listener should pick this up automatically
         // If not, we can manually trigger it by accessing the current user
         const currentUser = firebaseAuthService.getCurrentUser();
         if (!currentUser) {
           // Force a profile fetch which will trigger the listener
-          console.log('🔄 ErrorBoundary: Fetching user profile to restore state');
           await firebaseAuthService.getUserProfile();
         }
       } else {
-        console.log('ℹ️ ErrorBoundary: No Firebase user found');
       }
     } catch (error: any) {
-      console.error('⚠️ ErrorBoundary: Error checking auth on retry:', error);
       // Continue with retry anyway
     }
     

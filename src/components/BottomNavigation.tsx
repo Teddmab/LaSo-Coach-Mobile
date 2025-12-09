@@ -61,6 +61,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0', // Bordure supérieure pour séparer du contenu
     width: '100%', // Prend toute la largeur de l'écran
+    marginBottom: 2,
   },
   tab: {
     flex: 1,

@@ -1,4 +1,8 @@
 import api from './api';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import { Platform } from 'react-native';
+import Config from '../config/env';
+import firebaseAuthService from './firebaseAuthServiceNew';
 
 class CommunityApi {
   /**
@@ -9,16 +13,13 @@ class CommunityApi {
    */
   async getPosts(page = 1, limit = 10) {
     try {
-      console.log('📱 CommunityApi: Fetching posts...', { page, limit });
       
       const response = await api.get(`/community/posts?page=${page}&limit=${limit}`);
       
       // API returns: { status: "success", data: { posts: [...], pagination: {...} } }
-      console.log('📱 CommunityApi: Posts fetched successfully:', response.data);
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error fetching posts:', error);
       throw error;
     }
   }
@@ -30,15 +31,12 @@ class CommunityApi {
    */
   async getPost(postId) {
     try {
-      console.log('📱 CommunityApi: Fetching post...', postId);
       
       const response = await api.get(`/community/posts/${postId}`);
       
-      console.log('📱 CommunityApi: Post fetched successfully:', response.data);
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error fetching post:', error);
       throw error;
     }
   }
@@ -51,37 +49,93 @@ class CommunityApi {
    */
   async createPost(content, files = []) {
     try {
-      console.log('📝 CommunityApi: Creating post...', { content, filesCount: files.length });
-      
+      // Get authentication token
+      const idToken = await firebaseAuthService.getIdToken();
+      if (!idToken) {
+        throw new Error('Authentication required');
+      }
+
       // Backend accepts either text, image, or both
       // Field name must be 'media' (not 'files', 'image', or 'photo')
-      // Content-Type should NOT be manually set - axios handles it automatically
+      // Use react-native-blob-util for file uploads (like progress photos)
       
       if (files.length > 0) {
-        // Use FormData for file uploads (multipart/form-data)
-        const formData = new FormData();
+        // Use react-native-blob-util for multipart/form-data uploads
+        // Config.API_BASE_URL already contains /api/v1, so just append the endpoint
+        const fullUrl = `${Config.API_BASE_URL}/community/posts`;
         
-        // Content is optional but recommended
+        // Prepare form data array for react-native-blob-util
+        const formDataArray = [];
+        
+        // Add content if provided
         if (content && content.trim()) {
-          formData.append('content', content.trim());
+          formDataArray.push({
+            name: 'content',
+            data: content.trim(),
+          });
         }
         
-        // Add images with field name 'media' (backend expects this exact name)
+        // Add images with field name 'media' (backend expects this exact name with multer.array('media', 5))
         files.forEach((file, index) => {
-          formData.append('media', {
-            uri: file.uri,
-            type: file.type || 'image/jpeg',  // Must be 'image/jpeg' or 'image/png'
-            name: file.name || `photo-${Date.now()}-${index}.jpg`,
+          // Normalize file path for Android
+          let filePath = file.uri;
+          if (Platform.OS === 'android' && filePath.startsWith('file://')) {
+            filePath = filePath.replace('file://', '');
+          }
+          
+          // Normalize MIME type
+          let fileType = file.type || 'image/jpeg';
+          if (fileType === 'image/jpg' || fileType === 'jpg' || fileType === 'jpeg') {
+            fileType = 'image/jpeg';
+          } else if (fileType === 'image/png' || fileType === 'png') {
+            fileType = 'image/png';
+          } else if (file.name && file.name.toLowerCase().endsWith('.png')) {
+            fileType = 'image/png';
+          } else if (file.name && (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg'))) {
+            fileType = 'image/jpeg';
+          } else {
+            fileType = 'image/jpeg';
+          }
+          
+          const fileName = file.name || `post_${Date.now()}_${index}.jpg`;
+          
+          formDataArray.push({
+            name: 'media', // Field name must match multer.array('media', 5)
+            filename: fileName,
+            type: fileType,
+            contentType: fileType,
+            data: ReactNativeBlobUtil.wrap(filePath),
           });
         });
         
-        // Don't set Content-Type manually - let axios handle it with boundary
-        const response = await api.post('/community/posts', formData);
+        // Use react-native-blob-util for upload
+        const response = await ReactNativeBlobUtil.fetch(
+          'POST',
+          fullUrl,
+          {
+            'Authorization': `Bearer ${idToken}`,
+            'Accept': 'application/json',
+            // Do NOT set Content-Type - react-native-blob-util will set it with boundary
+          },
+          formDataArray
+        );
         
-        // Backend returns: { status: "success", data: { id, content, media, user, ... } }
-        const postData = response.data?.data || response.data;
-        console.log('📝 CommunityApi: Post created successfully with media');
-        return postData;
+        const status = response.info().status;
+        const responseData = response.json();
+        
+        if (status >= 200 && status < 300) {
+          // Backend returns: { status: "success", data: { id, content, mediaUrls, user, ... } }
+          const postData = responseData?.data || responseData;
+          return postData;
+        } else {
+          const error = new Error(responseData?.message || 'Failed to create post');
+          error.response = {
+            status,
+            statusText: response.info().statusText || '',
+            data: responseData
+          };
+          throw error;
+        }
       } else {
         // JSON request for text-only posts
         // Content is required for text-only posts
@@ -91,28 +145,16 @@ class CommunityApi {
         
         const response = await api.post('/community/posts', { content: content.trim() });
         
-        // Backend returns: { status: "success", data: { id, content, media, user, ... } }
+        // Backend returns: { status: "success", data: { id, content, mediaUrls, user, ... } }
         const postData = response.data?.data || response.data;
-        console.log('📝 CommunityApi: Post created successfully');
         return postData;
       }
     } catch (error) {
-      console.error('❌ CommunityApi: Error creating post:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers,
-        }
-      });
-      
       // Extract user-friendly error message from backend response
       if (error.response?.data?.message) {
         error.userMessage = error.response.data.message;
+      } else if (error.message) {
+        error.userMessage = error.message;
       }
       
       throw error;
@@ -126,16 +168,13 @@ class CommunityApi {
    */
   async toggleLikePost(postId) {
     try {
-      console.log('👍 CommunityApi: Toggling like on post...', postId);
       
       const response = await api.post(`/community/posts/${postId}/like`);
       
       // API returns: { status: "success", message: "Post liked successfully" } or "Post unliked successfully"
-      console.log('👍 CommunityApi: Post like toggled:', response.data?.message);
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error toggling like:', error);
       throw error;
     }
   }
@@ -156,18 +195,15 @@ class CommunityApi {
    */
   async addComment(postId, content) {
     try {
-      console.log('💬 CommunityApi: Adding comment...', { postId, content });
       
       const response = await api.post(`/community/posts/${postId}/comments`, {
         content
       });
       
       // API returns: { status: "success", data: { id, content, user, ... } }
-      console.log('💬 CommunityApi: Comment added successfully');
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error adding comment:', error);
       throw error;
     }
   }
@@ -181,16 +217,13 @@ class CommunityApi {
    */
   async getComments(postId, page = 1, limit = 10) {
     try {
-      console.log('💬 CommunityApi: Fetching comments...', { postId, page, limit });
       
       const response = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}`);
       
       // API returns: { status: "success", data: { comments: [...], pagination: {...} } }
-      console.log('💬 CommunityApi: Comments fetched successfully');
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error fetching comments:', error);
       throw error;
     }
   }
@@ -202,15 +235,12 @@ class CommunityApi {
    */
   async deleteComment(commentId) {
     try {
-      console.log('🗑️ CommunityApi: Deleting comment...', commentId);
       
       const response = await api.delete(`/community/comments/${commentId}`);
       
-      console.log('🗑️ CommunityApi: Comment deleted successfully');
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error deleting comment:', error);
       throw error;
     }
   }
@@ -222,15 +252,12 @@ class CommunityApi {
    */
   async toggleLikeComment(commentId) {
     try {
-      console.log('👍 CommunityApi: Toggling like on comment...', commentId);
       
       const response = await api.post(`/community/comments/${commentId}/like`);
       
-      console.log('👍 CommunityApi: Comment like toggled:', response.data?.message);
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error toggling comment like:', error);
       throw error;
     }
   }
@@ -244,7 +271,6 @@ class CommunityApi {
    */
   async updatePost(postId, content, mediaUrls = null) {
     try {
-      console.log('✏️ CommunityApi: Updating post...', { postId, content, mediaUrls });
       
       const body = { content };
       if (mediaUrls) {
@@ -253,11 +279,9 @@ class CommunityApi {
       
       const response = await api.put(`/community/posts/${postId}`, body);
       
-      console.log('✏️ CommunityApi: Post updated successfully');
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error updating post:', error);
       throw error;
     }
   }
@@ -269,15 +293,12 @@ class CommunityApi {
    */
   async deletePost(postId) {
     try {
-      console.log('🗑️ CommunityApi: Deleting post...', postId);
       
       const response = await api.delete(`/community/posts/${postId}`);
       
-      console.log('🗑️ CommunityApi: Post deleted successfully');
       
       return response.data;
     } catch (error) {
-      console.error('❌ CommunityApi: Error deleting post:', error);
       throw error;
     }
   }
