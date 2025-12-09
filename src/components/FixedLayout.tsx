@@ -50,14 +50,14 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
   
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']} pointerEvents="box-none">
       <StatusBar style="dark" />
       {/* Banniere réseau flottante (offline / reconnexion) */}
       <NetworkStatus />
 
       {/* Header fixe - optionnel (certains écrans comme Profile gèrent leur propre AppHeader) */}
       {!hideHeader && (
-        <View style={styles.headerContainer}>
+        <View style={styles.headerContainer} pointerEvents="box-none">
           <AppHeader
             title={headerTitle}
             showLogo={showLogo}
@@ -75,12 +75,12 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
       <View style={[styles.contentContainer, { 
         paddingTop: !hideHeader ? 64 : 0, // Hauteur fixe du header (64px) si visible
         paddingBottom: contentBottomPadding 
-      }]}>
+      }]} pointerEvents="box-none">
         {children}
       </View>
 
-      {/* Barre de navigation fixe - toujours en bas avec position absolute */}
-      <View style={styles.bottomNavContainer}>
+      {/* Barre de navigation fixe - toujours en bas avec position absolute, ne bouge JAMAIS avec le clavier */}
+      <View style={styles.bottomNavContainer} pointerEvents="auto">
         <BottomNavigation activeTab={activeTab} onTabPress={onTabPress} />
       </View>
     </SafeAreaView>
@@ -112,9 +112,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 10000, // Z-index très élevé pour rester au-dessus de tout
     paddingHorizontal: 0, // Les marges sont gérées par BottomNavigation lui-même
     paddingBottom: 5, // Le padding bottom est géré par BottomNavigation avec useSafeAreaInsets
+    // IMPORTANT: Cette barre ne doit JAMAIS bouger avec le clavier
+    // Elle reste toujours en bas de l'écran, même quand le clavier est ouvert
+    // Utiliser elevation pour Android pour s'assurer qu'elle reste au-dessus
+    elevation: 10000, // Android - très élevé pour rester au-dessus
+    shadowColor: '#000', // iOS
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    backgroundColor: '#FFFFFF', // Fond blanc pour s'assurer qu'elle couvre ce qui est en dessous
   },
 });
 

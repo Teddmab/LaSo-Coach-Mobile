@@ -1,5 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import { Conversation, Message } from '../types';
@@ -31,6 +32,8 @@ const ChatView: React.FC<ChatViewProps> = ({
   onBackPress,
 }) => {
   const scrollViewRef = useRef<FlatList>(null);
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     if (messages.length > 0 && scrollViewRef.current) {
@@ -39,6 +42,31 @@ const ChatView: React.FC<ChatViewProps> = ({
       }, 100);
     }
   }, [messages.length]);
+
+  // Gérer la hauteur du clavier
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Scroll vers le bas quand le clavier s'ouvre
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
 
   if (!conversation) return null;
 
@@ -129,12 +157,20 @@ const ChatView: React.FC<ChatViewProps> = ({
     );
   };
 
+  // Calculer la hauteur de la barre de navigation
+  // BottomNavigation: paddingTop (9) + tab height (24) + paddingVertical (12*2) + paddingBottom (safe area)
+  // Environ 70-80px + safe area bottom
+  const bottomNavHeight = 9 + 24 + 12 * 2 + Math.max(insets.bottom, 16);
+  
+  // IMPORTANT: Quand le clavier est ouvert, on positionne la zone juste au-dessus du clavier
+  // Quand le clavier est fermé, on positionne la zone au-dessus de la barre de nav
+  // La barre de navigation reste TOUJOURS fixe en bas, elle ne bouge JAMAIS
+  const inputBottomPosition = keyboardHeight > 0 
+    ? keyboardHeight  // Zone de réponse monte avec le clavier (juste au-dessus)
+    : bottomNavHeight; // Zone de réponse au-dessus de la barre de nav quand clavier fermé
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
-    >
+    <View style={styles.container}>
       {/* Chat Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBackPress} style={styles.backButton}>
@@ -166,7 +202,10 @@ const ChatView: React.FC<ChatViewProps> = ({
           extraData={`${messages.length}-${messages.map(m => m.id).join(',')}`}
           keyExtractor={(item, index) => `${item.id}-${index}-${item.createdAt || Date.now()}`}
           style={styles.messagesContainer}
-          contentContainerStyle={{ paddingVertical: 8, paddingBottom: 100 }}
+          contentContainerStyle={{ 
+            paddingVertical: 8, 
+            paddingBottom: Math.max(120, inputBottomPosition + 60) 
+          }}
           renderItem={renderMessage}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -176,8 +215,16 @@ const ChatView: React.FC<ChatViewProps> = ({
         />
       )}
 
-      {/* Message Input - Positionné en bas avec KeyboardAvoidingView */}
-      <View style={styles.inputWrapper}>
+      {/* Message Input - Positionné en bas avec gestion du clavier */}
+      {/* Utiliser position absolute avec bottom dynamique pour que seule cette zone bouge */}
+      {/* IMPORTANT: Cette zone monte avec le clavier, mais la barre de navigation reste fixe */}
+      <View style={[
+        styles.inputWrapper,
+        { 
+          bottom: inputBottomPosition,
+          paddingBottom: keyboardHeight > 0 ? Math.max(insets.bottom, 10) : 10,
+        }
+      ]} pointerEvents="auto">
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -187,6 +234,12 @@ const ChatView: React.FC<ChatViewProps> = ({
             onChangeText={onMessageTextChange}
             multiline
             maxLength={1000}
+            onFocus={() => {
+              // Scroll vers le bas quand on focus l'input
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }}
           />
           <TouchableOpacity
             style={[
@@ -204,7 +257,7 @@ const ChatView: React.FC<ChatViewProps> = ({
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -255,7 +308,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#FFFFFF',
   },
   loadingContainer: {
     flex: 1,
@@ -301,77 +354,80 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '75%',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    // Pas d'ombres portées - design simple et épuré
   },
   ownBubble: {
-    backgroundColor: '#DCF8C6', // Couleur WhatsApp pour messages émis
+    backgroundColor: '#4A90E2', // Bleu pour messages émis
     borderBottomRightRadius: 4,
   },
   otherBubble: {
-    backgroundColor: '#FFFFFF', // Couleur WhatsApp pour messages entrants
+    backgroundColor: '#F0F0F0', // Gris clair pour messages entrants
     borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 20,
   },
   ownMessageText: {
     color: '#FFFFFF',
   },
   otherMessageText: {
-    color: theme.colors.text.primary,
+    color: '#333333',
   },
   messageTime: {
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 6,
   },
   ownMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   otherMessageTime: {
-    color: theme.colors.text.secondary,
+    color: '#666666',
   },
   inputWrapper: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#E5E5E5',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 5000, // Z-index élevé mais inférieur à la barre de navigation (10000)
+    // Pas de marginBottom, la position est gérée par le bottom dynamique
+    marginBottom: -65,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 12,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   input: {
     flex: 1,
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     maxHeight: 100,
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    backgroundColor: '#F5F5F5',
+    fontSize: 15,
+    color: '#333333',
+    backgroundColor: '#F8F8F8',
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#4A90E2', // Bleu pour correspondre aux messages
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   sendButtonDisabled: {
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#D0D0D0',
   },
   emptyContainer: {
     alignItems: 'center',
