@@ -6,6 +6,7 @@ import axios from 'axios';
 // Use compat fallback to avoid component registration issues in Expo Go; require modular funcs only when available.
 import firebaseCompat from 'firebase/compat/app';
 import 'firebase/compat/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import deviceApi from './deviceApi';
 
 /**
@@ -466,12 +467,165 @@ class FirebaseAuthService {
   }
 
   /**
+   * Fonction pour forcer la déconnexion COMPLÈTE de Google Sign-In
+   * IMPORTANT: Ne PAS utiliser signInSilently() car ça RECONNECTE le compte !
+   * On utilise uniquement revokeAccess() + signOut() + reconfigure
+   */
+  async _forceBrutalGoogleSignOut() {
+    try {
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      const { firebaseOAuthClientIds } = require('../config/firebaseApp');
+      
+      console.log('💀 Déconnexion Google Sign-In...');
+      
+      const config = {
+        webClientId: firebaseOAuthClientIds.web,
+        offlineAccess: true,
+        forceCodeForRefreshToken: true,
+        scopes: ['email', 'profile'],
+      };
+      
+      // 1. Configurer le SDK
+      GoogleSignin.configure(config);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 2. Révoquer l'accès (supprime les permissions de l'app)
+      try {
+        await GoogleSignin.revokeAccess();
+        console.log('✅ Accès révoqué');
+      } catch (revokeError: any) {
+        // SIGN_IN_REQUIRED = pas de compte = OK
+        if (!revokeError?.message?.includes('SIGN_IN_REQUIRED') && 
+            revokeError?.code !== 'SIGN_IN_REQUIRED') {
+          console.log('ℹ️ Révocation: ', revokeError?.code || 'pas de compte');
+        }
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 3. Déconnexion
+      try {
+        await GoogleSignin.signOut();
+        console.log('✅ Déconnexion effectuée');
+      } catch (e) { /* ignore */ }
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 4. RECONFIGURER le SDK (efface le compte en mémoire)
+      // C'est LA CLÉ pour que signIn() affiche le sélecteur
+      GoogleSignin.configure(config);
+      console.log('✅ SDK reconfiguré');
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 5. Vérifier avec getCurrentUser() UNIQUEMENT (PAS signInSilently qui reconnecte!)
+      let currentUser = null;
+      try {
+        currentUser = await GoogleSignin.getCurrentUser();
+      } catch (e) { /* ignore */ }
+      
+      if (currentUser) {
+        console.log('⚠️ Compte encore détecté, dernière déconnexion...');
+        try { await GoogleSignin.revokeAccess(); } catch (e) { /* ignore */ }
+        try { await GoogleSignin.signOut(); } catch (e) { /* ignore */ }
+        GoogleSignin.configure(config);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      // 6. Vérification finale
+      let finalUser = null;
+      try {
+        finalUser = await GoogleSignin.getCurrentUser();
+      } catch (e) { /* ignore */ }
+      
+      if (finalUser) {
+        console.log('⚠️ Compte toujours présent (cache Android persistant)');
+      } else {
+        console.log('✅✅✅ Déconnexion Google complète - aucun compte');
+      }
+      
+      console.log('💀 Déconnexion Google terminée');
+    } catch (error: any) {
+      console.error('❌ Erreur déconnexion Google:', error?.message);
+      // Reconfigurer quand même
+      try {
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+        const { firebaseOAuthClientIds } = require('../config/firebaseApp');
+        GoogleSignin.configure({
+          webClientId: firebaseOAuthClientIds.web,
+          offlineAccess: true,
+          forceCodeForRefreshToken: true,
+          scopes: ['email', 'profile'],
+        });
+      } catch (configError) { /* ignore */ }
+    }
+  }
+
+  /**
    * Logout user
-   * CRITICAL: Also disconnect Google Sign-In to prevent auto-reconnection
+   * CRITICAL: Supprime TOUT - Firebase, Google Sign-In, AsyncStorage, tous les caches
+   * Quand on clique sur "se déconnecter", on ne doit RIEN garder en mémoire
    */
   async logout() {
     try {
-      // 1. Sign out from Firebase
+      console.log('🚪🚪🚪 DÉCONNEXION COMPLÈTE - Suppression de TOUT...');
+      
+      // 1. CRITICAL: Nettoyer AsyncStorage EN PREMIER pour supprimer tous les tokens et données
+      // Cela supprime la session de l'app immédiatement
+      // QUAND ON CLIQUE SUR "SE DÉCONNECTER", ON NE GARDE RIEN EN MÉMOIRE
+      console.log('🗑️🗑️🗑️ NETTOYAGE COMPLET d\'AsyncStorage - Suppression de TOUS les tokens et données...');
+      try {
+        // Supprimer TOUS les tokens et données utilisateur
+        // Liste exhaustive de toutes les clés possibles
+        await AsyncStorage.multiRemove([
+          // Clés admin_* (backend spec)
+          'admin_token',
+          'admin_user_id',
+          'admin_user_email',
+          'admin_user_name',
+          'admin_user_role',
+          // Clés legacy
+          '@LasoCoach:authToken',
+          '@LasoCoach:refreshToken',
+          '@LasoCoach:authProvider',
+          '@LasoCoach:user',
+          // Clés de persistance utilisateur
+          'laso_auth_user_v1',
+          // Autres clés possibles
+          'firebase:authUser',
+          'firebase:token',
+        ]);
+        console.log('✅ AsyncStorage complètement nettoyé - tous les tokens et données supprimés');
+        
+        // Vérification : s'assurer qu'il ne reste rien
+        const allKeys = await AsyncStorage.getAllKeys();
+        const authRelatedKeys = allKeys.filter(key => 
+          key.includes('token') || 
+          key.includes('auth') || 
+          key.includes('user') || 
+          key.includes('admin')
+        );
+        if (authRelatedKeys.length > 0) {
+          console.warn('⚠️ Clés restantes détectées:', authRelatedKeys);
+          // Supprimer les clés restantes
+          await AsyncStorage.multiRemove(authRelatedKeys);
+          console.log('✅ Clés restantes supprimées');
+        } else {
+          console.log('✅ Aucune clé d\'authentification restante - AsyncStorage complètement propre');
+        }
+      } catch (storageError: any) {
+        console.error('❌ Erreur lors du nettoyage AsyncStorage:', storageError?.message);
+        // En cas d'erreur, essayer un nettoyage complet
+        try {
+          await AsyncStorage.clear();
+          console.log('✅ AsyncStorage.clear() effectué (dernier recours)');
+        } catch (clearError) {
+          console.error('❌ Impossible de nettoyer AsyncStorage:', clearError);
+        }
+      }
+      
+      // 2. Sign out from Firebase
+      console.log('🔥 Déconnexion de Firebase...');
       const auth = this.getAuth();
       if (isCompatAuth()) {
         await auth.signOut();
@@ -479,47 +633,32 @@ class FirebaseAuthService {
         const { signOut } = require('firebase/auth');
         await signOut(auth);
       }
+      console.log('✅ Firebase déconnecté');
       
-      // 2. CRITICAL: Sign out from Google Sign-In and REVOKE access COMPLETELY
-      // This ensures that on next login, user will see ALL accounts, not just auto-reconnect
-      // We revoke access to completely remove the cached account from device
+      // 3. CRITICAL: Déconnexion ULTRA-BRUTALE de Google Sign-In
+      // Utilise une méthode agressive avec plusieurs cycles pour forcer le nettoyage complet
+      // Supprime TOUS les comptes (réels + fantômes + cache Android)
+      console.log('💀💀💀 Déconnexion ULTRA-BRUTALE de Google Sign-In...');
+      await this._forceBrutalGoogleSignOut();
+      
+      // 4. Nettoyer l'état local
+      this.currentUser = null;
+      
+      console.log('✅✅✅ DÉCONNEXION COMPLÈTE TERMINÉE - RIEN n\'a été gardé en mémoire');
+      console.log('✅ AsyncStorage nettoyé, Firebase déconnecté, Google Sign-In supprimé');
+    } catch (error) {
+      // Même en cas d'erreur, on nettoie l'état local
+      this.currentUser = null;
+      
+      // Essayer de nettoyer AsyncStorage même en cas d'erreur
       try {
-        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
-        
-        // Check if user is signed in with Google
-        let currentUser = null;
-        try {
-          currentUser = await GoogleSignin.getCurrentUser();
-        } catch (error) {
-          // Ignore - user might not be signed in
-        }
-        
-        if (currentUser) {
-          // User is signed in - revoke access FIRST to completely destroy the session
-          // This removes all cached account information from device
-          try {
-            await GoogleSignin.revokeAccess();
-          } catch (revokeError) {
-            // Ignore - continue anyway
-          }
-        }
-        
-        // Then sign out from Google Sign-In (even if not signed in, to clear any state)
-        try {
-          await GoogleSignin.signOut();
-        } catch (signOutError) {
-          // Ignore errors - non-fatal
-        }
-        
-        // Longer delay to ensure disconnection is complete
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (googleError) {
-        // Non-fatal: Log but don't throw - Firebase logout is more important
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.clear(); // Nettoyage complet en dernier recours
+        console.log('✅ AsyncStorage nettoyé (dernier recours)');
+      } catch (clearError) {
+        // Ignore
       }
       
-      this.currentUser = null;
-    } catch (error) {
-      this.currentUser = null;
       throw new Error(this.getErrorMessage(error));
     }
   }

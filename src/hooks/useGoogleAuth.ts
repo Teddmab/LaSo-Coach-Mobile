@@ -102,113 +102,126 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       }
 
       console.log('🚀 Lancement de l\'authentification Google native...');
-
-      // CRITICAL: Force account selection by completely disconnecting any existing session
-      // This ensures the account picker shows ALL available accounts on the device
-      try {
-        console.log('🔌 Déconnexion complète de Google Sign-In pour forcer la sélection de compte...');
-        
-        // 1. Check if a user is currently signed in by getting current user
-        try {
-          const currentUser = await GoogleSignin.getCurrentUser();
-          const isSignedIn = currentUser !== null;
-          console.log('📊 État Google Sign-In actuel:', isSignedIn);
-          
-          if (isSignedIn && currentUser) {
-            console.log('👤 Compte actuellement connecté:', currentUser.user?.email);
-            
-            // 2. Revoke access FIRST to completely destroy the session and cached account
-            // This removes all cached account information from device
-            console.log('🔓 Révoquation de l\'accès Google (suppression complète du cache)...');
-            try {
-              await GoogleSignin.revokeAccess();
-              console.log('✅ Accès Google révoqué - cache supprimé');
-            } catch (revokeError: any) {
-              console.warn('⚠️ Erreur lors de la révocation (non bloquant):', revokeError?.message);
-            }
-          }
-          
-          // 3. Sign out to clear session (even if not signed in, to clear any cached state)
-          console.log('🚪 Déconnexion de Google Sign-In...');
-          try {
-            await GoogleSignin.signOut();
-            console.log('✅ Google Sign-In déconnecté');
-          } catch (signOutError: any) {
-            // Ignore errors when not signed in
-            console.log('ℹ️ Pas de session active à nettoyer');
-          }
-          
-          // 4. Wait a bit longer to ensure disconnection is complete
-          // This is important for Android to properly clear the cached account
-          await new Promise(resolve => setTimeout(resolve, 300));
-          console.log('✅ Déconnexion complète terminée - sélecteur de comptes sera affiché');
-        } catch (checkError) {
-          // If check fails, still try to sign out
-          console.warn('⚠️ Erreur lors de la vérification (non bloquant):', checkError);
-          try {
-            await GoogleSignin.signOut();
-          } catch (signOutError) {
-            // Ignore
-          }
-        }
-      } catch (signOutError) {
-        // Non-fatal: Continue even if sign out fails
-        console.warn('⚠️ Erreur déconnexion (non bloquant):', signOutError);
-      }
-
-      // CRITICAL: On Android, the system may cache the last used account
-      // Even after signOut(), Android can still use the cached account
-      // We need to force a complete disconnection and reconfigure the SDK
-      // to ensure the account picker is shown with ALL available accounts
-      console.log('🔄 Réinitialisation du SDK pour forcer le sélecteur de comptes...');
       
-      // Force one more complete disconnection cycle
+      // ============================================================
+      // NOUVELLE APPROCHE: Sans signInSilently() qui RECONNECTE le compte
+      // On fait juste revokeAccess() + signOut() avec des délais longs
+      // ============================================================
+      
+      console.log('💀 ÉTAPE 1: Révocation complète de l\'accès...');
       try {
-        // Get current user state
-        const finalCheck = await GoogleSignin.getCurrentUser();
-        if (finalCheck !== null) {
-          console.log('⚠️ Compte encore présent, déconnexion forcée...');
-          // Revoke access completely
-          try {
-            await GoogleSignin.revokeAccess();
-            console.log('✅ Accès révoqué (tentative finale)');
-          } catch (revokeError) {
-            // Ignore
-          }
-        }
-        
-        // Sign out one more time
-        try {
-          await GoogleSignin.signOut();
-          console.log('✅ Déconnexion effectuée (tentative finale)');
-        } catch (signOutError) {
-          // Ignore
-        }
-        
-        // Wait a bit longer to ensure Android clears the cache
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Reconfigure the SDK to ensure fresh state
-        // This helps ensure Android doesn't use cached account
-        GoogleSignin.configure({
-          webClientId: firebaseOAuthClientIds.web,
-          offlineAccess: true,
-          forceCodeForRefreshToken: true,
-          scopes: ['email', 'profile'],
-          hostedDomain: undefined,
-        });
-        
-        console.log('✅ SDK réinitialisé - sélecteur de comptes sera forcé');
-      } catch (resetError) {
-        console.warn('⚠️ Erreur lors de la réinitialisation (non bloquant):', resetError);
+        await GoogleSignin.revokeAccess();
+        console.log('✅ revokeAccess() réussi');
+      } catch (revokeError: any) {
+        console.log('ℹ️ revokeAccess():', revokeError?.code || 'pas de compte');
       }
-
-      // Ouvrir l'UI native de Google (SDK Android/iOS)
-      // PAS de WebView ! C'est l'UI native de Google
-      // After complete disconnection and reconfiguration, this should show ALL accounts on the device
-      console.log('📱 Ouverture de l\'UI Google pour sélection de compte (tous les comptes disponibles)...');
-      // After complete disconnection and reconfiguration, signIn() should show the account picker
-      // with ALL available accounts. The user will be able to choose from all Google accounts on the device
+      
+      // Attendre que Google traite la révocation (requête réseau)
+      console.log('⏳ Attente de 1 seconde pour traitement de la révocation...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('💀 ÉTAPE 2: Déconnexion...');
+      try {
+        await GoogleSignin.signOut();
+        console.log('✅ signOut() réussi');
+      } catch (e) {
+        console.log('ℹ️ signOut(): pas de session');
+      }
+      
+      // Attendre
+      console.log('⏳ Attente de 500ms...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('💀 ÉTAPE 3: Deuxième révocation (pour être sûr)...');
+      try {
+        await GoogleSignin.revokeAccess();
+        console.log('✅ 2ème revokeAccess() réussi');
+      } catch (e) {
+        console.log('ℹ️ 2ème revokeAccess(): déjà révoqué');
+      }
+      
+      // Attendre
+      console.log('⏳ Attente de 500ms...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('💀 ÉTAPE 4: Deuxième déconnexion...');
+      try {
+        await GoogleSignin.signOut();
+        console.log('✅ 2ème signOut() réussi');
+      } catch (e) {
+        console.log('ℹ️ 2ème signOut(): déjà déconnecté');
+      }
+      
+      // Attendre
+      console.log('⏳ Attente de 500ms...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // ============================================================
+      // ÉTAPE 5: RÉINITIALISATION COMPLÈTE DU SDK
+      // On reconfigure plusieurs fois pour forcer un état "frais"
+      // ============================================================
+      console.log('🔧 ÉTAPE 5: RÉINITIALISATION COMPLÈTE du SDK (3 fois)...');
+      
+      // Première reconfiguration - config minimale pour "reset"
+      console.log('🔧 Config 1/3: Reset minimal...');
+      GoogleSignin.configure({
+        webClientId: firebaseOAuthClientIds.web,
+      });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Deuxième reconfiguration - config complète avec accountName: undefined
+      console.log('🔧 Config 2/3: Config complète avec accountName undefined...');
+      GoogleSignin.configure({
+        webClientId: firebaseOAuthClientIds.web,
+        offlineAccess: true,
+        forceCodeForRefreshToken: true,
+        scopes: ['email', 'profile'],
+        accountName: undefined, // Force à ne pas prioriser un compte
+        hostedDomain: '', // Chaîne vide = pas de restriction
+      });
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Troisième reconfiguration - config finale propre
+      console.log('🔧 Config 3/3: Config finale...');
+      GoogleSignin.configure({
+        webClientId: firebaseOAuthClientIds.web,
+        offlineAccess: true,
+        forceCodeForRefreshToken: true,
+        scopes: ['email', 'profile'],
+      });
+      console.log('✅ SDK reconfiguré 3 fois');
+      
+      // Attendre plus longtemps
+      console.log('⏳ Attente de 1 seconde...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Vérification finale
+      console.log('🔍 ÉTAPE 6: Vérification finale...');
+      try {
+        const user = await GoogleSignin.getCurrentUser();
+        if (user) {
+          const email = (user as any)?.user?.email || (user as any)?.data?.user?.email;
+          console.log(`⚠️ Compte encore présent: ${email || 'inconnu'} - dernière déconnexion...`);
+          try { await GoogleSignin.revokeAccess(); } catch (e) { /* ignore */ }
+          try { await GoogleSignin.signOut(); } catch (e) { /* ignore */ }
+          
+          // Reconfigurer une dernière fois
+          GoogleSignin.configure({
+            webClientId: firebaseOAuthClientIds.web,
+            offlineAccess: true,
+            forceCodeForRefreshToken: true,
+            scopes: ['email', 'profile'],
+          });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          console.log('✅ Aucun compte détecté');
+        }
+      } catch (e) {
+        console.log('✅ Pas de compte');
+      }
+      
+      console.log('✅✅✅ Processus terminé');
+      console.log('📱 Ouverture de l\'UI Google pour sélection de compte...');
       const userInfo: any = await GoogleSignin.signIn();
 
       console.log('📦 USERINFO BRUT:', JSON.stringify(userInfo, null, 2));
@@ -380,7 +393,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
   return {
     signInWithGoogle,
-    isAvailable: isConfigured, // Le SDK est prêt quand il est configuré
+    isAvailable: isConfigured,
     isPrompting,
   };
 };

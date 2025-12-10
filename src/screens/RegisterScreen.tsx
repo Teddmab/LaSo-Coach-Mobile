@@ -134,11 +134,9 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
   const handleGoogleSignup = async () => {
     setGeneralError(null);
     const result = await triggerGoogleSignIn();
-    // Only show error if there's an actual error (not cancellation)
     if (result?.error) {
       setGeneralError(result.error);
     }
-    // If result.error is null, it means user cancelled - don't show error
   };
 
   /**

@@ -96,11 +96,9 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
   const handleGoogleLogin = async (): Promise<void> => {
     setErrors({});
     const result = await triggerGoogleSignIn();
-    // Only show error if there's an actual error (not cancellation)
     if (result?.error) {
       setErrors({ general: result.error });
     }
-    // If result.error is null, it means user cancelled - don't show error
   };
 
   const flatListRef = useRef<FlatList<WelcomeSlide> | null>(null);
