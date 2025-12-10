@@ -1,0 +1,872 @@
+12-09 14:08:22.165 I/Pageboost( 1388): start alp : com.afrotouch.lasocoach
+12-09 14:08:22.167 I/Pageboost( 1388): alp for : com.afrotouch.lasocoach , 0
+12-09 14:08:22.168 E/pageboostd( 2807): alp start : app comafrotouchlasocoach
+12-09 14:08:22.172 I/ChimeraSystemEventListener( 1388): appLaunchIntent package name is: com.afrotouch.lasocoach
+12-09 14:08:22.202 I/ActivityManager( 1388): Start proc 30234:com.afrotouch.lasocoach/u0a373 for activelaunch {com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity}
+12-09 14:08:22.218 I/touch.lasocoach(30234): Using CollectorTypeCC GC.
+12-09 14:08:22.222 E/touch.lasocoach(30234): Not starting debugger since process cannot load the jdwp agent.
+12-09 14:08:22.258 D/nativeloader(30234): Configuring clns-4 for other apk /system/framework/org.apache.http.legacy.jar. target_sdk_version=36, uses_libraries=ALL, library_path=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/lib/arm64:/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.afrotouch.lasocoach
+12-09 14:08:22.269 E/pageboostd( 2807): comafrotouchlasocoach, amt 20971520 scnt 1 fcnt 1
+12-09 14:08:22.269 E/pageboostd( 2807): alp end : app comafrotouchlasocoach data_amount 20971520
+12-09 14:08:22.269 E/pageboostd( 2807): alp halted comafrotouchlasocoach
+12-09 14:08:22.277 D/nativeloader(30234): Configuring clns-5 for other apk /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/lib/arm64:/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.afrotouch.lasocoach
+12-09 14:08:22.288 I/ChimeraSystemEventListener( 1388): appLaunchIntent package name is: com.afrotouch.lasocoach
+12-09 14:08:22.289 D/ShellStartingWindow( 1785): preload Icon com.afrotouch.lasocoach
+12-09 14:08:22.289 I/Pageboost( 1388): onAppLaunch : com.afrotouch.lasocoach
+12-09 14:08:22.290 I/Pageboost( 1388): Record App IO : com.afrotouch.lasocoach pid 30234
+12-09 14:08:22.292 D/VpnManagerService( 1388): Exception: java.lang.NullPointerException: Attempt to invoke interface method 'int com.samsung.android.knox.zt.networktrust.filter.IKnoxNetworkFilterService.getKnoxNwFilterHttpProxyPort(int, java.lang.String)' on a null object reference
+12-09 14:08:22.295 V/WindowManager( 1388): Collecting in transition 7272: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityStarter.startActivityUnchecked:2376 com.android.server.wm.ActivityStarter.executeRequest:1953 com.android.server.wm.ActivityStarter.execute:1093 
+12-09 14:08:22.295 D/ActivityTaskManager( 1388): TaskLaunchParamsModifier:task=null activity=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t-1} display-from-option=0 display-id=0 task-display-area-windowing-mode=1 suggested-display-area=DefaultTaskDisplayArea_d0@37942360
+12-09 14:08:22.296 V/GraphicsEnvironment(30234): ANGLE GameManagerService for com.afrotouch.lasocoach: false
+12-09 14:08:22.296 V/GraphicsEnvironment(30234): com.afrotouch.lasocoach is not listed in per-application setting
+12-09 14:08:22.297 D/ActivityTaskManager( 1388): TaskLaunchParamsModifier:task=null activity=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t-1} display-from-option=0 display-id=0 task-display-area-windowing-mode=1 suggested-display-area=DefaultTaskDisplayArea_d0@37942360 inherit-from-source=fullscreen non-freeform-task-display-area display-area=DefaultTaskDisplayArea_d0@37942360 activity-requested-portrait freeform-size-mismatch=Rect(54, 384 - 666, 1184)
+12-09 14:08:22.306 D/ActivityTaskManager( 1388): TaskLaunchParamsModifier:task=Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach} activity=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t-1} display-from-option=0 display-id=0 task-display-area-windowing-mode=1 suggested-display-area=DefaultTaskDisplayArea_d0@37942360 inherit-from-source=fullscreen non-freeform-task-display-area display-area=DefaultTaskDisplayArea_d0@37942360 activity-requested-portrait freeform-size-mismatch=Rect(54, 384 - 666, 1184)
+12-09 14:08:22.306 V/WindowManager( 1388): Collecting in transition 7272: Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.Transition.collectExistenceChange:942 com.android.server.wm.TransitionController.collectExistenceChange:985 com.android.server.wm.ActivityStarter.setNewTask:4727 com.android.server.wm.ActivityStarter.startActivityInner:2944 
+12-09 14:08:22.309 E/BufferQueueDebug(  841): [ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422](this:0xb400007aa7ddd790,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422'
+12-09 14:08:22.309 I/BufferQueueDebug(  841): [ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422](this:0xb400007aa7ddd790,id:-1,api:0,p:-1,c:-1) BufferQueue core=(841:/system/bin/surfaceflinger)
+12-09 14:08:22.309 I/SurfaceFlinger(  841): id=96422 createSurf, flag=84004, ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422
+12-09 14:08:22.311 D/ActivityTaskManager( 1388): Add starting ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}: typeParam=143 startingData=com.android.server.wm.SplashScreenStartingData@202b731
+12-09 14:08:22.312 V/WindowManager( 1388): Added starting ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}: startingWindow=null startingView=com.android.server.wm.StartingSurfaceController$StartingSurface@fdf1e16
+12-09 14:08:22.316 V/WindowManager( 1388): Collecting in transition 7272: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.Transition.collectExistenceChange:942 com.android.server.wm.TransitionController.collectExistenceChange:985 com.android.server.wm.ActivityStarter.handleStartResult:2557 com.android.server.wm.ActivityStarter.startActivityUnchecked:2384 
+12-09 14:08:22.318 I/ActivityTaskManager( 1388): START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.afrotouch.lasocoach/.MainActivity bnds=[526,657][693,900]} with LAUNCH_SINGLE_TASK from uid 10116 (BAL_ALLOW_ALLOWLISTED_COMPONENT) result code=0
+12-09 14:08:22.318 V/WindowManagerShell( 1785): Transition requested: android.os.BinderProxy@705d191 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=5337 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.afrotouch.lasocoach/.MainActivity } baseActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} topActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} origActivity=null realActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} numActivities=1 lastActiveTime=655973530 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 maxWidth=-1 maxHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@a7a98f6} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 59 - 0, 0) topActivityInfo=ActivityInfo{51244f7 com.afrotouch.lasocoach.MainActivity} launchCookies=[android.os.BinderProxy@7d4cf64] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden originallySupportedMultiWindow=true hasWallpaper=false topActivityInFixedAspectRatio=false rootAffinity=10373:com.afrotouch.lasocoach topActivityInDisplayCompat=false topActivityInBoundsCompat=false topActivityBounds=null singleTapFromLetterbox=false isTopTaskInStage=false topActivityUiMode=33 CoverLauncherWidgetTask=false CoverScreenTask=false isAllowedSeamlessRotation=false isTopTransparentActivity=false hasPopOver=false}, remoteTransition = RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@824f5cd, appThread = android.app.IApplicationThread$Stub$Proxy@42f4e82, debugName = QuickstepLaunch }, displayChange = null }
+12-09 14:08:22.321 I/HoneySpace.SALoggingUtils( 2183): SA Logging screenID: 201 eventId: 1001 detail: {PackageName=com.afrotouch.lasocoach, det=3} value: -1
+12-09 14:08:22.321 I/HoneySpace.SuggestedAppsRepositoryImpl( 2183): sendSuggestedAppsLaunchTarget: ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity}
+12-09 14:08:22.326 V/WindowManager( 1388): Collecting in transition 7272: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityRecord.setVisibility:6348 com.android.server.wm.ActivityRecord.setVisibility:6300 com.android.server.wm.ActivityRecord.makeVisibleIfNeeded:7102 
+12-09 14:08:22.328 D/WindowManager( 1388): rotationForOrientation, orientationSource=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}
+12-09 14:08:22.329 V/WindowManager( 1388): Collecting in transition 7272: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityRecord.setVisibility:6348 com.android.server.wm.ActivityRecord.setVisibility:6300 com.android.server.wm.ActivityTaskSupervisor.realStartActivityLocked:941 
+12-09 14:08:22.330 D/SGM:PkgDataHelper( 1388): notifyAppCreate(), pkgName: com.afrotouch.lasocoach, userId: 0, sendRet: true
+12-09 14:08:22.331 D/SGM:FgCheckThread( 1388): onLooperPrepared(), msg: MSG_APP_CREATE, pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.332 D/SGM:FgCheckThread( 1388):   sendRunningComponentFocus(), pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.332 D/SGM:FgCheckThread( 1388): onLooperPrepared(), msg: MSG_TASK_FOCUSED, pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.332 D/SGM:FgCheckThread( 1388):   handleTaskFocused(), pkgName: com.afrotouch.lasocoach, userID:0
+12-09 14:08:22.332 D/InputDispatcher( 1388): Focused application(0): ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}
+12-09 14:08:22.332 D/SGM:FgCheckThread( 1388):   handleResume(). pkgName: com.afrotouch.lasocoach, userId: 0, isTunableApp: null
+12-09 14:08:22.332 D/SGM:FgCheckThread( 1388): notifyFocusInOut(). of pkg: com.afrotouch.lasocoach, type: 4, isTunableApp: false, userId: 0
+12-09 14:08:22.334 D/SGM:FgCheckThread( 1388):   sendRunningComponentFocus(), pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.334 D/SGM:FgCheckThread( 1388): onLooperPrepared(), msg: MSG_TASK_FOCUSED, pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.334 D/SGM:FgCheckThread( 1388):   handleTaskFocused(), pkgName: com.afrotouch.lasocoach, userID:0
+12-09 14:08:22.334 D/ActivityTaskManager( 1388): scheduleTopResumedActivityChanged, onTop=true, r=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, caller=com.android.server.wm.ActivityTaskSupervisor.scheduleTopResumedActivityStateIfNeeded:2857 com.android.server.wm.ActivityTaskSupervisor.updateTopResumedActivityIfNeeded:2849 com.android.server.wm.TaskFragment.setResumedActivity:579 com.android.server.wm.TaskFragment.onActivityStateChanged:903 com.android.server.wm.ActivityRecord.setState:6811 com.android.server.wm.Task.minimalResumeActivityLocked:6192 
+12-09 14:08:22.335 V/WindowManager( 1388): Collecting in transition 7272: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityRecord.setVisibility:6348 com.android.server.wm.ActivityRecord.setVisibility:6300 com.android.server.wm.ActivityRecord.completeResumeLocked:7395 
+12-09 14:08:22.336 D/WindowManagerServiceExt( 1388): notifyOccludeChangeNotice: cn=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} occludesParent=true isInSplitScreenMode=false styleFloating=false caller=com.android.server.wm.ActivityRecord.completeResumeLocked:7452 com.android.server.wm.Task.minimalResumeActivityLocked:6193 com.android.server.wm.ActivityTaskSupervisor.realStartActivityLocked:1158 com.android.server.wm.ActivityTaskSupervisor.startSpecificActivity:1267 com.android.server.wm.TaskFragment.resumeTopActivity:1885 
+12-09 14:08:22.338 D/WindowManager( 1388): SyncGroup 7272:  Unfinished container: Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach} mSyncState=2
+12-09 14:08:22.339 I/HoneySpace.TopTaskUseCase( 2183): topTasks 5337 ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity}
+12-09 14:08:22.343 D/WindowManager( 1388): prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}
+12-09 14:08:22.343 E/BufferQueueDebug(  841): [ca705a2 Splash Screen com.afrotouch.lasocoach#96423](this:0xb400007aa7eff790,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'ca705a2 Splash Screen com.afrotouch.lasocoach#96423'
+12-09 14:08:22.343 I/BufferQueueDebug(  841): [ca705a2 Splash Screen com.afrotouch.lasocoach#96423](this:0xb400007aa7eff790,id:-1,api:0,p:-1,c:-1) BufferQueue core=(841:/system/bin/surfaceflinger)
+12-09 14:08:22.344 I/SurfaceFlinger(  841): id=96423 createSurf, flag=84004, ca705a2 Splash Screen com.afrotouch.lasocoach#96423
+12-09 14:08:22.344 V/WindowManager( 1388): addWindow: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337} startingWindow=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}
+12-09 14:08:22.349 I/GameSDK@LifeCycle( 1388): noteResumeComponent(): package name  : com.afrotouch.lasocoach
+12-09 14:08:22.349 D/SGM:FgCheckThread( 1388): noteResumeComponent(), received pkgName: com.afrotouch.lasocoach, userId: 0
+12-09 14:08:22.350 I/InsetsController( 1785): onStateChanged: host=Splash Screen com.afrotouch.lasocoach, from=android.view.ViewRootImpl.setView:1753, state=InsetsState: {mDisplayFrame=Rect(0, 0 - 720, 1600), mDisplayCutout=DisplayCutout{insets=Rect(0, 59 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(320, 0 - 400, 59), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=720 displayHeight=1600 physicalDisplayWidth=720 physicalDisplayHeight=1600 density={1.875} cutoutSpec={M 0,0 H -21.33333333333333 V 31.46666666666667 H 21.33333333333333 V 0 H 0 Z @dp} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}}}, mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=0, center=Point(0, 0)}, RoundedCorner{position=TopRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomLeft, radius=0, center=Point(0, 0)}]}  mRoundedCornerFrame=Rect(0, 0 - 720, 1600), mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(637, 0 - 720, 59) rotation=0}, mDisplayShape=DisplayShape{ spec=-311912193 displayWidth=720 displayHeight=1600 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}, mSources= { InsetsSource: {c1cc0000 mType=statusBars mFrame=[0,0][720,59] mVisible=true mFlags=[]}, InsetsSource: {c1cc0005 mType=mandatorySystemGestures mFrame=[0,0][720,82] mVisible=true mFlags=[]}, InsetsSource: {c1cc0006 mType=tappableElement mFrame=[0,0][720,59] mVisible=true mFlags=[]}, InsetsSource: {3 mType=ime mFrame=[0,0][0,0] mVisible=false mFlags=[]}, InsetsSource: {27 mType=displayCutout mFrame=[0,0][720,59] mVisible=true mFlags=[]}, InsetsSource: {4cad0001 mType=navigationBars mFrame=[0,1510][720,1600] mVisible=true mFlags=[]}, InsetsSource: {4cad0004 mType=systemGestures mFrame=[0,0][0,0] mVisible=true mFlags=[]}, InsetsSource: {4cad0005 mType=mandatorySystemGestures mFrame=[0,1510][720,1600] mVisible=true mFlags=[]}, InsetsSource: {4cad0006 mType=tappableElement mFrame=[0,1510][720,1600] mVisible=true mFlags=[]}, InsetsSource: {4cad0024 mType=systemGestures mFrame=[0,0][0,0] mVisible=true mFlags=[]} }
+12-09 14:08:22.350 D/SGM:FgCheckThread( 1388): onLooperPrepared(), msg: MSG_APP_RESUME, pkgName: com.afrotouch.lasocoach, userid: 0
+12-09 14:08:22.350 I/ViewRootImpl@c9c3993[lasocoach]( 1785): synced displayState. AttachInfo displayState=2
+12-09 14:08:22.350 I/ViewRootImpl@c9c3993[lasocoach]( 1785): setView = android.widget.FrameLayout@887d0ce TM=true
+12-09 14:08:22.353 D/CoreBackPreview( 1388): Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@1581b69, mPriority=0, mIsAnimationCallback=false}
+12-09 14:08:22.353 V/WindowManager( 1388): Relayout Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}: viewVisibility=0 req=720x1600 ty=3 d0
+12-09 14:08:22.354 E/BufferQueueDebug(  841): [Splash Screen com.afrotouch.lasocoach$_1785#96424](this:0xb400007aa8145790,id:-1,api:0,p:-1,c:-1) id info cannot be read from 'Splash Screen com.afrotouch.lasocoach$_1785#96424'
+12-09 14:08:22.354 I/BufferQueueDebug(  841): [Splash Screen com.afrotouch.lasocoach$_1785#96424](this:0xb400007aa8145790,id:-1,api:0,p:-1,c:-1) BufferQueue core=(841:/system/bin/surfaceflinger)
+12-09 14:08:22.354 I/SurfaceFlinger(  841): id=96424 createSurf, flag=44004, Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:22.355 D/WindowManager( 1388): makeSurface duration=1 name=Splash Screen com.afrotouch.lasocoach$_1785
+12-09 14:08:22.356 D/WindowManager( 1388): SyncGroup 7272:  Unfinished container: Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach} mSyncState=2
+12-09 14:08:22.359 I/BLASTBufferQueue_Java( 1785): new BLASTBufferQueue, mName= ViewRootImpl@c9c3993[lasocoach] mNativeObject= 0xb400007b210af880 sc.mNativeObject= 0xb400007b25fbd900 caller= android.view.ViewRootImpl.updateBlastSurfaceIfNeeded:3028 android.view.ViewRootImpl.relayoutWindow:10131 android.view.ViewRootImpl.performTraversals:4110 android.view.ViewRootImpl.doTraversal:3288 android.view.ViewRootImpl$TraversalRunnable.run:11344 android.view.Choreographer$CallbackRecord.run:1689 android.view.Choreographer$CallbackRecord.run:1698 android.view.Choreographer.doCallbacks:1153 android.view.Choreographer.doFrame:1079 android.view.Choreographer$FrameDisplayEventReceiver.run:1646 
+12-09 14:08:22.359 I/BLASTBufferQueue_Java( 1785): update, w= 720 h= 1600 mName = ViewRootImpl@c9c3993[lasocoach] mNativeObject= 0xb400007b210af880 sc.mNativeObject= 0xb400007b25fbd900 format= -3 caller= android.graphics.BLASTBufferQueue.<init>:89 android.view.ViewRootImpl.updateBlastSurfaceIfNeeded:3028 android.view.ViewRootImpl.relayoutWindow:10131 android.view.ViewRootImpl.performTraversals:4110 android.view.ViewRootImpl.doTraversal:3288 android.view.ViewRootImpl$TraversalRunnable.run:11344 
+12-09 14:08:22.359 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Relayout returned: old=(0,0,720,1600) new=(0,0,720,1600) relayoutAsync=false req=(720,1600)0 dur=5 res=0x403 s={true 0xb400007b2608a800} ch=true seqId=0
+12-09 14:08:22.360 D/ViewRootImpl@c9c3993[lasocoach]( 1785): mThreadedRenderer.initialize() mSurface={isValid=true 0xb400007b2608a800} hwInitialized=true
+12-09 14:08:22.361 D/SGM:GameManager( 1388): identifyGamePackage. com.afrotouch.lasocoach, mCurrentUserId: 0, callerUserId: 0, callingMethodInfo: com.samsung.android.game.SemGameManager.isGamePackage(SemGameManager.java:109)
+12-09 14:08:22.361 D/SGM:PkgDataHelper( 1388): getGamePkgData(). com.afrotouch.lasocoach
+12-09 14:08:22.361 D/SGM:SemGameManager( 1388): isGamePackage(), pkgName=com.afrotouch.lasocoach, ret=false
+12-09 14:08:22.361 D/ViewRootImpl@c9c3993[lasocoach]( 1785): reportNextDraw android.view.ViewRootImpl.performTraversals:4718 android.view.ViewRootImpl.doTraversal:3288 android.view.ViewRootImpl$TraversalRunnable.run:11344 android.view.Choreographer$CallbackRecord.run:1689 android.view.Choreographer$CallbackRecord.run:1698 
+12-09 14:08:22.362 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Setup new sync=wmsSync-ViewRootImpl@c9c3993[lasocoach]#99
+12-09 14:08:22.362 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Creating new active sync group ViewRootImpl@c9c3993[lasocoach]#0
+12-09 14:08:22.363 I/ViewRootImpl@c9c3993[lasocoach]( 1785): registerCallbacksForSync syncBuffer=false
+12-09 14:08:22.365 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Received frameDrawingCallback syncResult=0 frameNum=1.
+12-09 14:08:22.366 I/ViewRootImpl@c9c3993[lasocoach]( 1785): mWNT: t=0xb400007b11d57680 mBlastBufferQueue=0xb400007b210af880 fn= 1 mRenderHdrSdrRatio=1.0 caller= android.view.ViewRootImpl$8.onFrameDraw:13841 android.view.ThreadedRenderer$1.onFrameDraw:792 <bottom of call stack> 
+12-09 14:08:22.366 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Setting up sync and frameCommitCallback
+12-09 14:08:22.372 D/BLASTBufferQueue( 1785): [ViewRootImpl@c9c3993[lasocoach]#5026](f:0,a:0) onFrameAvailable the first frame is available
+12-09 14:08:22.373 D/SGM:GameManager( 1388): identifyForegroundApp. com.afrotouch.lasocoach, mCurrentUserId: 0, callerUserId: 0
+12-09 14:08:22.373 D/SGM:PkgDataHelper( 1388): getGamePkgData(). com.afrotouch.lasocoach
+12-09 14:08:22.373 D/BLASTBufferQueue( 1785): [ViewRootImpl@c9c3993[lasocoach]#5026](f:0,a:1) acquireNextBufferLocked size=720x1600 mFrameNumber=1 applyTransaction=true mTimestamp=462164789502084(auto) mPendingTransactions.size=0 graphicBufferId=7666516757671 transform=0
+12-09 14:08:22.373 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true
+12-09 14:08:22.375 D/SGM:GameManager( 1388): identifyGamePackage. com.afrotouch.lasocoach, mCurrentUserId: 0, callerUserId: 0, callingMethodInfo: com.samsung.android.game.IGameManagerService$Stub.onTransact(IGameManagerService.java:233)
+12-09 14:08:22.375 D/SGM:PkgDataHelper( 1388): getGamePkgData(). com.afrotouch.lasocoach
+12-09 14:08:22.376 I/ViewRootImpl@c9c3993[lasocoach]( 1785): reportDrawFinished seqId=0
+12-09 14:08:22.377 D/WindowManager( 1388): finishDrawingWindow: Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach} mDrawState=DRAW_PENDING seqId=0
+12-09 14:08:22.377 V/WindowManager( 1388): Finishing drawing window Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}: mDrawState=DRAW_PENDING
+12-09 14:08:22.377 V/WindowManager( 1388): Draw state now committed in Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}
+12-09 14:08:22.378 V/WindowManager( 1388): performShowLocked: mDrawState=HAS_DRAWN in Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}
+12-09 14:08:22.379 V/WindowManager( 1388): Start calculating TransitionInfo based on participants: {ActivityRecord{afe314 u0 com.sec.android.app.launcher/.activities.LauncherActivity t4573}, ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}, Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, WallpaperWindowToken{f1e07d6 token=android.os.Binder@2282ff1}}
+12-09 14:08:22.379 V/WindowManager( 1388):   Final targets: [Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, Task{97ac121 #1 type=home}]
+12-09 14:08:22.381 I/SurfaceControl( 1388): show, t=StartTransaction_SyncId<7272>, sc=Surface(name=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337})/@0xf9ba48b, caller=com.android.server.wm.Transition.onTransactionReady:1991 com.android.server.wm.BLASTSyncEngine$SyncGroup.finishNow:315 com.android.server.wm.BLASTSyncEngine$SyncGroup.tryFinish:242 com.android.server.wm.BLASTSyncEngine$SyncGroup.-$$Nest$mtryFinish:0 com.android.server.wm.BLASTSyncEngine.onSurfacePlacement:675 com.android.server.wm.RootWindowContainer.performSurfacePlacementNoTrace:990 
+12-09 14:08:22.381 V/WindowManager( 1388):         {WCT{RemoteToken{b9dfe67 Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}}} m=OPEN f=NONE leash=Surface(name=Task=5337)/@0x1a43181 sb=Rect(0, 0 - 720, 1600) eb=Rect(0, 0 - 720, 1600) d=0 dim=true inset=Rect(0, 59 - 0, 90)},
+12-09 14:08:22.386 V/WindowManager( 1388): Sent Transition #7272 createdAt=12-09 14:08:22.294 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=5337 displayId=0 isRunning=true baseIntent=Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] flg=0x10200000 cmp=com.afrotouch.lasocoach/.MainActivity } baseActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} topActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} origActivity=null realActivity=ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity} numActivities=1 lastActiveTime=655973530 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 maxWidth=-1 maxHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{b9dfe67 Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 59 - 0, 0) topActivityInfo=ActivityInfo{72e414 com.afrotouch.lasocoach.MainActivity} launchCookies=[android.os.BinderProxy@de164bd] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden originallySupportedMultiWindow=true hasWallpaper=false topActivityInFixedAspectRatio=false rootAffinity=10373:com.afrotouch.lasocoach topActivityInDisplayCompat=false topActivityInBoundsCompat=false topActivityBounds=null singleTapFromLetterbox=false isTopTaskInStage=false topActivityUiMode=33 CoverLauncherWidgetTask=false CoverScreenTask=false isAllowedSeamlessRotation=false isTopTransparentActivity=false hasPopOver=false}, remoteTransition = RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@cd7aab2, appThread = android.app.IApplicationThread$Stub$Proxy@5821a03, debugName = QuickstepLaunch }, displayChange = null }
+12-09 14:08:22.386 V/WindowManager( 1388):         {WCT{RemoteToken{b9dfe67 Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}}} m=OPEN f=NONE leash=Surface(name=Task=5337)/@0x1a43181 sb=Rect(0, 0 - 720, 1600) eb=Rect(0, 0 - 720, 1600) d=0 dim=true inset=Rect(0, 59 - 0, 90)},
+12-09 14:08:22.386 E/BufferQueueDebug(  841): [46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426](this:0xb400007aa814d790,id:-1,api:0,p:-1,c:-1) id info cannot be read from '46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426'
+12-09 14:08:22.386 I/BufferQueueDebug(  841): [46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426](this:0xb400007aa814d790,id:-1,api:0,p:-1,c:-1) BufferQueue core=(841:/system/bin/surfaceflinger)
+12-09 14:08:22.387 I/SurfaceFlinger(  841): id=96426 createSurf, flag=84000, 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426
+12-09 14:08:22.400 I/Layer   (  841): Layer [Splash Screen com.afrotouch.lasocoach$_1785#96424] hidden!! flag(0)
+12-09 14:08:22.443 D/SurfaceFlinger(  841):      CLIENT | 0xb400007aa8b47b00 | 0100 | RGBA_8888    |    0.0    0.0  720.0 1600.0 |  198  228  702 1348 | Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:22.480 D/MdnieScenarioControlService( 1388):  packageName : com.afrotouch.lasocoach    className : com.afrotouch.lasocoach.MainActivity
+12-09 14:08:22.497 D/VpnManagerService( 1388): Exception: java.lang.NullPointerException: Attempt to invoke interface method 'int com.samsung.android.knox.zt.networktrust.filter.IKnoxNetworkFilterService.getKnoxNwFilterHttpProxyPort(int, java.lang.String)' on a null object reference
+12-09 14:08:22.563 D/InsetsSourceProvider( 1388): updateControlForTarget: control=InsetsSourceControl: {4cad0001 mType=navigationBars initiallyVisible mSurfacePosition=Point(0, 1510) mInsetsHint=Insets{left=0, top=0, right=0, bottom=90}}, target=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}, from=com.android.server.wm.InsetsStateController.onControlTargetChanged:358 com.android.server.wm.InsetsStateController.onBarControlTargetChanged:327 com.android.server.wm.InsetsPolicy.updateBarControlTarget:173 com.android.server.wm.InsetsPolicy.updateSystemBars:813 com.android.server.wm.DisplayPolicy.updateSystemBarsLw:3425 
+12-09 14:08:22.564 D/InsetsSourceProvider( 1388): updateControlForTarget: control=InsetsSourceControl: {c1cc0000 mType=statusBars initiallyVisible mSurfacePosition=Point(0, 0) mInsetsHint=Insets{left=0, top=59, right=0, bottom=0}}, target=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}, from=com.android.server.wm.InsetsStateController.onControlTargetChanged:358 com.android.server.wm.InsetsStateController.onBarControlTargetChanged:324 com.android.server.wm.InsetsPolicy.updateBarControlTarget:173 com.android.server.wm.InsetsPolicy.updateSystemBars:813 com.android.server.wm.DisplayPolicy.updateSystemBarsLw:3425 
+12-09 14:08:22.565 D/WindowManager( 1388): updateSystemBarAttributes: displayId=0, win=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}, navColorWin=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}, focusedCanBeNavColorWin=false, behavior=1, appearance=0, statusBarAppearanceRegions=[AppearanceRegion{ bounds=[0,0][720,1600]}], requestedVisibilities=-9, from=com.android.server.wm.DisplayPolicy.finishPostLayoutPolicyLw:2320 com.android.server.wm.DisplayContent.applySurfaceChangesTransaction:6130 com.android.server.wm.RootWindowContainer.applySurfaceChangesTransaction:1180 
+12-09 14:08:22.566 I/Layer   (  841): id=96422 removeFromCurrentState ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (114)
+12-09 14:08:22.566 I/Layer   (  841): id=96426 removeFromCurrentState 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (114)
+12-09 14:08:22.566 I/Layer   (  841): id=96423 removeFromCurrentState ca705a2 Splash Screen com.afrotouch.lasocoach#96423 (114)
+12-09 14:08:22.566 I/Layer   (  841): id=96424 removeFromCurrentState Splash Screen com.afrotouch.lasocoach$_1785#96424 (114)
+12-09 14:08:22.567 I/Layer   (  841): id=96422 addToCurrentState ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (114)
+12-09 14:08:22.567 I/Layer   (  841): id=96426 addToCurrentState 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (114)
+12-09 14:08:22.567 I/Layer   (  841): id=96423 addToCurrentState ca705a2 Splash Screen com.afrotouch.lasocoach#96423 (114)
+12-09 14:08:22.567 I/Layer   (  841): id=96424 addToCurrentState Splash Screen com.afrotouch.lasocoach$_1785#96424 (114)
+12-09 14:08:22.568 I/InsetsSourceConsumer( 1785): applyRequestedVisibilityToControl: visible=true, type=navigationBars, host=Splash Screen com.afrotouch.lasocoach
+12-09 14:08:22.568 I/InsetsSourceConsumer( 1785): applyRequestedVisibilityToControl: visible=true, type=statusBars, host=Splash Screen com.afrotouch.lasocoach
+12-09 14:08:22.573 D/SurfaceFlinger(  841):      DEVICE | 0xb400007aa8b47b00 | 0100 | RGBA_8888    |    0.0    0.0  720.0 1600.0 |    0    0  720 1600 | Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:22.588 D/SurfaceFlinger(  841):      DEVICE | 0xb400007aa8b47b00 | 0100 | RGBA_8888    |    0.0    0.0  720.0 1600.0 |    0    0  720 1600 | Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:22.593 W/FirebaseApp(30234): Default FirebaseApp failed to initialize because no default options were found. This usually means that com.google.gms:google-services was not applied to your gradle project.
+12-09 14:08:22.593 I/FirebaseInitProvider(30234): FirebaseApp initialization unsuccessful
+12-09 14:08:22.651 W/SoLoader(30234): Recording new base apk path: /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk
+12-09 14:08:22.653 I/SoLoader(30234): Preparing SO source: DirectApkSoSource[root = [/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a]]
+12-09 14:08:22.657 I/SoLoader(30234): Preparing SO source: ApplicationSoSource[DirectorySoSource[root = /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/lib/arm64 flags = 0]]
+12-09 14:08:22.682 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libc++_shared.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.690 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libjsi.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.698 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libfbjni.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.715 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libreactnative.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.734 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libreact_codegen_rnscreens.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.742 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libreact_codegen_rnsvg.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.749 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libreact_codegen_safeareacontext.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.761 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libappmodules.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.780 D/libMEOW (30234): applied 2 plugins for [com.afrotouch.lasocoach]:
+12-09 14:08:22.842 W/unknown:BridgelessReact(30234): ReactHost{0}.getJSBundleLoader()
+12-09 14:08:22.865 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libhermes.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.866 D/nativeloader(30234): Load /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!/lib/arm64-v8a/libhermestooling.so using ns clns-5 from class loader (caller=/data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk!classes3.dex): ok
+12-09 14:08:22.873 E/AndroidRuntime(30234): FATAL EXCEPTION: main
+12-09 14:08:22.873 E/AndroidRuntime(30234): Process: com.afrotouch.lasocoach, PID: 30234
+12-09 14:08:22.873 E/AndroidRuntime(30234): java.lang.reflect.InvocationTargetException
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at java.lang.reflect.Method.invoke(Native Method)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper.invokeDelegateMethod$expo_release(ReactActivityDelegateWrapper.kt:426)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper.loadAppImpl(ReactActivityDelegateWrapper.kt:461)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper.access$loadAppImpl(ReactActivityDelegateWrapper.kt:45)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$onCreate$1.invokeSuspend(ReactActivityDelegateWrapper.kt:185)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$onCreate$1.invoke(Unknown Source:8)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$onCreate$1.invoke(Unknown Source:4)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$launchLifecycleScopeWithLock$1.invokeSuspend(ReactActivityDelegateWrapper.kt:485)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$launchLifecycleScopeWithLock$1.invoke(Unknown Source:8)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper$launchLifecycleScopeWithLock$1.invoke(Unknown Source:4)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.intrinsics.UndispatchedKt.startCoroutineUndispatched(Undispatched.kt:20)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.CoroutineStart.invoke(CoroutineStart.kt:360)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.AbstractCoroutine.start(AbstractCoroutine.kt:134)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.BuildersKt__Builders_commonKt.launch(Builders.common.kt:52)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.BuildersKt.launch(Unknown Source:1)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.BuildersKt__Builders_commonKt.launch$default(Builders.common.kt:43)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at kotlinx.coroutines.BuildersKt.launch$default(Unknown Source:1)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper.launchLifecycleScopeWithLock(ReactActivityDelegateWrapper.kt:483)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at expo.modules.ReactActivityDelegateWrapper.onCreate(ReactActivityDelegateWrapper.kt:150)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at com.facebook.react.ReactActivity.onCreate(ReactActivity.java:61)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at com.afrotouch.lasocoach.MainActivity.onCreate(MainActivity.kt:19)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.Activity.performCreate(Activity.java:8975)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.Activity.performCreate(Activity.java:8944)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1456)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4146)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4322)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:103)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.servertransaction.TransactionExecutor.executeCallbacks(TransactionExecutor.java:139)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:96)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2685)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.os.Handler.dispatchMessage(Handler.java:106)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.os.Looper.loopOnce(Looper.java:230)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.os.Looper.loop(Looper.java:319)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at android.app.ActivityThread.main(ActivityThread.java:8919)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at java.lang.reflect.Method.invoke(Native Method)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:578)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:1103)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	Suppressed: kotlinx.coroutines.internal.DiagnosticCoroutineContextException: [StandaloneCoroutine{Cancelling}@f78ea41, Dispatchers.Main.immediate]
+12-09 14:08:22.873 E/AndroidRuntime(30234): Caused by: java.lang.IllegalStateException: You need to use a Theme.AppCompat theme (or descendant) with this activity.
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at androidx.appcompat.app.AppCompatDelegateImpl.createSubDecor(AppCompatDelegateImpl.java:902)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at androidx.appcompat.app.AppCompatDelegateImpl.ensureSubDecor(AppCompatDelegateImpl.java:865)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at androidx.appcompat.app.AppCompatDelegateImpl.setContentView(AppCompatDelegateImpl.java:739)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at androidx.appcompat.app.AppCompatActivity.setContentView(AppCompatActivity.java:203)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	at com.facebook.react.ReactActivityDelegate.loadApp(ReactActivityDelegate.java:179)
+12-09 14:08:22.873 E/AndroidRuntime(30234): 	... 37 more
+12-09 14:08:22.899 W/ActivityManager( 1388): crash : com.afrotouch.lasocoach,10373
+12-09 14:08:22.902 W/ActivityTaskManager( 1388):   Force finishing activity com.afrotouch.lasocoach/.MainActivity
+12-09 14:08:22.907 V/WindowManager( 1388): Requesting StartTransition: TransitionRecord{bf48461 id=7273 type=CLOSE flags=0x10}, caller=com.android.server.wm.TransitionController.requestTransitionIfNeeded:814 com.android.server.wm.TransitionController.requestTransitionIfNeeded:720 com.android.server.wm.DisplayContent.requestTransitionAndLegacyPrepare:6935 com.android.server.wm.DisplayContent.requestTransitionAndLegacyPrepare:6928 com.android.server.wm.Task.finishTopCrashedActivityLocked:6829 
+12-09 14:08:22.910 D/ActivityTaskManager( 1388): scheduleTopResumedActivityChanged, onTop=false, r=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f}}, caller=com.android.server.wm.ActivityTaskSupervisor.updateTopResumedActivityIfNeeded:2826 com.android.server.wm.TaskDisplayArea.positionChildTaskAt:567 com.android.server.wm.TaskDisplayArea.positionChildAt:483 com.android.server.wm.WindowContainer.positionChildAt:989 com.android.server.wm.Task.positionChildAt:3318 com.android.server.wm.Task.moveToFront:6077 
+12-09 14:08:22.913 V/WindowManager( 1388): Collecting in transition 7273: Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.Transition.collectExistenceChange:942 com.android.server.wm.TransitionController.collectExistenceChange:985 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:923 com.android.server.wm.ActivityRecord.finishIfPossible:4311 
+12-09 14:08:22.913 D/WindowManager( 1388): prepareSync <SYNC_STATE_WAITING_FOR_DRAW>, mPrepareSyncSeqId=0, win=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}
+12-09 14:08:22.914 V/WindowManager( 1388): Collecting in transition 7273: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f}}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityRecord.setVisibility:6348 com.android.server.wm.ActivityRecord.setVisibility:6300 com.android.server.wm.ActivityRecord.finishIfPossible:4390 
+12-09 14:08:22.914 D/WindowManager( 1388): VisibleRequested updated, r=ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f}}
+12-09 14:08:22.938 W/DMASA[D]( 3113): [c]This app does not allow 3rd-party FC detection: com.afrotouch.lasocoach
+12-09 14:08:22.945 I/ActivityManager( 1388): Process com.afrotouch.lasocoach (pid 30234) has died: fg  TOP (62,868)
+12-09 14:08:23.023 V/WindowManager( 1388): Collecting in transition 7273: Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.TransitionController.requestCloseTransitionIfNeeded:927 com.android.server.wm.ActivityRecord.handleAppDied:5124 com.android.server.wm.WindowProcessController.handleAppDied:1478 
+12-09 14:08:23.025 V/WindowManager( 1388): Collecting in transition 7273: ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f}}, caller=com.android.server.wm.Transition.collect:759 com.android.server.wm.TransitionController.collect:935 com.android.server.wm.ActivityRecord.onRemovedFromDisplay:5214 com.android.server.wm.DisplayContent.removeAppToken:1893 com.android.server.wm.ActivityRecord.removeFromHistory:4849 
+12-09 14:08:23.050 I/SDHMS:BarTender:Gatherer:AppError( 3151): update AppError : uid=10373, pkg=com.afrotouch.lasocoach, errorType=crash
+12-09 14:08:23.060 D/WindowManager( 1388): updateSystemBarAttributes: displayId=0, win=Window{ac453b1 u0 com.sec.android.app.launcher/com.sec.android.app.launcher.activities.LauncherActivity}, navColorWin=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}, focusedCanBeNavColorWin=false, behavior=2, appearance=0, statusBarAppearanceRegions=[AppearanceRegion{ bounds=[0,0][720,1600]}], requestedVisibilities=-9, from=com.android.server.wm.DisplayPolicy.focusChangedLw:2947 com.android.server.wm.DisplayContent.updateFocusedWindowLocked:4894 com.android.server.wm.RootWindowContainer.updateFocusedWindowLocked:578 
+12-09 14:08:23.070 I/SDHMS:BarTender:Analyzer:AppError( 3151): analyze app error : uid=10373, pkg=com.afrotouch.lasocoach, appErrorCount=9
+12-09 14:08:23.097 V/WindowManager( 1388): Start calculating TransitionInfo based on participants: {ActivityRecord{afe314 u0 com.sec.android.app.launcher/.activities.LauncherActivity t4573}, ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f} isExiting}, Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}, WallpaperWindowToken{f1e07d6 token=android.os.Binder@2282ff1}}
+12-09 14:08:23.097 V/WindowManager( 1388):   Final targets: [Task{97ac121 #1 type=home}, Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}]
+12-09 14:08:23.104 D/SurfaceFlinger(  841):      DEVICE | 0xb400007aa8b47b00 | 0100 | RGBA_8888    |    0.0    0.0  720.0 1600.0 |    0    0  720 1600 | Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:23.127 V/WindowManager( 1388):         {WCT{RemoteToken{b9dfe67 Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}}} m=CLOSE f=NONE leash=Surface(name=Task=5337)/@0x1a43181 sb=Rect(0, 0 - 720, 1600) eb=Rect(0, 0 - 720, 1600) d=0 inset=Rect(0, 0 - 0, 0)}
+12-09 14:08:23.129 V/WindowManager( 1388):         {WCT{RemoteToken{b9dfe67 Task{9ca66bb #5337 type=standard A=10373:com.afrotouch.lasocoach}}} m=CLOSE f=NONE leash=Surface(name=Task=5337)/@0x1a43181 sb=Rect(0, 0 - 720, 1600) eb=Rect(0, 0 - 720, 1600) d=0 inset=Rect(0, 0 - 0, 0)}
+12-09 14:08:23.157 V/WindowManager( 1388): Schedule remove starting ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337 f} isExiting} startingWindow=Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach} animate=true Callers=com.android.server.wm.ActivityRecord.onSyncTransactionCommitted:3487 com.android.server.wm.BLASTSyncEngine$SyncGroup$1CommitCallback.onCommitted:281 com.android.server.wm.BLASTSyncEngine$SyncGroup.lambda$finishNow$1:311 com.android.server.wm.BLASTSyncEngine$SyncGroup.$r8$lambda$8cESpvbvKLrMuuR5UoSdRfNsZpY:0 com.android.server.wm.BLASTSyncEngine$SyncGroup$$ExternalSyntheticLambda1.onTransactionCommitted:0 
+12-09 14:08:23.166 V/WindowManager( 1388): Relayout Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach}: viewVisibility=8 req=720x1600 ty=3 d0
+12-09 14:08:23.169 D/BLASTBufferQueue( 1785): [ViewRootImpl@c9c3993[lasocoach]#5026](f:0,a:1) destructor()
+12-09 14:08:23.169 D/BufferQueueConsumer( 1785): [ViewRootImpl@c9c3993[lasocoach]#5026(BLAST Consumer)5026](id:6f9000013b5,api:0,p:-1,c:1785) disconnect
+12-09 14:08:23.170 I/ViewRootImpl@c9c3993[lasocoach]( 1785): Relayout returned: old=(0,0,720,1600) new=(0,0,720,1600) relayoutAsync=false req=(720,1600)8 dur=3 res=0x402 s={false 0x0} ch=true seqId=0
+12-09 14:08:23.170 I/ViewRootImpl@c9c3993[lasocoach]( 1785): dispatchDetachedFromWindow
+12-09 14:08:23.170 D/CoreBackPreview( 1388): Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach EXITING}: Setting back callback null
+12-09 14:08:23.170 D/WindowManager( 1388): Starting window removed Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach EXITING}
+12-09 14:08:23.195 W/InputManager-JNI( 1388): Input channel object 'ca705a2 Splash Screen com.afrotouch.lasocoach (client)' was disposed without first being removed with the input manager!
+12-09 14:08:23.197 V/WindowManager( 1388): Remove Window{ca705a2 u0 Splash Screen com.afrotouch.lasocoach EXITING}: mSurfaceController=Surface(name=Splash Screen com.afrotouch.lasocoach$_1785)/@0x6bd4700 mAnimatingExit=true mRemoveOnExit=false mHasSurface=true surfaceShowing=true animating=false app-animation=false mDisplayFrozen=false callers=com.android.server.wm.WindowManagerService.removeWindow:2148 com.android.server.wm.Session.remove:257 android.view.IWindowSession$Stub.onTransact:747 com.android.server.wm.Session.onTransact:204 android.os.Binder.execTransactInternal:1380 android.os.Binder.execTransact:1311 
+12-09 14:08:23.197 I/WindowManager( 1388): Destroying surface Surface(name=Splash Screen com.afrotouch.lasocoach$_1785)/@0x6bd4700 called by com.android.server.wm.WindowStateAnimator.destroySurface:799 com.android.server.wm.WindowStateAnimator.destroySurfaceLocked:472 com.android.server.wm.WindowState.removeImmediately:2937 com.android.server.wm.WindowState.removeIfPossible:3214 com.android.server.wm.WindowManagerService.removeWindow:2148 com.android.server.wm.Session.remove:257 android.view.IWindowSession$Stub.onTransact:747 com.android.server.wm.Session.onTransact:204 
+12-09 14:08:23.198 I/HoneySpace.AppListFastRecyclerViewAdapter( 2183): findCloseTarget : 255, ComponentInfo{com.afrotouch.lasocoach/com.afrotouch.lasocoach.MainActivity}
+12-09 14:08:23.216 I/Layer   (  841): id=96424 removeFromCurrentState Splash Screen com.afrotouch.lasocoach$_1785#96424 (112)
+12-09 14:08:23.216 I/Layer   (  841): id=96423 removeFromCurrentState ca705a2 Splash Screen com.afrotouch.lasocoach#96423 (112)
+12-09 14:08:23.217 I/SurfaceFlinger(  841): id=96424 Removed Splash Screen com.afrotouch.lasocoach$_1785#96424 (112)
+12-09 14:08:23.233 I/BufferQueueDebug(  841): [Splash Screen com.afrotouch.lasocoach$_1785#96424](this:0xb400007aa8145790,id:-1,api:0,p:-1,c:841) onDestructor()
+12-09 14:08:23.233 I/Layer   (  841): id=96424 Destroyed Splash Screen com.afrotouch.lasocoach$_1785#96424
+12-09 14:08:23.356 I/SurfaceFlinger(  841): id=96426 Removed 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (111)
+12-09 14:08:23.366 I/Layer   (  841): id=96422 removeFromCurrentState ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (112)
+12-09 14:08:23.366 I/Layer   (  841): id=96426 removeFromCurrentState 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (112)
+12-09 14:08:23.366 I/Layer   (  841): id=96422 addToCurrentState ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (112)
+12-09 14:08:23.367 I/Layer   (  841): id=96426 addToCurrentState 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (112)
+12-09 14:08:23.367 I/Layer   (  841): id=96422 removeFromCurrentState ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (112)
+12-09 14:08:23.367 I/Layer   (  841): id=96426 removeFromCurrentState 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426 (112)
+12-09 14:08:23.368 I/SurfaceFlinger(  841): id=96422 Removed ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422 (112)
+12-09 14:08:23.368 I/SurfaceFlinger(  841): id=96423 Removed ca705a2 Splash Screen com.afrotouch.lasocoach#96423 (112)
+12-09 14:08:23.383 I/BufferQueueDebug(  841): [ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422](this:0xb400007aa7ddd790,id:-1,api:0,p:-1,c:841) onDestructor()
+12-09 14:08:23.383 I/Layer   (  841): id=96422 Destroyed ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t5337}#96422
+12-09 14:08:23.383 I/BufferQueueDebug(  841): [46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426](this:0xb400007aa814d790,id:-1,api:0,p:-1,c:841) onDestructor()
+12-09 14:08:23.383 I/Layer   (  841): id=96426 Destroyed 46f9f ActivityRecordInputSink com.afrotouch.lasocoach/.MainActivity#96426
+12-09 14:08:23.383 I/BufferQueueDebug(  841): [ca705a2 Splash Screen com.afrotouch.lasocoach#96423](this:0xb400007aa7eff790,id:-1,api:0,p:-1,c:841) onDestructor()
+12-09 14:08:23.383 I/Layer   (  841): id=96423 Destroyed ca705a2 Splash Screen com.afrotouch.lasocoach#96423
+12-09 14:08:23.402 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:23.411 W/ActivityTaskManager( 1388): Activity top resumed state loss timeout for ActivityRecord{17184b5 u0 com.afrotouch.lasocoach/.MainActivity t-1 f}}
+12-09 14:08:23.458 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:27.316 W/System.err( 1388): java.io.FileNotFoundException: /proc/30234/io_record_control: open failed: ENOENT (No such file or directory)
+12-09 14:08:27.321 W/System.err( 1388): Caused by: android.system.ErrnoException: open failed: ENOENT (No such file or directory)
+12-09 14:08:27.333 I/Pageboost( 1388): db update :com.afrotouch.lasocoach ret 1
+12-09 14:08:39.275 W/DeviceStorageMonitorService( 1388): java.io.IOException: Failed to free 2147483648 on storage device at /data
+12-09 14:08:46.177 W/ndroid.systemui( 1785): ApkAssets: Deleting an ApkAssets object '<empty> and /data/app/~~VMUEDyl_idLUYdGVYGXqww==/com.afrotouch.lasocoach-qKHk9Fl5ndCe0Lcb_xSVpQ==/base.apk' with 1 weak references
+12-09 14:08:54.485 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:54.489 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:54.490 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:54.499 I/NetworkScheduler(24096): (REDACTED) Error inserting %s
+12-09 14:08:54.518 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:54.629 E/DatabaseUtils(29961): java.lang.SecurityException: Permission Denial: writing com.sec.android.provider.badge.BadgeProvider uri content://com.sec.badge/apps?notify=true from pid=29864, uid=10275 requires com.sec.android.provider.badge.permission.WRITE, or grantUriPermission()
+12-09 14:08:55.452 D/VpnManagerService( 1388): Exception: java.lang.NullPointerException: Attempt to invoke interface method 'int com.samsung.android.knox.zt.networktrust.filter.IKnoxNetworkFilterService.getKnoxNwFilterHttpProxyPort(int, java.lang.String)' on a null object reference
+12-09 14:08:55.715 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.719 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.721 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.724 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.739 E/SettingsHelper(30356): HashMap CollisionException!! Please don't add same setting uri!!! NewKey:wallpapertheme_state, OriKey:wallpapertheme_state
+12-09 14:08:55.742 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.754 E/SettingsHelper(30356): Exception occurred
+12-09 14:08:55.754 E/SettingsHelper(30356): java.lang.NoSuchMethodException: android.provider.Settings$Global.getIntForUser [class android.content.ContentResolver, class java.lang.String, int, int]
+12-09 14:08:55.756 E/SettingsHelper(30356): Exception occurred
+12-09 14:08:55.756 E/SettingsHelper(30356): java.lang.NoSuchMethodException: android.provider.Settings$Global.getIntForUser [class android.content.ContentResolver, class java.lang.String, int, int]
+12-09 14:08:55.757 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.760 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.764 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.766 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.786 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.795 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.800 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.802 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.803 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.825 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.837 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.839 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.841 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.844 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.869 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.878 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.883 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.886 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.889 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.924 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.935 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.938 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.939 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.940 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.967 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:55.980 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.985 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.987 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:55.990 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.022 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.045 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.051 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.054 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.056 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.094 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.136 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.141 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.143 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.146 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.186 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.205 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.211 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.214 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.216 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.255 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.271 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.278 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.280 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.282 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.316 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.331 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.339 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.342 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.345 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.388 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.404 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.409 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.412 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.416 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.462 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.480 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.487 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.492 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.496 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.527 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.539 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.543 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.544 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.548 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.574 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.583 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.588 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.593 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.596 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.623 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.646 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.652 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.656 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.658 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.695 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.721 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.729 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.732 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.737 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.778 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.790 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.795 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.799 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.802 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.840 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.854 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.860 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.863 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.869 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.902 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.921 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.927 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.928 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.930 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.966 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:56.981 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.987 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.990 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:56.992 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.022 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.040 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.045 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.051 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.057 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.082 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.096 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.100 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.102 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.104 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.137 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.156 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.160 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.162 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.165 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.206 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.231 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.235 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.237 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.240 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.272 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.285 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.291 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.293 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.296 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.321 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.336 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.340 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.342 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.345 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.377 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.392 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.399 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.401 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.404 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.448 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.469 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.475 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.477 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.481 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.524 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.546 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.554 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.557 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.561 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.604 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.617 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.622 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.624 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.626 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.660 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.672 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.678 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.679 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.681 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.705 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:57.719 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.730 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.734 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.740 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:57.769 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:58.128 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.134 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.139 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.143 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.195 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:58.232 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.238 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.241 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.245 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.287 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:58.665 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.670 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.673 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.678 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.725 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:58.752 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.759 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.762 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.766 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:58.812 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.448 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.452 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.454 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.461 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.499 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.524 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.528 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.530 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.532 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.573 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.585 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.591 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.594 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.599 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.627 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.642 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.647 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.649 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.651 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.682 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.702 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.708 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.711 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.713 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.753 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.778 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.784 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.787 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.791 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.829 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.846 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.852 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.855 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.858 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.912 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:08:59.935 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.947 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.950 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.954 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:08:59.985 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.001 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.010 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.012 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.014 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.050 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.060 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.064 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.068 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.070 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.101 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.113 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.119 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.123 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.125 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.156 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.170 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.176 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.177 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.180 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.208 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.229 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.235 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.240 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.244 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.280 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.314 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.321 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.325 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.328 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.371 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.389 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.393 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.396 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.399 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.437 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.447 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.453 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.455 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.458 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.487 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.509 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.517 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.520 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.525 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.566 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.583 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.589 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.593 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.599 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.638 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.657 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.662 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.665 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.669 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.706 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.742 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.746 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.747 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.751 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.789 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.807 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.811 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.812 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.815 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.861 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.902 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.910 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.914 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.916 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.960 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:00.985 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.989 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.992 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:00.994 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.031 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.044 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.047 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.050 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.053 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.088 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.115 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.120 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.123 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.125 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.160 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.185 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.188 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.190 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.192 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.218 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.252 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.257 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.259 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.261 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.286 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.308 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.312 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.314 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.316 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.339 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.367 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.373 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.376 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.378 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.402 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.412 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.417 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.419 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.422 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.459 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.477 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.483 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.485 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.489 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.530 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.561 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.568 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.571 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.575 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.624 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.670 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.676 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.680 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.684 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.731 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.767 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.774 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.777 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.782 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.833 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.872 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.881 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.886 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.889 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.935 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:01.970 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.976 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.979 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:01.983 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.030 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.080 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.087 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.091 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.094 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.169 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.207 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.215 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.219 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.223 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.280 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.315 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.320 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.322 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.325 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.376 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.424 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.433 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.437 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.443 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.491 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.532 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.535 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.538 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.540 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.583 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.610 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.618 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.620 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.626 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.664 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.707 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.714 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.718 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.721 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.768 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.811 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.822 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.826 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.830 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.872 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.905 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.913 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.916 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.919 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.964 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:02.981 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.989 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.992 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:02.997 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.045 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.070 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.077 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.081 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.085 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.130 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.174 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.183 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.185 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.187 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.229 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.245 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.252 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.255 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.258 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.303 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.319 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.326 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.329 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.332 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.378 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.400 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.404 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.406 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.410 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.454 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.473 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.479 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.481 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.484 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.525 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.553 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.562 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.566 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.571 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.622 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.647 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.654 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.657 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.661 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.707 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.751 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.756 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.758 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.768 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.801 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.834 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.838 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.840 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.842 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.881 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.897 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.901 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.903 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.905 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.946 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:03.966 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.973 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.976 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:03.979 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.028 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.048 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.055 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.059 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.061 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.103 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.125 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.130 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.133 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.138 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.188 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.207 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.215 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.218 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.222 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.276 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.301 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.309 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.313 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.316 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.320 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.364 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.392 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.398 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.402 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.406 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.450 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.890 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.897 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.901 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.904 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.942 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:04.977 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.983 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.987 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:04.990 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.039 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.080 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.085 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.087 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.091 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.135 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.170 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.179 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.181 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.186 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.231 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.273 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.277 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.279 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.282 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.330 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.368 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.376 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.379 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.383 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.428 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.460 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.468 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.472 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.476 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.522 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.550 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.555 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.557 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.559 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.597 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.628 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.640 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.644 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.648 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.692 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.725 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.735 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.738 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.742 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.790 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.831 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.835 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.837 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.841 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.886 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.904 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.914 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.919 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.923 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.966 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:05.991 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:05.998 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.001 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.005 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.050 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.091 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.098 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.101 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.105 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.152 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.187 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.193 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.196 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.200 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.245 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.263 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.270 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.273 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.277 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.318 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.346 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.351 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.353 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.355 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.408 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.445 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.452 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.456 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.459 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.503 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.538 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.544 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.548 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.552 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.601 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.637 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.644 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.647 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.650 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.695 I/CCTUploader(24096): Failed to get auth token due to class com.google.android.gms.auth.UserRecoverableAuthException
+12-09 14:09:06.726 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.734 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.738 W/LogErrorOperation(24096): onLogError callback failed.
+12-09 14:09:06.742 W/LogErrorOpe
