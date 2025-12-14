@@ -1,18 +1,12 @@
-import {
-  initConnection,
-  endConnection,
-  getProducts,
-  requestPurchase,
-  getAvailablePurchases,
-  finishTransaction,
-  acknowledgePurchaseAndroid,
-  purchaseErrorListener,
-  purchaseUpdatedListener,
-  Product,
-  ProductPurchase,
-  PurchaseError,
-} from 'react-native-iap';
+// IMPORTANT: Ne PAS importer react-native-iap au niveau du module !
+// Ce module utilise NativeEventEmitter qui peut crasher si le runtime n'est pas prêt.
+// On utilise un import lazy à la place.
 import { Platform } from 'react-native';
+
+// Types pour react-native-iap (déclarés localement pour éviter l'import)
+type Product = any;
+type ProductPurchase = any;
+type PurchaseError = any;
 
 /**
  * IAPService - Native In-App Purchase Service
@@ -20,10 +14,27 @@ import { Platform } from 'react-native';
  * Compliant with Apple/Google policies for digital goods
  */
 class IAPService {
+  private _iapModule: any = null;
+  
   constructor() {
     this.purchaseUpdateSubscription = null;
     this.purchaseErrorSubscription = null;
     this.isInitialized = false;
+  }
+
+  /**
+   * Lazy load react-native-iap module to avoid NativeEventEmitter crash at startup
+   */
+  private getIAPModule() {
+    if (!this._iapModule) {
+      try {
+        this._iapModule = require('react-native-iap');
+      } catch (error) {
+        console.warn('⚠️ [IAPService] react-native-iap not available:', error);
+        this._iapModule = null;
+      }
+    }
+    return this._iapModule;
   }
 
   /**
@@ -35,11 +46,17 @@ class IAPService {
       return true;
     }
 
+    const iap = this.getIAPModule();
+    if (!iap) {
+      console.warn('⚠️ [IAPService] IAP module not available');
+      return false;
+    }
+
     try {
-      await initConnection();
+      await iap.initConnection();
       this.isInitialized = true;
       return true;
-    } catch (error) {
+    } catch (error: any) {
       
       // E_IAP_NOT_AVAILABLE is expected on unsupported platforms (web, Windows, simulators without IAP configured)
       // This is NOT a fatal error - the app should continue with limited functionality
@@ -56,6 +73,8 @@ class IAPService {
    * Should be called when app is closing or IAP is no longer needed
    */
   async disconnect() {
+    const iap = this.getIAPModule();
+    
     try {
       if (this.purchaseUpdateSubscription) {
         this.purchaseUpdateSubscription.remove();
@@ -65,9 +84,11 @@ class IAPService {
         this.purchaseErrorSubscription.remove();
         this.purchaseErrorSubscription = null;
       }
-      await endConnection();
+      if (iap) {
+        await iap.endConnection();
+      }
       this.isInitialized = false;
-    } catch (error) {
+    } catch (error: any) {
       // E_IAP_NOT_AVAILABLE during disconnect is expected and safe to ignore
       if (error.code !== 'E_IAP_NOT_AVAILABLE') {
       }
@@ -79,7 +100,12 @@ class IAPService {
    * @param {string[]} productIds - Array of product IDs configured in stores
    * @returns {Promise<Product[]>} Array of available products
    */
-  async getAvailableProducts(productIds) {
+  async getAvailableProducts(productIds: string[]) {
+    const iap = this.getIAPModule();
+    if (!iap) {
+      return [];
+    }
+
     try {
       
       if (!this.isInitialized) {
@@ -89,10 +115,10 @@ class IAPService {
         }
       }
 
-      const products = await getProducts({ skus: productIds });
+      const products = await iap.getProducts({ skus: productIds });
       
       return products;
-    } catch (error) {
+    } catch (error: any) {
       
       // Return empty array instead of throwing for E_IAP_NOT_AVAILABLE
       if (error.code === 'E_IAP_NOT_AVAILABLE') {
@@ -109,7 +135,12 @@ class IAPService {
    * @param {boolean} isSubscription - True for subscriptions, false for one-time
    * @returns {Promise<ProductPurchase>} Purchase result
    */
-  async requestPurchase(productId, isSubscription = true) {
+  async requestPurchase(productId: string, isSubscription = true) {
+    const iap = this.getIAPModule();
+    if (!iap) {
+      throw new Error('IAP module not available');
+    }
+
     try {
       
       if (!this.isInitialized) {
@@ -118,9 +149,9 @@ class IAPService {
 
       // Request purchase from native store
       if (Platform.OS === 'ios') {
-        await requestPurchase({ sku: productId });
+        await iap.requestPurchase({ sku: productId });
       } else if (Platform.OS === 'android') {
-        await requestPurchase({
+        await iap.requestPurchase({
           skus: [productId],
           // For Android, specify if it's a subscription
           ...(isSubscription && { 
@@ -142,7 +173,13 @@ class IAPService {
    * @param {Function} onPurchaseSuccess - Callback for successful purchase
    * @param {Function} onPurchaseError - Callback for purchase error
    */
-  setupPurchaseListeners(onPurchaseSuccess, onPurchaseError) {
+  setupPurchaseListeners(onPurchaseSuccess: (purchase: ProductPurchase) => Promise<void>, onPurchaseError: (error: any) => void) {
+    const iap = this.getIAPModule();
+    if (!iap) {
+      console.warn('⚠️ [IAPService] Cannot setup listeners - IAP module not available');
+      return;
+    }
+
     try {
       // Remove existing listeners if any
       if (this.purchaseUpdateSubscription) {
@@ -153,7 +190,7 @@ class IAPService {
       }
 
       // Listen for successful purchases
-      this.purchaseUpdateSubscription = purchaseUpdatedListener(async (purchase) => {
+      this.purchaseUpdateSubscription = iap.purchaseUpdatedListener(async (purchase: ProductPurchase) => {
         
         try {
           const receipt = purchase.transactionReceipt;
@@ -175,13 +212,13 @@ class IAPService {
       });
 
       // Listen for purchase errors
-      this.purchaseErrorSubscription = purchaseErrorListener((error) => {
+      this.purchaseErrorSubscription = iap.purchaseErrorListener((error: PurchaseError) => {
         if (onPurchaseError) {
           onPurchaseError(error);
         }
       });
       
-    } catch (error) {
+    } catch (error: any) {
       // E_IAP_NOT_AVAILABLE or other initialization errors
       if (error.code !== 'E_IAP_NOT_AVAILABLE') {
       } else {
@@ -195,21 +232,26 @@ class IAPService {
    * CRITICAL: Must be called after receipt validation
    * @param {ProductPurchase} purchase - Purchase object
    */
-  async acknowledgePurchase(purchase) {
+  async acknowledgePurchase(purchase: ProductPurchase) {
+    const iap = this.getIAPModule();
+    if (!iap) {
+      throw new Error('IAP module not available');
+    }
+
     try {
       
       if (Platform.OS === 'ios') {
         // iOS: Finish transaction
-        await finishTransaction({ purchase, isConsumable: false });
+        await iap.finishTransaction({ purchase, isConsumable: false });
       } else if (Platform.OS === 'android') {
         // Android: Acknowledge purchase
         if (purchase.purchaseToken) {
-          await acknowledgePurchaseAndroid({
+          await iap.acknowledgePurchaseAndroid({
             token: purchase.purchaseToken,
             developerPayload: purchase.developerPayloadAndroid,
           });
         }
-        await finishTransaction({ purchase, isConsumable: false });
+        await iap.finishTransaction({ purchase, isConsumable: false });
       }
       
     } catch (error) {
@@ -223,13 +265,18 @@ class IAPService {
    * @returns {Promise<ProductPurchase[]>} Array of previous purchases
    */
   async restorePurchases() {
+    const iap = this.getIAPModule();
+    if (!iap) {
+      return [];
+    }
+
     try {
       
       if (!this.isInitialized) {
         await this.initialize();
       }
 
-      const purchases = await getAvailablePurchases();
+      const purchases = await iap.getAvailablePurchases();
       
       return purchases || [];
     } catch (error) {

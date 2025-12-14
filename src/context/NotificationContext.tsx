@@ -31,18 +31,22 @@ interface NotificationContextType {
   checkNotificationStatus: () => Promise<any>;
 }
 
-// Configure notification handling
-Notifications.setNotificationHandler({
-  handleNotification: async (notification: Notifications.Notification): Promise<Notifications.NotificationBehavior> => {
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
+// Configure notification handling - wrapped in try-catch to avoid crash if module not ready
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification: Notifications.Notification): Promise<Notifications.NotificationBehavior> => {
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    },
+  });
+} catch (error) {
+  console.warn('⚠️ [Notifications] Failed to set notification handler:', error);
+}
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 

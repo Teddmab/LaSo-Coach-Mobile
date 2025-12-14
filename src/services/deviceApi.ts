@@ -1,4 +1,5 @@
-import api from './api';
+// IMPORTANT: Ne pas importer 'api' au niveau du module pour éviter le cycle de dépendances
+// api.ts → firebaseAuthServiceNew.ts → deviceApi.ts → api.ts
 import deviceInfoService from './deviceInfoService';
 import { API_CONFIG } from '../config/apiConfig';
 
@@ -7,6 +8,14 @@ import { API_CONFIG } from '../config/apiConfig';
  * Endpoint sécurisé pour enregistrer/mettre à jour les informations de l'appareil
  */
 class DeviceApi {
+  /**
+   * Lazy import de l'instance API pour éviter le cycle de dépendances
+   */
+  private getApi() {
+    // Import dynamique au moment de l'utilisation (pas au chargement du module)
+    return require('./api').default;
+  }
+
   /**
    * Enregistre ou met à jour les informations de l'appareil
    * Appelé automatiquement après chaque authentification réussie
@@ -20,6 +29,7 @@ class DeviceApi {
 
       // Envoyer au backend via endpoint sécurisé
       // Format attendu par le backend : platform, manufacturer, modelName, osName, osVersion, etc.
+      const api = this.getApi();
       const response = await api.post(API_CONFIG.endpoints.device.register, deviceInfo);
 
       
@@ -38,6 +48,7 @@ class DeviceApi {
    */
   async getDevices() {
     try {
+      const api = this.getApi();
       const response = await api.get(API_CONFIG.endpoints.device.list);
       return response.data;
     } catch (error) {
@@ -51,8 +62,9 @@ class DeviceApi {
    * @param {string} deviceId - ID de l'appareil à supprimer
    * @returns {Promise<Object>} Réponse de confirmation
    */
-  async removeDevice(deviceId) {
+  async removeDevice(deviceId: string) {
     try {
+      const api = this.getApi();
       const response = await api.delete(API_CONFIG.endpoints.device.remove(deviceId));
       return response.data;
     } catch (error) {
