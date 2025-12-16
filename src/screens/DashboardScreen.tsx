@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BackHandler, Platform } from 'react-native';
+import { BackHandler, Platform, View, Text, StyleSheet } from 'react-native';
 import { useAuth } from '../context/FirebaseAuthContext';
 import DashboardLayout from './dashboard/components/DashboardLayout';
 import SubscriptionPlansModal from './dashboard/modals/SubscriptionPlansModal';
@@ -457,15 +457,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
-          <CommunityScreen 
-            user={user} 
-            onLogout={handleLogout} 
-            onTabPress={handleTabPress}
-            activeTab={activeTab}
-            onClose={() => setCurrentScreen('home')}
-            selectedPostId={null}
-            onPostPress={handlePostPress}
-          />
+          <View style={styles.communityComingSoonContainer}>
+            <View style={styles.communityComingSoonCard}>
+              <Text style={styles.communityComingSoonTitle}>L'Agora</Text>
+              <Text style={styles.communityComingSoonMessage}>
+                ⚙ Cette fonctionnalité arrive bientôt !{'\n'}
+                Merci de patienter.
+              </Text>
+            </View>
+          </View>
         </FixedLayout>
         <MoreMenu 
           visible={showMoreMenu}
@@ -934,6 +934,43 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     </>
   );
 };
+
+const styles = StyleSheet.create({
+  communityComingSoonContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  communityComingSoonCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  communityComingSoonTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+    color: '#111827',
+  },
+  communityComingSoonMessage: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    color: '#4B5563',
+  },
+});
 
 export default DashboardScreen as React.ComponentType<any>;
 

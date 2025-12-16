@@ -46,6 +46,14 @@
           }
         },
         {
+          "client_id": "855620848279-qu5hjci4cmal1ojjhst6dk7nu4cejdf3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "ff483cd4d777a43467f62a2721eaaedf48541e03"
+          }
+        },
+        {
           "client_id": "855620848279-r02as9i9t4i56vsi6tea9otuf3o22lie.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

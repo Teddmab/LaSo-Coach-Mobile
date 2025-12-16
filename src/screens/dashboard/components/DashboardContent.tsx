@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, RefreshControl, StyleSheet, Text } from 'react-native';
+import { View, ScrollView, RefreshControl, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { theme } from '../../../constants/theme';
 import ProgressCard from '../../../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../../../components/dashboard/ProfileCompletionCard';
@@ -90,9 +90,17 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
     };
   }, [achievementsData, dashboardData?.onboarding]);
 
+  // Ajout d'un état pour gérer l'affichage de la carte
+  const [showComingSoonCard, setShowComingSoonCard] = React.useState(false);
+
+  // Supprime la redirection et affiche directement la carte "Fonctionnalité à venir" dans le Home
+  const handleAgoraPress = () => {
+    // Désactivé : redirection ou autre logique
+  };
+
   return (
-    <ScrollView 
-      style={styles.content} 
+    <ScrollView
+      style={styles.content}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
       refreshControl={
@@ -110,7 +118,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         Once all 4 steps are complete, ProfileCompletionCard disappears and is replaced by ProgressCard.
       */}
       {!isProfileComplete ? (
-        <ProfileCompletionCard 
+        <ProfileCompletionCard
           key={`profile-completion-${dashboardData?.onboarding?.data?.completedSteps?.length || 0}-${dashboardData?.fetchedAt || 'initial'}`}
           onboardingData={dashboardData?.onboarding}
           onCompleteProfile={onCompleteProfile}
@@ -127,9 +135,9 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
               <Text style={styles.badgeText}>Profil complété +175 pts</Text>
             </View>
           </View>
-          <ProgressCard 
+          <ProgressCard
             key={dashboardData?.fetchedAt || 'initial'}
-            dashboardData={dashboardData} 
+            dashboardData={dashboardData}
             onRefresh={onProgressRefresh}
             onProgressPress={onTabPress}
           />
@@ -151,7 +159,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onPress={onSubscriptionRenew}
         blurMessage="Menu du jour disponible avec un abonnement actif"
       >
-        <NutritionCard 
+        <NutritionCard
           onPress={() => {
             if (shouldBlurMenu) {
               onSubscriptionRenew();
@@ -169,46 +177,14 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         />
       </BlurredCard>
 
-      {/* L'Agora Section */}
-      <View style={styles.agoraSection}>
-        <View style={styles.agoraHeader}>
-          <Ionicons name="notifications" size={20} color={theme.colors.text.primary} />
-          <Text style={styles.agoraTitle}>News</Text>
-        </View>
-        
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.agoraPostsContainer}
-        >
-          {agendaLoading ? (
-            <View style={styles.agoraLoadingContainer}>
-              <ShimmerCard />
-              <ShimmerCard />
-            </View>
-          ) : agendaData.length > 0 ? (
-            agendaData.map((item) => (
-              <AgoraContentCard
-                key={item.id}
-                content={item}
-                onMarkComplete={onMarkContentComplete}
-                onPress={() => console.log('Content pressed:', item)}
-              />
-            ))
-          ) : (
-            <View style={styles.agoraEmptyContainer}>
-              <Ionicons name="document-text-outline" size={48} color={theme.colors.text.secondary} />
-              <Text style={styles.agoraEmptyText}>Aucun contenu disponible</Text>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* L'Agora Community Posts */}
       <LAgoraCard 
         posts={communityPosts}
         loading={communityLoading}
-        onPostPress={onPostPress}
+        onPostPress={(post: any) => {
+          // Redirection vers l'écran L'Agora (community) avec un message "coming soon"
+          // La logique de navigation est gérée dans DashboardScreen via onPostPress
+          onPostPress(post);
+        }}
         onLikePress={onLikePress}
         onCommentPress={onCommentPress}
       />
@@ -280,6 +256,21 @@ const styles = StyleSheet.create({
   agoraEmptyText: {
     marginTop: 12,
     color: theme.colors.text.secondary,
+  },
+  comingSoonCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#FFF3CD',
+    borderRadius: 8,
+    margin: 20,
+  },
+  comingSoonCardText: {
+    marginTop: 12,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
