@@ -92,8 +92,8 @@ android {
         applicationId 'com.afrotouch.lasocoach'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 2
+        versionName "1.0.3"
         
         // FIX: react-native-iap variant ambiguity (Amazon vs Play Store)
         // Force Play Store variant instead of Amazon
