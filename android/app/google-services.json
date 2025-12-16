@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "855620848279-2t4l53kob9gbm9sivjlal7so02d45okg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.afrotouch.lasocoach",
+            "certificate_hash": "35620e62061380f75918064b057fc3685a3ec7ea"
+          }
+        },
+        {
           "client_id": "855620848279-c0hknlt9062vgr9966n7304j3qmh7njh.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
