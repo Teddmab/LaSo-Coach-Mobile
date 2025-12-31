@@ -17,7 +17,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
   },
   {
     id: 'security',
-    title: 'Sécurité & Connexion',
+    title: 'Confidentialité & Termes',
     icon: 'shield-checkmark-outline',
     color: '#4CAF50',
     expandable: true,

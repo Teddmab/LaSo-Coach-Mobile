@@ -23,7 +23,7 @@ const SecurityScreen: React.FC<SecurityScreenProps> = ({
 }) => {
   return (
     <FixedLayout
-      headerTitle="Sécurité & Connexion"
+      headerTitle="Confidentialité & Termes"
       activeTab={activeTab}
       onTabPress={onTabPress}
       onHelpPress={() => {}}
