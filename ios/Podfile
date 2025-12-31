@@ -49,13 +49,25 @@ target 'LasoCoach' do
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
   
-  # Ensure RCT-Folly is available for react-native-iap when New Architecture is enabled
+  # Ensure RCT-Folly and its version-specific dependencies are available for react-native-iap when New Architecture is enabled
   # This is a workaround for the dependency resolution issue where react-native-iap
   # tries to find RCT-Folly before use_react_native! has loaded the third-party-podspecs
-  # Note: We only load RCT-Folly explicitly; use_react_native! will handle its dependencies
+  # Note: We load fast_float and fmt explicitly because they have specific versions (8.0.0 and 11.0.2)
+  # that are not available in CocoaPods trunk, but are required by RCT-Folly
   if ENV['RCT_NEW_ARCH_ENABLED'] == '1'
     react_native_path = config[:reactNativePath] || "../node_modules/react-native"
-    rct_folly_podspec = File.join(react_native_path, "third-party-podspecs", "RCT-Folly.podspec")
+    third_party_path = File.join(react_native_path, "third-party-podspecs")
+    
+    # Load version-specific dependencies first (they must be available before RCT-Folly)
+    ['fast_float', 'fmt'].each do |pod_name|
+      podspec_path = File.join(third_party_path, "#{pod_name}.podspec")
+      if File.exist?(podspec_path)
+        pod pod_name, :path => podspec_path
+      end
+    end
+    
+    # Then load RCT-Folly (which depends on fast_float and fmt)
+    rct_folly_podspec = File.join(third_party_path, "RCT-Folly.podspec")
     if File.exist?(rct_folly_podspec)
       pod 'RCT-Folly', :path => rct_folly_podspec
     end
