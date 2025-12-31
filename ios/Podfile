@@ -14,9 +14,14 @@ end
 
 ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == 'false'
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] ||= podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
+
 # Force building from source when New Architecture is enabled to ensure third-party-podspecs are loaded
 # This is necessary for react-native-iap to find RCT-Folly
+# We MUST use = (not ||=) to override any values set by EAS Build or other sources
 if podfile_properties['newArchEnabled'] == 'true'
+  # Force override - delete first to ensure clean state, then set
+  ENV.delete('RCT_USE_RN_DEP')
+  ENV.delete('RCT_USE_PREBUILT_RNCORE')
   ENV['RCT_USE_RN_DEP'] = '0'  # Build from source
   ENV['RCT_USE_PREBUILT_RNCORE'] = '0'  # Build from source
 else
