@@ -6,7 +6,12 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "20.19.4"
+      "node": "20.19.4",
+      "ios": {
+        "env": {
+          "RCT_USE_RN_DEP": "0"
+        }
+      }
     },
     "test": {
       "distribution": "internal",
@@ -25,14 +30,20 @@
       },
       "ios": {
         "simulator": false,
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "env": {
+          "RCT_USE_RN_DEP": "0"
+        }
       }
     },
     "production": {
       "node": "20.19.4",
       "ios": {
         "simulator": false,
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "env": {
+          "RCT_USE_RN_DEP": "0"
+        }
       },
       "android": {
         "buildType": "app-bundle"
