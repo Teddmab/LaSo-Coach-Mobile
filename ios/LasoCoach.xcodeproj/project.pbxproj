@@ -364,7 +364,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.laso.coach;
+				PRODUCT_BUNDLE_IDENTIFIER = com.afrotouch.lasocoach;
 				PRODUCT_NAME = LasoCoach;
 				SWIFT_OBJC_BRIDGING_HEADER = "LasoCoach/LasoCoach-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -395,7 +395,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.laso.coach;
+				PRODUCT_BUNDLE_IDENTIFIER = com.afrotouch.lasocoach;
 				PRODUCT_NAME = LasoCoach;
 				SWIFT_OBJC_BRIDGING_HEADER = "LasoCoach/LasoCoach-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
