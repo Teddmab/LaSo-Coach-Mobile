@@ -30,6 +30,10 @@
     },
     "production": {
       "node": "20.19.4",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
       "android": {
         "buildType": "app-bundle"
       }
