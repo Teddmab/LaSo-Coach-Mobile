@@ -27,6 +27,12 @@ const withPreserveIcons = (config) => {
         'AppIcon.appiconset'
       );
 
+      const infoPlistPath = path.join(
+        config.modRequest.platformProjectRoot,
+        'LasoCoach',
+        'Info.plist'
+      );
+
       console.log('🔧 [withPreserveIcons] Starting icon restoration...');
       console.log(`📁 Source path: ${sourceIconsPath}`);
       console.log(`📁 Destination path: ${iconsPath}`);
@@ -73,6 +79,49 @@ const withPreserveIcons = (config) => {
         console.log(`✅ [withPreserveIcons] Restored ${copiedCount} icon files to AppIcon.appiconset`);
       } else {
         console.warn('⚠️ [withPreserveIcons] No icons were restored');
+      }
+
+      // S'assurer que CFBundleIconName est présent dans Info.plist
+      if (fs.existsSync(infoPlistPath)) {
+        try {
+          let infoPlistContent = fs.readFileSync(infoPlistPath, 'utf8');
+          
+          // Vérifier si CFBundleIconName est déjà présent
+          if (!infoPlistContent.includes('<key>CFBundleIconName</key>')) {
+            console.log('🔧 [withPreserveIcons] Adding CFBundleIconName to Info.plist');
+            // Ajouter CFBundleIconName juste après CFBundleVersion
+            const bundleVersionPattern = /(<key>CFBundleVersion<\/key>\s*<string>.*?<\/string>)/;
+            if (bundleVersionPattern.test(infoPlistContent)) {
+              infoPlistContent = infoPlistContent.replace(
+                bundleVersionPattern,
+                `$1\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>`
+              );
+              fs.writeFileSync(infoPlistPath, infoPlistContent, 'utf8');
+              console.log('✅ [withPreserveIcons] CFBundleIconName added to Info.plist');
+            } else {
+              console.warn('⚠️ [withPreserveIcons] Could not find CFBundleVersion in Info.plist to insert CFBundleIconName');
+            }
+          } else {
+            // Vérifier que la valeur est correcte
+            const iconNamePattern = /<key>CFBundleIconName<\/key>\s*<string>(.*?)<\/string>/;
+            const match = infoPlistContent.match(iconNamePattern);
+            if (match && match[1] !== 'AppIcon') {
+              console.log('🔧 [withPreserveIcons] Updating CFBundleIconName value in Info.plist');
+              infoPlistContent = infoPlistContent.replace(
+                iconNamePattern,
+                '<key>CFBundleIconName</key>\n    <string>AppIcon</string>'
+              );
+              fs.writeFileSync(infoPlistPath, infoPlistContent, 'utf8');
+              console.log('✅ [withPreserveIcons] CFBundleIconName updated in Info.plist');
+            } else {
+              console.log('✅ [withPreserveIcons] CFBundleIconName already present and correct in Info.plist');
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ [withPreserveIcons] Error updating Info.plist: ${error.message}`);
+        }
+      } else {
+        console.warn(`⚠️ [withPreserveIcons] Info.plist not found at: ${infoPlistPath}`);
       }
 
       return config;

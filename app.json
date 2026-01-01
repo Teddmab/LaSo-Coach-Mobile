@@ -27,7 +27,8 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "SKAdNetworkItems": []
+        "SKAdNetworkItems": [],
+        "CFBundleIconName": "AppIcon"
       }
     },
     "android": {
