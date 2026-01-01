@@ -5,6 +5,16 @@
 
 echo "🔧 [pre-build] Starting pre-build hook..."
 
+# Sauvegarder les icônes personnalisées AVANT de supprimer le dossier ios
+# Les sauvegarder dans le projet pour que le plugin puisse les restaurer
+ICONS_BACKUP_DIR="./.icons-backup"
+if [ -d "ios/LasoCoach/Images.xcassets/AppIcon.appiconset" ]; then
+  echo "💾 [pre-build] Backing up custom icons before prebuild..."
+  mkdir -p "$ICONS_BACKUP_DIR"
+  cp -r "ios/LasoCoach/Images.xcassets/AppIcon.appiconset" "$ICONS_BACKUP_DIR/" 2>/dev/null || true
+  echo "✅ [pre-build] Icons backed up to $ICONS_BACKUP_DIR"
+fi
+
 # Forcer le prebuild en supprimant le dossier ios si FORCE_PREBUILD est défini
 if [ "${FORCE_PREBUILD:-false}" = "true" ]; then
   echo "🔄 [pre-build] FORCE_PREBUILD=true, removing ios directory to force prebuild..."
@@ -16,8 +26,22 @@ fi
 
 echo "🔧 [pre-build] Checking iOS icons..."
 
-IOS_ICONS_SOURCE="ios/LasoCoach/Images.xcassets/AppIcon.appiconset"
+# Restaurer les icônes depuis la sauvegarde APRÈS le prebuild
+# Le plugin withPreserveIcons restaurera les icônes depuis .icons-backup
+IOS_ICONS_SOURCE="$ICONS_BACKUP_DIR/AppIcon.appiconset"
 IOS_ICONS_DEST="ios/LasoCoach/Images.xcassets/AppIcon.appiconset"
+
+# Attendre que le dossier ios soit recréé par le prebuild
+if [ ! -d "ios/LasoCoach" ]; then
+  echo "⏳ [pre-build] Waiting for prebuild to complete..."
+  # Attendre jusqu'à 60 secondes que le dossier ios soit créé
+  for i in {1..60}; do
+    if [ -d "ios/LasoCoach" ]; then
+      break
+    fi
+    sleep 1
+  done
+fi
 
 if [ -d "$IOS_ICONS_SOURCE" ]; then
   echo "✅ [pre-build] Source icons directory found: $IOS_ICONS_SOURCE"
@@ -28,12 +52,12 @@ if [ -d "$IOS_ICONS_SOURCE" ]; then
     mkdir -p "$IOS_ICONS_DEST"
   fi
   
-  # Copier toutes les icônes
-  echo "📋 [pre-build] Copying icon files..."
-  cp -v "$IOS_ICONS_SOURCE"/*.png "$IOS_ICONS_DEST/" 2>/dev/null || true
-  cp -v "$IOS_ICONS_SOURCE/Contents.json" "$IOS_ICONS_DEST/" 2>/dev/null || true
+  # Copier toutes les icônes depuis la sauvegarde
+  echo "📋 [pre-build] Restoring icon files from backup..."
+  cp -f "$IOS_ICONS_SOURCE"/*.png "$IOS_ICONS_DEST/" 2>/dev/null || true
+  cp -f "$IOS_ICONS_SOURCE/Contents.json" "$IOS_ICONS_DEST/" 2>/dev/null || true
   
-  echo "✅ [pre-build] Icons copied successfully"
+  echo "✅ [pre-build] Icons restored successfully"
   
   # Vérifier que Contents.json existe
   if [ -f "$IOS_ICONS_DEST/Contents.json" ]; then
@@ -43,6 +67,12 @@ if [ -d "$IOS_ICONS_SOURCE" ]; then
   fi
 else
   echo "⚠️ [pre-build] Source icons directory not found: $IOS_ICONS_SOURCE"
+  # Essayer de trouver les icônes dans le repo original
+  if [ -d "../ios/LasoCoach/Images.xcassets/AppIcon.appiconset" ]; then
+    echo "🔄 [pre-build] Trying to restore from repo..."
+    cp -f "../ios/LasoCoach/Images.xcassets/AppIcon.appiconset"/*.png "$IOS_ICONS_DEST/" 2>/dev/null || true
+    cp -f "../ios/LasoCoach/Images.xcassets/AppIcon.appiconset/Contents.json" "$IOS_ICONS_DEST/" 2>/dev/null || true
+  fi
 fi
 
 # Vérifier que CFBundleIconName est dans Info.plist

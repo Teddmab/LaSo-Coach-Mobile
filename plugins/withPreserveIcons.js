@@ -92,14 +92,22 @@ echo "✅ [Xcode Build Script] Icon check completed"
         'AppIcon.appiconset'
       );
 
-      // Chemin vers les icônes source dans le repo
-      const sourceIconsPath = path.join(
+      // Chemin vers les icônes source - d'abord chercher dans la sauvegarde, puis dans le repo
+      const backupIconsPath = path.join(
+        config.modRequest.projectRoot,
+        '.icons-backup',
+        'AppIcon.appiconset'
+      );
+      const repoIconsPath = path.join(
         config.modRequest.projectRoot,
         'ios',
         'LasoCoach',
         'Images.xcassets',
         'AppIcon.appiconset'
       );
+      
+      // Utiliser la sauvegarde si elle existe, sinon le repo
+      const sourceIconsPath = fs.existsSync(backupIconsPath) ? backupIconsPath : repoIconsPath;
 
       const infoPlistPath = path.join(
         config.modRequest.platformProjectRoot,
