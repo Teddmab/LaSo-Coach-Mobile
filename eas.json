@@ -32,7 +32,8 @@
         "simulator": false,
         "buildConfiguration": "Release",
         "env": {
-          "RCT_USE_RN_DEP": "0"
+          "RCT_USE_RN_DEP": "0",
+          "FORCE_PREBUILD": "true"
         }
       }
     },
@@ -42,7 +43,8 @@
         "simulator": false,
         "buildConfiguration": "Release",
         "env": {
-          "RCT_USE_RN_DEP": "0"
+          "RCT_USE_RN_DEP": "0",
+          "FORCE_PREBUILD": "true"
         }
       },
       "android": {
