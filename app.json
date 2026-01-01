@@ -97,7 +97,8 @@
     "plugins": [
       "expo-web-browser",
       "./plugins/withReactNativeIAP.js",
-      "./plugins/withPreserveIcons.js"
+      "./plugins/withPreserveIcons.js",
+      "./plugins/withFixMacOSSupport.js"
     ]
   }
 }
