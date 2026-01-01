@@ -100,7 +100,11 @@ const withPreserveIcons = (config) => {
           copiedCount++;
           console.log(`✅ Copied: ${iconFile}`);
         } else {
-          console.warn(`⚠️ Source icon not found: ${iconFile}`);
+          console.warn(`⚠️ Source icon not found: ${iconFile} at ${sourcePath}`);
+          // Contents.json peut être généré automatiquement par Expo, ce n'est pas critique
+          if (iconFile === 'Contents.json') {
+            console.log('ℹ️ Contents.json will be generated automatically by Expo if missing');
+          }
         }
       }
 
