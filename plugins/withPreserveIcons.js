@@ -1,4 +1,4 @@
-const { withDangerousMod } = require('@expo/config-plugins');
+const { withDangerousMod, withInfoPlist } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -8,6 +8,13 @@ const path = require('path');
  * S'exécute APRÈS le prebuild pour restaurer nos icônes personnalisées
  */
 const withPreserveIcons = (config) => {
+  // D'abord, s'assurer que CFBundleIconName est dans Info.plist via withInfoPlist
+  config = withInfoPlist(config, (config) => {
+    config.modResults.CFBundleIconName = 'AppIcon';
+    return config;
+  });
+
+  // Ensuite, copier les icônes et vérifier Info.plist
   return withDangerousMod(config, [
     'ios',
     async (config) => {
