@@ -92,8 +92,15 @@ echo "✅ [Xcode Build Script] Icon check completed"
         'AppIcon.appiconset'
       );
 
-      // Chemin vers les icônes source - d'abord chercher dans la sauvegarde, puis dans le repo
-      const backupIconsPath = path.join(
+      // Chemin vers les icônes source - chercher dans l'ordre :
+      // 1. ios-icons-backup (dans le dépôt Git)
+      // 2. .icons-backup (sauvegarde temporaire du hook pre-build)
+      // 3. ios/ (si le dossier existe localement)
+      const gitBackupIconsPath = path.join(
+        config.modRequest.projectRoot,
+        'ios-icons-backup'
+      );
+      const tempBackupIconsPath = path.join(
         config.modRequest.projectRoot,
         '.icons-backup',
         'AppIcon.appiconset'
@@ -106,8 +113,15 @@ echo "✅ [Xcode Build Script] Icon check completed"
         'AppIcon.appiconset'
       );
       
-      // Utiliser la sauvegarde si elle existe, sinon le repo
-      const sourceIconsPath = fs.existsSync(backupIconsPath) ? backupIconsPath : repoIconsPath;
+      // Utiliser la sauvegarde Git si elle existe, sinon la sauvegarde temporaire, sinon le repo
+      let sourceIconsPath;
+      if (fs.existsSync(gitBackupIconsPath)) {
+        sourceIconsPath = gitBackupIconsPath;
+      } else if (fs.existsSync(tempBackupIconsPath)) {
+        sourceIconsPath = tempBackupIconsPath;
+      } else {
+        sourceIconsPath = repoIconsPath;
+      }
 
       const infoPlistPath = path.join(
         config.modRequest.platformProjectRoot,
