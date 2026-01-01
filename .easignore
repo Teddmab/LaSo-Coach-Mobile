@@ -1,4 +1,0 @@
-# Exclure le dossier ios du tarball EAS pour forcer le prebuild
-# Cela garantit qu'EAS considère le projet comme "managed" et exécute le prebuild
-ios/
-
