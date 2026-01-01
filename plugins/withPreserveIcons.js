@@ -27,6 +27,10 @@ const withPreserveIcons = (config) => {
         'AppIcon.appiconset'
       );
 
+      console.log('🔧 [withPreserveIcons] Starting icon restoration...');
+      console.log(`📁 Source path: ${sourceIconsPath}`);
+      console.log(`📁 Destination path: ${iconsPath}`);
+
       // Vérifier que le dossier source existe
       if (!fs.existsSync(sourceIconsPath)) {
         console.log('⚠️ Source AppIcon.appiconset not found, skipping icon restoration');
@@ -59,15 +63,16 @@ const withPreserveIcons = (config) => {
         if (fs.existsSync(sourcePath)) {
           fs.copyFileSync(sourcePath, destPath);
           copiedCount++;
+          console.log(`✅ Copied: ${iconFile}`);
         } else {
           console.warn(`⚠️ Source icon not found: ${iconFile}`);
         }
       }
 
       if (copiedCount > 0) {
-        console.log(`✅ Restored ${copiedCount} icon files to AppIcon.appiconset`);
+        console.log(`✅ [withPreserveIcons] Restored ${copiedCount} icon files to AppIcon.appiconset`);
       } else {
-        console.warn('⚠️ No icons were restored');
+        console.warn('⚠️ [withPreserveIcons] No icons were restored');
       }
 
       return config;

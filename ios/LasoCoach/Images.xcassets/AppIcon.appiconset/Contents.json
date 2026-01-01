@@ -1,12 +1,6 @@
 {
   "images": [
     {
-      "filename": "App-Icon-1024x1024@1x.png",
-      "idiom": "universal",
-      "platform": "ios",
-      "size": "1024x1024"
-    },
-    {
       "filename": "App-Icon-60x60@2x.png",
       "idiom": "iphone",
       "scale": "2x",
@@ -45,6 +39,6 @@
   ],
   "info": {
     "version": 1,
-    "author": "expo"
+    "author": "xcode"
   }
 }
