@@ -96,7 +96,8 @@
     "owner": "ohriginal-llc",
     "plugins": [
       "expo-web-browser",
-      "./plugins/withReactNativeIAP.js"
+      "./plugins/withReactNativeIAP.js",
+      "./plugins/withPreserveIcons.js"
     ]
   }
 }
