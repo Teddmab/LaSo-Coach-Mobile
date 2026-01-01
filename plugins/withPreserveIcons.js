@@ -1,4 +1,4 @@
-const { withDangerousMod, withInfoPlist, withXcodeProject } = require('@expo/config-plugins');
+const { withDangerousMod, withInfoPlist } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,73 +11,6 @@ const withPreserveIcons = (config) => {
   // D'abord, s'assurer que CFBundleIconName est dans Info.plist via withInfoPlist
   config = withInfoPlist(config, (config) => {
     config.modResults.CFBundleIconName = 'AppIcon';
-    return config;
-  });
-
-  // Ajouter un script de build Xcode qui s'exécute après la compilation
-  config = withXcodeProject(config, (config) => {
-    const xcodeProject = config.modResults;
-    const target = xcodeProject.getFirstTarget();
-    if (!target) {
-      console.warn('⚠️ [withPreserveIcons] No target found in Xcode project');
-      return config;
-    }
-    
-    // Script pour copier les icônes et vérifier Info.plist après la compilation
-    const script = `# Ensure App Icons are included in bundle
-echo "🔧 [Xcode Build Script] Ensuring app icons are included..."
-
-ICONS_SOURCE="\\${SRCROOT}/LasoCoach/Images.xcassets/AppIcon.appiconset"
-ICONS_DEST="\\${SRCROOT}/LasoCoach/Images.xcassets/AppIcon.appiconset"
-INFO_PLIST="\\${SRCROOT}/LasoCoach/Info.plist"
-
-if [ -d "$ICONS_SOURCE" ]; then
-  echo "✅ Icons source found: $ICONS_SOURCE"
-  # Copier toutes les icônes
-  cp -f "$ICONS_SOURCE"/*.png "$ICONS_DEST/" 2>/dev/null || true
-  cp -f "$ICONS_SOURCE/Contents.json" "$ICONS_DEST/" 2>/dev/null || true
-  echo "✅ Icons copied to bundle"
-else
-  echo "⚠️ Icons source not found: $ICONS_SOURCE"
-fi
-
-# Vérifier CFBundleIconName dans Info.plist
-if [ -f "$INFO_PLIST" ]; then
-  if ! grep -q "CFBundleIconName" "$INFO_PLIST"; then
-    echo "🔧 Adding CFBundleIconName to Info.plist"
-    sed -i.bak '/<key>CFBundleVersion<\\/key>/,/<\\/string>/a\\
-    <key>CFBundleIconName</key>\\
-    <string>AppIcon</string>
-' "$INFO_PLIST"
-  fi
-fi
-
-echo "✅ [Xcode Build Script] Icon check completed"
-`;
-
-    // Vérifier si le script existe déjà
-    const existingPhase = target.buildPhases.find(
-      phase => phase.comments === 'Ensure App Icons'
-    );
-
-    if (!existingPhase) {
-      // Ajouter le script de build après la phase Resources
-      const buildPhase = xcodeProject.addBuildPhase(
-        [],
-        'PBXShellScriptBuildPhase',
-        'Ensure App Icons',
-        target.uuid,
-        {
-          shellScript: script,
-          shellPath: '/bin/sh',
-          alwaysOutOfDate: 1,
-        }
-      );
-      console.log('✅ [withPreserveIcons] Added Xcode build script phase');
-    } else {
-      console.log('✅ [withPreserveIcons] Xcode build script phase already exists');
-    }
-
     return config;
   });
 
