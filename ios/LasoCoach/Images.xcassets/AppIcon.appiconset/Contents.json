@@ -7,26 +7,31 @@
       "size": "1024x1024"
     },
     {
+      "filename": "App-Icon-60x60@2x.png",
       "idiom": "iphone",
       "scale": "2x",
       "size": "60x60"
     },
     {
+      "filename": "App-Icon-60x60@3x.png",
       "idiom": "iphone",
       "scale": "3x",
       "size": "60x60"
     },
     {
+      "filename": "App-Icon-76x76@1x.png",
       "idiom": "ipad",
       "scale": "1x",
       "size": "76x76"
     },
     {
+      "filename": "App-Icon-76x76@2x.png",
       "idiom": "ipad",
       "scale": "2x",
       "size": "76x76"
     },
     {
+      "filename": "App-Icon-83.5x83.5@2x.png",
       "idiom": "ipad",
       "scale": "2x",
       "size": "83.5x83.5"
