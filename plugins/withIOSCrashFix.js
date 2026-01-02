@@ -53,6 +53,28 @@ const withIOSCrashFix = (config) => {
       console.log('✅ [withIOSCrashFix] Added ITSAppUsesNonExemptEncryption');
     }
 
+    // Configuration pour éviter les crashes au démarrage
+    // S'assurer que UIViewControllerBasedStatusBarAppearance est défini
+    if (infoPlist.UIViewControllerBasedStatusBarAppearance === undefined) {
+      infoPlist.UIViewControllerBasedStatusBarAppearance = false;
+      console.log('✅ [withIOSCrashFix] Added UIViewControllerBasedStatusBarAppearance');
+    }
+
+    // S'assurer que UIStatusBarStyle est défini
+    if (!infoPlist.UIStatusBarStyle) {
+      infoPlist.UIStatusBarStyle = 'UIStatusBarStyleLightContent';
+      console.log('✅ [withIOSCrashFix] Added UIStatusBarStyle');
+    }
+
+    // Configuration pour éviter les crashes liés à la sécurité
+    if (!infoPlist.NSAppTransportSecurity) {
+      infoPlist.NSAppTransportSecurity = {
+        NSAllowsArbitraryLoads: false,
+        NSExceptionDomains: {},
+      };
+      console.log('✅ [withIOSCrashFix] Added NSAppTransportSecurity');
+    }
+
     // Configuration pour les deep links
     if (!infoPlist.CFBundleURLTypes) {
       infoPlist.CFBundleURLTypes = [
