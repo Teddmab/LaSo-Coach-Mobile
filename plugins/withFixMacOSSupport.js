@@ -24,20 +24,24 @@ const withFixMacOSSupport = (config) => {
           return;
         }
 
-        // SUPPORTED_PLATFORMS : iOS uniquement
-        if (!buildConfig.buildSettings.SUPPORTED_PLATFORMS) {
-          buildConfig.buildSettings.SUPPORTED_PLATFORMS = 'iphoneos iphonesimulator';
-        } else {
+        // SUPPORTED_PLATFORMS : iOS uniquement (modification minimale pour éviter corruption)
+        if (buildConfig.buildSettings.SUPPORTED_PLATFORMS) {
           const platforms = buildConfig.buildSettings.SUPPORTED_PLATFORMS;
           if (Array.isArray(platforms)) {
-            buildConfig.buildSettings.SUPPORTED_PLATFORMS = platforms.filter(
+            const filtered = platforms.filter(
               (platform) => platform && platform.includes('iphone') && !platform.includes('mac')
             );
+            if (filtered.length > 0) {
+              buildConfig.buildSettings.SUPPORTED_PLATFORMS = filtered;
+            }
           } else if (typeof platforms === 'string') {
-            buildConfig.buildSettings.SUPPORTED_PLATFORMS = platforms
+            const filtered = platforms
               .split(' ')
               .filter((platform) => platform && platform.includes('iphone') && !platform.includes('mac'))
               .join(' ');
+            if (filtered) {
+              buildConfig.buildSettings.SUPPORTED_PLATFORMS = filtered;
+            }
           }
         }
 
@@ -69,15 +73,8 @@ const withFixMacOSSupport = (config) => {
           buildConfig.buildSettings.ONLY_ACTIVE_ARCH = 'YES';
         }
 
-        // SDKROOT : forcer iOS
-        if (
-          !buildConfig.buildSettings.SDKROOT ||
-          (buildConfig.buildSettings.SDKROOT !== 'iphoneos' &&
-            buildConfig.buildSettings.SDKROOT !== 'iphonesimulator')
-        ) {
-          buildConfig.buildSettings.SDKROOT =
-            buildConfig.name && buildConfig.name.includes('Debug') ? 'iphonesimulator' : 'iphoneos';
-        }
+        // SDKROOT : Ne modifier que si nécessaire (éviter corruption)
+        // Laisser Expo gérer SDKROOT par défaut
 
         // OTHER_LDFLAGS : retirer références macOS
         if (buildConfig.buildSettings.OTHER_LDFLAGS) {
@@ -107,10 +104,8 @@ const withFixMacOSSupport = (config) => {
           }
         }
 
-        // TARGETED_DEVICE_FAMILY : iPhone + iPad
-        if (!buildConfig.buildSettings.TARGETED_DEVICE_FAMILY) {
-          buildConfig.buildSettings.TARGETED_DEVICE_FAMILY = '1,2';
-        }
+        // TARGETED_DEVICE_FAMILY : Ne pas modifier ici pour éviter les erreurs de parsing
+        // La valeur par défaut d'Expo est déjà correcte pour iOS
       });
 
       console.log('✅ [withFixMacOSSupport] Excluded macOS from iOS build configurations');
