@@ -99,8 +99,8 @@
       "expo-web-browser",
       "./plugins/withReactNativeIAP.js",
       "./plugins/withPreserveIcons.js",
-      "./plugins/withFixMacOSSupport.js",
-      "./plugins/withIOSCrashFix.js"
+      "./plugins/withIOSCrashFix.js",
+      "./plugins/withFixMacOSSupport.js"
     ]
   }
 }
