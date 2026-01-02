@@ -95,8 +95,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // Initialize push notifications
   const initializePushNotifications = async (): Promise<boolean> => {
     try {
-      // Ensure Firebase is initialized before accessing Expo push token
-      getFirebaseApp();
+      // Ensure Firebase is initialized before accessing Expo push token - with error handling
+      try {
+        const firebaseApp = getFirebaseApp();
+        if (!firebaseApp) {
+          console.warn('⚠️ [NotificationProvider] Firebase not initialized, skipping push notifications');
+          return false;
+        }
+      } catch (firebaseError: any) {
+        console.warn('⚠️ [NotificationProvider] Firebase initialization error:', firebaseError.message);
+        return false;
+      }
       
       // Check if device is physical device
       if (!Device.isDevice) {

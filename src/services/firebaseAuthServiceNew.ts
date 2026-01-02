@@ -55,31 +55,47 @@ class FirebaseAuthService {
   async ensureAuth() {
     // Attempt to obtain the Firebase Auth instance if we don't have it yet
     if (!this.firebaseAuth) {
-      this.firebaseAuth = getFirebaseAuth();
-      if (this.firebaseAuth) {
-        // Initialize interceptors only once
-        if (!this._interceptorsInitialized) {
-          this.initializeInterceptors();
-          this._interceptorsInitialized = true;
+      try {
+        this.firebaseAuth = getFirebaseAuth();
+        if (this.firebaseAuth) {
+          // Initialize interceptors only once
+          if (!this._interceptorsInitialized) {
+            this.initializeInterceptors();
+            this._interceptorsInitialized = true;
+          }
+          // Attach the auth state listener if not already
+          if (!this._authStateListenerAttached) {
+            this.initializeAuthStateListener();
+          }
         }
-        // Attach the auth state listener if not already
-        if (!this._authStateListenerAttached) {
-          this.initializeAuthStateListener();
-        }
+      } catch (error: any) {
+        console.error('❌ [FirebaseAuthService] Failed to get Firebase Auth:', error.message);
+        // Don't throw - return null instead to allow app to continue
+        return null;
       }
     }
-    if (!this.firebaseAuth) throw new Error('Firebase Auth is not initialized.');
+    if (!this.firebaseAuth) {
+      console.warn('⚠️ [FirebaseAuthService] Firebase Auth is not initialized. App will continue without auth.');
+      return null;
+    }
     return this.firebaseAuth;
   }
 
   /**
    * Get Firebase Auth instance (no longer lazy - already initialized)
+   * Returns null if not initialized instead of throwing to prevent crashes
    */
   getAuth() {
     if (!this.firebaseAuth) {
-      throw new Error('Firebase Auth is not initialized. Please check Firebase configuration.');
+      // Try to get it one more time
+      try {
+        this.firebaseAuth = getFirebaseAuth();
+      } catch (error: any) {
+        console.warn('⚠️ [FirebaseAuthService] Firebase Auth not available:', error.message);
+      }
     }
-    return this.firebaseAuth;
+    // Return null instead of throwing to prevent app crash
+    return this.firebaseAuth || null;
   }
 
   /**

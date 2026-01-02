@@ -151,25 +151,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initAuth = async (): Promise<void> => {
       try {
         await prehydrateFromStorage();
-        // Wait for Firebase Auth to be ready
-        await firebaseAuthService.ensureAuth();
-
-        // If Firebase already has a current user and we have not resolved yet, optimistically set it
-        const firebaseCurrent = firebaseAuthService.getAuth().currentUser;
-        if (firebaseCurrent && !initialAuthResolvedRef.current && !state.user) {
-          dispatch({
-            type: AUTH_ACTIONS.SET_USER,
-            payload: {
-              uid: firebaseCurrent.uid,
-              email: firebaseCurrent.email,
-              name: firebaseCurrent.displayName || 'User',
-              emailVerified: firebaseCurrent.emailVerified,
-            }
-          });
+        // Wait for Firebase Auth to be ready - with error handling
+        try {
+          await firebaseAuthService.ensureAuth();
+        } catch (firebaseError: any) {
+          console.error('❌ [AuthProvider] Firebase Auth initialization failed:', firebaseError.message);
+          // Don't crash - mark as ready without auth, user can retry later
+          dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
+          return;
         }
 
-        // Listen to Firebase auth state changes
-        unsubscribe = firebaseAuthService.onAuthStateChange((user: User | null) => {
+        // If Firebase already has a current user and we have not resolved yet, optimistically set it
+        try {
+          const firebaseAuth = firebaseAuthService.getAuth();
+          if (firebaseAuth) {
+            const firebaseCurrent = firebaseAuth.currentUser;
+            if (firebaseCurrent && !initialAuthResolvedRef.current && !state.user) {
+              dispatch({
+                type: AUTH_ACTIONS.SET_USER,
+                payload: {
+                  uid: firebaseCurrent.uid,
+                  email: firebaseCurrent.email,
+                  name: firebaseCurrent.displayName || 'User',
+                  emailVerified: firebaseCurrent.emailVerified,
+                }
+              });
+            }
+          }
+        } catch (authError: any) {
+          console.warn('⚠️ [AuthProvider] Could not get Firebase Auth instance:', authError.message);
+        }
+
+        // Listen to Firebase auth state changes - with error handling
+        try {
+          unsubscribe = firebaseAuthService.onAuthStateChange((user: User | null) => {
           if (!initialAuthResolvedRef.current) {
             initialAuthResolvedRef.current = true;
             if (fallbackTimeout) {
@@ -192,7 +207,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
         });
+        } catch (listenerError: any) {
+          console.error('❌ [AuthProvider] Failed to set up auth state listener:', listenerError.message);
+          // Mark as ready even if listener setup failed
+          dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
+        }
       } catch (error: any) {
+        console.error('❌ [AuthProvider] Auth initialization failed:', error.message);
         // Don't force logout here; just mark ready so UI can show login if needed
         dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
       }

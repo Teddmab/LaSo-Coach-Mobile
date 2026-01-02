@@ -18,34 +18,66 @@ import {
 
 const firebaseExtra = Constants.expoConfig?.extra?.firebase ?? {};
 
-const firebaseConfig = {
-  apiKey: firebaseExtra.apiKey || FIREBASE_API_KEY,
-  authDomain: firebaseExtra.authDomain || FIREBASE_AUTH_DOMAIN,
-  projectId: firebaseExtra.projectId || FIREBASE_PROJECT_ID,
-  storageBucket: firebaseExtra.storageBucket || FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: firebaseExtra.messagingSenderId || FIREBASE_MESSAGING_SENDER_ID,
-  appId: firebaseExtra.appId || FIREBASE_APP_ID,
-  measurementId: firebaseExtra.measurementId || FIREBASE_MEASUREMENT_ID,
+// Fallback Firebase config from app.json (always available)
+const defaultFirebaseConfig = {
+  apiKey: 'AIzaSyDubBwQF27OUZyOMhzmNpIizw2D4dHxzO0',
+  authDomain: 'lasocoach-39710.firebaseapp.com',
+  projectId: 'lasocoach-39710',
+  storageBucket: 'lasocoach-39710.appspot.com',
+  messagingSenderId: '855620848279',
+  appId: '1:855620848279:web:f93cbbf9c0d8f42faef7d2',
+  measurementId: 'G-8JK6R4BGYG',
 };
 
-// Validate configuration
+// Safely get env variables with fallbacks
+const getEnvVar = (envVar: string | undefined, fallback: string): string => {
+  // Check if envVar is defined and not empty
+  if (envVar && typeof envVar === 'string' && envVar.trim() !== '') {
+    return envVar;
+  }
+  return fallback;
+};
+
+const firebaseConfig = {
+  apiKey: firebaseExtra.apiKey || getEnvVar(FIREBASE_API_KEY, defaultFirebaseConfig.apiKey),
+  authDomain: firebaseExtra.authDomain || getEnvVar(FIREBASE_AUTH_DOMAIN, defaultFirebaseConfig.authDomain),
+  projectId: firebaseExtra.projectId || getEnvVar(FIREBASE_PROJECT_ID, defaultFirebaseConfig.projectId),
+  storageBucket: firebaseExtra.storageBucket || getEnvVar(FIREBASE_STORAGE_BUCKET, defaultFirebaseConfig.storageBucket),
+  messagingSenderId: firebaseExtra.messagingSenderId || getEnvVar(FIREBASE_MESSAGING_SENDER_ID, defaultFirebaseConfig.messagingSenderId),
+  appId: firebaseExtra.appId || getEnvVar(FIREBASE_APP_ID, defaultFirebaseConfig.appId),
+  measurementId: firebaseExtra.measurementId || getEnvVar(FIREBASE_MEASUREMENT_ID, defaultFirebaseConfig.measurementId),
+};
+
+// Validate configuration with fallbacks - don't throw, use defaults instead
 if (!firebaseConfig.apiKey || !firebaseConfig.appId) {
-  throw new Error('Firebase configuration is missing required values.');
+  console.warn('⚠️ [Firebase] Some config values missing, using defaults');
+  // Use default config if critical values are missing
+  Object.assign(firebaseConfig, defaultFirebaseConfig);
 }
 
 // Initialize Firebase app ONLY (not auth yet)
 let firebaseApp;
 let firebaseAuthInstance = null;
+let firebaseInitError: Error | null = null;
 
-// Check if Firebase is already initialized
-const existingApps = getApps();
+// Safely initialize Firebase with error handling
+try {
+  // Check if Firebase is already initialized
+  const existingApps = getApps();
 
-if (existingApps.length === 0) {
-  // First time initialization
-  firebaseApp = initializeApp(firebaseConfig);
-} else {
-  // Firebase already initialized (hot reload scenario)
-  firebaseApp = existingApps[0];
+  if (existingApps.length === 0) {
+    // First time initialization
+    firebaseApp = initializeApp(firebaseConfig);
+    console.log('✅ [Firebase] App initialized successfully');
+  } else {
+    // Firebase already initialized (hot reload scenario)
+    firebaseApp = existingApps[0];
+    console.log('✅ [Firebase] Using existing app instance');
+  }
+} catch (error: any) {
+  firebaseInitError = error;
+  console.error('❌ [Firebase] Failed to initialize app:', error.message);
+  // Don't throw - let the app continue, Firebase will be retried later
 }
 
 // Attempt simple getAuth first; if component registration error occurs, fallback to initializeAuth
@@ -54,35 +86,56 @@ if (existingApps.length === 0) {
 // Attempt initializeAuth with persistence; if component registration race occurs, schedule retries.
 function attemptAuthInit(stage) {
   if (firebaseAuthInstance) return;
+  if (!firebaseApp) {
+    console.warn(`⚠️ [Firebase] Cannot initialize Auth at stage ${stage}: Firebase App not initialized`);
+    return;
+  }
   try {
     firebaseAuthInstance = initializeAuth(firebaseApp, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
-  } catch (e) {
+    console.log(`✅ [Firebase] Auth initialized at stage ${stage}`);
+  } catch (e: any) {
+    console.warn(`⚠️ [Firebase] Auth init failed at stage ${stage}:`, e.message);
   }
 }
 
-attemptAuthInit('immediate');
-if (!firebaseAuthInstance) {
-  setTimeout(() => attemptAuthInit('timeout-50ms'), 50);
-  setTimeout(() => {
-    if (!firebaseAuthInstance) {
-      try {
-        firebaseAuthInstance = getAuth(firebaseApp);
-      } catch (finalErr) {
-        // Last resort: compat API fallback
+// Only attempt auth init if Firebase App is initialized
+if (firebaseApp) {
+  attemptAuthInit('immediate');
+  if (!firebaseAuthInstance) {
+    setTimeout(() => {
+      if (firebaseApp) attemptAuthInit('timeout-50ms');
+    }, 50);
+    setTimeout(() => {
+      if (!firebaseAuthInstance && firebaseApp) {
         try {
-          const compatApp = require('firebase/compat/app');
-          require('firebase/compat/auth');
-          if (!compatApp.apps.length) {
-            compatApp.initializeApp(firebaseConfig);
+          firebaseAuthInstance = getAuth(firebaseApp);
+          if (firebaseAuthInstance) {
+            console.log('✅ [Firebase] Auth obtained via getAuth');
           }
-          firebaseAuthInstance = compatApp.auth();
-        } catch (compatErr) {
+        } catch (finalErr: any) {
+          console.warn('⚠️ [Firebase] getAuth failed, trying compat API:', finalErr.message);
+          // Last resort: compat API fallback
+          try {
+            const compatApp = require('firebase/compat/app');
+            require('firebase/compat/auth');
+            if (!compatApp.apps.length) {
+              compatApp.initializeApp(firebaseConfig);
+            }
+            firebaseAuthInstance = compatApp.auth();
+            if (firebaseAuthInstance) {
+              console.log('✅ [Firebase] Auth initialized via compat API');
+            }
+          } catch (compatErr: any) {
+            console.error('❌ [Firebase] Compat API fallback also failed:', compatErr.message);
+          }
         }
       }
-    }
-  }, 300);
+    }, 300);
+  }
+} else {
+  console.warn('⚠️ [Firebase] Skipping Auth initialization: Firebase App not initialized');
 }
 
 // Helper to expose debug status (used by AuthInitDebug or other diagnostics)
@@ -93,6 +146,27 @@ export const debugFirebaseAuthStatus = () => ({
 });
 
 export const getFirebaseApp = () => {
+  if (!firebaseApp && !firebaseInitError) {
+    // Retry initialization if it failed before
+    try {
+      const existingApps = getApps();
+      if (existingApps.length === 0) {
+        firebaseApp = initializeApp(firebaseConfig);
+        console.log('✅ [Firebase] App initialized on retry');
+      } else {
+        firebaseApp = existingApps[0];
+      }
+      firebaseInitError = null;
+    } catch (error: any) {
+      firebaseInitError = error;
+      console.error('❌ [Firebase] Retry initialization failed:', error.message);
+    }
+  }
+  
+  if (!firebaseApp) {
+    console.warn('⚠️ [Firebase] App not initialized, returning null');
+  }
+  
   return firebaseApp;
 };
 

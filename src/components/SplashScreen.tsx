@@ -28,7 +28,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      {/* StatusBar configurée pour fond vert clair - style dark pour contraste */}
+      <StatusBar style="dark" />
       {iconSource ? (
         <Image 
           source={iconSource} 

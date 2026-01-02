@@ -228,6 +228,7 @@ function AppContent() {
           </>
         )}
       </Stack.Navigator>
+      {/* StatusBar pour le contenu de l'app - style light pour fonds sombres */}
       <StatusBar style="light" />
     </NavigationContainer>
   );
