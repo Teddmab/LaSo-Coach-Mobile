@@ -45,27 +45,33 @@ const withFixMacOSSupport = (config) => {
           }
         }
 
-        // EXCLUDED_ARCHS : exclure macOS
+        // EXCLUDED_ARCHS : exclure macOS (IMPORTANT: doit être un Array pour le format pbxproj)
         const excludedArchsList = ['arm64-macos', 'x86_64-macos', 'i386-macos', 'x86_64h'];
         if (buildConfig.buildSettings.EXCLUDED_ARCHS) {
           const excludedArchs = buildConfig.buildSettings.EXCLUDED_ARCHS;
           if (Array.isArray(excludedArchs)) {
+            // Déjà un tableau, ajouter les architectures manquantes
             excludedArchsList.forEach((arch) => {
               if (!excludedArchs.includes(arch)) {
                 excludedArchs.push(arch);
               }
             });
+            // S'assurer que c'est toujours un tableau
+            buildConfig.buildSettings.EXCLUDED_ARCHS = excludedArchs;
           } else if (typeof excludedArchs === 'string') {
+            // Convertir la chaîne en tableau
             const currentArchs = excludedArchs.split(' ').filter(Boolean);
             excludedArchsList.forEach((arch) => {
               if (!currentArchs.includes(arch)) {
                 currentArchs.push(arch);
               }
             });
-            buildConfig.buildSettings.EXCLUDED_ARCHS = currentArchs.join(' ');
+            // Convertir en tableau pour le format pbxproj
+            buildConfig.buildSettings.EXCLUDED_ARCHS = currentArchs;
           }
         } else {
-          buildConfig.buildSettings.EXCLUDED_ARCHS = excludedArchsList.join(' ');
+          // Créer comme tableau directement
+          buildConfig.buildSettings.EXCLUDED_ARCHS = excludedArchsList;
         }
 
         // ONLY_ACTIVE_ARCH : éviter builds macOS
