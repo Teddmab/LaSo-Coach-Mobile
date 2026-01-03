@@ -57,6 +57,20 @@ const withFirebaseConfig = (config) => {
 
       // Copier le fichier
       try {
+        // Lire le contenu du fichier source pour vérification
+        const fileContent = fs.readFileSync(sourcePath, 'utf8');
+        
+        // Vérifier que le fichier contient bien les clés Firebase essentielles
+        const requiredKeys = ['BUNDLE_ID', 'PROJECT_ID', 'GOOGLE_APP_ID', 'API_KEY'];
+        const missingKeys = requiredKeys.filter(key => !fileContent.includes(`<key>${key}</key>`));
+        
+        if (missingKeys.length > 0) {
+          console.warn(`⚠️ [withFirebaseConfig] Warning: Missing required keys in GoogleService-Info.plist: ${missingKeys.join(', ')}`);
+        } else {
+          console.log(`✅ [withFirebaseConfig] GoogleService-Info.plist contains all required keys`);
+        }
+        
+        // Copier le fichier
         fs.copyFileSync(sourcePath, destPath);
         console.log(`✅ [withFirebaseConfig] Copied GoogleService-Info.plist to: ${destPath}`);
         
@@ -64,13 +78,25 @@ const withFirebaseConfig = (config) => {
         if (fs.existsSync(destPath)) {
           const stats = fs.statSync(destPath);
           console.log(`✅ [withFirebaseConfig] File verified: ${stats.size} bytes`);
+          
+          // Vérifier que le contenu correspond
+          const copiedContent = fs.readFileSync(destPath, 'utf8');
+          if (copiedContent === fileContent) {
+            console.log(`✅ [withFirebaseConfig] File content verified - copy successful`);
+          } else {
+            console.error(`❌ [withFirebaseConfig] File content mismatch - copy may be corrupted`);
+          }
         } else {
           console.error('❌ [withFirebaseConfig] File copy failed - destination file does not exist');
+          throw new Error('File copy verification failed');
         }
       } catch (error) {
         console.error(`❌ [withFirebaseConfig] Error copying GoogleService-Info.plist: ${error.message}`);
         console.error(`❌ [withFirebaseConfig] Source: ${sourcePath}`);
         console.error(`❌ [withFirebaseConfig] Destination: ${destPath}`);
+        console.error(`❌ [withFirebaseConfig] Stack: ${error.stack}`);
+        // Ne pas faire échouer le build, mais logger l'erreur
+        console.warn(`⚠️ [withFirebaseConfig] Continuing build despite error - Firebase may not work correctly`);
       }
 
       return config;
