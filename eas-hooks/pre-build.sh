@@ -30,6 +30,27 @@ else
   echo "⚠️ [pre-build] This is OK if ios directory doesn't exist yet"
 fi
 
+# Sauvegarder GoogleService-Info.plist AVANT de supprimer le dossier ios
+# Le copier dans firebase-config/ pour que le plugin withFirebaseConfig puisse le trouver
+FIREBASE_CONFIG_DIR="./firebase-config"
+FIREBASE_CONFIG_SOURCE="ios/LasoCoach/GoogleService-Info.plist"
+
+if [ -f "$FIREBASE_CONFIG_SOURCE" ]; then
+  echo "💾 [pre-build] Backing up GoogleService-Info.plist before prebuild..."
+  echo "💾 [pre-build] Source: $FIREBASE_CONFIG_SOURCE"
+  mkdir -p "$FIREBASE_CONFIG_DIR"
+  cp "$FIREBASE_CONFIG_SOURCE" "$FIREBASE_CONFIG_DIR/GoogleService-Info.plist" 2>/dev/null || true
+  if [ -f "$FIREBASE_CONFIG_DIR/GoogleService-Info.plist" ]; then
+    echo "✅ [pre-build] GoogleService-Info.plist backed up to $FIREBASE_CONFIG_DIR"
+    ls -la "$FIREBASE_CONFIG_DIR/GoogleService-Info.plist" || true
+  else
+    echo "⚠️ [pre-build] Firebase config backup failed"
+  fi
+else
+  echo "⚠️ [pre-build] Firebase config source not found: $FIREBASE_CONFIG_SOURCE"
+  echo "⚠️ [pre-build] This is OK if ios directory doesn't exist yet or file already in firebase-config/"
+fi
+
 # CRITIQUE: Forcer le prebuild en supprimant TOUJOURS le dossier ios si FORCE_PREBUILD est défini
 # Cela garantit qu'EAS exécutera le prebuild au lieu de le sauter
 if [ "${FORCE_PREBUILD:-false}" = "true" ]; then
