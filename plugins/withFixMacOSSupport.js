@@ -286,7 +286,7 @@ const withFixMacOSSupport = (config) => {
       const podfilePath = path.join(iosProjectRoot, 'Podfile');
       const projectPbxprojPath = path.join(iosProjectRoot, 'LasoCoach.xcodeproj', 'project.pbxproj');
 
-      // Nettoyer le Podfile
+      // Nettoyer le Podfile et ajouter un hook post_install pour supprimer ReactNativeDependencies
       if (fs.existsSync(podfilePath)) {
         try {
           let podfileContent = fs.readFileSync(podfilePath, 'utf8');
@@ -321,9 +321,160 @@ const withFixMacOSSupport = (config) => {
             }
           }
 
+          // Ajouter un hook post_install pour supprimer ReactNativeDependencies après pod install
+          // Ce hook s'exécute APRÈS que React Native ait généré ReactNativeDependencies
+          const postInstallHook = `
+  # Hook post_install pour supprimer complètement ReactNativeDependencies et ses références macOS
+  post_install do |installer|
+    # D'abord, supprimer ReactNativeDependencies de tous les targets
+    installer.pods_project.targets.each do |target|
+      # Supprimer ReactNativeDependencies des frameworks liés
+      target.frameworks_build_phase.files.each do |file|
+        if file.file_ref&.path&.include?('ReactNativeDependencies')
+          target.frameworks_build_phase.remove_file_reference(file.file_ref)
+        end
+      end
+      
+      # Pour tous les targets (y compris l'app), supprimer les références à ReactNativeDependencies
+      target.build_configurations.each do |config|
+        # Supprimer les références @rpath/ReactNativeDependencies des OTHER_LDFLAGS
+        if config.build_settings['OTHER_LDFLAGS']
+          original_flags = config.build_settings['OTHER_LDFLAGS']
+          config.build_settings['OTHER_LDFLAGS'] = original_flags.reject { |flag| 
+            flag_str = flag.to_s
+            flag_str.include?('@rpath/ReactNativeDependencies') || 
+            flag_str.include?('rpath/ReactNativeDependencies') ||
+            flag_str.include?('-framework ReactNativeDependencies') ||
+            flag_str.include?('ReactNativeDependencies.framework')
+          }
+        end
+        
+        # Supprimer les références macOS et ReactNativeDependencies des FRAMEWORK_SEARCH_PATHS
+        if config.build_settings['FRAMEWORK_SEARCH_PATHS']
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] = config.build_settings['FRAMEWORK_SEARCH_PATHS'].reject { |path| 
+            path_str = path.to_s
+            path_str.include?('/macos/') || 
+            path_str.downcase.include?('macos') ||
+            path_str.include?('ReactNativeDependencies')
+          }
+        end
+        
+        # Supprimer les références macOS et ReactNativeDependencies des LD_RUNPATH_SEARCH_PATHS
+        if config.build_settings['LD_RUNPATH_SEARCH_PATHS']
+          config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = config.build_settings['LD_RUNPATH_SEARCH_PATHS'].reject { |path| 
+            path_str = path.to_s
+            path_str.include?('macos') || 
+            path_str.include?('ReactNativeDependencies') ||
+            path_str.include?('@rpath/ReactNativeDependencies')
+          }
+        end
+        
+        # Supprimer les références macOS des LIBRARY_SEARCH_PATHS
+        if config.build_settings['LIBRARY_SEARCH_PATHS']
+          config.build_settings['LIBRARY_SEARCH_PATHS'] = config.build_settings['LIBRARY_SEARCH_PATHS'].reject { |path| 
+            path_str = path.to_s
+            path_str.include?('macos') || path_str.downcase.include?('macos')
+          }
+        end
+        
+        # Désactiver Mac Catalyst et Designed for iPad
+        config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
+        config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
+        
+        # Exclure les architectures macOS
+        config.build_settings['EXCLUDED_ARCHS'] ||= []
+        config.build_settings['EXCLUDED_ARCHS'] |= ['arm64-macos', 'x86_64-macos', 'i386-macos', 'x86_64h']
+        
+        # Filtrer SUPPORTED_PLATFORMS pour iOS uniquement
+        if config.build_settings['SUPPORTED_PLATFORMS']
+          config.build_settings['SUPPORTED_PLATFORMS'] = config.build_settings['SUPPORTED_PLATFORMS'].reject { |p| 
+            p.to_s.include?('macos') || p.to_s.include?('MACOS')
+          }
+        end
+      end
+    end
+    
+    # Nettoyer aussi le projet principal (LasoCoach)
+    installer.aggregate_targets.each do |aggregate_target|
+      aggregate_target.user_project.targets.each do |target|
+        target.build_configurations.each do |config|
+          # Supprimer les références @rpath/ReactNativeDependencies
+          if config.build_settings['OTHER_LDFLAGS']
+            config.build_settings['OTHER_LDFLAGS'] = config.build_settings['OTHER_LDFLAGS'].reject { |flag| 
+              flag_str = flag.to_s
+              flag_str.include?('@rpath/ReactNativeDependencies') || 
+              flag_str.include?('rpath/ReactNativeDependencies') ||
+              flag_str.include?('-framework ReactNativeDependencies')
+            }
+          end
+          
+          # Supprimer les références macOS
+          if config.build_settings['FRAMEWORK_SEARCH_PATHS']
+            config.build_settings['FRAMEWORK_SEARCH_PATHS'] = config.build_settings['FRAMEWORK_SEARCH_PATHS'].reject { |path| 
+              path.to_s.include?('/macos/') || path.to_s.downcase.include?('macos')
+            }
+          end
+          
+          if config.build_settings['LD_RUNPATH_SEARCH_PATHS']
+            config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = config.build_settings['LD_RUNPATH_SEARCH_PATHS'].reject { |path| 
+              path.to_s.include?('macos') || path.to_s.include?('ReactNativeDependencies')
+            }
+          end
+        end
+      end
+    end
+  end`;
+
+          // Vérifier si notre hook post_install existe déjà
+          if (!podfileContent.includes('# Hook post_install pour supprimer complètement ReactNativeDependencies')) {
+            // Trouver la fin du fichier ou le dernier post_install existant
+            if (podfileContent.includes('post_install do |installer|')) {
+              // Trouver le dernier 'end' qui ferme le post_install existant
+              // Chercher depuis la fin pour trouver le dernier bloc post_install
+              const lines = podfileContent.split('\n');
+              let lastPostInstallEndIndex = -1;
+              let postInstallDepth = 0;
+              
+              for (let i = lines.length - 1; i >= 0; i--) {
+                const line = lines[i].trim();
+                if (line === 'end') {
+                  postInstallDepth++;
+                  if (lastPostInstallEndIndex === -1) {
+                    lastPostInstallEndIndex = i;
+                  }
+                } else if (line.includes('post_install do |installer|')) {
+                  break;
+                }
+              }
+              
+              if (lastPostInstallEndIndex !== -1) {
+                // Insérer notre hook juste avant le dernier 'end' du post_install existant
+                // On garde seulement le contenu du hook (sans le 'post_install do |installer|' et le dernier 'end')
+                const hookLines = postInstallHook.trim().split('\n');
+                // Enlever la première ligne (commentaire vide), la deuxième (commentaire), la troisième ('post_install do |installer|')
+                // et les deux dernières lignes ('end' et ligne vide)
+                // On garde les lignes 4 à avant-dernière (le contenu du hook)
+                const hookContent = hookLines.slice(3, -1).join('\n');
+                // Ajouter une ligne vide avant pour la lisibilité
+                lines.splice(lastPostInstallEndIndex, 0, '', '  # Hook pour supprimer ReactNativeDependencies macOS', hookContent);
+                podfileContent = lines.join('\n');
+                modified = true;
+              } else {
+                // Fallback: ajouter à la fin
+                podfileContent += postInstallHook;
+                modified = true;
+              }
+            } else {
+              // Ajouter un nouveau post_install à la fin du fichier
+              podfileContent += postInstallHook;
+              modified = true;
+            }
+            console.log('✅ [withFixMacOSSupport] Added post_install hook to remove ReactNativeDependencies macOS references');
+          }
+
           if (modified) {
             fs.writeFileSync(podfilePath, podfileContent, 'utf8');
-            console.log('✅ [withFixMacOSSupport] Podfile modified to exclude macOS');
+            console.log('✅ [withFixMacOSSupport] Podfile modified to exclude macOS and add post_install hook');
           } else {
             console.log('✅ [withFixMacOSSupport] Podfile verified - no macOS references found');
           }
