@@ -98,6 +98,7 @@
     "owner": "ohriginal-llc",
     "plugins": [
       "expo-web-browser",
+      "./plugins/withFirebaseConfig.js",
       "./plugins/withReactNativeIAP.js",
       "./plugins/withPreserveIcons.js",
       "./plugins/withIOSCrashFix.js",
