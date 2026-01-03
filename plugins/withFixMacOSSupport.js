@@ -429,38 +429,66 @@ const withFixMacOSSupport = (config) => {
           if (!podfileContent.includes('# Hook post_install pour supprimer complètement ReactNativeDependencies')) {
             // Trouver la fin du fichier ou le dernier post_install existant
             if (podfileContent.includes('post_install do |installer|')) {
-              // Trouver le dernier 'end' qui ferme le post_install existant
-              // Chercher depuis la fin pour trouver le dernier bloc post_install
+              // Trouver le bloc post_install existant et insérer notre code dedans
               const lines = podfileContent.split('\n');
-              let lastPostInstallEndIndex = -1;
-              let postInstallDepth = 0;
+              let postInstallStartIndex = -1;
+              let postInstallEndIndex = -1;
+              let depth = 0;
               
-              for (let i = lines.length - 1; i >= 0; i--) {
-                const line = lines[i].trim();
-                if (line === 'end') {
-                  postInstallDepth++;
-                  if (lastPostInstallEndIndex === -1) {
-                    lastPostInstallEndIndex = i;
+              // Trouver le début et la fin du bloc post_install
+              for (let i = 0; i < lines.length; i++) {
+                const trimmedLine = lines[i].trim();
+                if (trimmedLine.includes('post_install do |installer|')) {
+                  postInstallStartIndex = i;
+                  depth = 1;
+                } else if (postInstallStartIndex !== -1) {
+                  // Compter les blocs imbriqués
+                  if (trimmedLine.match(/^\s*do\s*\|/)) {
+                    depth++;
+                  } else if (trimmedLine === 'end') {
+                    depth--;
+                    if (depth === 0) {
+                      postInstallEndIndex = i;
+                      break;
+                    }
                   }
-                } else if (line.includes('post_install do |installer|')) {
-                  break;
                 }
               }
               
-              if (lastPostInstallEndIndex !== -1) {
-                // Insérer notre hook juste avant le dernier 'end' du post_install existant
-                // On garde seulement le contenu du hook (sans le 'post_install do |installer|' et le dernier 'end')
+              if (postInstallStartIndex !== -1 && postInstallEndIndex !== -1) {
+                // Extraire le contenu du hook (sans le 'post_install do |installer|' et le 'end')
                 const hookLines = postInstallHook.trim().split('\n');
-                // Enlever la première ligne (commentaire vide), la deuxième (commentaire), la troisième ('post_install do |installer|')
-                // et les deux dernières lignes ('end' et ligne vide)
-                // On garde les lignes 4 à avant-dernière (le contenu du hook)
-                const hookContent = hookLines.slice(3, -1).join('\n');
-                // Ajouter une ligne vide avant pour la lisibilité
-                lines.splice(lastPostInstallEndIndex, 0, '', '  # Hook pour supprimer ReactNativeDependencies macOS', hookContent);
+                // Enlever la première ligne (commentaire), la deuxième ('post_install do |installer|')
+                // et la dernière ligne ('end')
+                const hookContentLines = hookLines.slice(2, -1);
+                
+                // Déterminer l'indentation du bloc post_install existant
+                const indentMatch = lines[postInstallStartIndex].match(/^(\s*)/);
+                const baseIndent = indentMatch ? indentMatch[1] : '';
+                const contentIndent = baseIndent + '  '; // Indentation pour le contenu (2 espaces de plus)
+                
+                // Le hook Ruby a déjà une indentation de 2 espaces, on doit la préserver
+                // mais l'ajuster à l'indentation du bloc existant
+                const indentedHookContent = hookContentLines.map(line => {
+                  const trimmed = line.trim();
+                  if (!trimmed) {
+                    return ''; // Ligne vide
+                  }
+                  // Le hook original a 2 espaces d'indentation, on les remplace par contentIndent
+                  // Si la ligne commence par 2 espaces, on les remplace
+                  if (line.startsWith('  ')) {
+                    return contentIndent + line.substring(2);
+                  }
+                  // Sinon, on ajoute simplement l'indentation
+                  return contentIndent + trimmed;
+                }).filter(line => line !== '').join('\n');
+                
+                // Insérer le hook juste avant le 'end' du post_install
+                lines.splice(postInstallEndIndex, 0, '', contentIndent + '# Hook pour supprimer ReactNativeDependencies macOS', indentedHookContent);
                 podfileContent = lines.join('\n');
                 modified = true;
               } else {
-                // Fallback: ajouter à la fin
+                // Si on ne trouve pas le bloc, ajouter à la fin
                 podfileContent += postInstallHook;
                 modified = true;
               }
