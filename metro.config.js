@@ -1,8 +1,9 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
-const { getDefaultConfig } = require('expo/metro-config');
+const {
+  getSentryExpoConfig
+} = require("@sentry/react-native/metro");
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // Add resolver configuration to handle engine.io-client issues
 config.resolver = {
@@ -34,4 +35,3 @@ config.transformer = {
 };
 
 module.exports = config;
-
