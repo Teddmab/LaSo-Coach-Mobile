@@ -1,13 +1,15 @@
-const { withDangerousMod } = require('@expo/config-plugins');
+const { withDangerousMod, withXcodeProject } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
 /**
  * Plugin Expo pour garantir que GoogleService-Info.plist est présent dans le build iOS
  * Copie le fichier depuis le dépôt vers le projet iOS généré pendant le prebuild
+ * ET l'inclut dans le target Xcode pour qu'il soit inclus dans le bundle
  */
 const withFirebaseConfig = (config) => {
-  return withDangerousMod(config, [
+  // D'abord, copier le fichier
+  config = withDangerousMod(config, [
     'ios',
     async (config) => {
       const iosProjectRoot = config.modRequest.platformProjectRoot;
@@ -102,6 +104,81 @@ const withFirebaseConfig = (config) => {
       return config;
     },
   ]);
+
+  // Ensuite, s'assurer que le fichier est inclus dans le projet Xcode et le target
+  config = withXcodeProject(config, (config) => {
+    try {
+      const xcodeProject = config.modResults;
+      const iosProjectRoot = config.modRequest.platformProjectRoot;
+      const googleServicePath = path.join(iosProjectRoot, 'LasoCoach', 'GoogleService-Info.plist');
+
+      // Vérifier que le fichier existe
+      if (!fs.existsSync(googleServicePath)) {
+        console.warn('⚠️ [withFirebaseConfig] GoogleService-Info.plist not found, skipping Xcode project addition');
+        return config;
+      }
+
+      // Obtenir le nom du target (généralement le nom de l'app)
+      const targetName = config.ios?.bundleIdentifier?.split('.').pop() || 'LasoCoach';
+      
+      // Ajouter le fichier au projet Xcode s'il n'est pas déjà présent
+      const relativePath = 'LasoCoach/GoogleService-Info.plist';
+      
+      // Vérifier si le fichier est déjà dans le projet
+      const fileRefs = xcodeProject.pbxFileReferenceSection();
+      let fileRefUuid = null;
+      
+      for (const uuid in fileRefs) {
+        const fileRef = fileRefs[uuid];
+        if (fileRef && fileRef.path === relativePath) {
+          fileRefUuid = uuid;
+          console.log('✅ [withFirebaseConfig] GoogleService-Info.plist already in Xcode project');
+          break;
+        }
+      }
+
+      // Si le fichier n'est pas dans le projet, l'ajouter
+      if (!fileRefUuid) {
+        fileRefUuid = xcodeProject.addFile(relativePath, 'LasoCoach', {
+          target: targetName,
+          lastKnownFileType: 'text.plist.xml',
+        });
+        console.log('✅ [withFirebaseConfig] Added GoogleService-Info.plist to Xcode project');
+      }
+
+      // S'assurer que le fichier est dans "Copy Bundle Resources" du target
+      const targetUuid = xcodeProject.getTarget(targetName);
+      if (targetUuid) {
+        const resourcesBuildPhase = xcodeProject.pbxResourcesBuildPhaseObj(targetUuid);
+        if (resourcesBuildPhase) {
+          // Vérifier si le fichier est déjà dans la phase de ressources
+          const files = resourcesBuildPhase.files || [];
+          const alreadyInResources = files.some((file) => {
+            const buildFile = xcodeProject.pbxBuildFileSection()[file.value];
+            return buildFile && buildFile.fileRef === fileRefUuid;
+          });
+
+          if (!alreadyInResources) {
+            // Ajouter le fichier à la phase de ressources
+            xcodeProject.addToPbxResourcesBuildPhase(fileRefUuid);
+            console.log('✅ [withFirebaseConfig] Added GoogleService-Info.plist to Copy Bundle Resources');
+          } else {
+            console.log('✅ [withFirebaseConfig] GoogleService-Info.plist already in Copy Bundle Resources');
+          }
+        }
+      }
+
+      console.log('✅ [withFirebaseConfig] GoogleService-Info.plist configured in Xcode project and target');
+    } catch (error) {
+      console.warn(`⚠️ [withFirebaseConfig] Error adding file to Xcode project: ${error.message}`);
+      console.warn(`⚠️ [withFirebaseConfig] Stack: ${error.stack}`);
+      // Ne pas faire échouer le build, le fichier est au moins copié
+    }
+
+    return config;
+  });
+
+  return config;
 };
 
 module.exports = withFirebaseConfig;
