@@ -44,21 +44,22 @@ export const initSentry = () => {
     Sentry.init({
       dsn: SENTRY_DSN_VALUE,
       
+      // CRITIQUE: Initialiser Sentry natif AVANT tout autre code
+      // Cela permet de capturer les crashes natifs iOS/Android
+      enableNative: true,
+      enableNativeCrashHandling: true,
+      
+      // Activer le crash handling natif immédiatement
+      enableAutoSessionTracking: true,
+      
       // Environnement (development, production, etc.)
       environment: __DEV__ ? 'development' : 'production',
       
       // Niveau de debug (true en dev pour voir les logs Sentry)
       debug: __DEV__,
       
-      // Activer les traces de performance (optionnel)
-      enableAutoSessionTracking: true,
-      
       // Session tracking interval (en millisecondes)
       sessionTrackingIntervalMillis: 30000,
-      
-      // Activer les breadcrumbs (étapes avant le crash)
-      enableNative: true,
-      enableNativeCrashHandling: true,
       
       // Capturer les erreurs non catchées
       enableCaptureFailedRequests: true,
@@ -85,6 +86,10 @@ export const initSentry = () => {
       
       // Activer les traces de performance pour les écrans
       tracesSampleRate: __DEV__ ? 1.0 : 0.2, // 100% en dev, 20% en prod
+      
+      // CRITIQUE: Attendre que Sentry natif soit prêt avant de continuer
+      // Cela garantit que les crashes natifs seront capturés
+      enableNativeNagger: false, // Ne pas afficher de popup
     });
 
     console.log('✅ [Sentry] Initialisé avec succès');

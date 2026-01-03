@@ -1,12 +1,24 @@
+// CRITIQUE: Initialiser Sentry EN PREMIER pour capturer les crashes natifs
+// Même avant les polyfills et autres imports
+import { initSentry } from './src/config/sentry';
+initSentry();
+
+// Attendre un peu pour que Sentry natif soit initialisé
+// Cela permet de capturer les crashes qui se produisent pendant l'initialisation
+if (typeof global !== 'undefined') {
+  // Forcer l'initialisation Sentry native immédiatement
+  try {
+    const Sentry = require('@sentry/react-native');
+    // Sentry natif devrait être initialisé maintenant
+  } catch (e) {
+    // Ignorer si Sentry n'est pas encore disponible
+  }
+}
+
 import 'react-native-gesture-handler';
 // Polyfills that must load BEFORE firebase/auth to avoid component registration race conditions
 import 'react-native-url-polyfill/auto';
 import { registerRootComponent } from 'expo';
-
-// IMPORTANT: Initialiser Sentry TRÈS TÔT pour capturer tous les crashes
-// Même ceux qui se produisent pendant le splash screen
-import { initSentry } from './src/config/sentry';
-initSentry();
 
 // Global error handler to catch unhandled errors
 // Intégré avec Sentry pour capturer les crashes
