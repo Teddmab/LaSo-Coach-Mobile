@@ -340,41 +340,84 @@ const withFixMacOSSupport = (config) => {
         # Supprimer les références @rpath/ReactNativeDependencies des OTHER_LDFLAGS
         if config.build_settings['OTHER_LDFLAGS']
           original_flags = config.build_settings['OTHER_LDFLAGS']
-          config.build_settings['OTHER_LDFLAGS'] = original_flags.reject { |flag| 
-            flag_str = flag.to_s
-            flag_str.include?('@rpath/ReactNativeDependencies') || 
-            flag_str.include?('rpath/ReactNativeDependencies') ||
-            flag_str.include?('-framework ReactNativeDependencies') ||
-            flag_str.include?('ReactNativeDependencies.framework')
-          }
+          # Vérifier que c'est un tableau avant d'appeler reject
+          if original_flags.is_a?(Array)
+            config.build_settings['OTHER_LDFLAGS'] = original_flags.reject { |flag| 
+              flag_str = flag.to_s
+              flag_str.include?('@rpath/ReactNativeDependencies') || 
+              flag_str.include?('rpath/ReactNativeDependencies') ||
+              flag_str.include?('-framework ReactNativeDependencies') ||
+              flag_str.include?('ReactNativeDependencies.framework')
+            }
+          elsif original_flags.is_a?(String) && !original_flags.empty?
+            # Si c'est une chaîne, la convertir en tableau, filtrer, puis reconvertir
+            flags_array = original_flags.split(' ').reject { |flag| 
+              flag_str = flag.to_s
+              flag_str.include?('@rpath/ReactNativeDependencies') || 
+              flag_str.include?('rpath/ReactNativeDependencies') ||
+              flag_str.include?('-framework') && flag_str.include?('ReactNativeDependencies')
+            }
+            config.build_settings['OTHER_LDFLAGS'] = flags_array.join(' ')
+          end
         end
         
         # Supprimer les références macOS et ReactNativeDependencies des FRAMEWORK_SEARCH_PATHS
         if config.build_settings['FRAMEWORK_SEARCH_PATHS']
-          config.build_settings['FRAMEWORK_SEARCH_PATHS'] = config.build_settings['FRAMEWORK_SEARCH_PATHS'].reject { |path| 
-            path_str = path.to_s
-            path_str.include?('/macos/') || 
-            path_str.downcase.include?('macos') ||
-            path_str.include?('ReactNativeDependencies')
-          }
+          search_paths = config.build_settings['FRAMEWORK_SEARCH_PATHS']
+          if search_paths.is_a?(Array)
+            config.build_settings['FRAMEWORK_SEARCH_PATHS'] = search_paths.reject { |path| 
+              path_str = path.to_s
+              path_str.include?('/macos/') || 
+              path_str.downcase.include?('macos') ||
+              path_str.include?('ReactNativeDependencies')
+            }
+          elsif search_paths.is_a?(String) && !search_paths.empty?
+            paths_array = search_paths.split(' ').reject { |path| 
+              path_str = path.to_s
+              path_str.include?('/macos/') || 
+              path_str.downcase.include?('macos') ||
+              path_str.include?('ReactNativeDependencies')
+            }
+            config.build_settings['FRAMEWORK_SEARCH_PATHS'] = paths_array.join(' ')
+          end
         end
         
         # Supprimer les références macOS et ReactNativeDependencies des LD_RUNPATH_SEARCH_PATHS
         if config.build_settings['LD_RUNPATH_SEARCH_PATHS']
-          config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = config.build_settings['LD_RUNPATH_SEARCH_PATHS'].reject { |path| 
-            path_str = path.to_s
-            path_str.include?('macos') || 
-            path_str.include?('ReactNativeDependencies') ||
-            path_str.include?('@rpath/ReactNativeDependencies')
-          }
+          runpath_paths = config.build_settings['LD_RUNPATH_SEARCH_PATHS']
+          if runpath_paths.is_a?(Array)
+            config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = runpath_paths.reject { |path| 
+              path_str = path.to_s
+              path_str.include?('macos') || 
+              path_str.include?('ReactNativeDependencies') ||
+              path_str.include?('@rpath/ReactNativeDependencies')
+            }
+          elsif runpath_paths.is_a?(String) && !runpath_paths.empty?
+            paths_array = runpath_paths.split(' ').reject { |path| 
+              path_str = path.to_s
+              path_str.include?('macos') || 
+              path_str.include?('ReactNativeDependencies') ||
+              path_str.include?('@rpath/ReactNativeDependencies')
+            }
+            config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = paths_array.join(' ')
+          end
         end
         
         # Supprimer les références macOS des LIBRARY_SEARCH_PATHS
         if config.build_settings['LIBRARY_SEARCH_PATHS']
-          config.build_settings['LIBRARY_SEARCH_PATHS'] = config.build_settings['LIBRARY_SEARCH_PATHS'].reject { |path| 
-            path_str = path.to_s
-            path_str.include?('macos') || path_str.downcase.include?('macos')
-          }
+          library_paths = config.build_settings['LIBRARY_SEARCH_PATHS']
+          if library_paths.is_a?(Array)
+            config.build_settings['LIBRARY_SEARCH_PATHS'] = library_paths.reject { |path| 
+              path_str = path.to_s
+              path_str.include?('macos') || path_str.downcase.include?('macos')
+            }
+          elsif library_paths.is_a?(String) && !library_paths.empty?
+            paths_array = library_paths.split(' ').reject { |path| 
+              path_str = path.to_s
+              path_str.include?('macos') || path_str.downcase.include?('macos')
+            }
+            config.build_settings['LIBRARY_SEARCH_PATHS'] = paths_array.join(' ')
+          end
         end
         
         # Désactiver Mac Catalyst et Designed for iPad
@@ -387,9 +430,17 @@ const withFixMacOSSupport = (config) => {
         
         # Filtrer SUPPORTED_PLATFORMS pour iOS uniquement
         if config.build_settings['SUPPORTED_PLATFORMS']
-          config.build_settings['SUPPORTED_PLATFORMS'] = config.build_settings['SUPPORTED_PLATFORMS'].reject { |p| 
-            p.to_s.include?('macos') || p.to_s.include?('MACOS')
-          }
+          supported_platforms = config.build_settings['SUPPORTED_PLATFORMS']
+          if supported_platforms.is_a?(Array)
+            config.build_settings['SUPPORTED_PLATFORMS'] = supported_platforms.reject { |p| 
+              p.to_s.include?('macos') || p.to_s.include?('MACOS')
+            }
+          elsif supported_platforms.is_a?(String) && !supported_platforms.empty?
+            platforms_array = supported_platforms.split(' ').reject { |p| 
+              p.to_s.include?('macos') || p.to_s.include?('MACOS')
+            }
+            config.build_settings['SUPPORTED_PLATFORMS'] = platforms_array.join(' ')
+          end
         end
       end
     end
@@ -400,25 +451,52 @@ const withFixMacOSSupport = (config) => {
         target.build_configurations.each do |config|
           # Supprimer les références @rpath/ReactNativeDependencies
           if config.build_settings['OTHER_LDFLAGS']
-            config.build_settings['OTHER_LDFLAGS'] = config.build_settings['OTHER_LDFLAGS'].reject { |flag| 
-              flag_str = flag.to_s
-              flag_str.include?('@rpath/ReactNativeDependencies') || 
-              flag_str.include?('rpath/ReactNativeDependencies') ||
-              flag_str.include?('-framework ReactNativeDependencies')
-            }
+            other_ldflags = config.build_settings['OTHER_LDFLAGS']
+            if other_ldflags.is_a?(Array)
+              config.build_settings['OTHER_LDFLAGS'] = other_ldflags.reject { |flag| 
+                flag_str = flag.to_s
+                flag_str.include?('@rpath/ReactNativeDependencies') || 
+                flag_str.include?('rpath/ReactNativeDependencies') ||
+                flag_str.include?('-framework ReactNativeDependencies')
+              }
+            elsif other_ldflags.is_a?(String) && !other_ldflags.empty?
+              flags_array = other_ldflags.split(' ').reject { |flag| 
+                flag_str = flag.to_s
+                flag_str.include?('@rpath/ReactNativeDependencies') || 
+                flag_str.include?('rpath/ReactNativeDependencies') ||
+                flag_str.include?('-framework') && flag_str.include?('ReactNativeDependencies')
+              }
+              config.build_settings['OTHER_LDFLAGS'] = flags_array.join(' ')
+            end
           end
           
           # Supprimer les références macOS
           if config.build_settings['FRAMEWORK_SEARCH_PATHS']
-            config.build_settings['FRAMEWORK_SEARCH_PATHS'] = config.build_settings['FRAMEWORK_SEARCH_PATHS'].reject { |path| 
-              path.to_s.include?('/macos/') || path.to_s.downcase.include?('macos')
-            }
+            framework_paths = config.build_settings['FRAMEWORK_SEARCH_PATHS']
+            if framework_paths.is_a?(Array)
+              config.build_settings['FRAMEWORK_SEARCH_PATHS'] = framework_paths.reject { |path| 
+                path.to_s.include?('/macos/') || path.to_s.downcase.include?('macos')
+              }
+            elsif framework_paths.is_a?(String) && !framework_paths.empty?
+              paths_array = framework_paths.split(' ').reject { |path| 
+                path.to_s.include?('/macos/') || path.to_s.downcase.include?('macos')
+              }
+              config.build_settings['FRAMEWORK_SEARCH_PATHS'] = paths_array.join(' ')
+            end
           end
           
           if config.build_settings['LD_RUNPATH_SEARCH_PATHS']
-            config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = config.build_settings['LD_RUNPATH_SEARCH_PATHS'].reject { |path| 
-              path.to_s.include?('macos') || path.to_s.include?('ReactNativeDependencies')
-            }
+            runpath_paths = config.build_settings['LD_RUNPATH_SEARCH_PATHS']
+            if runpath_paths.is_a?(Array)
+              config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = runpath_paths.reject { |path| 
+                path.to_s.include?('macos') || path.to_s.include?('ReactNativeDependencies')
+              }
+            elsif runpath_paths.is_a?(String) && !runpath_paths.empty?
+              paths_array = runpath_paths.split(' ').reject { |path| 
+                path.to_s.include?('macos') || path.to_s.include?('ReactNativeDependencies')
+              }
+              config.build_settings['LD_RUNPATH_SEARCH_PATHS'] = paths_array.join(' ')
+            end
           end
         end
       end
