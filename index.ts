@@ -3,13 +3,34 @@ import 'react-native-gesture-handler';
 import 'react-native-url-polyfill/auto';
 import { registerRootComponent } from 'expo';
 
+// IMPORTANT: Initialiser Sentry TRÈS TÔT pour capturer tous les crashes
+// Même ceux qui se produisent pendant le splash screen
+import { initSentry } from './src/config/sentry';
+initSentry();
+
 // Global error handler to catch unhandled errors
+// Intégré avec Sentry pour capturer les crashes
 if (typeof global.ErrorUtils !== 'undefined') {
   const originalHandler = global.ErrorUtils.getGlobalHandler();
   global.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
     console.error('🚨 GLOBAL ERROR HANDLER:', error);
     console.error('🚨 Is Fatal:', isFatal);
     console.error('🚨 Stack:', error.stack);
+    
+    // Capturer l'erreur dans Sentry
+    try {
+      const Sentry = require('@sentry/react-native');
+      Sentry.captureException(error, {
+        level: isFatal ? 'fatal' : 'error',
+        tags: {
+          error_boundary: 'global_handler',
+          is_fatal: String(isFatal),
+        },
+      });
+    } catch (sentryError) {
+      // Sentry n'est peut-être pas encore initialisé, ignorer
+      console.warn('⚠️ [Sentry] Impossible de capturer l\'erreur:', sentryError);
+    }
     
     // Call original handler
     if (originalHandler) {
@@ -19,6 +40,7 @@ if (typeof global.ErrorUtils !== 'undefined') {
 }
 
 // Handle unhandled promise rejections (React Native specific)
+// Intégré avec Sentry pour capturer les promesses rejetées
 if (typeof global !== 'undefined') {
   // Intercept unhandled promise rejections
   if (typeof global.onunhandledrejection === 'undefined') {
@@ -28,6 +50,22 @@ if (typeof global !== 'undefined') {
         console.error('🚨 Rejection reason:', event.reason);
         if (event.reason?.stack) {
           console.error('🚨 Stack:', event.reason.stack);
+        }
+        
+        // Capturer dans Sentry
+        try {
+          const Sentry = require('@sentry/react-native');
+          const error = event.reason instanceof Error 
+            ? event.reason 
+            : new Error(String(event.reason));
+          Sentry.captureException(error, {
+            level: 'error',
+            tags: {
+              error_boundary: 'unhandled_promise_rejection',
+            },
+          });
+        } catch (sentryError) {
+          console.warn('⚠️ [Sentry] Impossible de capturer la rejection:', sentryError);
         }
       }
     };

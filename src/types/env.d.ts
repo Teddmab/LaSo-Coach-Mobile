@@ -21,5 +21,6 @@ declare module '@env' {
   export const FIREBASE_IOS_CLIENT_ID: string | undefined;
   export const FIREBASE_ANDROID_CLIENT_ID: string | undefined;
   export const FIREBASE_WEB_CLIENT_ID: string | undefined;
+  export const SENTRY_DSN: string | undefined;
 }
 
