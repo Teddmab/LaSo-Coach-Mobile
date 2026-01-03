@@ -197,6 +197,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
             savePersistedUser(user); // persist snapshot
             
+            // Ajouter le contexte utilisateur dans Sentry
+            try {
+              const Sentry = require('@sentry/react-native');
+              Sentry.setUser({
+                id: user.uid,
+                email: user.email,
+                username: user.name || user.email,
+              });
+            } catch (sentryError) {
+              // Sentry n'est peut-être pas initialisé, ignorer
+            }
+            
             // Event Trigger 1: After auth success - Enregistrer l'appareil
             // (Déjà fait dans firebaseAuthServiceNew.js, mais on le fait aussi ici pour être sûr)
             deviceApi.registerDevice().catch((error: any) => {
@@ -204,6 +216,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
           } else {
             clearPersistedUser();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
+            
+            // Retirer le contexte utilisateur de Sentry
+            try {
+              const Sentry = require('@sentry/react-native');
+              Sentry.setUser(null);
+            } catch (sentryError) {
+              // Sentry n'est peut-être pas initialisé, ignorer
+            }
           }
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
         });

@@ -24,6 +24,24 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    // Capturer l'erreur dans Sentry
+    try {
+      const Sentry = require('@sentry/react-native');
+      Sentry.captureException(error, {
+        level: 'error',
+        contexts: {
+          react: {
+            componentStack: errorInfo.componentStack,
+          },
+        },
+        tags: {
+          error_boundary: 'react_error_boundary',
+        },
+      });
+    } catch (sentryError) {
+      console.warn('⚠️ [ErrorBoundary] Impossible de capturer l\'erreur dans Sentry:', sentryError);
+    }
+    
     // Log error for debugging
     
     // Check if it's an animation/transform error
