@@ -218,14 +218,14 @@ function AppContent() {
       >
         {isAuthenticated ? (
           // Authenticated stack
-          <Stack.Screen name="Dashboard" component={DashboardScreen} />
+          (<Stack.Screen name="Dashboard" component={DashboardScreen} />)
         ) : (
           // Non-authenticated stack
-          <>
+          (<>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
             <Stack.Screen name="PasswordReset" component={PasswordResetScreen} />
-          </>
+          </>)
         )}
       </Stack.Navigator>
       {/* StatusBar pour le contenu de l'app - style light pour fonds sombres */}
@@ -234,7 +234,7 @@ function AppContent() {
   );
 }
 
-export default function App() {
+export default Sentry.wrap(function App() {
   console.log('📱 LaSo Coach App starting...');
   
   const [stripeKey, setStripeKey] = React.useState<string>(Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
@@ -301,7 +301,7 @@ export default function App() {
       </SafeAreaProvider>
     </ErrorBoundary>
   );
-}
+});
 
 const styles = StyleSheet.create({
   loadingContainer: {
