@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+import Constants from 'expo-constants';
 import { SENTRY_DSN } from '@env';
 
 /**
@@ -9,11 +10,22 @@ import { SENTRY_DSN } from '@env';
  * 2. Créez un nouveau projet "React Native"
  * 3. Copiez le DSN depuis les paramètres du projet
  * 4. Ajoutez SENTRY_DSN=votre_dsn dans votre fichier .env
+ *    OU ajoutez sentryDsn dans app.json > extra.env
  * 
  * Format du DSN : https://xxxxx@xxxxx.ingest.sentry.io/xxxxx
+ * 
+ * PRIORITÉ pour le DSN (dans l'ordre) :
+ * 1. app.json > extra.env.sentryDsn (pour les builds EAS)
+ * 2. .env > SENTRY_DSN (pour le développement local)
+ * 3. process.env.SENTRY_DSN (fallback)
  */
 
-const SENTRY_DSN_VALUE = SENTRY_DSN || process.env.SENTRY_DSN || '';
+const extraEnv = Constants.expoConfig?.extra?.env ?? {};
+const SENTRY_DSN_VALUE = 
+  extraEnv.sentryDsn ||           // Depuis app.json (pour builds EAS)
+  SENTRY_DSN ||                   // Depuis .env (pour développement)
+  process.env.SENTRY_DSN ||       // Fallback
+  '';
 
 /**
  * Initialise Sentry pour capturer les erreurs et crashes
