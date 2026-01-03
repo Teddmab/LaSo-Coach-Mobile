@@ -329,9 +329,12 @@ const withFixMacOSSupport = (config) => {
     # D'abord, supprimer ReactNativeDependencies de tous les targets
     installer.pods_project.targets.each do |target|
       # Supprimer ReactNativeDependencies des frameworks liés
-      target.frameworks_build_phase.files.each do |file|
-        if file.file_ref&.path&.include?('ReactNativeDependencies')
-          target.frameworks_build_phase.remove_file_reference(file.file_ref)
+      # Vérifier que le target a une frameworks_build_phase (seulement pour PBXNativeTarget)
+      if target.respond_to?(:frameworks_build_phase) && target.frameworks_build_phase
+        target.frameworks_build_phase.files.each do |file|
+          if file.file_ref&.path&.include?('ReactNativeDependencies')
+            target.frameworks_build_phase.remove_file_reference(file.file_ref)
+          end
         end
       end
       
