@@ -494,12 +494,17 @@ class FirebaseAuthService {
       
       console.log('💀 Déconnexion Google Sign-In...');
       
-      const config = {
+      const config: any = {
         webClientId: firebaseOAuthClientIds.web,
         offlineAccess: true,
         forceCodeForRefreshToken: true,
         scopes: ['email', 'profile'],
       };
+      
+      // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
+      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+        config.iosClientId = firebaseOAuthClientIds.ios;
+      }
       
       // 1. Configurer le SDK
       GoogleSignin.configure(config);
@@ -567,12 +572,19 @@ class FirebaseAuthService {
       try {
         const { GoogleSignin } = require('@react-native-google-signin/google-signin');
         const { firebaseOAuthClientIds } = require('../config/firebaseApp');
-        GoogleSignin.configure({
+        const config: any = {
           webClientId: firebaseOAuthClientIds.web,
           offlineAccess: true,
           forceCodeForRefreshToken: true,
           scopes: ['email', 'profile'],
-        });
+        };
+        
+        // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
+        if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+          config.iosClientId = firebaseOAuthClientIds.ios;
+        }
+        
+        GoogleSignin.configure(config);
       } catch (configError) { /* ignore */ }
     }
   }

@@ -40,7 +40,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
         // Configuration du SDK natif
         // IMPORTANT: offlineAccess DOIT être true pour obtenir l'idToken !
-        const config = {
+        const config: any = {
           webClientId: firebaseOAuthClientIds.web, // Pour Firebase Auth
           offlineAccess: true, // IMPORTANT: true pour obtenir idToken
           forceCodeForRefreshToken: true, // Force l'obtention du token
@@ -50,9 +50,17 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           hostedDomain: undefined, // Don't restrict to specific domain
         };
         
+        // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
+        if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+          config.iosClientId = firebaseOAuthClientIds.ios;
+          console.log('🍎 [iOS] Ajout de iosClientId à la configuration Google Sign-In');
+        }
+        
         console.log('🔧 Configuration GoogleSignin avec:', {
           webClientId: firebaseOAuthClientIds.web,
+          iosClientId: Platform.OS === 'ios' ? firebaseOAuthClientIds.ios : undefined,
           hasWebClientId: !!firebaseOAuthClientIds.web,
+          hasIosClientId: Platform.OS === 'ios' ? !!firebaseOAuthClientIds.ios : false,
           offlineAccess: true,
           forceCodeForRefreshToken: true,
           scopes: ['email', 'profile'],
@@ -164,31 +172,43 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       
       // Première reconfiguration - config minimale pour "reset"
       console.log('🔧 Config 1/3: Reset minimal...');
-      GoogleSignin.configure({
+      const config1: any = {
         webClientId: firebaseOAuthClientIds.web,
-      });
+      };
+      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+        config1.iosClientId = firebaseOAuthClientIds.ios;
+      }
+      GoogleSignin.configure(config1);
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Deuxième reconfiguration - config complète avec accountName: undefined
       console.log('🔧 Config 2/3: Config complète avec accountName undefined...');
-      GoogleSignin.configure({
+      const config2: any = {
         webClientId: firebaseOAuthClientIds.web,
         offlineAccess: true,
         forceCodeForRefreshToken: true,
         scopes: ['email', 'profile'],
         accountName: undefined, // Force à ne pas prioriser un compte
         hostedDomain: '', // Chaîne vide = pas de restriction
-      });
+      };
+      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+        config2.iosClientId = firebaseOAuthClientIds.ios;
+      }
+      GoogleSignin.configure(config2);
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Troisième reconfiguration - config finale propre
       console.log('🔧 Config 3/3: Config finale...');
-      GoogleSignin.configure({
+      const config3: any = {
         webClientId: firebaseOAuthClientIds.web,
         offlineAccess: true,
         forceCodeForRefreshToken: true,
         scopes: ['email', 'profile'],
-      });
+      };
+      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+        config3.iosClientId = firebaseOAuthClientIds.ios;
+      }
+      GoogleSignin.configure(config3);
       console.log('✅ SDK reconfiguré 3 fois');
       
       // Attendre plus longtemps
@@ -206,12 +226,16 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           try { await GoogleSignin.signOut(); } catch (e) { /* ignore */ }
           
           // Reconfigurer une dernière fois
-          GoogleSignin.configure({
+          const finalConfig: any = {
             webClientId: firebaseOAuthClientIds.web,
             offlineAccess: true,
             forceCodeForRefreshToken: true,
             scopes: ['email', 'profile'],
-          });
+          };
+          if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+            finalConfig.iosClientId = firebaseOAuthClientIds.ios;
+          }
+          GoogleSignin.configure(finalConfig);
           await new Promise(resolve => setTimeout(resolve, 500));
         } else {
           console.log('✅ Aucun compte détecté');
