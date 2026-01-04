@@ -13,7 +13,6 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
-import SplashScreen from './src/components/SplashScreen';
 import { ActivityIndicator, View, StyleSheet, Linking, BackHandler, Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -26,7 +25,6 @@ const Stack = createStackNavigator<RootStackParamList>();
 function AppContent() {
   const { isAuthenticated, authReady, loading } = useAuth();
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
-  const [showSplash, setShowSplash] = useState(true);
   const backHandlerRef = useRef<{ lastBackPress: number; isOnHome: boolean }>({
     lastBackPress: 0,
     isOnHome: false,
@@ -193,11 +191,6 @@ function AppContent() {
     };
   }, []);
 
-  // Show splash screen first
-  if (showSplash) {
-    return <SplashScreen onFinish={() => setShowSplash(false)} />;
-  }
-
   // Show loading screen while auth is initializing
   if (!authReady || loading) {
     return (
@@ -234,7 +227,7 @@ function AppContent() {
   );
 }
 
-export default Sentry.wrap(function App() {
+export default function App() {
   console.log('📱 LaSo Coach App starting...');
   
   const [stripeKey, setStripeKey] = React.useState<string>(Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
@@ -301,7 +294,7 @@ export default Sentry.wrap(function App() {
       </SafeAreaProvider>
     </ErrorBoundary>
   );
-});
+}
 
 const styles = StyleSheet.create({
   loadingContainer: {

@@ -1,7 +1,9 @@
-import 'firebase/auth'; // side-effect: registers auth component definitions
+// Import Firebase Auth de manière lazy pour éviter les crashes natifs iOS
+// Le SDK natif iOS cherche GoogleService-Info.plist au moment de l'import
+// En retardant l'import, on donne le temps au fichier d'être chargé dans le bundle
 import { initializeApp, getApps } from 'firebase/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
+// NE PAS importer firebase/auth directement - chargement lazy via loadFirebaseAuth()
 import Constants from 'expo-constants';
 import {
   FIREBASE_API_KEY,
@@ -60,6 +62,11 @@ let firebaseApp;
 let firebaseAuthInstance = null;
 let firebaseInitError: Error | null = null;
 
+// CRITIQUE: Firebase SDK natif iOS cherche GoogleService-Info.plist au démarrage
+// Si le fichier n'est pas dans le bundle, l'app crash immédiatement (avant JavaScript)
+// Cette initialisation JavaScript est protégée, mais le crash natif se produit avant
+// Vérifier que GoogleService-Info.plist est inclus dans le bundle Xcode
+
 // Safely initialize Firebase with error handling
 try {
   // Check if Firebase is already initialized
@@ -67,6 +74,8 @@ try {
 
   if (existingApps.length === 0) {
     // First time initialization
+    // CRITIQUE: Si GoogleService-Info.plist est manquant, cette ligne peut crash au niveau natif
+    // Le plugin withFirebaseConfig.js doit garantir que le fichier est dans le bundle
     firebaseApp = initializeApp(firebaseConfig);
     console.log('✅ [Firebase] App initialized successfully');
   } else {
@@ -77,8 +86,29 @@ try {
 } catch (error: any) {
   firebaseInitError = error;
   console.error('❌ [Firebase] Failed to initialize app:', error.message);
+  console.error('❌ [Firebase] This may indicate GoogleService-Info.plist is missing from the bundle');
+  console.error('❌ [Firebase] Check that withFirebaseConfig.js plugin copied the file correctly');
   // Don't throw - let the app continue, Firebase will be retried later
 }
+
+// Import Firebase Auth de manière lazy pour éviter les crashes natifs iOS
+// Le SDK natif iOS cherche GoogleService-Info.plist au moment de l'import
+// En retardant l'import, on donne le temps au fichier d'être chargé dans le bundle
+let firebaseAuthModule: any = null;
+const loadFirebaseAuth = () => {
+  if (!firebaseAuthModule) {
+    try {
+      // Import lazy de firebase/auth seulement quand nécessaire
+      firebaseAuthModule = require('firebase/auth');
+      console.log('✅ [Firebase] Auth module loaded successfully');
+    } catch (error: any) {
+      console.error('❌ [Firebase] Failed to load auth module:', error.message);
+      console.error('❌ [Firebase] This may indicate GoogleService-Info.plist is missing from the bundle');
+      return null;
+    }
+  }
+  return firebaseAuthModule;
+};
 
 // Attempt simple getAuth first; if component registration error occurs, fallback to initializeAuth
 // with explicit React Native persistence (AsyncStorage). This fallback is necessary in some Expo Go
@@ -90,7 +120,16 @@ function attemptAuthInit(stage) {
     console.warn(`⚠️ [Firebase] Cannot initialize Auth at stage ${stage}: Firebase App not initialized`);
     return;
   }
+  
+  // Charger le module auth de manière lazy
+  const authModule = loadFirebaseAuth();
+  if (!authModule) {
+    console.warn(`⚠️ [Firebase] Cannot initialize Auth at stage ${stage}: Auth module not loaded`);
+    return;
+  }
+  
   try {
+    const { initializeAuth, getReactNativePersistence } = authModule;
     firebaseAuthInstance = initializeAuth(firebaseApp, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
@@ -109,26 +148,30 @@ if (firebaseApp) {
     }, 50);
     setTimeout(() => {
       if (!firebaseAuthInstance && firebaseApp) {
-        try {
-          firebaseAuthInstance = getAuth(firebaseApp);
-          if (firebaseAuthInstance) {
-            console.log('✅ [Firebase] Auth obtained via getAuth');
-          }
-        } catch (finalErr: any) {
-          console.warn('⚠️ [Firebase] getAuth failed, trying compat API:', finalErr.message);
-          // Last resort: compat API fallback
+        const authModule = loadFirebaseAuth();
+        if (authModule) {
           try {
-            const compatApp = require('firebase/compat/app');
-            require('firebase/compat/auth');
-            if (!compatApp.apps.length) {
-              compatApp.initializeApp(firebaseConfig);
-            }
-            firebaseAuthInstance = compatApp.auth();
+            const { getAuth } = authModule;
+            firebaseAuthInstance = getAuth(firebaseApp);
             if (firebaseAuthInstance) {
-              console.log('✅ [Firebase] Auth initialized via compat API');
+              console.log('✅ [Firebase] Auth obtained via getAuth');
             }
-          } catch (compatErr: any) {
-            console.error('❌ [Firebase] Compat API fallback also failed:', compatErr.message);
+          } catch (finalErr: any) {
+            console.warn('⚠️ [Firebase] getAuth failed, trying compat API:', finalErr.message);
+            // Last resort: compat API fallback
+            try {
+              const compatApp = require('firebase/compat/app');
+              require('firebase/compat/auth');
+              if (!compatApp.apps.length) {
+                compatApp.initializeApp(firebaseConfig);
+              }
+              firebaseAuthInstance = compatApp.auth();
+              if (firebaseAuthInstance) {
+                console.log('✅ [Firebase] Auth initialized via compat API');
+              }
+            } catch (compatErr: any) {
+              console.error('❌ [Firebase] Compat API fallback also failed:', compatErr.message);
+            }
           }
         }
       }

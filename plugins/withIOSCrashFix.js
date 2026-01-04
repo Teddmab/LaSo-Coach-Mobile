@@ -41,16 +41,30 @@ const withIOSCrashFix = (config) => {
       console.log('✅ [withIOSCrashFix] Added CFBundleIconName');
     }
 
-    // S'assurer que la version est correcte
-    if (!infoPlist.CFBundleShortVersionString) {
-      infoPlist.CFBundleShortVersionString = config.version || '1.0.4';
-      console.log(`✅ [withIOSCrashFix] Added CFBundleShortVersionString: ${infoPlist.CFBundleShortVersionString}`);
+    // S'assurer que la version est correcte (toujours mettre à jour pour correspondre à app.json)
+    const expectedVersion = config.version || '1.0.4';
+    if (!infoPlist.CFBundleShortVersionString || infoPlist.CFBundleShortVersionString !== expectedVersion) {
+      infoPlist.CFBundleShortVersionString = expectedVersion;
+      console.log(`✅ [withIOSCrashFix] Updated CFBundleShortVersionString to: ${expectedVersion}`);
+    }
+
+    // S'assurer que le build number est correct (toujours mettre à jour pour correspondre à app.json)
+    const expectedBuildNumber = config.ios?.buildNumber || config.buildNumber || '7';
+    if (!infoPlist.CFBundleVersion || infoPlist.CFBundleVersion !== expectedBuildNumber) {
+      infoPlist.CFBundleVersion = expectedBuildNumber;
+      console.log(`✅ [withIOSCrashFix] Updated CFBundleVersion to: ${expectedBuildNumber}`);
     }
 
     // Configuration pour éviter les crashes liés aux permissions
     if (!infoPlist.ITSAppUsesNonExemptEncryption) {
       infoPlist.ITSAppUsesNonExemptEncryption = false;
       console.log('✅ [withIOSCrashFix] Added ITSAppUsesNonExemptEncryption');
+    }
+
+    // Désactiver la nouvelle architecture React Native dans Info.plist
+    if (infoPlist.RCTNewArchEnabled !== undefined && infoPlist.RCTNewArchEnabled === true) {
+      infoPlist.RCTNewArchEnabled = false;
+      console.log('✅ [withIOSCrashFix] Disabled RCTNewArchEnabled');
     }
 
     // Configuration pour éviter les crashes au démarrage

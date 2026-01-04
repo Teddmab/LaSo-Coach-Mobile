@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "scheme": [
       "lasocoach",
       "com.laso.coach"
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
@@ -76,8 +76,7 @@
         "apiTimeout": "30000",
         "debugMode": "true",
         "offlineMode": "false",
-        "forceProdApi": true,
-        "sentryDsn": "https://2b675cd3e8bd7a4fa1686065cc2f355b@o4510643599769600.ingest.us.sentry.io/4510643617267712"
+        "forceProdApi": true
       },
       "firebase": {
         "apiKey": "AIzaSyDubBwQF27OUZyOMhzmNpIizw2D4dHxzO0",
@@ -102,15 +101,7 @@
       "./plugins/withReactNativeIAP.js",
       "./plugins/withPreserveIcons.js",
       "./plugins/withIOSCrashFix.js",
-      "./plugins/withFixMacOSSupport.js",
-      [
-        "@sentry/react-native/expo",
-        {
-          "url": "https://sentry.io/",
-          "project": "laso-coach-mobile",
-          "organization": "inordersview"
-        }
-      ]
+      "./plugins/withFixMacOSSupport.js"
     ]
   }
 }
