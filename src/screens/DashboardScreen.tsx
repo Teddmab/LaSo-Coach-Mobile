@@ -80,6 +80,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const [showCompleteDayModal, setShowCompleteDayModal] = useState<boolean>(false);
   const [selectedMeals, setSelectedMeals] = useState<any[]>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   // État pour savoir d'où on vient (settings ou security) pour les webviews
   const [webViewSource, setWebViewSource] = useState<string>('settings');
   
@@ -158,10 +159,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   // Mémoriser l'avatar pour éviter les rechargements à chaque changement de page
   const avatarData = useMemo(() => {
-    const avatarSource = dashboardData?.profile?.avatar || user?.avatar;
+    const avatarSource = dashboardData?.Profile?.avatar || dashboardData?.profile?.avatar || user?.avatar;
     const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
     return { avatarSource, avatarFallbackText };
-  }, [dashboardData?.profile?.avatar, user?.avatar, user?.firstName, user?.name]);
+  }, [dashboardData?.Profile?.avatar, dashboardData?.profile?.avatar, user?.avatar, user?.firstName, user?.name]);
 
   // Refresh all data
   const onRefresh = async (): Promise<void> => {
@@ -239,6 +240,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   };
 
   const handlePostPress = (post: any): void => {
+    setSelectedPostId(post?.id || null);
     setCurrentScreen('community');
   };
 
@@ -457,15 +459,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           avatarSource={avatarData.avatarSource}
           avatarFallbackText={avatarData.avatarFallbackText}
         >
-          <View style={styles.communityComingSoonContainer}>
-            <View style={styles.communityComingSoonCard}>
-              <Text style={styles.communityComingSoonTitle}>L'Agora</Text>
-              <Text style={styles.communityComingSoonMessage}>
-                ⚙ Cette fonctionnalité arrive bientôt !{'\n'}
-                Merci de patienter.
-              </Text>
-            </View>
-          </View>
+          <CommunityScreen
+            user={user}
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            selectedPostId={selectedPostId}
+            onPostPress={handlePostPress}
+          />
         </FixedLayout>
         <MoreMenu 
           visible={showMoreMenu}

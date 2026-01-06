@@ -24,7 +24,7 @@ export const useDashboardData = () => {
         profile: {
           ...(dashboardData as any)?.profile,
           ...profileData,
-          avatar: (profileData as any)?.avatar || (dashboardData as any)?.profile?.avatar
+          avatar: (profileData as any)?.avatar || (dashboardData as any)?.Profile?.avatar || (dashboardData as any)?.profile?.avatar
         }
       };
       

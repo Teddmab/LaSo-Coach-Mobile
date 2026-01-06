@@ -21,6 +21,7 @@ interface PostCardProps {
   onCommentTextChange?: (postId: string, text: string) => void;
   onCommentSubmit: (postId: string) => void;
   onShare: (postId: string) => void;
+  onReport?: (postId: string) => void;
   onPostPress?: (post: Post) => void;
 }
 
@@ -37,6 +38,7 @@ const PostCard: React.FC<PostCardProps> = ({
   onCommentTextChange,
   onCommentSubmit,
   onShare,
+  onReport,
   onPostPress,
 }) => {
   const authorName = post.user?.firstName || post.user?.name || 'Utilisateur';
@@ -63,7 +65,15 @@ const PostCard: React.FC<PostCardProps> = ({
           <Text style={styles.authorName}>{authorName}</Text>
           <Text style={styles.postTime}>{timeAgo || 'Maintenant'}</Text>
         </View>
-        <TouchableOpacity style={styles.moreButton}>
+        <TouchableOpacity 
+          style={styles.moreButton}
+          onPress={() => {
+            // Show action sheet with report option
+            if (onReport) {
+              onReport(post.id);
+            }
+          }}
+        >
           <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text.secondary} />
         </TouchableOpacity>
       </View>

@@ -7,6 +7,7 @@ import { CommunityScreenProps } from './community/types';
 import { useCommunityScreen } from './community/hooks/useCommunityScreen';
 import PostCard from './community/components/PostCard';
 import CreatePostModal from './community/components/CreatePostModal';
+import ReportPostModal from './community/components/ReportPostModal';
 import { ShimmerCard } from '../components/Shimmer';
 
 const CommunityScreen: React.FC<CommunityScreenProps> = ({
@@ -43,6 +44,11 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     handleAddImage,
     handleRemoveImage,
     isPostLiked,
+    showReportModal,
+    reportingPostId,
+    handleReport,
+    handleCloseReportModal,
+    handleSubmitReport,
   } = useCommunityScreen(selectedPostId);
 
   return (
@@ -103,6 +109,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
                     onCommentTextChange={(postId, text) => setCommentText(prev => ({ ...prev, [postId]: text }))}
                     onCommentSubmit={handleCommentSubmit}
                     onShare={handleShare}
+                    onReport={handleReport}
                     onPostPress={onPostPress}
                   />
                 </TouchableOpacity>
@@ -116,6 +123,21 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Report Post Modal */}
+      {reportingPostId && (
+        <ReportPostModal
+          visible={showReportModal}
+          postId={reportingPostId}
+          postAuthor={
+            communityPosts.find(p => p.id === reportingPostId)?.user?.name ||
+            communityPosts.find(p => p.id === reportingPostId)?.user?.firstName ||
+            undefined
+          }
+          onClose={handleCloseReportModal}
+          onReport={handleSubmitReport}
+        />
+      )}
 
       {/* Create Post Modal */}
       <CreatePostModal

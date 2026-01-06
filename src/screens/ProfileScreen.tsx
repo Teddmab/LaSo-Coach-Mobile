@@ -187,9 +187,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           initialWaist: formData.initialWaist,
         });
         console.log('📊 Current profileData:', {
-          height: profileData?.profile?.height,
-          initialWeight: profileData?.profile?.initialWeight,
-          initialWaistSize: profileData?.profile?.initialWaistSize,
+          height: profileData?.Profile?.height,
+          initialWeight: profileData?.Profile?.initialWeight,
+          initialWaistSize: profileData?.Profile?.initialWaistSize,
         });
       });
       fetchRendezvousData();
@@ -222,17 +222,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                city: parsedAddress.city || '',
                postalCode: parsedAddress.postalCode || '',
                country: parsedAddress.country || '',
-               height: profile.profile?.height ? profile.profile.height.toString().replace('.', ',') : '',
-               initialWeight: profile.profile?.initialWeight ? profile.profile.initialWeight.toString() : '',
-               initialWaist: profile.profile?.initialWaistSize ? profile.profile.initialWaistSize.toString() : '',
-               gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
-               occupation: profile.profile?.occupation || 'Software Engineer',
+               height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : '',
+               initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : '',
+               initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : '',
+               gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : 'Male',
+               occupation: profile.Profile?.occupation || 'Software Engineer',
                // Target objectives
-               targetWeight: profile.profile?.targetWeight?.toString() || '',
-               targetWaist: profile.profile?.targetWaistSize?.toString() || '',
-               generalObjective: profile.profile?.goal || '',
-               specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
-               dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+               targetWeight: profile.Profile?.targetWeight?.toString() || '',
+               targetWaist: profile.Profile?.targetWaistSize?.toString() || '',
+               generalObjective: profile.Profile?.goal || '',
+               specificObjectives: profile.Profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+               dietaryRestrictions: profile.Profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
              };
         console.log('👤 Setting form data with address:', newFormData);
         setFormData(newFormData);
@@ -244,17 +244,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
            lastName: profile.lastName || '',
            phone: profile.phoneNumber || '',
            email: profile.email || '',
-           height: profile.profile?.height ? profile.profile.height.toString().replace('.', ',') : '',
-           initialWeight: profile.profile?.initialWeight ? profile.profile.initialWeight.toString() : '',
-           initialWaist: profile.profile?.initialWaistSize ? profile.profile.initialWaistSize.toString() : '',
-           gender: profile.profile?.gender === 'male' ? 'Male' : profile.profile?.gender === 'female' ? 'Female' : 'Male',
-           occupation: profile.profile?.occupation || 'Software Engineer',
+           height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : '',
+           initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : '',
+           initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : '',
+           gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : 'Male',
+           occupation: profile.Profile?.occupation || 'Software Engineer',
            // Target objectives
-           targetWeight: profile.profile?.targetWeight?.toString() || '',
-           targetWaist: profile.profile?.targetWaistSize?.toString() || '',
-           generalObjective: profile.profile?.goal || '',
-           specificObjectives: profile.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
-                          dietaryRestrictions: profile.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+           targetWeight: profile.Profile?.targetWeight?.toString() || '',
+           targetWaist: profile.Profile?.targetWaistSize?.toString() || '',
+           generalObjective: profile.Profile?.goal || '',
+           specificObjectives: profile.Profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+                          dietaryRestrictions: profile.Profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
          };
         console.log('👤 Setting form data without address:', newFormData);
         setFormData(newFormData);
@@ -296,16 +296,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       console.log('✅ Profile: All data fetched successfully');
       console.log('📊 Profile data loaded:', {
         hasProfile: !!profile,
-        hasProfileProfile: !!profile.profile,
-        height: profile.profile?.height,
-        initialWeight: profile.profile?.initialWeight,
-        initialWaistSize: profile.profile?.initialWaistSize,
+        hasProfileProfile: !!profile.Profile,
+        height: profile.Profile?.height,
+        initialWeight: profile.Profile?.initialWeight,
+        initialWaistSize: profile.Profile?.initialWaistSize,
         formDataHeight: formData.height,
         formDataInitialWeight: formData.initialWeight,
         formDataInitialWaist: formData.initialWaist,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Profile: Error fetching profile data:', error);
+      
+      // Handle 400 error gracefully - don't block the screen
+      if (error.response?.status === 400) {
+        console.warn('⚠️ Profile: 400 Bad Request - Profile data might be incomplete');
+        console.warn('⚠️ Profile: Continuing with existing data or defaults');
+        // Don't set loading to false here - let finally handle it
+        // This allows the screen to continue functioning even if profile fetch fails
+      }
     } finally {
       if (showLoading) {
         setLoading(false);
@@ -1949,8 +1957,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             value={
               (formData.height && formData.height.trim() !== '') 
                 ? formData.height.replace('.', ',')
-                : (profileData?.profile?.height 
-                    ? profileData.profile.height.toString().replace('.', ',')
+                : (profileData?.Profile?.height 
+                    ? profileData.Profile.height.toString().replace('.', ',')
                     : '')
             }
             placeholder="Taille en mètres"
@@ -1968,8 +1976,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             value={
               (formData.initialWeight && formData.initialWeight.trim() !== '')
                 ? formData.initialWeight
-                : (profileData?.profile?.initialWeight
-                    ? profileData.profile.initialWeight.toString()
+                : (profileData?.Profile?.initialWeight
+                    ? profileData.Profile.initialWeight.toString()
                     : '')
             }
             placeholder="Poids initial"
@@ -1987,8 +1995,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             value={
               (formData.initialWaist && formData.initialWaist.trim() !== '')
                 ? formData.initialWaist
-                : (profileData?.profile?.initialWaistSize
-                    ? profileData.profile.initialWaistSize.toString()
+                : (profileData?.Profile?.initialWaistSize
+                    ? profileData.Profile.initialWaistSize.toString()
                     : '')
             }
             placeholder="Tour de taille initial"

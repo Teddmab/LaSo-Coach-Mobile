@@ -3,6 +3,7 @@ export { default as PostCard } from './components/PostCard';
 export { default as ImageCarousel } from './components/ImageCarousel';
 export { default as CommentSection } from './components/CommentSection';
 export { default as CreatePostModal } from './components/CreatePostModal';
+export { default as ReportPostModal } from './components/ReportPostModal';
 
 // Community screen hooks
 export { useCommunityScreen } from './hooks/useCommunityScreen';

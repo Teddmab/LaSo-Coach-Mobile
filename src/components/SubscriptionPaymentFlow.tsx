@@ -139,16 +139,52 @@ export default function SubscriptionPaymentFlow({
           subscription: subscriptionData,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Vérifier si l'erreur indique qu'un abonnement existe déjà
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de l\'activation de l\'abonnement gratuit';
-      setError(errorMessage);
-      setCurrentStep(4);
+      const errorCode = error.response?.data?.code || error.response?.status;
       
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: errorMessage,
-      });
+      // Détecter si l'utilisateur a déjà un abonnement actif
+      const hasExistingSubscription = 
+        errorMessage?.toLowerCase().includes('déjà un abonnement') ||
+        errorMessage?.toLowerCase().includes('already have a subscription') ||
+        errorMessage?.toLowerCase().includes('subscription already exists') ||
+        errorMessage?.toLowerCase().includes('abonnement actif') ||
+        errorMessage?.toLowerCase().includes('active subscription') ||
+        errorCode === 409 || // Conflict
+        error.response?.status === 409;
+
+      if (hasExistingSubscription) {
+        // Afficher un message informatif au lieu d'une erreur
+        setError(null);
+        setSuccess(true);
+        setCurrentStep(4);
+        
+        Toast.show({
+          type: 'info',
+          text1: 'Abonnement existant',
+          text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
+          visibilityTime: 4000,
+        });
+        
+        if (onSuccess) {
+          onSuccess({
+            planId: plan.id,
+            paymentMethod: 'free',
+            subscription: null,
+            hasExistingSubscription: true,
+          });
+        }
+      } else {
+        setError(errorMessage);
+        setCurrentStep(4);
+        
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: errorMessage,
+        });
+      }
     } finally {
       setProcessing(false);
     }
@@ -205,10 +241,51 @@ export default function SubscriptionPaymentFlow({
         
         // Si ni URL ni sessionId/clientSecret, erreur
         throw new Error('Réponse Stripe invalide: URL ou sessionId/clientSecret requis');
-      } catch (error) {
+      } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la session de paiement';
-        setError(errorMessage);
-        setCurrentStep(4);
+        const errorCode = error.response?.data?.code || error.response?.status;
+        
+        // Détecter si l'utilisateur a déjà un abonnement actif
+        const hasExistingSubscription = 
+          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
+          errorMessage?.toLowerCase().includes('already have a subscription') ||
+          errorMessage?.toLowerCase().includes('subscription already exists') ||
+          errorMessage?.toLowerCase().includes('abonnement actif') ||
+          errorMessage?.toLowerCase().includes('active subscription') ||
+          errorCode === 409 ||
+          error.response?.status === 409;
+
+        if (hasExistingSubscription) {
+          // Afficher un message informatif au lieu d'une erreur
+          setError(null);
+          setSuccess(true);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'info',
+            text1: 'Abonnement existant',
+            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
+            visibilityTime: 4000,
+          });
+          
+          if (onSuccess) {
+            onSuccess({
+              planId: plan.id,
+              paymentMethod: selectedPaymentMethod,
+              subscription: null,
+              hasExistingSubscription: true,
+            });
+          }
+        } else {
+          setError(errorMessage);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur',
+            text2: errorMessage,
+          });
+        }
       } finally {
         setProcessing(false);
       }
@@ -240,10 +317,51 @@ export default function SubscriptionPaymentFlow({
         } else {
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
-      } catch (error) {
+      } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
-        setError(errorMessage);
-        setCurrentStep(4);
+        const errorCode = error.response?.data?.code || error.response?.status;
+        
+        // Détecter si l'utilisateur a déjà un abonnement actif
+        const hasExistingSubscription = 
+          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
+          errorMessage?.toLowerCase().includes('already have a subscription') ||
+          errorMessage?.toLowerCase().includes('subscription already exists') ||
+          errorMessage?.toLowerCase().includes('abonnement actif') ||
+          errorMessage?.toLowerCase().includes('active subscription') ||
+          errorCode === 409 ||
+          error.response?.status === 409;
+
+        if (hasExistingSubscription) {
+          // Afficher un message informatif au lieu d'une erreur
+          setError(null);
+          setSuccess(true);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'info',
+            text1: 'Abonnement existant',
+            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
+            visibilityTime: 4000,
+          });
+          
+          if (onSuccess) {
+            onSuccess({
+              planId: plan.id,
+              paymentMethod: selectedPaymentMethod,
+              subscription: null,
+              hasExistingSubscription: true,
+            });
+          }
+        } else {
+          setError(errorMessage);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur',
+            text2: errorMessage,
+          });
+        }
       } finally {
         setProcessing(false);
       }
@@ -331,10 +449,51 @@ export default function SubscriptionPaymentFlow({
         } else {
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
-      } catch (error) {
+      } catch (error: any) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
-        setError(errorMessage);
-        setCurrentStep(4);
+        const errorCode = error.response?.data?.code || error.response?.status;
+        
+        // Détecter si l'utilisateur a déjà un abonnement actif
+        const hasExistingSubscription = 
+          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
+          errorMessage?.toLowerCase().includes('already have a subscription') ||
+          errorMessage?.toLowerCase().includes('subscription already exists') ||
+          errorMessage?.toLowerCase().includes('abonnement actif') ||
+          errorMessage?.toLowerCase().includes('active subscription') ||
+          errorCode === 409 ||
+          error.response?.status === 409;
+
+        if (hasExistingSubscription) {
+          // Afficher un message informatif au lieu d'une erreur
+          setError(null);
+          setSuccess(true);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'info',
+            text1: 'Abonnement existant',
+            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
+            visibilityTime: 4000,
+          });
+          
+          if (onSuccess) {
+            onSuccess({
+              planId: plan.id,
+              paymentMethod: selectedPaymentMethod,
+              subscription: null,
+              hasExistingSubscription: true,
+            });
+          }
+        } else {
+          setError(errorMessage);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur',
+            text2: errorMessage,
+          });
+        }
       } finally {
         setProcessing(false);
       }
@@ -434,16 +593,54 @@ export default function SubscriptionPaymentFlow({
           subscription: subscriptionData,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Vérifier si l'erreur indique qu'un abonnement existe déjà
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors du traitement du paiement';
-      setError(errorMessage);
-      setCurrentStep(4);
+      const errorCode = error.response?.data?.code || error.response?.status;
       
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur de paiement',
-        text2: errorMessage,
-      });
+      // Détecter si l'utilisateur a déjà un abonnement actif
+      const hasExistingSubscription = 
+        errorMessage?.toLowerCase().includes('déjà un abonnement') ||
+        errorMessage?.toLowerCase().includes('already have a subscription') ||
+        errorMessage?.toLowerCase().includes('subscription already exists') ||
+        errorMessage?.toLowerCase().includes('abonnement actif') ||
+        errorMessage?.toLowerCase().includes('active subscription') ||
+        errorCode === 409 || // Conflict
+        error.response?.status === 409;
+
+      if (hasExistingSubscription) {
+        // Afficher un message informatif au lieu d'une erreur
+        setError(null);
+        setSuccess(true);
+        setCurrentStep(4);
+        
+        Toast.show({
+          type: 'info',
+          text1: 'Abonnement existant',
+          text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
+          visibilityTime: 4000,
+        });
+        
+        if (onSuccess) {
+          onSuccess({
+            planId: plan.id,
+            paymentMethod: selectedPaymentMethod,
+            sessionId: stripeSessionId || null,
+            orderId: paypalOrderId || null,
+            subscription: null,
+            hasExistingSubscription: true,
+          });
+        }
+      } else {
+        setError(errorMessage);
+        setCurrentStep(4);
+        
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur de paiement',
+          text2: errorMessage,
+        });
+      }
     } finally {
       setProcessing(false);
     }

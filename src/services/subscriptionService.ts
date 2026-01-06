@@ -76,9 +76,11 @@ export class SubscriptionService {
       const subscription = rawData.subscription;
       const hasActiveSubscription = rawData.hasActiveSubscription || false;
       const daysRemaining = subscription?.daysRemaining || 0;
+      const planName = subscription?.plan?.name || subscription?.planName || '';
+      const isFreePlan = planName?.toLowerCase().includes('free') || false;
       
       // Determine subscription status
-      // Priority: 1. Check subscription.status from API, 2. Calculate from daysRemaining
+      // Priority: 1. Check subscription.status from API, 2. Check hasActiveSubscription, 3. Calculate from daysRemaining
       let status = SUBSCRIPTION_STATUS.FREE;
       let accessLevel = ACCESS_LEVEL.FREE;
       let isExpired = false;
@@ -86,16 +88,53 @@ export class SubscriptionService {
       let requiresRenewal = false;
       
       // First, check the actual status from the API response
+      // CRITICAL: Read status from subscription.status field (this is what backend returns)
       const apiStatus = subscription?.status?.toUpperCase();
       
-      if (apiStatus === 'EXPIRED' || apiStatus === 'CANCELLED' || apiStatus === 'INACTIVE') {
+      // Log for debugging - CRITICAL to see what backend returns
+      if (__DEV__) {
+        console.log('🔍 [SubscriptionService] Raw API response check:', {
+          rawDataKeys: Object.keys(rawData),
+          subscriptionExists: !!subscription,
+          subscriptionKeys: subscription ? Object.keys(subscription) : [],
+          subscriptionStatus: subscription?.status,
+          subscriptionStatusType: typeof subscription?.status,
+          apiStatus,
+          hasActiveSubscription,
+          daysRemaining,
+          planName,
+          isFreePlan,
+          fullSubscription: subscription, // Log full subscription object to see structure
+        });
+      }
+      
+      // Check if API explicitly says ACTIVE (even for FREE plan, if status is ACTIVE, it's active)
+      if (apiStatus === 'ACTIVE') {
+        // CRITICAL: If backend says status is ACTIVE, trust it and consider it ACTIVE
+        // Don't override with daysRemaining check - backend is the source of truth
+        // For FREE plan, daysRemaining might be 0 or undefined, but status ACTIVE means it's active
+        if (daysRemaining > 0 && daysRemaining <= 3) {
+          // If daysRemaining exists and is <= 3, mark as expiring soon
+          status = SUBSCRIPTION_STATUS.EXPIRING_SOON;
+          accessLevel = ACCESS_LEVEL.EXPIRING_SOON;
+          isExpiringSoon = true;
+          requiresRenewal = true;
+        } else {
+          // Status is ACTIVE - consider it ACTIVE regardless of daysRemaining
+          // This handles FREE plan with ACTIVE status (daysRemaining might be 0 or undefined)
+          status = SUBSCRIPTION_STATUS.ACTIVE;
+          accessLevel = ACCESS_LEVEL.ACTIVE;
+          isExpired = false;
+          requiresRenewal = false;
+        }
+      } else if (apiStatus === 'EXPIRED' || apiStatus === 'CANCELLED' || apiStatus === 'INACTIVE') {
         // API explicitly says expired/cancelled/inactive
         status = SUBSCRIPTION_STATUS.EXPIRED;
         accessLevel = ACCESS_LEVEL.EXPIRED;
         isExpired = true;
         requiresRenewal = true;
       } else if (hasActiveSubscription && subscription) {
-        // Calculate status based on daysRemaining if API status is not explicitly expired
+        // hasActiveSubscription is true but status not explicitly set - calculate from daysRemaining
         if (daysRemaining > 0) {
           if (daysRemaining <= 3) {
             status = SUBSCRIPTION_STATUS.EXPIRING_SOON;
@@ -113,6 +152,36 @@ export class SubscriptionService {
           isExpired = true;
           requiresRenewal = true;
         }
+      } else if (subscription && daysRemaining > 0) {
+        // Fallback: if subscription exists and has days remaining, consider it active
+        if (daysRemaining <= 3) {
+          status = SUBSCRIPTION_STATUS.EXPIRING_SOON;
+          accessLevel = ACCESS_LEVEL.EXPIRING_SOON;
+          isExpiringSoon = true;
+          requiresRenewal = true;
+        } else {
+          status = SUBSCRIPTION_STATUS.ACTIVE;
+          accessLevel = ACCESS_LEVEL.ACTIVE;
+        }
+      } else if (subscription && apiStatus === 'ACTIVE') {
+        // CRITICAL: If subscription exists and API status is ACTIVE (even if daysRemaining is 0 or undefined for FREE plan)
+        // This handles the case where FREE plan has status ACTIVE
+        status = SUBSCRIPTION_STATUS.ACTIVE;
+        accessLevel = ACCESS_LEVEL.ACTIVE;
+        // FREE plan with ACTIVE status should not be considered expired
+        isExpired = false;
+        requiresRenewal = false;
+      }
+      
+      // Log final status for debugging
+      if (__DEV__) {
+        console.log('✅ [SubscriptionService] Final subscription status:', {
+          status,
+          accessLevel,
+          isExpired,
+          isExpiringSoon,
+          daysRemaining,
+        });
       }
       
       const subscriptionData = {

@@ -554,8 +554,8 @@ export const useProgressScreen = (
     );
   }, [measurements, progressPhotos]);
 
-  const currentWeight = getCurrentWeight(combinedMeasurements, profile?.profile?.weight);
-  const currentWaistSize = getCurrentWaistSize(combinedMeasurements, profile?.profile?.waistSize);
+  const currentWeight = getCurrentWeight(combinedMeasurements, profile?.Profile?.weight);
+  const currentWaistSize = getCurrentWaistSize(combinedMeasurements, profile?.Profile?.waistSize);
   const chartData = generateChartData(initialMeasurements, combinedMeasurements);
 
   return {

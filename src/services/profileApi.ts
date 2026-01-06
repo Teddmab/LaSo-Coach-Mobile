@@ -20,7 +20,27 @@ export class ProfileApi {
       
       
       return response.data.data || response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Log detailed error information for debugging
+      if (__DEV__) {
+        console.error('❌ [ProfileApi] Error fetching profile:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.response?.data?.message || error.message,
+          data: error.response?.data,
+          url: error.config?.url,
+        });
+      }
+      
+      // If 400 error, it might be a validation issue or missing data
+      // Don't crash the app, return null or empty object
+      if (error.response?.status === 400) {
+        console.warn('⚠️ [ProfileApi] 400 Bad Request - Profile endpoint returned error');
+        console.warn('⚠️ [ProfileApi] This might indicate missing profile data or validation issue');
+        // Return null to allow app to continue
+        return null;
+      }
+      
       throw error;
     }
   }

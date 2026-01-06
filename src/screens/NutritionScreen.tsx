@@ -173,11 +173,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         
         // Field mapping
         logger.debug('Field Mapping: Profile data structure', {
-          'profile.height': profileRes.value?.profile?.height,
-          'profile.initialWeight': profileRes.value?.profile?.initialWeight,
-          'profile.targetWeight': profileRes.value?.profile?.targetWeight,
-          'profile.initialWaistSize': profileRes.value?.profile?.initialWaistSize,
-          'profile.targetWaistSize': profileRes.value?.profile?.targetWaistSize,
+          'profile.height': profileRes.value?.Profile?.height,
+          'profile.initialWeight': profileRes.value?.Profile?.initialWeight,
+          'profile.targetWeight': profileRes.value?.Profile?.targetWeight,
+          'profile.initialWaistSize': profileRes.value?.Profile?.initialWaistSize,
+          'profile.targetWaistSize': profileRes.value?.Profile?.targetWaistSize,
           'profile.currentPhase': profileRes.value?.currentPhase,
         });
         

@@ -81,14 +81,14 @@ export class DashboardService {
         firstName: rawData.firstName,
         lastName: rawData.lastName,
         avatar: rawData.avatar, // Add avatar field
-        initialWeight: rawData.profile?.initialWeight,
-        goalWeight: rawData.profile?.targetWeight,
-        targetWeight: rawData.profile?.targetWeight,
-        initialWaistSize: rawData.profile?.initialWaistSize,
-        targetWaistSize: rawData.profile?.targetWaistSize,
+        initialWeight: rawData.Profile?.initialWeight,
+        goalWeight: rawData.Profile?.targetWeight,
+        targetWeight: rawData.Profile?.targetWeight,
+        initialWaistSize: rawData.Profile?.initialWaistSize,
+        targetWaistSize: rawData.Profile?.targetWaistSize,
         currentPhase: rawData.currentPhase,
         hasActiveSubscription: rawData.hasActiveSubscription,
-        profile: rawData.profile
+        profile: rawData.Profile
       };
       
       // Validate that we have the required data

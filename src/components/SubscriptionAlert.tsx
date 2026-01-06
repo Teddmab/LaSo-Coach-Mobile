@@ -17,6 +17,10 @@ const SubscriptionAlert = ({
   daysRemaining = 0,
   onRenew 
 }) => {
+  // Don't show alert if type is null/undefined or if visible is false
+  if (!visible || !type) {
+    return null;
+  }
   const getAlertConfig = () => {
     switch (type) {
       case 'expired':

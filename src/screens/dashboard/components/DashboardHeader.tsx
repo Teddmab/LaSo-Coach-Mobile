@@ -23,7 +23,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       onHelpPress={onHelpPress}
       onNotificationPress={onNotificationPress}
       onProfilePress={onProfilePress}
-      avatarSource={dashboardData?.profile?.avatar || user?.avatar}
+      avatarSource={dashboardData?.Profile?.avatar || dashboardData?.profile?.avatar || user?.avatar}
       avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0)}
     />
   );

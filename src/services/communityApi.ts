@@ -302,6 +302,27 @@ class CommunityApi {
       throw error;
     }
   }
+
+  /**
+   * Report a post (signal a post for moderation)
+   * @param {string} postId - Post UUID
+   * @param {string} reason - Reason for reporting the post
+   * @returns {Promise<Object>} Success response
+   */
+  async reportPost(postId, reason) {
+    try {
+      
+      const response = await api.post(`/community/posts/${postId}/report`, {
+        reason
+      });
+      
+      // API returns: { status: "success", message: "Post reported successfully" }
+      
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 export default new CommunityApi(); 

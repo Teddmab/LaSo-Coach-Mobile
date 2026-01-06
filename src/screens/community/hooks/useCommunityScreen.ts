@@ -21,6 +21,8 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
   const [postComments, setPostComments] = useState<Record<string, Comment[]>>({});
   const [loadingComments, setLoadingComments] = useState<Record<string, boolean>>({});
   const [currentImageIndex, setCurrentImageIndex] = useState<Record<string, number>>({});
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportingPostId, setReportingPostId] = useState<string | null>(null);
   
   const scrollViewRef = useRef<any>(null);
 
@@ -263,6 +265,31 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     ) || false;
   };
 
+  const handleReport = (postId: string): void => {
+    setReportingPostId(postId);
+    setShowReportModal(true);
+  };
+
+  const handleCloseReportModal = (): void => {
+    setShowReportModal(false);
+    setReportingPostId(null);
+  };
+
+  const handleSubmitReport = async (postId: string, reason: string): Promise<void> => {
+    try {
+      await CommunityApi.reportPost(postId, reason);
+      // Le modal affichera le message de succès
+    } catch (error: any) {
+      // Extraire le message d'erreur utilisateur
+      if (error.response?.data?.message) {
+        error.userMessage = error.response.data.message;
+      } else if (error.message) {
+        error.userMessage = error.message;
+      }
+      throw error;
+    }
+  };
+
   return {
     commentText,
     showCreatePostModal,
@@ -290,6 +317,11 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     handleRemoveImage,
     fetchCommunityPosts,
     isPostLiked,
+    showReportModal,
+    reportingPostId,
+    handleReport,
+    handleCloseReportModal,
+    handleSubmitReport,
   };
 };
 

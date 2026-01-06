@@ -56,6 +56,7 @@ const chatApi: {
         params.before = before;
       }
 
+      // Use the aligned endpoint format: /chat/conversations/{chatId}/messages
       const response = await api.get(API_CONFIG.endpoints.chat.messages(chatId), { params });
       return response.data?.data || response.data || [];
     } catch (error) {

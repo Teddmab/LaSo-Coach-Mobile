@@ -69,6 +69,7 @@ export const notificationsAPI = {
    */
   async markAllAsRead() {
     try {
+      // Aligned with web version: /notifications/read/all
       const response = await api.patch('/notifications/read/all');
       return response.data;
     } catch (error) {

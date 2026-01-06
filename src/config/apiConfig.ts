@@ -34,6 +34,7 @@ export const API_CONFIG = {
     // User endpoints
     user: {
       progress: '/users/progress',
+      challengeRankHistory: '/users/challenge-rank-history',
     },
 
     // Progress endpoints
@@ -93,6 +94,7 @@ export const API_CONFIG = {
     // T.A.S.C.C. Progress endpoints
     tascc: {
       progress: '/tascc/progress',
+      transactions: '/tascc/transactions',
       levels: '/tascc/levels',
       points: '/tascc/points',
       achievements: '/tascc/achievements',
@@ -111,15 +113,23 @@ export const API_CONFIG = {
 
     // Nutrition endpoints
     nutrition: {
+      plans: '/nutrition/plans',
+      planProgress: (planId) => `/nutrition/plans/${planId}/progress`,
+      planSummary: (planId) => `/nutrition/plans/${planId}/summary`,
       meals: '/nutrition/meals',
       menu: '/nutrition/menu',
       recommendations: '/nutrition/recommendations',
+      completeMeal: (mealId) => `/meals/${mealId}/complete`,
+      likeMeal: (mealId) => `/meals/${mealId}/like`,
+      dislikeMeal: (mealId) => `/meals/${mealId}/dislike`,
+      removeMealInteraction: (mealId) => `/meals/${mealId}/interaction`,
     },
 
     // Community endpoints
     community: {
       posts: '/community/posts',
       create: '/community/posts',
+      likePost: (postId) => `/community/posts/${postId}/like`,
       comments: '/community/posts/:id/comments',
     },
 
@@ -127,8 +137,9 @@ export const API_CONFIG = {
     chat: {
       conversations: '/chat/conversations',
       conversation: (chatId) => `/chat/conversations/${chatId}`,
-      messages: (chatId) => `/chat/${chatId}/messages`,
-      send: (chatId) => `/chat/${chatId}/messages`,
+      // Backend supports both formats: /chat/{chatId}/messages and /chat/conversations/{chatId}/messages
+      messages: (chatId) => `/chat/conversations/${chatId}/messages`, // Aligned with web version
+      send: (chatId) => `/chat/conversations/${chatId}/messages`, // Aligned with web version
       oneToOne: '/chat/one-to-one',
       group: '/chat/group',
       findOrCreate: '/chat/find-or-create',
@@ -139,8 +150,9 @@ export const API_CONFIG = {
     // Notifications endpoints
     notifications: {
       get: '/notifications',
+      unreadCount: '/notifications/unread/count',
       markRead: '/notifications/:id/read',
-      markAllRead: '/notifications/read-all',
+      markAllRead: '/notifications/read/all', // Aligned with web version
       settings: '/notifications/settings',
     },
 

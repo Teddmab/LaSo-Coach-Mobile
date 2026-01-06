@@ -6,6 +6,7 @@ import axios from 'axios';
 // Use compat fallback to avoid component registration issues in Expo Go; require modular funcs only when available.
 import firebaseCompat from 'firebase/compat/app';
 import 'firebase/compat/auth';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import deviceApi from './deviceApi';
 

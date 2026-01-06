@@ -93,7 +93,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
 
     // Height if present from API (cm)
     // API /profile returns height in meters (e.g., 1.6). Normalize to cm.
-    const rawHeight = apiData.height || apiData.profileHeight || apiData?.profile?.height || 0;
+    const rawHeight = apiData.height || apiData.profileHeight || apiData?.Profile?.height || 0;
     const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
     if (heightCm) {
       base.height = { current: heightCm };
@@ -120,7 +120,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
         const calculatedProgress: any = DashboardService.calculateProgress(dashboardData);
         logger.debug('Progress calculated from props', calculatedProgress);
         // Enrich with derived/optional metrics from dashboardData
-        const rawHeight = dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
+        const rawHeight = dashboardData?.Profile?.height || dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
         const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
         const weightKg = calculatedProgress?.weight?.current || 0;
         const enriched: ProgressData = calculatedProgress as ProgressData;
@@ -352,7 +352,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     if (fromState > 0) return { current: fromState };
     // Fallback to dashboardData profile (can be nested) or measurements.height
     const raw = (
-      (dashboardData?.profile?.profile?.height as number | undefined) ??
+      (dashboardData?.Profile?.height as number | undefined) ??
       (dashboardData?.profile?.height as number | undefined) ??
       (dashboardData?.measurements?.height as number | undefined) ??
       0
@@ -366,7 +366,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     const heightFromState = progressData?.height?.current ?? 0;
     const rawHeight =
       heightFromState ||
-      (dashboardData?.profile?.profile?.height as number | undefined) ||
+      (dashboardData?.Profile?.height as number | undefined) ||
       (dashboardData?.profile?.height as number | undefined) ||
       (dashboardData?.measurements?.height as number | undefined) ||
       0;
@@ -376,7 +376,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     const weightKg =
       progressData?.weight?.current ??
       (dashboardData?.measurements?.currentWeight as number | undefined) ??
-      (dashboardData?.profile?.profile?.initialWeight as number | undefined) ??
+      (dashboardData?.Profile?.initialWeight as number | undefined) ??
       (dashboardData?.profile?.initialWeight as number | undefined) ??
       0;
 

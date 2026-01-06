@@ -77,7 +77,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
 
   const rawAvatar = profileData?.avatar 
     || profile?.avatar 
-    || profile?.profile?.avatar 
+    || profile?.Profile?.avatar 
     || user?.avatar;
   const avatarSource = rawAvatar ? (getAvatarUrl(rawAvatar) || undefined) : undefined;
 
@@ -104,12 +104,12 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
         <ProgressTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
         <ProgressCard
-          initialWeight={profile?.initialWeight ?? profile?.profile?.initialWeight ?? null}
+          initialWeight={profile?.initialWeight ?? profile?.Profile?.initialWeight ?? null}
           currentWeight={currentWeight}
-          targetWeight={profile?.targetWeight ?? profile?.profile?.targetWeight ?? null}
-          initialWaistSize={profile?.initialWaistSize ?? profile?.profile?.initialWaistSize ?? null}
+          targetWeight={profile?.targetWeight ?? profile?.Profile?.targetWeight ?? null}
+          initialWaistSize={profile?.initialWaistSize ?? profile?.Profile?.initialWaistSize ?? null}
           currentWaistSize={currentWaistSize}
-          targetWaistSize={profile?.targetWaistSize ?? profile?.profile?.targetWaistSize ?? null}
+          targetWaistSize={profile?.targetWaistSize ?? profile?.Profile?.targetWaistSize ?? null}
         />
 
         {activeTab === 'measurements' ? (

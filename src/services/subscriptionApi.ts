@@ -21,11 +21,13 @@ export class SubscriptionApi {
 
   /**
    * Get current subscription status
+   * Aligned with web version: GET /api/v1/subscriptions
    * @returns {Promise<Object>} Current subscription data
    */
   static async getCurrentSubscription() {
     try {
-      const response = await api.get('/subscriptions/current');
+      // Utiliser le même endpoint que la version web
+      const response = await api.get('/subscriptions');
       
       
       return response.data.data || null;
@@ -265,16 +267,18 @@ export class SubscriptionApi {
   }
 
   /**
-   * Subscribe to a plan (same endpoint as web version)
-   * POST /subscriptions/subscribe - Utilisé par la version web
-   * @param {Object} subscriptionData - Subscription data with subscriptionPlanId
+   * Subscribe to a plan (aligned with web version)
+   * POST /subscriptions/create - Same endpoint as web version
+   * Note: API_BASE_URL already contains /api/v1, so we only need /subscriptions/create
+   * @param {Object} subscriptionData - Subscription data with planId
    * @returns {Promise<Object>} Subscription data
    */
   static async subscribe(subscriptionData) {
     try {
       
       // Utiliser exactement le même endpoint que la version web
-      const response = await api.post('/subscriptions/subscribe', subscriptionData);
+      // API_BASE_URL contient déjà /api/v1, donc on utilise seulement /subscriptions/create
+      const response = await api.post('/subscriptions/create', subscriptionData);
       
       
       return response.data.data || response.data;
@@ -285,7 +289,7 @@ export class SubscriptionApi {
 
   /**
    * Activate free trial subscription
-   * Utilise le même endpoint que la version web: POST /subscriptions/subscribe
+   * Utilise le même endpoint que la version web: POST /subscriptions/create
    * Le backend détecte automatiquement que c'est un plan gratuit (price = 0)
    * @param {string} planId - Plan ID
    * @returns {Promise<Object>} Subscription data
@@ -295,7 +299,7 @@ export class SubscriptionApi {
       
       // Utiliser exactement le même endpoint et format que la version web
       const subscriptionData = {
-        subscriptionPlanId: planId, // Format utilisé par la version web
+        planId: planId, // Format utilisé par la version web (aligned)
       };
       
       return await this.subscribe(subscriptionData);
@@ -306,13 +310,15 @@ export class SubscriptionApi {
 
   /**
    * Retry payment
+   * Aligned with backend: POST /api/v1/payments/:transactionId/retry
    * @param {string} transactionId - Transaction ID
    * @returns {Promise<Object>} Retry payment data
    */
   static async retryPayment(transactionId) {
     try {
       
-      const response = await api.post(`/payments/retry/${transactionId}`);
+      // Utiliser le même format que le backend: /payments/:transactionId/retry
+      const response = await api.post(`/payments/${transactionId}/retry`);
       
       
       return response.data.data;

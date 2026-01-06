@@ -15,6 +15,7 @@ import {
   FlatList,
   NativeSyntheticEvent,
   NativeScrollEvent,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, AntDesign } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, theme } from '../constants/
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuth from '../hooks/useGoogleAuth';
+import SubscriptionApi from '../services/subscriptionApi';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
 
@@ -73,17 +75,30 @@ const welcomeSlides: WelcomeSlide[] = [
 ];
 
 export default function LoginScreen({ navigation, route }: LoginScreenProps): React.JSX.Element {
+  // Multi-step form state
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [formData, setFormData] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+  });
+
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isRegisterMode, setIsRegisterMode] = useState<boolean>(false);
 
 
   const [showWelcomeSlides, setShowWelcomeSlides] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
 
-  const { login, forgotPassword, loading } = useAuth();
+  const { login, register, forgotPassword, loading } = useAuth();
   const {
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
@@ -234,6 +249,205 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
         return newErrors;
       });
     }
+  };
+
+  /**
+   * Update form data for multi-step form
+   */
+  const updateFormData = (field: keyof typeof formData, value: string): void => {
+    // Limit phone to 10 characters
+    if (field === 'phone' && value.length > 10) {
+      return;
+    }
+    setFormData(prev => ({ ...prev, [field]: value }));
+    clearError(field);
+  };
+
+  /**
+   * Check if step 1 is valid (email format)
+   */
+  const isStep1Valid = (): boolean => {
+    return formData.email.trim() !== '' && validateEmail(formData.email);
+  };
+
+  /**
+   * Check if step 2 is valid (all fields filled)
+   */
+  const isStep2Valid = (): boolean => {
+    return (
+      formData.firstName.trim() !== '' &&
+      formData.lastName.trim() !== '' &&
+      formData.phone.trim() !== '' &&
+      formData.phone.trim().length === 10
+    );
+  };
+
+  /**
+   * Check if password itself meets security requirements (without confirmation check)
+   */
+  const isPasswordValid = (): boolean => {
+    const passwordReqs = getPasswordRequirements();
+    return (
+      formData.password.trim() !== '' &&
+      passwordReqs.minLength &&
+      passwordReqs.hasLowercase &&
+      passwordReqs.hasUppercase &&
+      passwordReqs.hasNumber &&
+      passwordReqs.hasSpecial
+    );
+  };
+
+  /**
+   * Check if step 3 is valid (password meets requirements AND confirmation matches)
+   */
+  const isStep3Valid = (): boolean => {
+    return (
+      isPasswordValid() &&
+      formData.confirmPassword.trim() !== '' &&
+      formData.password === formData.confirmPassword
+    );
+  };
+
+  /**
+   * Validate step 1 (Email)
+   */
+  const validateStep1 = (): boolean => {
+    const newErrors: FormErrors = {};
+    if (!formData.email.trim()) {
+      newErrors.email = 'L\'email est requis';
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = 'Adresse e-mail invalide';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * Validate step 2 (Personal info)
+   */
+  const validateStep2 = (): boolean => {
+    const newErrors: FormErrors = {};
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'Le prénom est requis';
+    }
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Le nom est requis';
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Le numéro de téléphone est requis';
+    } else if (formData.phone.trim().length !== 10) {
+      newErrors.phone = 'Le numéro de téléphone doit contenir 10 chiffres';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * Validate step 3 (Password)
+   */
+  const validateStep3 = (): boolean => {
+    const newErrors: FormErrors = {};
+    if (!formData.password.trim()) {
+      newErrors.password = 'Le mot de passe est requis';
+    } else if (!validatePassword(formData.password)) {
+      newErrors.password = 'Le mot de passe ne respecte pas les critères de sécurité';
+    }
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = 'La confirmation du mot de passe est requise';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Les mots de passe ne correspondent pas';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * Navigate to next step
+   */
+  const handleNextStep = (): void => {
+    let isValid = false;
+    
+    if (currentStep === 1) {
+      isValid = validateStep1();
+    } else if (currentStep === 2) {
+      isValid = validateStep2();
+    } else if (currentStep === 3) {
+      isValid = validateStep3();
+    }
+
+    if (isValid && currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  /**
+   * Navigate to previous step
+   */
+  const handlePreviousStep = (): void => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  /**
+   * Handle final registration
+   * After successful registration, automatically activate free plan (aligned with web version)
+   */
+  const handleFinalRegistration = async (): Promise<void> => {
+    if (!validateStep3()) {
+      return;
+    }
+
+    try {
+      const registrationData = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email.trim(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        role: 'USER'
+      };
+
+      // Register user
+      await register(registrationData);
+
+      // After successful registration, activate free plan automatically (aligned with web version)
+      try {
+        // Get all available plans
+        const plans = await SubscriptionApi.getPlans();
+        
+        // Find the free plan (price === 0 or isFree === true)
+        const freePlan = plans.find((plan: any) => 
+          plan.price === 0 || plan.isFree || plan.name?.toLowerCase().includes('free')
+        );
+
+        if (freePlan && freePlan.id) {
+          // Activate free plan using the same endpoint as web version
+          await SubscriptionApi.activateFreeTrial(freePlan.id);
+        }
+      } catch (subscriptionError: any) {
+        // Don't block registration if free plan activation fails
+        // User can still activate it later from the subscription page
+        console.warn('Free plan activation failed after registration:', subscriptionError);
+      }
+    } catch (error: any) {
+      setErrors({ general: 'Une erreur est survenue lors de l\'inscription' });
+    }
+  };
+
+  /**
+   * Get password requirements status
+   */
+  const getPasswordRequirements = () => {
+    const password = formData.password;
+    return {
+      minLength: password.length >= 8,
+      hasLowercase: /[a-z]/.test(password),
+      hasUppercase: /[A-Z]/.test(password),
+      hasNumber: /\d/.test(password),
+      hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+    };
   };
 
   /**
@@ -400,9 +614,463 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
 
   /**
-   * Render login form
+   * Render step indicator (stepper) - Simplified: only numbers
    */
-  const renderLoginForm = (): React.JSX.Element => (
+  const renderStepper = (): React.JSX.Element => (
+    <View style={styles.stepperContainer}>
+      {[1, 2, 3, 4].map((step) => (
+        <React.Fragment key={step}>
+          <View style={styles.stepperStep}>
+            <View
+              style={[
+                styles.stepperCircle,
+                currentStep >= step && styles.stepperCircleActive,
+              ]}
+            >
+              {currentStep > step ? (
+                <Ionicons name="checkmark" size={16} color={COLORS.white} />
+              ) : (
+                <Text style={styles.stepperNumber}>{step}</Text>
+              )}
+            </View>
+          </View>
+          {step < 4 && (
+            <View
+              style={[
+                styles.stepperLine,
+                currentStep > step && styles.stepperLineActive,
+              ]}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </View>
+  );
+
+  /**
+   * Render Step 1: Email
+   */
+  const renderStep1 = (): React.JSX.Element => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Votre adresse e-mail</Text>
+      <Text style={styles.stepSubtitle}>
+        Nous utiliserons cette adresse pour vous contacter
+      </Text>
+
+      <View style={styles.inputContainer}>
+        <View style={styles.inputWrapper}>
+          <View style={styles.inputIconLeft}>
+            <Ionicons name="mail-outline" size={20} color={errors.email ? COLORS.error : '#666'} />
+          </View>
+          <TextInput
+            style={[
+              styles.input,
+              styles.inputWithIcon,
+              errors.email && styles.inputError,
+              { color: '#424242' }
+            ]}
+            placeholder="E-mail *"
+            placeholderTextColor="#999"
+            value={formData.email}
+            onChangeText={(text) => updateFormData('email', text)}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+            {...(Platform.OS === 'android' && {
+              selectionColor: '#424242',
+              underlineColorAndroid: 'transparent',
+            })}
+          />
+        </View>
+        {errors.email && (
+          <Text style={styles.errorText}>{errors.email}</Text>
+        )}
+      </View>
+    </View>
+  );
+
+  /**
+   * Render Step 2: Personal Information
+   */
+  const renderStep2 = (): React.JSX.Element => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Vos informations personnelles</Text>
+      <Text style={styles.stepSubtitle}>
+        Ces informations nous aideront à personnaliser votre expérience
+      </Text>
+
+      <View style={styles.inputContainer}>
+        <View style={styles.inputWrapper}>
+          <View style={styles.inputIconLeft}>
+            <Ionicons name="person-outline" size={20} color={errors.firstName ? COLORS.error : '#666'} />
+          </View>
+          <TextInput
+            style={[
+              styles.input,
+              styles.inputWithIcon,
+              errors.firstName && styles.inputError,
+              { color: '#424242' }
+            ]}
+            placeholder="Prénom *"
+            placeholderTextColor="#999"
+            value={formData.firstName}
+            onChangeText={(text) => updateFormData('firstName', text)}
+            autoCapitalize="words"
+            autoCorrect={false}
+            editable={!loading}
+            {...(Platform.OS === 'android' && {
+              selectionColor: '#424242',
+              underlineColorAndroid: 'transparent',
+            })}
+          />
+        </View>
+        {errors.firstName && (
+          <Text style={styles.errorText}>{errors.firstName}</Text>
+        )}
+      </View>
+
+      <View style={styles.inputContainer}>
+        <View style={styles.inputWrapper}>
+          <View style={styles.inputIconLeft}>
+            <Ionicons name="person-outline" size={20} color={errors.lastName ? COLORS.error : '#666'} />
+          </View>
+          <TextInput
+            style={[
+              styles.input,
+              styles.inputWithIcon,
+              errors.lastName && styles.inputError,
+              { color: '#424242' }
+            ]}
+            placeholder="Nom *"
+            placeholderTextColor="#999"
+            value={formData.lastName}
+            onChangeText={(text) => updateFormData('lastName', text)}
+            autoCapitalize="words"
+            autoCorrect={false}
+            editable={!loading}
+            {...(Platform.OS === 'android' && {
+              selectionColor: '#424242',
+              underlineColorAndroid: 'transparent',
+            })}
+          />
+        </View>
+        {errors.lastName && (
+          <Text style={styles.errorText}>{errors.lastName}</Text>
+        )}
+      </View>
+
+      <View style={styles.inputContainer}>
+        <View style={styles.inputWrapper}>
+          <View style={styles.inputIconLeft}>
+            <Ionicons name="call-outline" size={20} color={errors.phone ? COLORS.error : '#666'} />
+          </View>
+          <TextInput
+            style={[
+              styles.input,
+              styles.inputWithIcon,
+              errors.phone && styles.inputError,
+              { color: '#424242' }
+            ]}
+            placeholder="Téléphone * (10 chiffres)"
+            placeholderTextColor="#999"
+            value={formData.phone}
+            onChangeText={(text) => {
+              // Only allow digits and limit to 10 characters
+              const digitsOnly = text.replace(/[^0-9]/g, '');
+              if (digitsOnly.length <= 10) {
+                updateFormData('phone', digitsOnly);
+              }
+            }}
+            keyboardType="phone-pad"
+            autoCorrect={false}
+            maxLength={10}
+            editable={!loading}
+            {...(Platform.OS === 'android' && {
+              selectionColor: '#424242',
+              underlineColorAndroid: 'transparent',
+            })}
+          />
+        </View>
+        {errors.phone && (
+          <Text style={styles.errorText}>{errors.phone}</Text>
+        )}
+        {formData.phone.length > 0 && formData.phone.length < 10 && (
+          <Text style={styles.helperText}>
+            {formData.phone.length}/10 caractères
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+
+  /**
+   * Render Step 3: Password Creation
+   */
+  const renderStep3 = (): React.JSX.Element => {
+    const passwordReqs = getPasswordRequirements();
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Créez votre mot de passe</Text>
+        <Text style={styles.stepSubtitle}>
+          Choisissez un mot de passe sécurisé pour protéger votre compte
+        </Text>
+
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconLeft}>
+              <Ionicons name="lock-closed-outline" size={20} color={errors.password ? COLORS.error : '#666'} />
+            </View>
+            <TextInput
+              style={[
+                styles.input,
+                styles.inputWithIcon,
+                styles.passwordInput,
+                errors.password && styles.inputError,
+                formData.password.length > 0 && !isPasswordValid() && styles.inputError,
+                formData.password.length > 0 && isPasswordValid() && styles.inputValid,
+                { color: '#424242' }
+              ]}
+              placeholder="Mot de passe *"
+              placeholderTextColor="#999"
+              value={formData.password}
+              onChangeText={(text) => updateFormData('password', text)}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+              textContentType="password"
+              autoComplete="password"
+              {...(Platform.OS === 'android' && {
+                selectionColor: '#424242',
+                underlineColorAndroid: 'transparent',
+              })}
+            />
+            <TouchableOpacity
+              style={styles.inputIconRight}
+              onPress={() => setShowPassword(!showPassword)}
+              disabled={loading}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off" : "eye"}
+                size={20}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
+          {errors.password && (
+            <Text style={styles.errorText}>{errors.password}</Text>
+          )}
+          {formData.password.length > 0 && !isPasswordValid() && (
+            <Text style={styles.errorText}>
+              Le mot de passe ne respecte pas les critères de sécurité
+            </Text>
+          )}
+          {formData.password.length > 0 && isPasswordValid() && formData.password !== formData.confirmPassword && formData.confirmPassword.length > 0 && (
+            <Text style={styles.errorText}>
+              Les mots de passe ne correspondent pas
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.inputContainer}>
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconLeft}>
+              <Ionicons name="lock-closed-outline" size={20} color={errors.confirmPassword ? COLORS.error : '#666'} />
+            </View>
+            <TextInput
+              style={[
+                styles.input,
+                styles.inputWithIcon,
+                styles.passwordInput,
+                errors.confirmPassword && styles.inputError,
+                { color: '#424242' }
+              ]}
+              placeholder="Confirmer le mot de passe *"
+              placeholderTextColor="#999"
+              value={formData.confirmPassword}
+              onChangeText={(text) => updateFormData('confirmPassword', text)}
+              secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+              textContentType="password"
+              autoComplete="password"
+              {...(Platform.OS === 'android' && {
+                selectionColor: '#424242',
+                underlineColorAndroid: 'transparent',
+              })}
+            />
+            <TouchableOpacity
+              style={styles.inputIconRight}
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              disabled={loading}
+            >
+              <Ionicons
+                name={showConfirmPassword ? "eye-off" : "eye"}
+                size={20}
+                color="#666"
+              />
+            </TouchableOpacity>
+          </View>
+          {errors.confirmPassword && (
+            <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+          )}
+        </View>
+
+        {/* Password Requirements */}
+        <View style={styles.passwordRequirementsContainer}>
+          <Text style={styles.passwordRequirementsTitle}>
+            Votre mot de passe doit contenir :
+          </Text>
+          <View style={styles.passwordRequirementsList}>
+            <View style={styles.passwordRequirementItem}>
+              <Ionicons
+                name={passwordReqs.minLength ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={passwordReqs.minLength ? COLORS.success : '#999'}
+              />
+              <Text
+                style={[
+                  styles.passwordRequirementText,
+                  passwordReqs.minLength && styles.passwordRequirementTextMet,
+                ]}
+              >
+                Au moins 8 caractères
+              </Text>
+            </View>
+            <View style={styles.passwordRequirementItem}>
+              <Ionicons
+                name={passwordReqs.hasLowercase ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={passwordReqs.hasLowercase ? COLORS.success : '#999'}
+              />
+              <Text
+                style={[
+                  styles.passwordRequirementText,
+                  passwordReqs.hasLowercase && styles.passwordRequirementTextMet,
+                ]}
+              >
+                Au moins 1 lettre minuscule
+              </Text>
+            </View>
+            <View style={styles.passwordRequirementItem}>
+              <Ionicons
+                name={passwordReqs.hasUppercase ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={passwordReqs.hasUppercase ? COLORS.success : '#999'}
+              />
+              <Text
+                style={[
+                  styles.passwordRequirementText,
+                  passwordReqs.hasUppercase && styles.passwordRequirementTextMet,
+                ]}
+              >
+                Au moins 1 lettre majuscule
+              </Text>
+            </View>
+            <View style={styles.passwordRequirementItem}>
+              <Ionicons
+                name={passwordReqs.hasNumber ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={passwordReqs.hasNumber ? COLORS.success : '#999'}
+              />
+              <Text
+                style={[
+                  styles.passwordRequirementText,
+                  passwordReqs.hasNumber && styles.passwordRequirementTextMet,
+                ]}
+              >
+                Au moins 1 chiffre
+              </Text>
+            </View>
+            <View style={styles.passwordRequirementItem}>
+              <Ionicons
+                name={passwordReqs.hasSpecial ? "checkmark-circle" : "ellipse-outline"}
+                size={18}
+                color={passwordReqs.hasSpecial ? COLORS.success : '#999'}
+              />
+              <Text
+                style={[
+                  styles.passwordRequirementText,
+                  passwordReqs.hasSpecial && styles.passwordRequirementTextMet,
+                ]}
+              >
+                Au moins 1 caractère spécial (!@#$%^&*...)
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Render Step 4: Summary
+   */
+  const renderStep4 = (): React.JSX.Element => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>Récapitulatif</Text>
+      <Text style={styles.stepSubtitle}>
+        Vérifiez vos informations avant de finaliser votre inscription
+      </Text>
+
+      <View style={styles.summaryContainer}>
+        <View style={styles.summaryItem}>
+          <View style={styles.summaryItemHeader}>
+            <Ionicons name="mail-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.summaryItemLabel}>E-mail</Text>
+          </View>
+          <Text style={styles.summaryItemValue}>{formData.email}</Text>
+        </View>
+
+        <View style={styles.summaryItem}>
+          <View style={styles.summaryItemHeader}>
+            <Ionicons name="person-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.summaryItemLabel}>Nom complet</Text>
+          </View>
+          <Text style={styles.summaryItemValue}>
+            {formData.firstName} {formData.lastName}
+          </Text>
+        </View>
+
+        <View style={styles.summaryItem}>
+          <View style={styles.summaryItemHeader}>
+            <Ionicons name="call-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.summaryItemLabel}>Téléphone</Text>
+          </View>
+          <Text style={styles.summaryItemValue}>{formData.phone}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  /**
+   * Render current step content
+   */
+  const renderCurrentStep = (): React.JSX.Element => {
+    switch (currentStep) {
+      case 1:
+        return renderStep1();
+      case 2:
+        return renderStep2();
+      case 3:
+        return renderStep3();
+      case 4:
+        return renderStep4();
+      default:
+        return renderStep1();
+    }
+  };
+
+  /**
+   * Render login form (multi-step)
+   */
+  const renderLoginForm = (): React.JSX.Element => {
+    // If not in register mode, show simple login form
+    if (!isRegisterMode) {
+      return (
     <View style={styles.loginContainer}>
       <LinearGradient
         colors={['#8BC34A', '#9CCC65']}
@@ -445,7 +1113,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                           styles.input,
                           styles.inputWithIcon,
                           errors.email && styles.inputError,
-                          { color: '#424242' } // Explicit color for Android
+                              { color: '#424242' }
                         ]}
                         placeholder="E-mail *"
                         placeholderTextColor="#999"
@@ -481,7 +1149,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                           styles.inputWithIcon,
                           styles.passwordInput,
                           errors.password && styles.inputError,
-                          { color: '#424242' } // Explicit color for Android
+                              { color: '#424242' }
                         ]}
                         placeholder="Mot de passe *"
                         placeholderTextColor="#999"
@@ -520,8 +1188,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                       <Text style={styles.errorText}>{errors.password}</Text>
                     )}
                   </View>
-
-
 
                   {/* Login Button */}
                   <TouchableOpacity
@@ -585,14 +1251,208 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                   <View style={styles.registerContainer}>
                     <Text style={styles.registerText}>Vous n'avez pas de compte ? </Text>
                     <TouchableOpacity
-                      onPress={handleRegister}
+                          onPress={() => setIsRegisterMode(true)}
                       disabled={loading}
                     >
                       <Text style={styles.registerLink}>Inscrivez-vous</Text>
                     </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
 
+                  {/* Terms */}
+                  <View style={styles.termsContainer}>
+                    <Text style={styles.termsText}>
+                      Sous réserve de conditions d'utilisation,{' '}
+                      <Text 
+                        style={styles.termsLink}
+                        onPress={() => setShowTermsModal(true)}
+                      >
+                        Lire nos Termes de services
+                      </Text>
+                    </Text>
                 </View>
+                </ScrollView>
+              </KeyboardAvoidingView>
+            </SafeAreaView>
+          </LinearGradient>
+        </View>
+      );
+    }
+
+    // Register mode - multi-step form
+    return (
+      <View style={styles.loginContainer}>
+        <LinearGradient
+          colors={['#8BC34A', '#9CCC65']}
+          style={styles.container}
+        >
+          <SafeAreaView style={styles.container}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.container}
+            >
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Main Content Card */}
+                <View style={styles.mainCard}>
+                  {/* Back Button */}
+                  {currentStep === 4 ? (
+                    <TouchableOpacity
+                      style={styles.backButton}
+                      onPress={handlePreviousStep}
+                      disabled={loading}
+                    >
+                      <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.backButton}
+                      onPress={() => setIsRegisterMode(false)}
+                    >
+                      <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Logo Section */}
+                  <View style={styles.logoSection}>
+                    <Image
+                      source={require('../../assets/logo.png')}
+                      style={styles.logo}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Title */}
+                  <Text style={styles.title}>Création de votre compte</Text>
+
+                  {/* Stepper */}
+                  {renderStepper()}
+
+                  {/* Current Step Content */}
+                  <View style={styles.form}>
+                    {renderCurrentStep()}
+                  </View>
+
+                  {/* Navigation Buttons */}
+                  {currentStep < 4 ? (
+                    <View style={styles.navigationButtons}>
+                      {currentStep > 1 && (
+                        <TouchableOpacity
+                          style={styles.navButtonSecondary}
+                          onPress={handlePreviousStep}
+                          disabled={loading}
+                        >
+                          <Ionicons name="arrow-back" size={18} color={COLORS.primary} />
+                          <Text style={styles.navButtonSecondaryText}>Précédent</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      <TouchableOpacity
+                        style={[
+                          styles.navButtonPrimary,
+                          currentStep === 1 && styles.navButtonPrimaryFull,
+                          loading && styles.navButtonDisabled,
+                          // Green when valid and enabled
+                          (currentStep === 1 && isStep1Valid()) && styles.navButtonPrimaryValid,
+                          (currentStep === 2 && isStep2Valid()) && styles.navButtonPrimaryValid,
+                          (currentStep === 3 && isStep3Valid()) && styles.navButtonPrimaryValid,
+                        ]}
+                        onPress={handleNextStep}
+                        disabled={
+                          loading ||
+                          (currentStep === 1 && !isStep1Valid()) ||
+                          (currentStep === 2 && !isStep2Valid()) ||
+                          (currentStep === 3 && !isStep3Valid())
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.navButtonPrimaryText}>Suivant</Text>
+                        <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.navButtonCreateAccount,
+                        styles.navButtonCreateAccountActive,
+                        loading && styles.navButtonDisabled,
+                      ]}
+                      onPress={handleFinalRegistration}
+                      disabled={loading}
+                      activeOpacity={0.8}
+                    >
+                      {loading ? (
+                        <View style={styles.buttonContent}>
+                          <ActivityIndicator
+                            size="small"
+                            color={COLORS.white}
+                            style={styles.spinner}
+                          />
+                          <Text style={styles.navButtonPrimaryText}>Création...</Text>
+                        </View>
+                      ) : (
+                        <>
+                          <Text style={styles.navButtonPrimaryText}>Créer mon compte</Text>
+                          <Ionicons name="checkmark" size={18} color={COLORS.white} />
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Google Sign Up Button - Only show on steps 1-3 */}
+                  {currentStep < 4 && (
+                    <>
+                      {/* Divider */}
+                      <View style={styles.dividerContainer}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>ou</Text>
+                        <View style={styles.dividerLine} />
+                      </View>
+
+                      {/* Google Button */}
+                      <TouchableOpacity
+                        style={[styles.googleButton, loading && styles.loginButtonDisabled]}
+                        onPress={handleGoogleLogin}
+                        disabled={loading || isGooglePrompting || !isGoogleAvailable}
+                        activeOpacity={0.8}
+                      >
+                        {loading || isGooglePrompting ? (
+                          <View style={styles.buttonContent}>
+                            <ActivityIndicator
+                              size="small"
+                              color="#000"
+                              style={styles.spinner}
+                            />
+                            <Text style={styles.googleButtonText}>Connexion...</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.buttonContent}>
+                            <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
+                            <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {errors.general && (
+                    <Text style={styles.generalErrorText}>{errors.general}</Text>
+                  )}
+
+                  {/* Login Link */}
+                  <View style={styles.registerContainer}>
+                    <Text style={styles.registerText}>Vous avez déjà un compte ? </Text>
+                    <TouchableOpacity
+                      onPress={() => setIsRegisterMode(false)}
+                      disabled={loading}
+                    >
+                      <Text style={styles.registerLink}>Connectez-vous</Text>
+                    </TouchableOpacity>
+                  </View>
               </View>
 
               {/* Terms */}
@@ -613,6 +1473,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
       </LinearGradient>
     </View>
   );
+  };
 
   
   return (
@@ -764,6 +1625,9 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: COLORS.error,
   },
+  inputValid: {
+    borderColor: COLORS.success,
+  },
   inputIconLeft: {
     position: 'absolute',
     left: 16,
@@ -780,6 +1644,12 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: COLORS.error,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  helperText: {
+    color: '#666',
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,
@@ -934,5 +1804,201 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
+  },
+  // Multi-step form styles
+  backButton: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 30,
+    paddingHorizontal: 10,
+  },
+  stepperStep: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stepperCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  stepperCircleActive: {
+    backgroundColor: COLORS.primary,
+  },
+  stepperNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#999',
+  },
+  stepperLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#E0E0E0',
+    marginHorizontal: 4,
+    marginBottom: 26,
+  },
+  stepperLineActive: {
+    backgroundColor: COLORS.primary,
+  },
+  stepContainer: {
+    width: '100%',
+  },
+  stepTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+    fontFamily: 'serif',
+  },
+  stepSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 30,
+    lineHeight: 20,
+  },
+  passwordRequirementsContainer: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  passwordRequirementsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
+  passwordRequirementsList: {
+    gap: 10,
+  },
+  passwordRequirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  passwordRequirementText: {
+    fontSize: 13,
+    color: '#999',
+  },
+  passwordRequirementTextMet: {
+    color: COLORS.success,
+    fontWeight: '500',
+  },
+  summaryContainer: {
+    marginTop: 20,
+    gap: 16,
+  },
+  summaryItem: {
+    padding: 16,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  summaryItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  summaryItemLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+  },
+  summaryItemValue: {
+    fontSize: 16,
+    color: theme.colors.text.primary,
+    fontWeight: '500',
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 30,
+  },
+  navButtonPrimary: {
+    flex: 1,
+    backgroundColor: '#CCCCCC', // Gray when disabled
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  navButtonPrimaryValid: {
+    backgroundColor: COLORS.success, // Green when valid and enabled
+  },
+  navButtonPrimaryFull: {
+    flex: 1,
+  },
+  navButtonCreateAccount: {
+    width: '100%',
+    marginTop: 30,
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  navButtonCreateAccountActive: {
+    backgroundColor: COLORS.success, // Always green/active for step 4
+  },
+  navButtonPrimaryText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  navButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  navButtonSecondaryText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  navButtonDisabled: {
+    opacity: 0.5,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    marginTop: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E0E0E0',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    color: '#666',
   },
 }); 
