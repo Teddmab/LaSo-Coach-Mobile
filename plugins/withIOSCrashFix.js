@@ -112,6 +112,32 @@ const withIOSCrashFix = (config) => {
       }
     }
 
+    // CRITIQUE: LSApplicationQueriesSchemes pour Google Sign-In iOS
+    // Permet à l'app d'interroger les apps Google/Safari pour l'authentification
+    // Sans cela, l'app peut crash lors de l'initialisation du SDK Google
+    const essentialGoogleSchemes = [
+      'googlegmail',
+      'googleplus',
+      'googledrive',
+      'googlechrome',
+      'googleyoutube',
+      'googlemaps',
+      'googlephotos',
+    ];
+    
+    if (!infoPlist.LSApplicationQueriesSchemes) {
+      infoPlist.LSApplicationQueriesSchemes = essentialGoogleSchemes;
+      console.log('✅ [withIOSCrashFix] Added LSApplicationQueriesSchemes for Google Sign-In');
+    } else {
+      // Ajouter les schemes Google essentiels s'ils ne sont pas déjà présents
+      essentialGoogleSchemes.forEach(scheme => {
+        if (!infoPlist.LSApplicationQueriesSchemes.includes(scheme)) {
+          infoPlist.LSApplicationQueriesSchemes.push(scheme);
+        }
+      });
+      console.log('✅ [withIOSCrashFix] Added essential Google schemes to LSApplicationQueriesSchemes');
+    }
+
     return config;
   });
 

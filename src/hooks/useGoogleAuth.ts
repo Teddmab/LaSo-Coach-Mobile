@@ -29,13 +29,24 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
   const googleAuthFunction = isRegistration ? registerWithGoogle : loginWithGoogle;
 
   // Configuration du SDK Google Sign-In (une seule fois)
+  // IMPORTANT: Configuration lazy pour éviter les crashes au démarrage sur iOS
   useEffect(() => {
     const configureGoogleSignIn = async (): Promise<void> => {
       try {
         // Vérifier que le Web Client ID est disponible
         if (!firebaseOAuthClientIds.web) {
           console.error('❌ FIREBASE_WEB_CLIENT_ID manquant !');
+          setIsConfigured(false);
           return;
+        }
+
+        // Sur iOS, vérifier que iosClientId est présent AVANT de configurer
+        if (Platform.OS === 'ios') {
+          if (!firebaseOAuthClientIds.ios) {
+            console.error('❌ [iOS] FIREBASE_IOS_CLIENT_ID manquant ! Le SDK Google Sign-In ne peut pas être configuré.');
+            setIsConfigured(false);
+            return;
+          }
         }
 
         // Configuration du SDK natif
@@ -66,21 +77,44 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           scopes: ['email', 'profile'],
         });
 
-        GoogleSignin.configure(config);
-
-        console.log('✅ Google Sign-In SDK natif configuré');
-        console.log('🔐 Web Client ID:', firebaseOAuthClientIds.web);
-        console.log('📱 Plateforme:', Platform.OS);
-        console.log('🚀 SDK NATIF - Pas de WebView !');
-        
-        setIsConfigured(true);
+        // Sur iOS, wrapper dans try-catch pour éviter les crashes lors de la configuration
+        try {
+          GoogleSignin.configure(config);
+          console.log('✅ Google Sign-In SDK natif configuré');
+          console.log('🔐 Web Client ID:', firebaseOAuthClientIds.web);
+          console.log('📱 Plateforme:', Platform.OS);
+          console.log('🚀 SDK NATIF - Pas de WebView !');
+          setIsConfigured(true);
+        } catch (configError: any) {
+          console.error('❌ Erreur lors de GoogleSignin.configure():', configError);
+          console.error('❌ Message:', configError.message);
+          console.error('❌ Stack:', configError.stack);
+          
+          // Sur iOS, si la configuration échoue, ne pas faire crash l'app
+          if (Platform.OS === 'ios') {
+            console.error('⚠️ [iOS] Configuration Google Sign-In échouée. L\'authentification Google ne sera pas disponible.');
+            setIsConfigured(false);
+          } else {
+            throw configError;
+          }
+        }
       } catch (error: any) {
         console.error('❌ Erreur configuration Google Sign-In:', error);
+        console.error('❌ Message:', error.message);
+        console.error('❌ Stack:', error.stack);
         setIsConfigured(false);
       }
     };
 
-    configureGoogleSignIn();
+    // Délai pour éviter l'initialisation au démarrage (peut causer des crashes)
+    // Initialisation lazy : seulement quand nécessaire
+    const timeoutId = setTimeout(() => {
+      configureGoogleSignIn();
+    }, 500); // Attendre 500ms après le montage du composant
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   /**
@@ -111,174 +145,65 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
       console.log('🚀 Lancement de l\'authentification Google native...');
       
-      // ============================================================
-      // NOUVELLE APPROCHE: Sans signInSilently() qui RECONNECTE le compte
-      // On fait juste revokeAccess() + signOut() avec des délais longs
-      // ============================================================
-      
-      console.log('💀 ÉTAPE 1: Révocation complète de l\'accès...');
-      try {
-        await GoogleSignin.revokeAccess();
-        console.log('✅ revokeAccess() réussi');
-      } catch (revokeError: any) {
-        console.log('ℹ️ revokeAccess():', revokeError?.code || 'pas de compte');
-      }
-      
-      // Attendre que Google traite la révocation (requête réseau)
-      console.log('⏳ Attente de 1 seconde pour traitement de la révocation...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('💀 ÉTAPE 2: Déconnexion...');
-      try {
-        await GoogleSignin.signOut();
-        console.log('✅ signOut() réussi');
-      } catch (e) {
-        console.log('ℹ️ signOut(): pas de session');
-      }
-      
-      // Attendre
-      console.log('⏳ Attente de 500ms...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      console.log('💀 ÉTAPE 3: Deuxième révocation (pour être sûr)...');
-      try {
-        await GoogleSignin.revokeAccess();
-        console.log('✅ 2ème revokeAccess() réussi');
-      } catch (e) {
-        console.log('ℹ️ 2ème revokeAccess(): déjà révoqué');
-      }
-      
-      // Attendre
-      console.log('⏳ Attente de 500ms...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      console.log('💀 ÉTAPE 4: Deuxième déconnexion...');
-      try {
-        await GoogleSignin.signOut();
-        console.log('✅ 2ème signOut() réussi');
-      } catch (e) {
-        console.log('ℹ️ 2ème signOut(): déjà déconnecté');
-      }
-      
-      // Attendre
-      console.log('⏳ Attente de 500ms...');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // ============================================================
-      // ÉTAPE 5: RÉINITIALISATION COMPLÈTE DU SDK
-      // On reconfigure plusieurs fois pour forcer un état "frais"
-      // ============================================================
-      console.log('🔧 ÉTAPE 5: RÉINITIALISATION COMPLÈTE du SDK (3 fois)...');
-      
-      // Première reconfiguration - config minimale pour "reset"
-      console.log('🔧 Config 1/3: Reset minimal...');
-      const config1: any = {
-        webClientId: firebaseOAuthClientIds.web,
-      };
-      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
-        config1.iosClientId = firebaseOAuthClientIds.ios;
-      }
-      GoogleSignin.configure(config1);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Deuxième reconfiguration - config complète avec accountName: undefined
-      console.log('🔧 Config 2/3: Config complète avec accountName undefined...');
-      const config2: any = {
-        webClientId: firebaseOAuthClientIds.web,
-        offlineAccess: true,
-        forceCodeForRefreshToken: true,
-        scopes: ['email', 'profile'],
-        accountName: undefined, // Force à ne pas prioriser un compte
-        hostedDomain: '', // Chaîne vide = pas de restriction
-      };
-      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
-        config2.iosClientId = firebaseOAuthClientIds.ios;
-      }
-      GoogleSignin.configure(config2);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Troisième reconfiguration - config finale propre
-      console.log('🔧 Config 3/3: Config finale...');
-      const config3: any = {
-        webClientId: firebaseOAuthClientIds.web,
-        offlineAccess: true,
-        forceCodeForRefreshToken: true,
-        scopes: ['email', 'profile'],
-      };
-      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
-        config3.iosClientId = firebaseOAuthClientIds.ios;
-      }
-      GoogleSignin.configure(config3);
-      console.log('✅ SDK reconfiguré 3 fois');
-      
-      // Attendre plus longtemps
-      console.log('⏳ Attente de 1 seconde...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Vérification finale
-      console.log('🔍 ÉTAPE 6: Vérification finale...');
-      try {
-        const user = await GoogleSignin.getCurrentUser();
-        if (user) {
-          const email = (user as any)?.user?.email || (user as any)?.data?.user?.email;
-          console.log(`⚠️ Compte encore présent: ${email || 'inconnu'} - dernière déconnexion...`);
-          try { await GoogleSignin.revokeAccess(); } catch (e) { /* ignore */ }
-          try { await GoogleSignin.signOut(); } catch (e) { /* ignore */ }
-          
-          // Reconfigurer une dernière fois
-          const finalConfig: any = {
-            webClientId: firebaseOAuthClientIds.web,
-            offlineAccess: true,
-            forceCodeForRefreshToken: true,
-            scopes: ['email', 'profile'],
-          };
-          if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
-            finalConfig.iosClientId = firebaseOAuthClientIds.ios;
-          }
-          GoogleSignin.configure(finalConfig);
-          await new Promise(resolve => setTimeout(resolve, 500));
-        } else {
-          console.log('✅ Aucun compte détecté');
-        }
-      } catch (e) {
-        console.log('✅ Pas de compte');
-      }
-      
-      console.log('✅✅✅ Processus terminé');
-      console.log('📱 Ouverture de l\'UI Google pour sélection de compte...');
-      
-      // Sur iOS, s'assurer que la configuration est à jour avant signIn()
+      // Sur iOS, simplifier le processus pour éviter les crashes
       if (Platform.OS === 'ios') {
-        // Reconfigurer une dernière fois pour iOS avant signIn()
+        console.log('🍎 [iOS] Configuration simplifiée pour éviter les crashes...');
+        
+        // Configuration minimale et robuste pour iOS
         const iosConfig: any = {
           webClientId: firebaseOAuthClientIds.web,
           offlineAccess: true,
           forceCodeForRefreshToken: true,
           scopes: ['email', 'profile'],
-          hostedDomain: undefined,
         };
+        
         if (firebaseOAuthClientIds.ios) {
           iosConfig.iosClientId = firebaseOAuthClientIds.ios;
+          console.log('🍎 [iOS] iosClientId configuré:', firebaseOAuthClientIds.ios.substring(0, 30) + '...');
+        } else {
+          console.warn('⚠️ [iOS] iosClientId manquant !');
         }
+        
         try {
           GoogleSignin.configure(iosConfig);
-          console.log('🍎 [iOS] Configuration Google Sign-In mise à jour avant signIn()');
+          console.log('✅ [iOS] Configuration Google Sign-In réussie');
         } catch (configError: any) {
-          console.error('❌ [iOS] Erreur lors de la reconfiguration:', configError);
-          throw new Error(`Configuration Google Sign-In échouée: ${configError.message}`);
+          console.error('❌ [iOS] Erreur lors de la configuration:', configError);
+          throw new Error(`Configuration Google Sign-In échouée: ${configError.message || 'Erreur inconnue'}`);
+        }
+        
+        // Attendre un peu pour que la configuration soit appliquée
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } else {
+        // Sur Android, garder la logique de révocation pour éviter la reconnexion automatique
+        console.log('🤖 [Android] Révocation de l\'accès précédent...');
+        try {
+          await GoogleSignin.revokeAccess();
+          await GoogleSignin.signOut();
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (e) {
+          console.log('ℹ️ Pas de session précédente');
         }
       }
       
+      console.log('📱 Ouverture de l\'UI Google pour sélection de compte...');
+      
       let userInfo: any;
       try {
+        // Utiliser signIn() avec gestion d'erreurs robuste
         userInfo = await GoogleSignin.signIn();
       } catch (signInError: any) {
         console.error('❌ [Google Sign-In] Erreur lors de signIn():', signInError);
+        console.error('❌ [Google Sign-In] Code erreur:', signInError.code);
+        console.error('❌ [Google Sign-In] Message:', signInError.message);
+        console.error('❌ [Google Sign-In] Stack:', signInError.stack);
         
-        // Gérer les erreurs spécifiques iOS
+        // Gérer les erreurs spécifiques iOS avec gestion robuste pour éviter les crashes
         if (Platform.OS === 'ios') {
-          // Erreur commune iOS : REVERSED_CLIENT_ID manquant dans URL schemes
-          if (signInError.code === 'SIGN_IN_CANCELLED' || signInError.code === '10') {
+          // Erreur commune iOS : Connexion annulée
+          if (signInError.code === 'SIGN_IN_CANCELLED' || 
+              signInError.code === '10' || 
+              signInError.code === statusCodes.SIGN_IN_CANCELLED) {
             console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
             result = {
               user: null,
@@ -288,12 +213,47 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
             return result;
           }
           
-          // Erreur de configuration
-          if (signInError.message?.includes('configuration') || signInError.message?.includes('clientId')) {
-            throw new Error('Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes.');
+          // Erreur de configuration - ne pas faire crash l'app
+          if (signInError.message?.includes('configuration') || 
+              signInError.message?.includes('clientId') ||
+              signInError.message?.includes('REVERSED_CLIENT_ID') ||
+              signInError.message?.includes('URL scheme')) {
+            const errorMsg = 'Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes.';
+            console.error('❌ [iOS]', errorMsg);
+            result = {
+              user: null,
+              error: errorMsg,
+            };
+            setIsPrompting(false);
+            return result;
           }
+          
+          // Erreur réseau ou autre - ne pas faire crash
+          if (signInError.message?.includes('network') || 
+              signInError.message?.includes('Network') ||
+              signInError.message?.includes('timeout')) {
+            const errorMsg = 'Erreur de connexion. Vérifiez votre connexion internet.';
+            console.error('❌ [iOS]', errorMsg);
+            result = {
+              user: null,
+              error: errorMsg,
+            };
+            setIsPrompting(false);
+            return result;
+          }
+          
+          // Pour toute autre erreur iOS, retourner gracieusement sans crash
+          const errorMsg = signInError.message || 'Erreur lors de la connexion Google';
+          console.error('❌ [iOS] Erreur inconnue:', errorMsg);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
         }
         
+        // Pour Android, propager l'erreur normalement
         throw signInError;
       }
 
