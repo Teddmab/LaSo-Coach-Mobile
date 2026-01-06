@@ -176,14 +176,14 @@ export default function SubscriptionPaymentFlow({
           });
         }
       } else {
-        setError(errorMessage);
-        setCurrentStep(4);
-        
-        Toast.show({
-          type: 'error',
-          text1: 'Erreur',
-          text2: errorMessage,
-        });
+      setError(errorMessage);
+      setCurrentStep(4);
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: errorMessage,
+      });
       }
     } finally {
       setProcessing(false);
@@ -277,8 +277,8 @@ export default function SubscriptionPaymentFlow({
             });
           }
         } else {
-          setError(errorMessage);
-          setCurrentStep(4);
+        setError(errorMessage);
+        setCurrentStep(4);
           
           Toast.show({
             type: 'error',
@@ -353,8 +353,8 @@ export default function SubscriptionPaymentFlow({
             });
           }
         } else {
-          setError(errorMessage);
-          setCurrentStep(4);
+        setError(errorMessage);
+        setCurrentStep(4);
           
           Toast.show({
             type: 'error',
@@ -485,8 +485,8 @@ export default function SubscriptionPaymentFlow({
             });
           }
         } else {
-          setError(errorMessage);
-          setCurrentStep(4);
+        setError(errorMessage);
+        setCurrentStep(4);
           
           Toast.show({
             type: 'error',
@@ -584,6 +584,14 @@ export default function SubscriptionPaymentFlow({
       setSuccess(true);
       setCurrentStep(4);
       
+      // Log pour debug de l'erreur de plan nutritionnel
+      console.log('✅ [SubscriptionPaymentFlow] Subscription confirmed successfully', {
+        planId: plan.id,
+        subscriptionData: subscriptionData?.data || subscriptionData,
+        hasNutritionPlan: !!(subscriptionData?.data?.assignedPlan || subscriptionData?.assignedPlan),
+        nutritionPlanId: subscriptionData?.data?.assignedPlan?.id || subscriptionData?.assignedPlan?.id,
+      });
+      
       if (onSuccess) {
         onSuccess({
           planId: plan.id,
@@ -594,6 +602,14 @@ export default function SubscriptionPaymentFlow({
         });
       }
     } catch (error: any) {
+      // Log détaillé de l'erreur pour identifier le problème de plan nutritionnel
+      console.error('❌ [SubscriptionPaymentFlow] Error confirming payment/subscription', {
+        error: error.message,
+        errorResponse: error.response?.data,
+        errorStatus: error.response?.status,
+        planId: plan.id,
+        paymentMethod: selectedPaymentMethod,
+      });
       // Vérifier si l'erreur indique qu'un abonnement existe déjà
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors du traitement du paiement';
       const errorCode = error.response?.data?.code || error.response?.status;
@@ -632,14 +648,14 @@ export default function SubscriptionPaymentFlow({
           });
         }
       } else {
-        setError(errorMessage);
-        setCurrentStep(4);
-        
-        Toast.show({
-          type: 'error',
-          text1: 'Erreur de paiement',
-          text2: errorMessage,
-        });
+      setError(errorMessage);
+      setCurrentStep(4);
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur de paiement',
+        text2: errorMessage,
+      });
       }
     } finally {
       setProcessing(false);

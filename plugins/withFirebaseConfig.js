@@ -1,4 +1,4 @@
-const { withDangerousMod, withXcodeProject } = require('@expo/config-plugins');
+const { withDangerousMod, withXcodeProject, withInfoPlist } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -110,6 +110,72 @@ const withFirebaseConfig = (config) => {
   // Le fichier a été copié avec succès, donc il devrait être inclus automatiquement.
   // Si ce n'est pas le cas, il faudra l'ajouter manuellement dans Xcode :
   // Target > Build Phases > Copy Bundle Resources > + > GoogleService-Info.plist
+
+  // Ajouter le REVERSED_CLIENT_ID aux URL schemes pour Google Sign-In iOS
+  config = withInfoPlist(config, (config) => {
+    const infoPlist = config.modResults;
+    
+    // Lire le REVERSED_CLIENT_ID depuis GoogleService-Info.plist
+    let reversedClientId = null;
+    const googleServicePath = path.join(config.modRequest.projectRoot, 'firebase-config', 'GoogleService-Info.plist');
+    
+    if (fs.existsSync(googleServicePath)) {
+      try {
+        const plistContent = fs.readFileSync(googleServicePath, 'utf8');
+        const reversedClientIdMatch = plistContent.match(/<key>REVERSED_CLIENT_ID<\/key>\s*<string>(.*?)<\/string>/);
+        if (reversedClientIdMatch) {
+          reversedClientId = reversedClientIdMatch[1];
+          console.log(`✅ [withFirebaseConfig] Found REVERSED_CLIENT_ID: ${reversedClientId}`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ [withFirebaseConfig] Could not read REVERSED_CLIENT_ID: ${error.message}`);
+      }
+    }
+    
+    // Ajouter le REVERSED_CLIENT_ID aux URL schemes si trouvé
+    if (reversedClientId) {
+      if (!infoPlist.CFBundleURLTypes) {
+        infoPlist.CFBundleURLTypes = [
+          {
+            CFBundleURLSchemes: [reversedClientId],
+            CFBundleURLName: 'com.afrotouch.lasocoach.google',
+          },
+        ];
+        console.log(`✅ [withFirebaseConfig] Added CFBundleURLTypes with REVERSED_CLIENT_ID for Google Sign-In`);
+      } else {
+        // Chercher si le REVERSED_CLIENT_ID existe déjà
+        let found = false;
+        for (const urlType of infoPlist.CFBundleURLTypes) {
+          if (Array.isArray(urlType.CFBundleURLSchemes)) {
+            if (urlType.CFBundleURLSchemes.includes(reversedClientId)) {
+              found = true;
+              break;
+            }
+          }
+        }
+        
+        // Si pas trouvé, l'ajouter au premier élément ou créer un nouveau
+        if (!found) {
+          if (infoPlist.CFBundleURLTypes.length > 0 && Array.isArray(infoPlist.CFBundleURLTypes[0].CFBundleURLSchemes)) {
+            infoPlist.CFBundleURLTypes[0].CFBundleURLSchemes.push(reversedClientId);
+            console.log(`✅ [withFirebaseConfig] Added REVERSED_CLIENT_ID to existing CFBundleURLSchemes`);
+          } else {
+            infoPlist.CFBundleURLTypes.push({
+              CFBundleURLSchemes: [reversedClientId],
+              CFBundleURLName: 'com.afrotouch.lasocoach.google',
+            });
+            console.log(`✅ [withFirebaseConfig] Added new CFBundleURLType with REVERSED_CLIENT_ID`);
+          }
+        } else {
+          console.log(`ℹ️ [withFirebaseConfig] REVERSED_CLIENT_ID already in CFBundleURLSchemes`);
+        }
+      }
+    } else {
+      console.warn(`⚠️ [withFirebaseConfig] REVERSED_CLIENT_ID not found - Google Sign-In may not work on iOS`);
+    }
+    
+    return config;
+  });
 
   return config;
 };

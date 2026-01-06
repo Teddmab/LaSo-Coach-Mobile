@@ -76,6 +76,10 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         } : null);
       }
       
+      // Rafraîchir les badges pour mettre à jour la progression et les niveaux
+      // Cela permet de mettre à jour la progression entre les 3 niveaux d'un badge
+      fetchBadges();
+      
       if (data.pointsAdded && data.pointsAdded > 0) {
         setFloatingPointsData({
           points: `+${data.pointsAdded}`,

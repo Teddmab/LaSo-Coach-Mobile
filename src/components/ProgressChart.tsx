@@ -159,19 +159,33 @@ const ProgressChart = ({
 
   // Get sorted measurements with initial measurement first
   const getSortedMeasurements = () => {
+    // Toujours créer une mesure initiale en première ligne avec poids et taille
+    const initialMeasurement = initialMeasurements ? {
+      ...initialMeasurements,
+      isInitial: true,
+      // S'assurer que le poids et la taille sont toujours présents
+      weight: initialMeasurements.weight || null,
+      waistSize: initialMeasurements.waistSize || null,
+    } : null;
+
     if (!measurements || measurements.length === 0) {
-      return initialMeasurements ? [initialMeasurements] : [];
+      return initialMeasurement ? [initialMeasurement] : [];
     }
 
     const allMeasurements = [...measurements];
     
-    // Add initial measurements if available and not already in the list
-    if (initialMeasurements && !allMeasurements.find(m => m.isInitial)) {
-      allMeasurements.unshift({ ...initialMeasurements, isInitial: true });
+    // S'assurer que la mesure initiale est toujours en première position
+    // Retirer toute mesure initiale existante de la liste pour éviter les doublons
+    const filteredMeasurements = allMeasurements.filter(m => !m.isInitial);
+    
+    // Ajouter la mesure initiale en première position si elle existe
+    if (initialMeasurement) {
+      filteredMeasurements.unshift(initialMeasurement);
     }
 
     // Sort by date (latest first, but initial measurement stays on top)
-    return allMeasurements.sort((a, b) => {
+    return filteredMeasurements.sort((a, b) => {
+      // La mesure initiale reste toujours en première position
       if (a.isInitial) return -1;
       if (b.isInitial) return 1;
       
@@ -296,18 +310,39 @@ const ProgressChart = ({
                 </View>
                 
                 <View style={styles.measurementValues}>
-                  {measurement.weight && (
-                    <View style={styles.measurementValue}>
-                      <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
-                      <Text style={styles.valueText}>{measurement.weight} kg</Text>
-                    </View>
-                  )}
-                  
-                  {measurement.waistSize && (
-                    <View style={styles.measurementValue}>
-                      <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
-                      <Text style={styles.valueText}>{measurement.waistSize} cm</Text>
-                    </View>
+                  {/* Pour la mesure initiale, toujours afficher poids et taille même si null */}
+                  {measurement.isInitial ? (
+                    <>
+                      <View style={styles.measurementValue}>
+                        <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
+                        <Text style={styles.valueText}>
+                          {measurement.weight ? `${measurement.weight} kg` : '-'}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.measurementValue}>
+                        <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
+                        <Text style={styles.valueText}>
+                          {measurement.waistSize ? `${measurement.waistSize} cm` : '-'}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {measurement.weight && (
+                        <View style={styles.measurementValue}>
+                          <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
+                          <Text style={styles.valueText}>{measurement.weight} kg</Text>
+                        </View>
+                      )}
+                      
+                      {measurement.waistSize && (
+                        <View style={styles.measurementValue}>
+                          <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
+                          <Text style={styles.valueText}>{measurement.waistSize} cm</Text>
+                        </View>
+                      )}
+                    </>
                   )}
                 </View>
                 

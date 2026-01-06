@@ -89,15 +89,27 @@ const withIOSCrashFix = (config) => {
       console.log('✅ [withIOSCrashFix] Added NSAppTransportSecurity');
     }
 
-    // Configuration pour les deep links
+    // Configuration pour les deep links et Google Sign-In
+    // Le REVERSED_CLIENT_ID est nécessaire pour Google Sign-In sur iOS
+    const reversedClientId = 'com.googleusercontent.apps.855620848279-2cjfq731f6f8ts6fmicqg2ieumssvcl9';
+    
     if (!infoPlist.CFBundleURLTypes) {
       infoPlist.CFBundleURLTypes = [
         {
-          CFBundleURLSchemes: ['lasocoach', 'com.laso.coach'],
+          CFBundleURLSchemes: ['lasocoach', 'com.laso.coach', reversedClientId],
           CFBundleURLName: 'com.afrotouch.lasocoach',
         },
       ];
-      console.log('✅ [withIOSCrashFix] Added CFBundleURLTypes for deep links');
+      console.log('✅ [withIOSCrashFix] Added CFBundleURLTypes for deep links and Google Sign-In');
+    } else {
+      // Si CFBundleURLTypes existe déjà, ajouter le REVERSED_CLIENT_ID au premier élément
+      if (infoPlist.CFBundleURLTypes.length > 0 && Array.isArray(infoPlist.CFBundleURLTypes[0].CFBundleURLSchemes)) {
+        const schemes = infoPlist.CFBundleURLTypes[0].CFBundleURLSchemes;
+        if (!schemes.includes(reversedClientId)) {
+          schemes.push(reversedClientId);
+          console.log('✅ [withIOSCrashFix] Added REVERSED_CLIENT_ID to existing CFBundleURLSchemes');
+        }
+      }
     }
 
     return config;

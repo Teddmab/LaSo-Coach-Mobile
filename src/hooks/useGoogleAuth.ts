@@ -246,7 +246,56 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       
       console.log('✅✅✅ Processus terminé');
       console.log('📱 Ouverture de l\'UI Google pour sélection de compte...');
-      const userInfo: any = await GoogleSignin.signIn();
+      
+      // Sur iOS, s'assurer que la configuration est à jour avant signIn()
+      if (Platform.OS === 'ios') {
+        // Reconfigurer une dernière fois pour iOS avant signIn()
+        const iosConfig: any = {
+          webClientId: firebaseOAuthClientIds.web,
+          offlineAccess: true,
+          forceCodeForRefreshToken: true,
+          scopes: ['email', 'profile'],
+          hostedDomain: undefined,
+        };
+        if (firebaseOAuthClientIds.ios) {
+          iosConfig.iosClientId = firebaseOAuthClientIds.ios;
+        }
+        try {
+          GoogleSignin.configure(iosConfig);
+          console.log('🍎 [iOS] Configuration Google Sign-In mise à jour avant signIn()');
+        } catch (configError: any) {
+          console.error('❌ [iOS] Erreur lors de la reconfiguration:', configError);
+          throw new Error(`Configuration Google Sign-In échouée: ${configError.message}`);
+        }
+      }
+      
+      let userInfo: any;
+      try {
+        userInfo = await GoogleSignin.signIn();
+      } catch (signInError: any) {
+        console.error('❌ [Google Sign-In] Erreur lors de signIn():', signInError);
+        
+        // Gérer les erreurs spécifiques iOS
+        if (Platform.OS === 'ios') {
+          // Erreur commune iOS : REVERSED_CLIENT_ID manquant dans URL schemes
+          if (signInError.code === 'SIGN_IN_CANCELLED' || signInError.code === '10') {
+            console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
+            result = {
+              user: null,
+              error: null,
+            };
+            setIsPrompting(false);
+            return result;
+          }
+          
+          // Erreur de configuration
+          if (signInError.message?.includes('configuration') || signInError.message?.includes('clientId')) {
+            throw new Error('Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes.');
+          }
+        }
+        
+        throw signInError;
+      }
 
       console.log('📦 USERINFO BRUT:', JSON.stringify(userInfo, null, 2));
       console.log('👤 User présent ?', !!(userInfo as any)?.user);

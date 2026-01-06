@@ -70,15 +70,76 @@ export const nutritionAPI: {
   /**
    * Complete meal
    * Endpoint: POST /api/v1/meals/{mealId}/complete
+   * Utilise fetch directement comme dans ProfileApi.updateProfile (pas Axios)
    * @param {string} mealId - The meal ID
-   * @param {Object} data - Completion data (feedback, rating)
+   * @param {Object} data - Completion data (nutritionPlanId, completionDate, planDay, feedback, rating)
    * @returns {Promise<Object>} Completion response
    */
   async completeMeal(mealId, data = {}) {
     try {
-      const response = await api.post(`/meals/${mealId}/complete`, data);
-      return response.data;
+      // Récupérer le token Firebase pour l'authentification
+      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
+      const idToken = await firebaseAuthService.getIdToken();
+
+      if (!idToken) {
+        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
+      }
+
+      const Config = require('../config/env').default;
+      const url = `${Config.API_BASE_URL}/meals/${mealId}/complete`;
+
+      console.log('🔵 [nutritionAPI.completeMeal] Appel API avec fetch:', {
+        mealId,
+        endpoint: `/meals/${mealId}/complete`,
+        data,
+        fullUrl: url,
+      });
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      const text = await response.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (parseError) {
+        console.error('🔴 [nutritionAPI.completeMeal] Erreur parsing JSON:', parseError);
+      }
+
+      if (!response.ok) {
+        const message = json?.message || `Erreur lors de la complétion du repas (code ${response.status})`;
+        const error: any = new Error(message);
+        error.status = response.status;
+        error.data = json;
+        error.response = {
+          status: response.status,
+          data: json,
+        };
+        throw error;
+      }
+
+      console.log('🔵 [nutritionAPI.completeMeal] ✅ Réponse reçue:', {
+        status: response.status,
+        data: json,
+      });
+
+      // Retourner la réponse complète (comme dans ProfileApi)
+      return json?.data || json;
     } catch (error) {
+      console.error('🔴 [nutritionAPI.completeMeal] ❌ ERREUR:', {
+        mealId,
+        errorMessage: error?.message,
+        errorStatus: error?.status || error?.response?.status,
+        errorData: error?.data || error?.response?.data,
+        fullError: error,
+      });
       throw error;
     }
   },

@@ -137,10 +137,15 @@ export const useProgressScreen = (
       
       if (profileData) {
         const profile = (profileData as any).profile || profileData;
+        // Récupérer les valeurs initiales avec fallback sur Profile
+        const initialWeight = profile.initialWeight ?? profile.Profile?.initialWeight ?? null;
+        const initialWaistSize = profile.initialWaistSize ?? profile.Profile?.initialWaistSize ?? null;
+        const createdAt = profile.createdAt ?? profile.Profile?.createdAt ?? (profileData as any).createdAt ?? new Date().toISOString();
+        
         setInitialMeasurements({
-          weight: profile.initialWeight,
-          waistSize: profile.initialWaistSize,
-          date: profile.createdAt || (profileData as any).createdAt || new Date().toISOString(),
+          weight: initialWeight,
+          waistSize: initialWaistSize,
+          date: createdAt,
         });
       } else {
         setProfile({

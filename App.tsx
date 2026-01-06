@@ -288,7 +288,7 @@ export default function App() {
             position="top"
             visibilityTime={5000}
             autoHide={true}
-            topOffset={50}
+            topOffset={20}
           />
         </StripeProvider>
       </SafeAreaProvider>

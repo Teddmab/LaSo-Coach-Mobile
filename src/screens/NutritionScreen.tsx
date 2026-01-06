@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -60,13 +61,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [selectedMeal, setSelectedMeal] = useState(null);
   
   // Tab state for meal preview
-  const [activeMealTab, setActiveMealTab] = useState('composition'); // 'composition', 'recipe', or 'ingredients'
+  const [activeMealTab, setActiveMealTab] = useState('recipe'); // 'recipe' or 'ingredients' (composition removed)
   
   // YouTube video state
   const [youtubeVideoId, setYoutubeVideoId] = useState(null);
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
-  const [youtubeModalTab, setYoutubeModalTab] = useState('composition'); // Tab state for YouTube modal
+  const [youtubeModalTab, setYoutubeModalTab] = useState('recipe'); // Tab state for YouTube modal (default to recipe, composition removed)
   
   // Meal completion modal state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -115,6 +116,19 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Mise à jour automatique quand l'écran revient au focus
+  useFocusEffect(
+    useCallback(() => {
+      // Rafraîchir les données quand l'écran revient au focus
+      if (currentPlan && subscriptionData) {
+        loadDayData();
+      } else {
+        // Si pas de plan, essayer de charger les données
+        fetchAllData();
+      }
+    }, [currentPlan, subscriptionData])
+  );
 
   useEffect(() => {
     if (currentPlan && subscriptionData) {
@@ -805,19 +819,75 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   };
 
   const handleMealComplete = async (mealId) => {
+    console.log('🔵 [MEAL COMPLETE] ==========================================');
+    console.log('🔵 [MEAL COMPLETE] Début de la complétion du repas');
+    console.log('🔵 [MEAL COMPLETE] mealId:', mealId);
+    console.log('🔵 [MEAL COMPLETE] currentPlan:', currentPlan ? { id: currentPlan.id, name: currentPlan.name } : 'null');
+    console.log('🔵 [MEAL COMPLETE] selectedDate:', selectedDate);
+    console.log('🔵 [MEAL COMPLETE] subscriptionData:', subscriptionData ? { status: subscriptionData.status } : 'null');
+    
     logger.group('✅ MEAL COMPLETE ACTION');
     logger.info('User Action: Meal complete button pressed', { mealId });
     
     try {
+      // Log détaillé avant l'appel API
+      console.log('🔵 [MEAL COMPLETE] Préparation de l\'appel API...');
+      console.log('🔵 [MEAL COMPLETE] Endpoint: POST /meals/' + mealId + '/complete');
+      
       logger.debug('API Request: Marking meal as complete', { 
         mealId, 
         endpoint: 'POST /meals/{mealId}/complete',
-        note: 'Awards 25 points and marks meal as completed'
+        note: 'Awards 25 points and marks meal as completed',
+        currentPlanId: currentPlan?.id,
+        currentPlanName: currentPlan?.name,
+        selectedDate: selectedDate,
+        hasSubscriptionData: !!subscriptionData,
+        subscriptionStatus: subscriptionData?.status,
       });
-      const response = await nutritionAPI.completeMeal(mealId);
+      
+      // Préparer les données requises par le backend
+      if (!currentPlan?.id) {
+        throw new Error('Plan nutritionnel non disponible. Veuillez réessayer.');
+      }
+
+      // selectedDate est un nombre (jour du mois), convertir en Date complète
+      // Utiliser la même logique que dans loadDayData (ligne 431)
+      const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+
+      // Calculer le planDay pour la date sélectionnée
+      const planDay = calculateNutritionPlanDay(selectedDateObj);
+      
+      // Formater la completionDate au format ISO (comme la version web)
+      const completionDate = new Date(selectedDateObj);
+      completionDate.setHours(0, 0, 0, 0);
+      const completionDateISO = completionDate.toISOString().split('T')[0] + 'T00:00:00.000Z';
+      
+      console.log('🔵 [MEAL COMPLETE] Date calculée:', {
+        selectedDate,
+        selectedDateObj: selectedDateObj.toISOString(),
+        completionDateISO,
+        planDay,
+        nutritionPlanId: currentPlan.id,
+      });
+
+      const completionData = {
+        nutritionPlanId: currentPlan.id,
+        completionDate: completionDateISO,
+        planDay: planDay,
+      };
+
+      console.log('🔵 [MEAL COMPLETE] Données à envoyer:', completionData);
+      console.log('🔵 [MEAL COMPLETE] Appel API en cours...');
+      const response = await nutritionAPI.completeMeal(mealId, completionData);
+      console.log('🔵 [MEAL COMPLETE] ✅ Réponse API reçue:', response);
+      
+      // Log détaillé de la réponse
       logger.debug('API Response: Meal marked as complete successfully', {
         response: response?.data || response,
-        pointsAwarded: response?.data?.pointsAwarded || response?.pointsAwarded || 25
+        responseStatus: response?.status,
+        pointsAwarded: response?.data?.pointsAwarded || response?.pointsAwarded || 25,
+        hasData: !!response?.data,
+        fullResponse: JSON.stringify(response, null, 2),
       });
       
       logger.info('State: Refreshing day data to update completion status');
@@ -829,17 +899,87 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       
       // Refresh completion status
       if (currentPlan?.id) {
+        logger.debug('Refreshing day data after meal completion', {
+          planId: currentPlan.id,
+          planDay: calculateNutritionPlanDay(selectedDate),
+        });
         loadDayData();
+      } else {
+        logger.warn('Cannot refresh day data: currentPlan is missing', {
+          hasCurrentPlan: !!currentPlan,
+        });
       }
+      console.log('🔵 [MEAL COMPLETE] ✅ Complétion réussie');
       logger.groupEnd();
     } catch (error) {
-      logger.error('Error completing meal', error);
-      logger.groupEnd();
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible de marquer le repas comme terminé'
+      // Log détaillé de l'erreur avec console.log pour être sûr de voir l'erreur
+      console.error('🔴 [MEAL COMPLETE] ❌ ERREUR DÉTECTÉE ==========================================');
+      console.error('🔴 [MEAL COMPLETE] error.message:', error?.message);
+      console.error('🔴 [MEAL COMPLETE] error.response?.status:', error?.response?.status);
+      console.error('🔴 [MEAL COMPLETE] error.response?.data:', error?.response?.data);
+      console.error('🔴 [MEAL COMPLETE] error.code:', error?.code);
+      console.error('🔴 [MEAL COMPLETE] error.stack:', error?.stack);
+      console.error('🔴 [MEAL COMPLETE] Full error object:', error);
+      console.error('🔴 [MEAL COMPLETE] ==========================================');
+      
+      // Log détaillé de l'erreur
+      logger.error('❌ Error completing meal - Full error details', {
+        mealId,
+        errorMessage: error?.message,
+        errorResponse: error?.response?.data,
+        errorStatus: error?.response?.status,
+        errorCode: error?.code,
+        errorStack: error?.stack,
+        currentPlanId: currentPlan?.id,
+        currentPlanName: currentPlan?.name,
+        selectedDate: selectedDate,
+        hasSubscriptionData: !!subscriptionData,
+        subscriptionStatus: subscriptionData?.status,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
       });
+      
+      // Gérer l'erreur "already completed" de manière gracieuse
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur inconnue';
+      const isAlreadyCompleted = errorMessage?.toLowerCase().includes('already completed') || 
+                                 errorMessage?.toLowerCase().includes('déjà complété');
+      
+      if (isAlreadyCompleted) {
+        // Si le repas est déjà complété, juste rafraîchir les données sans afficher d'erreur
+        console.log('ℹ️ [MEAL COMPLETE] Repas déjà complété - Rafraîchissement des données');
+        logger.info('Meal already completed - Refreshing data silently');
+        
+        // Rafraîchir les données pour mettre à jour le statut
+        if (currentPlan?.id) {
+          loadDayData();
+        }
+        
+        // Ne pas afficher d'erreur, juste un message informatif discret
+        Toast.show({
+          type: 'info',
+          text1: 'Repas déjà complété',
+          text2: 'Ce repas a déjà été marqué comme complété',
+          visibilityTime: 2000,
+        });
+      } else {
+        // Pour les autres erreurs, afficher le message d'erreur
+        logger.error('Error completing meal', error);
+        logger.groupEnd();
+        
+        const errorStatus = error?.response?.status;
+        const errorDetails = error?.response?.data;
+        
+        console.error('🔴 [MEAL COMPLETE] Message d\'erreur pour l\'utilisateur:', errorMessage);
+        console.error('🔴 [MEAL COMPLETE] Status HTTP:', errorStatus);
+        console.error('🔴 [MEAL COMPLETE] Détails:', errorDetails);
+        
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: `Impossible de marquer le repas comme complété: ${errorMessage}`
+        });
+      }
+      
+      logger.groupEnd();
     }
   };
 
@@ -1374,7 +1514,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         <View style={styles.youtubeModalOverlay}>
           <View style={styles.youtubeModalContent}>
             <View style={styles.youtubeModalHeader}>
-              {/* Meal Image */}
+              {/* Meal Image - Left */}
               {selectedMeal?.imageUrl && (
                 <Image
                   source={{ uri: selectedMeal.imageUrl }}
@@ -1382,45 +1522,52 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                   resizeMode="cover"
                 />
               )}
-              <View style={styles.youtubeModalTitleContainer}>
-                <Text style={styles.youtubeModalTitle}>
-                  {selectedMeal?.name || 'Détails du repas'}
-                </Text>
-              </View>
-              {/* Like/Dislike Buttons */}
-              {selectedMeal && (
-                <View style={styles.headerInteractionButtons}>
-                  <TouchableOpacity 
-                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'like' && styles.activeHeaderInteractionButton]}
-                    onPress={() => handleMealLike(selectedMeal.id)}
+              
+              {/* Title and Like/Dislike - Right */}
+              <View style={styles.youtubeModalTitleAndActionsContainer}>
+                <View style={styles.youtubeModalTitleRow}>
+                  <View style={styles.youtubeModalTitleContainer}>
+                    <Text style={styles.youtubeModalTitle} numberOfLines={1}>
+                      {selectedMeal?.name || 'Détails du repas'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowYoutubeModal(false);
+                      setYoutubePlaying(false);
+                    }}
+                    style={styles.youtubeModalCloseButton}
                   >
-                    <Ionicons 
-                      name={mealInteractions[selectedMeal.id] === 'like' ? "thumbs-up" : "thumbs-up-outline"} 
-                      size={20} 
-                      color={mealInteractions[selectedMeal.id] === 'like' ? '#1877F2' : '#8E8E93'} 
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'dislike' && styles.activeHeaderInteractionButton]}
-                    onPress={() => handleMealDislike(selectedMeal.id)}
-                  >
-                    <Ionicons 
-                      name={mealInteractions[selectedMeal.id] === 'dislike' ? "thumbs-down" : "thumbs-down-outline"} 
-                      size={20} 
-                      color={mealInteractions[selectedMeal.id] === 'dislike' ? '#FF3B30' : '#8E8E93'} 
-                    />
+                    <Ionicons name="close" size={24} color={theme.colors.text.primary} />
                   </TouchableOpacity>
                 </View>
-              )}
-              <TouchableOpacity
-                onPress={() => {
-                  setShowYoutubeModal(false);
-                  setYoutubePlaying(false);
-                }}
-                style={styles.youtubeModalCloseButton}
-              >
-                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-              </TouchableOpacity>
+                
+                {/* Like/Dislike Buttons - Below title */}
+                {selectedMeal && (
+                  <View style={styles.headerInteractionButtons}>
+                    <TouchableOpacity 
+                      style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'like' && styles.activeHeaderInteractionButton]}
+                      onPress={() => handleMealLike(selectedMeal.id)}
+                    >
+                      <Ionicons 
+                        name={mealInteractions[selectedMeal.id] === 'like' ? "thumbs-up" : "thumbs-up-outline"} 
+                        size={20} 
+                        color={mealInteractions[selectedMeal.id] === 'like' ? '#1877F2' : '#8E8E93'} 
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.headerInteractionButton, mealInteractions[selectedMeal.id] === 'dislike' && styles.activeHeaderInteractionButton]}
+                      onPress={() => handleMealDislike(selectedMeal.id)}
+                    >
+                      <Ionicons 
+                        name={mealInteractions[selectedMeal.id] === 'dislike' ? "thumbs-down" : "thumbs-down-outline"} 
+                        size={20} 
+                        color={mealInteractions[selectedMeal.id] === 'dislike' ? '#FF3B30' : '#8E8E93'} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             </View>
             
             <ScrollView 
@@ -1477,46 +1624,50 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
               {selectedMeal && (() => {
                 // Check if meal is from today (in dayMeals) or tomorrow (in tomorrowMeals)
                 const isTodayMeal = dayMeals.some(meal => meal.id === selectedMeal.id);
-                const isCompleted = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
+                // Vérifier le statut de complétion de deux façons pour être sûr
+                const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(selectedMeal.id);
+                const isCompletedByStatus = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
+                const isCompleted = isCompletedByIds || isCompletedByStatus;
                 
                 // Only show completion button for today's meals
                 if (!isTodayMeal) {
                   return null;
                 }
                 
+                // Si le repas est déjà complété, afficher un badge au lieu du bouton
+                if (isCompleted) {
+                  return (
+                    <View style={styles.youtubeModalCompletedBadge}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                      <Text style={styles.youtubeModalCompletedBadgeText}>
+                        Repas complété
+                      </Text>
+                    </View>
+                  );
+                }
+                
+                // Sinon, afficher le bouton actif
                 return (
                   <TouchableOpacity 
-                    style={[styles.youtubeModalCompleteButton, isCompleted && styles.completedButtonStyle]}
+                    style={styles.youtubeModalCompleteButton}
                     onPress={() => {
                       handleMealComplete(selectedMeal.id);
                       setShowYoutubeModal(false);
                     }}
+                    activeOpacity={0.8}
                   >
                     <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                     <Text style={styles.youtubeModalCompleteButtonText}>
-                      {isCompleted ? 'Complété' : 'Marquer comme complété'}
+                      Marquer comme complété
                     </Text>
                   </TouchableOpacity>
                 );
               })()}
               
-              {/* Navigation Tabs */}
+              {/* Navigation Tabs - Retirer l'onglet Composition */}
               {selectedMeal && (
                 <View style={styles.youtubeModalTabsContainer}>
                   <View style={styles.youtubeModalTabs}>
-                    <TouchableOpacity 
-                      style={[styles.youtubeModalTab, youtubeModalTab === 'composition' && styles.activeYoutubeModalTab]}
-                      onPress={() => setYoutubeModalTab('composition')}
-                    >
-                      <Ionicons 
-                        name="nutrition" 
-                        size={20} 
-                        color={youtubeModalTab === 'composition' ? "#000000" : "#666666"} 
-                      />
-                      {youtubeModalTab === 'composition' && (
-                        <Text style={styles.youtubeModalTabTitle}>Composition</Text>
-                      )}
-                    </TouchableOpacity>
                     <TouchableOpacity 
                       style={[styles.youtubeModalTab, youtubeModalTab === 'recipe' && styles.activeYoutubeModalTab]}
                       onPress={() => setYoutubeModalTab('recipe')}
@@ -1547,54 +1698,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 </View>
               )}
               
-              {/* Tab Content */}
+              {/* Tab Content - Retirer Composition */}
               {selectedMeal && (() => {
-                if (youtubeModalTab === 'composition') {
-                  // Composition Content
-                  return (
-                    <View style={styles.youtubeModalTabContent}>
-                      <Text style={styles.contentTitle}>Composition nutritionnelle</Text>
-                      {(() => {
-                        const nutritionalData = selectedMeal.nutritionalComposition || {};
-                        const calories = selectedMeal.calories || selectedMeal.calorieCount || nutritionalData.calories || 0;
-                        const proteins = selectedMeal.proteins || nutritionalData.proteins || 0;
-                        const carbs = selectedMeal.carbs || selectedMeal.carbohydrates || nutritionalData.carbs || nutritionalData.carbohydrates || 0;
-                        const fats = selectedMeal.fats || selectedMeal.fat || nutritionalData.fats || nutritionalData.fat || 0;
-                        
-                        const hasNutritionalData = calories > 0 || proteins > 0 || carbs > 0 || fats > 0;
-                        
-                        if (hasNutritionalData) {
-                          return (
-                            <View style={styles.nutritionalDataContainer}>
-                              <View style={styles.nutritionalRow}>
-                                <Text style={styles.nutritionalLabel}>Calories:</Text>
-                                <Text style={styles.nutritionalValue}>{calories} kcal</Text>
-                              </View>
-                              <View style={styles.nutritionalRow}>
-                                <Text style={styles.nutritionalLabel}>Protéines:</Text>
-                                <Text style={styles.nutritionalValue}>{proteins} g</Text>
-                              </View>
-                              <View style={styles.nutritionalRow}>
-                                <Text style={styles.nutritionalLabel}>Glucides:</Text>
-                                <Text style={styles.nutritionalValue}>{carbs} g</Text>
-                              </View>
-                              <View style={styles.nutritionalRow}>
-                                <Text style={styles.nutritionalLabel}>Lipides:</Text>
-                                <Text style={styles.nutritionalValue}>{fats} g</Text>
-                              </View>
-                            </View>
-                          );
-                        } else {
-                          return (
-                            <Text style={styles.noContentText}>
-                              Aucune donnée nutritionnelle disponible pour ce repas
-                            </Text>
-                          );
-                        }
-                      })()}
-                    </View>
-                  );
-                } else if (youtubeModalTab === 'recipe') {
+                if (youtubeModalTab === 'recipe') {
                   // Instructions Content
                   return (
                     <View style={styles.youtubeModalTabContent}>
@@ -1671,7 +1777,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
               })()}
             </ScrollView>
             
-            {/* Logo at bottom center */}
+            {/* Logo at bottom center - Baissé */}
             <View style={styles.youtubeModalLogoContainer}>
               <Image
                 source={require('../../assets/logo.png')}
@@ -2597,20 +2703,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
+    marginTop: 4,
   },
   headerInteractionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'transparent', // Fond transparent comme demandé
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderWidth: 0, // Pas de bordure pour fond transparent
   },
   activeHeaderInteractionButton: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#1877F2',
+    backgroundColor: 'transparent', // Fond transparent même quand actif
   },
   mockDataContent: {
     marginTop: 8,
@@ -2669,7 +2774,6 @@ const styles = StyleSheet.create({
   },
   youtubeModalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     padding: 20,
     borderBottomWidth: 1,
@@ -2682,16 +2786,27 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    flexShrink: 0, // Empêcher la réduction de taille
+  },
+  youtubeModalTitleAndActionsContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    gap: 8,
+  },
+  youtubeModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   youtubeModalTitleContainer: {
     flex: 1,
-    marginRight: 12,
+    paddingRight: 8,
   },
   youtubeModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: theme.colors.text.primary,
-    marginBottom: 4,
   },
   youtubeModalCloseButton: {
     padding: 4,
@@ -2711,6 +2826,26 @@ const styles = StyleSheet.create({
   },
   youtubeModalCompleteButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  youtubeModalCompletedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  youtubeModalCompletedBadgeText: {
+    color: '#4CAF50',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -2753,7 +2888,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   youtubeModalBodyContent: {
-    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
+    paddingBottom: 20, // Réduit car footer est maintenant plus bas
+    flexGrow: 1,
   },
   youtubePlayerContainer: {
     alignSelf: 'center',
@@ -2809,10 +2945,11 @@ const styles = StyleSheet.create({
   youtubeModalLogoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingBottom: 100, // Espace pour la navigation fixe en bas (hauteur nav + safe area + marge)
+    paddingVertical: 8, // Réduit de 16 à 8
+    paddingBottom: 20, // Réduit de 100 à 20 pour baisser le footer
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
+    marginTop: 'auto', // Push to bottom
   },
   youtubeModalLogo: {
     width: 60,

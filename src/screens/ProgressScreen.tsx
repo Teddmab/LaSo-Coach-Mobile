@@ -116,7 +116,31 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           <>
             <ProgressChart 
               chartData={chartData}
-              initialMeasurements={initialMeasurements}
+              initialMeasurements={(() => {
+                // Toujours utiliser les valeurs du profil si initialMeasurements est null ou incomplet
+                const profileInitialWeight = profile?.initialWeight ?? profile?.Profile?.initialWeight;
+                const profileInitialWaistSize = profile?.initialWaistSize ?? profile?.Profile?.initialWaistSize;
+                
+                // Si initialMeasurements existe et a des valeurs, l'utiliser
+                if (initialMeasurements && (initialMeasurements.weight || initialMeasurements.waistSize)) {
+                  return {
+                    weight: initialMeasurements.weight ?? profileInitialWeight ?? null,
+                    waistSize: initialMeasurements.waistSize ?? profileInitialWaistSize ?? null,
+                    date: initialMeasurements.date ?? profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
+                  };
+                }
+                
+                // Sinon, utiliser les valeurs du profil
+                if (profileInitialWeight || profileInitialWaistSize) {
+                  return {
+                    weight: profileInitialWeight ?? null,
+                    waistSize: profileInitialWaistSize ?? null,
+                    date: profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
+                  };
+                }
+                
+                return initialMeasurements;
+              })()}
               measurements={combinedMeasurements as any}
               onDataPointPress={(dataPoint: any, index: number) => {
                 console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);

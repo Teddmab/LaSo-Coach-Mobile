@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { BackHandler, Platform, View, Text, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/FirebaseAuthContext';
 import DashboardLayout from './dashboard/components/DashboardLayout';
 import SubscriptionPlansModal from './dashboard/modals/SubscriptionPlansModal';
@@ -180,6 +181,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }
   };
 
+  // Mise à jour automatique quand l'écran revient au focus
+  useFocusEffect(
+    useCallback(() => {
+      // Rafraîchir les données quand l'écran revient au focus
+      onRefresh();
+    }, [])
+  );
+
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
     // Rediriger vers la page d'abonnement dédiée
@@ -216,7 +225,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       text1: 'Abonnement activé',
       text2: 'Votre abonnement a été activé avec succès',
     });
-    await checkSubscriptionStatus();
+    
+    // Rafraîchir toutes les données après activation de l'abonnement
+    await Promise.all([
+      checkSubscriptionStatus(),
+      fetchDashboardData(),
+      fetchAchievementsData(),
+      fetchAgendaData(),
+      fetchCommunityPosts(),
+    ]);
+    
     setShowPaymentFlow(false);
     setSelectedPlan(null);
     setShowPlansBottomSheet(false);
