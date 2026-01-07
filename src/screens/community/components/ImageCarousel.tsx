@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, Image, StyleSheet, Dimensions } from 'react-native';
+import { View, ScrollView, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { theme } from '../../../constants/theme';
 import { API_CONFIG } from '../../../config/apiConfig';
 
@@ -8,9 +8,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface ImageCarouselProps {
   postId: string;
   images: string[];
+  onImagePress?: (index: number) => void;
 }
 
-const ImageCarousel: React.FC<ImageCarouselProps> = ({ postId, images }) => {
+const ImageCarousel: React.FC<ImageCarouselProps> = ({ postId, images, onImagePress }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   if (images.length === 0) return null;
@@ -56,12 +57,17 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ postId, images }) => {
           if (!fullUrl) return null;
           
           return (
-            <Image
+            <TouchableOpacity
               key={index}
-              source={{ uri: fullUrl }}
-              style={styles.image}
-              resizeMode="cover"
-            />
+              activeOpacity={0.9}
+              onPress={() => onImagePress && onImagePress(index)}
+            >
+              <Image
+                source={{ uri: fullUrl }}
+                style={styles.image}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
           );
         })}
       </ScrollView>

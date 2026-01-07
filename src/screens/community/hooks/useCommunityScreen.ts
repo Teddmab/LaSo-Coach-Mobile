@@ -23,6 +23,9 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
   const [currentImageIndex, setCurrentImageIndex] = useState<Record<string, number>>({});
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [modalImages, setModalImages] = useState<string[]>([]);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
   
   const scrollViewRef = useRef<any>(null);
 
@@ -46,23 +49,43 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       // Le backend retourne: { status: "success", data: { posts: [...], pagination: {...} } }
       const posts = response.data?.posts || response.posts || [];
       
-      // S'assurer que les posts ont bien mediaUrls (le backend retourne mediaUrls)
+      // S'assurer que les posts ont bien mediaUrls et données utilisateur (le backend retourne mediaUrls)
       const postsWithMedia = posts.map((post: any) => {
         // Le backend retourne mediaUrls qui est un tableau de strings
         const mediaUrls = post.mediaUrls || [];
         
-        // Log pour debug
-        if (mediaUrls.length > 0) {
-          console.log('📸 Post avec images:', {
+        // S'assurer que les données utilisateur sont correctement mappées
+        // Le backend peut retourner user avec firstName, name, avatar, etc.
+        const userData = post.user || {};
+        const normalizedUser = {
+          id: userData.id || userData.userId || undefined,
+          firstName: userData.firstName || userData.first_name || undefined,
+          name: userData.name || userData.fullName || userData.firstName || undefined,
+          avatar: userData.avatar || userData.profilePicture || userData.profile_picture || undefined,
+        };
+        
+        // Log pour debug si les données utilisateur sont manquantes
+        if (!normalizedUser.firstName && !normalizedUser.name) {
+          console.log('⚠️ Post sans nom utilisateur:', {
             postId: post.id,
-            mediaUrlsCount: mediaUrls.length,
-            mediaUrls: mediaUrls,
+            userData: userData,
+            normalizedUser: normalizedUser,
+          });
+        }
+        
+        // Log pour debug si l'avatar est manquant
+        if (!normalizedUser.avatar) {
+          console.log('⚠️ Post sans avatar utilisateur:', {
+            postId: post.id,
+            userId: normalizedUser.id,
+            userName: normalizedUser.firstName || normalizedUser.name,
           });
         }
         
         return {
           ...post,
           mediaUrls: mediaUrls, // Le backend retourne mediaUrls
+          user: normalizedUser, // Normaliser les données utilisateur
         };
       });
       
@@ -96,9 +119,61 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
 
   const handleLike = async (postId: string): Promise<void> => {
     try {
+      // Mettre à jour l'état localement immédiatement pour une meilleure UX
+      const post = communityPosts.find(p => p.id === postId);
+      if (!post) return;
+
+      const wasLiked = isPostLiked(post);
+      const currentLikesCount = Number(post._count?.likes || 0);
+      
+      // Mise à jour optimiste de l'état local
+      setCommunityPosts(prevPosts =>
+        prevPosts.map(p => {
+          if (p.id === postId) {
+            const newLikesCount = wasLiked 
+              ? Math.max(0, currentLikesCount - 1) 
+              : currentLikesCount + 1;
+            
+            // Mettre à jour les likes
+            const updatedLikes = wasLiked
+              ? (p.likes || []).filter(like => 
+                  like.userId !== currentUser?.id && like.user?.id !== currentUser?.id
+                )
+              : [
+                  ...(p.likes || []),
+                  { userId: currentUser?.id, user: { id: currentUser?.id } }
+                ];
+            
+            return {
+              ...p,
+              likes: updatedLikes,
+              _count: {
+                ...p._count,
+                likes: newLikesCount,
+              },
+            };
+          }
+          return p;
+        })
+      );
+
+      // Appel API en arrière-plan
       await CommunityApi.toggleLikePost(postId);
-      await fetchCommunityPosts();
+      
+      // Rafraîchir les données depuis le serveur pour s'assurer de la cohérence
+      // (mais sans rafraîchir visuellement la page)
+      const response: any = await CommunityApi.getPosts();
+      const posts = response.data?.posts || response.posts || [];
+      const updatedPost = posts.find((p: Post) => p.id === postId);
+      
+      if (updatedPost) {
+        setCommunityPosts(prevPosts =>
+          prevPosts.map(p => p.id === postId ? updatedPost : p)
+        );
+      }
     } catch (error) {
+      // En cas d'erreur, restaurer l'état précédent
+      await fetchCommunityPosts();
       Alert.alert('Erreur', 'Impossible de mettre à jour le like');
     }
   };
@@ -322,6 +397,11 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     handleReport,
     handleCloseReportModal,
     handleSubmitReport,
+    showImageModal,
+    modalImages,
+    modalImageIndex,
+    handleImagePress,
+    handleCloseImageModal,
   };
 };
 

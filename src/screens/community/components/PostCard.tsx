@@ -84,7 +84,11 @@ const PostCard: React.FC<PostCardProps> = ({
           <Text style={styles.postText}>{postContent}</Text>
         ) : null}
         {images.length > 0 ? (
-          <ImageCarousel postId={post.id} images={images} />
+          <ImageCarousel 
+            postId={post.id} 
+            images={images}
+            onImagePress={(index) => onPostPress && onPostPress({ ...post, selectedImageIndex: index })}
+          />
         ) : null}
       </View>
 
@@ -124,14 +128,6 @@ const PostCard: React.FC<PostCardProps> = ({
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => onShare(post.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="share-outline" size={20} color="#65676B" />
-          <Text style={styles.actionText}>Partager</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Comment Section */}
