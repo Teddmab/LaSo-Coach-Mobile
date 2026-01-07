@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/FirebaseAuthContext';
 
@@ -100,9 +101,22 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       // IMPORTANT: Utiliser IdToken pour obtenir un token compatible Firebase
       // CRITIQUE: Pour éviter PKCE, créer la requête avec responseType: IdToken
       // et ne pas définir codeChallenge (PKCE est automatique pour Code, pas pour IdToken)
-      const redirectUri = AuthSession.makeRedirectUri({
-        scheme: 'lasocoach', // Utiliser le scheme de l'app
-      });
+      
+      // CRITIQUE: Utiliser le proxy Expo pour générer une URL HTTPS valide
+      // Google OAuth Web Client n'accepte que les URLs HTTPS, pas les schemes personnalisés (lasocoach://)
+      // Le proxy Expo génère: https://auth.expo.io/@owner/slug
+      let redirectUri: string;
+      
+      // Vérifier si on est en développement (Expo Go ou dev client avec proxy)
+      // En développement, utiliser le proxy Expo pour obtenir une URL HTTPS
+      const expoConfig = Constants.expoConfig;
+      const owner = expoConfig?.owner || 'ohriginal-llc';
+      const slug = expoConfig?.slug || 'laso-coach';
+      
+      // Construire l'URL du proxy Expo manuellement pour garantir une URL HTTPS
+      redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
+      
+      console.log('🔗 Redirect URI (proxy Expo):', redirectUri);
 
       // Créer AuthRequest avec responseType: IdToken
       // CRITIQUE: Désactiver PKCE explicitement car incompatible avec responseType: IdToken
