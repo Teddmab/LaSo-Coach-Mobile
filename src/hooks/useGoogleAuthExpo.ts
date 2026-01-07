@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/FirebaseAuthContext';
@@ -118,6 +119,12 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       
       console.log('🔗 Redirect URI (proxy Expo):', redirectUri);
 
+      // CRITIQUE: Générer un nonce aléatoire pour responseType: IdToken
+      // Google exige un nonce pour des raisons de sécurité (prévention des attaques de rejeu)
+      // Le nonce doit être unique à chaque requête et vérifié dans la réponse
+      const nonce = await Crypto.randomUUID();
+      console.log('🔐 Nonce généré pour sécurité OAuth:', nonce.substring(0, 20) + '...');
+
       // Créer AuthRequest avec responseType: IdToken
       // CRITIQUE: Désactiver PKCE explicitement car incompatible avec responseType: IdToken
       // PKCE est activé par défaut dans AuthRequest (usePKCE: true), il faut le désactiver
@@ -129,6 +136,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         usePKCE: false, // CRITIQUE: Désactiver PKCE car incompatible avec IdToken
         extraParams: {
           prompt: 'consent', // Forcer la sélection de compte à chaque fois
+          nonce: nonce, // CRITIQUE: Requis par Google pour responseType: IdToken (sécurité)
         },
       });
 
