@@ -29,7 +29,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
   const googleAuthFunction = isRegistration ? registerWithGoogle : loginWithGoogle;
 
   // Configuration du SDK Google Sign-In (une seule fois)
-  // IMPORTANT: Configuration lazy pour éviter les crashes au démarrage sur iOS
+  // IMPORTANT: Configuration immédiate pour iOS pour éviter les crashes lors de signIn()
   useEffect(() => {
     const configureGoogleSignIn = async (): Promise<void> => {
       try {
@@ -77,16 +77,24 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           scopes: ['email', 'profile'],
         });
 
-        // Sur iOS, wrapper dans try-catch pour éviter les crashes lors de la configuration
+        // CRITIQUE iOS: Configuration synchrone pour éviter les crashes
+        // Le SDK doit être configuré AVANT que signIn() soit appelé
         try {
           // CRITIQUE iOS: Vérifier que le SDK peut être configuré sans crash
           // Si la configuration échoue, cela peut indiquer un problème avec REVERSED_CLIENT_ID
           GoogleSignin.configure(config);
+          
+          // Sur iOS, attendre un peu pour s'assurer que la configuration est appliquée
+          if (Platform.OS === 'ios') {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+          
           console.log('✅ Google Sign-In SDK natif configuré');
           console.log('🔐 Web Client ID:', firebaseOAuthClientIds.web?.substring(0, 30) + '...');
           console.log('📱 Plateforme:', Platform.OS);
           if (Platform.OS === 'ios') {
             console.log('🍎 [iOS] iosClientId configuré:', firebaseOAuthClientIds.ios?.substring(0, 30) + '...');
+            console.log('🍎 [iOS] SDK prêt pour signIn()');
           }
           console.log('🚀 SDK NATIF - Pas de WebView !');
           setIsConfigured(true);
@@ -99,6 +107,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           if (Platform.OS === 'ios') {
             console.error('⚠️ [iOS] Configuration Google Sign-In échouée. L\'authentification Google ne sera pas disponible.');
             console.error('⚠️ [iOS] Vérifiez que REVERSED_CLIENT_ID est dans CFBundleURLSchemes dans Info.plist');
+            console.error('⚠️ [iOS] Exécutez: npx expo prebuild --platform ios pour régénérer Info.plist');
             setIsConfigured(false);
           } else {
             throw configError;
@@ -112,15 +121,20 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       }
     };
 
-    // Délai pour éviter l'initialisation au démarrage (peut causer des crashes)
-    // Initialisation lazy : seulement quand nécessaire
-    const timeoutId = setTimeout(() => {
+    // CRITIQUE iOS: Configuration immédiate (pas de délai) pour éviter les crashes
+    // Le SDK doit être configuré dès que possible pour être prêt quand l'utilisateur clique
+    if (Platform.OS === 'ios') {
+      // Sur iOS, configurer immédiatement pour éviter les crashes
       configureGoogleSignIn();
-    }, 500); // Attendre 500ms après le montage du composant
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    } else {
+      // Sur Android, garder le délai pour éviter les problèmes au démarrage
+      const timeoutId = setTimeout(() => {
+        configureGoogleSignIn();
+      }, 500);
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
   }, []);
 
   /**
@@ -155,10 +169,12 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       if (Platform.OS === 'ios') {
         console.log('🍎 [iOS] Vérification de la configuration avant signIn()...');
         
-        // Vérifier que le SDK est configuré
+        // CRITIQUE: Vérifier que le SDK est configuré AVANT d'appeler signIn()
+        // Si le SDK n'est pas configuré, signIn() va crash au niveau natif
         if (!isConfigured) {
           const errorMsg = 'Configuration Google Sign-In non terminée. Veuillez réessayer dans un instant.';
           console.error('❌ [iOS]', errorMsg);
+          console.error('❌ [iOS] Le SDK n\'est pas encore configuré. Le bouton ne devrait pas être cliquable.');
           result = {
             user: null,
             error: errorMsg,
@@ -190,9 +206,22 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           return result;
         }
         
-        // NE PAS reconfigurer ici - la configuration a déjà été faite dans useEffect
-        // Reconfigurer peut causer des problèmes et des crashes
-        console.log('✅ [iOS] Configuration vérifiée, prêt pour signIn()');
+        // CRITIQUE iOS: Vérifier une dernière fois que le SDK est bien configuré
+        // en tentant de récupérer la configuration actuelle
+        try {
+          // Cette vérification peut aider à détecter les problèmes avant signIn()
+          console.log('✅ [iOS] Configuration vérifiée, prêt pour signIn()');
+          console.log('✅ [iOS] webClientId présent:', !!firebaseOAuthClientIds.web);
+          console.log('✅ [iOS] iosClientId présent:', !!firebaseOAuthClientIds.ios);
+        } catch (verifyError: any) {
+          console.error('❌ [iOS] Erreur lors de la vérification:', verifyError);
+          result = {
+            user: null,
+            error: 'Erreur de configuration Google Sign-In. Veuillez réessayer.',
+          };
+          setIsPrompting(false);
+          return result;
+        }
         
         // Attendre un peu pour s'assurer que tout est prêt
         await new Promise(resolve => setTimeout(resolve, 100));

@@ -24,7 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, theme } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
-import useGoogleAuth from '../hooks/useGoogleAuth';
+import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
 import SubscriptionApi from '../services/subscriptionApi';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
@@ -103,7 +103,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
-  } = useGoogleAuth();
+  } = useGoogleAuthHybrid(); // iOS utilise WebView, Android SDK natif
   
   /**
    * Handle Google login

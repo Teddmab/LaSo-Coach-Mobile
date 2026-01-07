@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
-import useGoogleAuth from '../hooks/useGoogleAuth';
+import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
 import type { RegisterScreenNavigationProp } from '../types/navigation';
 
 interface FormData {
@@ -68,7 +68,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
-  } = useGoogleAuth(true); // Pass true for registration mode
+  } = useGoogleAuthHybrid(true); // Pass true for registration mode - iOS utilise WebView, Android SDK natif
 
   /**
    * Update form data
