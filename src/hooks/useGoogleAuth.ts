@@ -68,8 +68,8 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
         }
         
         console.log('🔧 Configuration GoogleSignin avec:', {
-          webClientId: firebaseOAuthClientIds.web,
-          iosClientId: Platform.OS === 'ios' ? firebaseOAuthClientIds.ios : undefined,
+          webClientId: firebaseOAuthClientIds.web?.substring(0, 30) + '...',
+          iosClientId: Platform.OS === 'ios' ? firebaseOAuthClientIds.ios?.substring(0, 30) + '...' : undefined,
           hasWebClientId: !!firebaseOAuthClientIds.web,
           hasIosClientId: Platform.OS === 'ios' ? !!firebaseOAuthClientIds.ios : false,
           offlineAccess: true,
@@ -79,10 +79,15 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
         // Sur iOS, wrapper dans try-catch pour éviter les crashes lors de la configuration
         try {
+          // CRITIQUE iOS: Vérifier que le SDK peut être configuré sans crash
+          // Si la configuration échoue, cela peut indiquer un problème avec REVERSED_CLIENT_ID
           GoogleSignin.configure(config);
           console.log('✅ Google Sign-In SDK natif configuré');
-          console.log('🔐 Web Client ID:', firebaseOAuthClientIds.web);
+          console.log('🔐 Web Client ID:', firebaseOAuthClientIds.web?.substring(0, 30) + '...');
           console.log('📱 Plateforme:', Platform.OS);
+          if (Platform.OS === 'ios') {
+            console.log('🍎 [iOS] iosClientId configuré:', firebaseOAuthClientIds.ios?.substring(0, 30) + '...');
+          }
           console.log('🚀 SDK NATIF - Pas de WebView !');
           setIsConfigured(true);
         } catch (configError: any) {
@@ -93,6 +98,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           // Sur iOS, si la configuration échoue, ne pas faire crash l'app
           if (Platform.OS === 'ios') {
             console.error('⚠️ [iOS] Configuration Google Sign-In échouée. L\'authentification Google ne sera pas disponible.');
+            console.error('⚠️ [iOS] Vérifiez que REVERSED_CLIENT_ID est dans CFBundleURLSchemes dans Info.plist');
             setIsConfigured(false);
           } else {
             throw configError;
@@ -145,35 +151,51 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
       console.log('🚀 Lancement de l\'authentification Google native...');
       
-      // Sur iOS, simplifier le processus pour éviter les crashes
+      // Sur iOS, vérifier que la configuration est correcte avant de continuer
       if (Platform.OS === 'ios') {
-        console.log('🍎 [iOS] Configuration simplifiée pour éviter les crashes...');
+        console.log('🍎 [iOS] Vérification de la configuration avant signIn()...');
         
-        // Configuration minimale et robuste pour iOS
-        const iosConfig: any = {
-          webClientId: firebaseOAuthClientIds.web,
-          offlineAccess: true,
-          forceCodeForRefreshToken: true,
-          scopes: ['email', 'profile'],
-        };
-        
-        if (firebaseOAuthClientIds.ios) {
-          iosConfig.iosClientId = firebaseOAuthClientIds.ios;
-          console.log('🍎 [iOS] iosClientId configuré:', firebaseOAuthClientIds.ios.substring(0, 30) + '...');
-        } else {
-          console.warn('⚠️ [iOS] iosClientId manquant !');
+        // Vérifier que le SDK est configuré
+        if (!isConfigured) {
+          const errorMsg = 'Configuration Google Sign-In non terminée. Veuillez réessayer dans un instant.';
+          console.error('❌ [iOS]', errorMsg);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
         }
         
-        try {
-          GoogleSignin.configure(iosConfig);
-          console.log('✅ [iOS] Configuration Google Sign-In réussie');
-        } catch (configError: any) {
-          console.error('❌ [iOS] Erreur lors de la configuration:', configError);
-          throw new Error(`Configuration Google Sign-In échouée: ${configError.message || 'Erreur inconnue'}`);
+        // Vérifier que les IDs sont présents
+        if (!firebaseOAuthClientIds.web) {
+          const errorMsg = 'Configuration Google Sign-In incomplète (webClientId manquant).';
+          console.error('❌ [iOS]', errorMsg);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
         }
         
-        // Attendre un peu pour que la configuration soit appliquée
-        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!firebaseOAuthClientIds.ios) {
+          const errorMsg = 'Configuration Google Sign-In incomplète (iosClientId manquant).';
+          console.error('❌ [iOS]', errorMsg);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
+        }
+        
+        // NE PAS reconfigurer ici - la configuration a déjà été faite dans useEffect
+        // Reconfigurer peut causer des problèmes et des crashes
+        console.log('✅ [iOS] Configuration vérifiée, prêt pour signIn()');
+        
+        // Attendre un peu pour s'assurer que tout est prêt
+        await new Promise(resolve => setTimeout(resolve, 100));
       } else {
         // Sur Android, garder la logique de révocation pour éviter la reconnexion automatique
         console.log('🤖 [Android] Révocation de l\'accès précédent...');
@@ -190,68 +212,89 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       
       let userInfo: any;
       try {
-        // Utiliser signIn() avec gestion d'erreurs robuste
-        userInfo = await GoogleSignin.signIn();
+        // CRITIQUE iOS: Wrapper signIn() dans un try-catch robuste pour éviter les crashes
+        // Le SDK Google peut crash si la configuration n'est pas correcte ou si REVERSED_CLIENT_ID est manquant
+        if (Platform.OS === 'ios') {
+          console.log('🍎 [iOS] Tentative de signIn() avec gestion d\'erreurs robuste...');
+          
+          // Vérifier une dernière fois que le SDK est configuré
+          try {
+            // Tenter de vérifier la configuration actuelle (peut échouer silencieusement)
+            // Si le SDK n'est pas configuré, signIn() va crash, donc on essaie de le détecter avant
+            userInfo = await GoogleSignin.signIn();
+          } catch (iosSignInError: any) {
+            // Gérer toutes les erreurs iOS de manière gracieuse pour éviter les crashes
+            console.error('❌ [iOS] Erreur lors de signIn():', iosSignInError);
+            console.error('❌ [iOS] Code erreur:', iosSignInError.code);
+            console.error('❌ [iOS] Message:', iosSignInError.message);
+            
+            // Erreur commune iOS : Connexion annulée
+            if (iosSignInError.code === 'SIGN_IN_CANCELLED' || 
+                iosSignInError.code === '10' || 
+                iosSignInError.code === statusCodes.SIGN_IN_CANCELLED ||
+                iosSignInError.message?.toLowerCase().includes('cancel')) {
+              console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
+              result = {
+                user: null,
+                error: null,
+              };
+              setIsPrompting(false);
+              return result;
+            }
+            
+            // Erreur de configuration - ne pas faire crash l'app
+            if (iosSignInError.message?.includes('configuration') || 
+                iosSignInError.message?.includes('clientId') ||
+                iosSignInError.message?.includes('REVERSED_CLIENT_ID') ||
+                iosSignInError.message?.includes('URL scheme') ||
+                iosSignInError.message?.includes('failed to determine clientId')) {
+              const errorMsg = 'Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes (Info.plist).';
+              console.error('❌ [iOS]', errorMsg);
+              console.error('❌ [iOS] Vérifiez que le plugin withIOSCrashFix.js a ajouté le REVERSED_CLIENT_ID aux CFBundleURLSchemes');
+              result = {
+                user: null,
+                error: errorMsg,
+              };
+              setIsPrompting(false);
+              return result;
+            }
+            
+            // Erreur réseau ou autre - ne pas faire crash
+            if (iosSignInError.message?.includes('network') || 
+                iosSignInError.message?.includes('Network') ||
+                iosSignInError.message?.includes('timeout') ||
+                iosSignInError.message?.includes('connection')) {
+              const errorMsg = 'Erreur de connexion. Vérifiez votre connexion internet.';
+              console.error('❌ [iOS]', errorMsg);
+              result = {
+                user: null,
+                error: errorMsg,
+              };
+              setIsPrompting(false);
+              return result;
+            }
+            
+            // Pour toute autre erreur iOS, retourner gracieusement sans crash
+            const errorMsg = iosSignInError.message || 'Erreur lors de la connexion Google';
+            console.error('❌ [iOS] Erreur inconnue:', errorMsg);
+            console.error('❌ [iOS] Stack:', iosSignInError.stack);
+            result = {
+              user: null,
+              error: errorMsg,
+            };
+            setIsPrompting(false);
+            return result;
+          }
+        } else {
+          // Pour Android, utiliser signIn() normalement
+          userInfo = await GoogleSignin.signIn();
+        }
       } catch (signInError: any) {
+        // Catch général pour les erreurs non capturées ci-dessus (principalement Android)
         console.error('❌ [Google Sign-In] Erreur lors de signIn():', signInError);
         console.error('❌ [Google Sign-In] Code erreur:', signInError.code);
         console.error('❌ [Google Sign-In] Message:', signInError.message);
         console.error('❌ [Google Sign-In] Stack:', signInError.stack);
-        
-        // Gérer les erreurs spécifiques iOS avec gestion robuste pour éviter les crashes
-        if (Platform.OS === 'ios') {
-          // Erreur commune iOS : Connexion annulée
-          if (signInError.code === 'SIGN_IN_CANCELLED' || 
-              signInError.code === '10' || 
-              signInError.code === statusCodes.SIGN_IN_CANCELLED) {
-            console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
-            result = {
-              user: null,
-              error: null,
-            };
-            setIsPrompting(false);
-            return result;
-          }
-          
-          // Erreur de configuration - ne pas faire crash l'app
-          if (signInError.message?.includes('configuration') || 
-              signInError.message?.includes('clientId') ||
-              signInError.message?.includes('REVERSED_CLIENT_ID') ||
-              signInError.message?.includes('URL scheme')) {
-            const errorMsg = 'Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes.';
-            console.error('❌ [iOS]', errorMsg);
-            result = {
-              user: null,
-              error: errorMsg,
-            };
-            setIsPrompting(false);
-            return result;
-          }
-          
-          // Erreur réseau ou autre - ne pas faire crash
-          if (signInError.message?.includes('network') || 
-              signInError.message?.includes('Network') ||
-              signInError.message?.includes('timeout')) {
-            const errorMsg = 'Erreur de connexion. Vérifiez votre connexion internet.';
-            console.error('❌ [iOS]', errorMsg);
-            result = {
-              user: null,
-              error: errorMsg,
-            };
-            setIsPrompting(false);
-            return result;
-          }
-          
-          // Pour toute autre erreur iOS, retourner gracieusement sans crash
-          const errorMsg = signInError.message || 'Erreur lors de la connexion Google';
-          console.error('❌ [iOS] Erreur inconnue:', errorMsg);
-          result = {
-            user: null,
-            error: errorMsg,
-          };
-          setIsPrompting(false);
-          return result;
-        }
         
         // Pour Android, propager l'erreur normalement
         throw signInError;
