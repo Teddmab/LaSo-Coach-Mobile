@@ -42,7 +42,7 @@ const withIOSCrashFix = (config) => {
     }
 
     // S'assurer que la version est correcte (toujours mettre à jour pour correspondre à app.json)
-    const expectedVersion = config.version || '1.0.4';
+    const expectedVersion = config.version || '1.0.5';
     if (!infoPlist.CFBundleShortVersionString || infoPlist.CFBundleShortVersionString !== expectedVersion) {
       infoPlist.CFBundleShortVersionString = expectedVersion;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleShortVersionString to: ${expectedVersion}`);
