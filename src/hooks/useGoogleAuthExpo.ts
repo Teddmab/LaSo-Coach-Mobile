@@ -98,17 +98,23 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
       // Créer la requête d'authentification
       // IMPORTANT: Utiliser IdToken pour obtenir un token compatible Firebase
+      // CRITIQUE: Pour éviter PKCE, créer la requête avec responseType: IdToken
+      // et ne pas définir codeChallenge (PKCE est automatique pour Code, pas pour IdToken)
+      const redirectUri = AuthSession.makeRedirectUri({
+        scheme: 'lasocoach', // Utiliser le scheme de l'app
+      });
+
+      // Créer AuthRequest avec responseType: IdToken
+      // CRITIQUE: Désactiver PKCE explicitement car incompatible avec responseType: IdToken
+      // PKCE est activé par défaut dans AuthRequest (usePKCE: true), il faut le désactiver
       const request = new AuthSession.AuthRequest({
         clientId: firebaseOAuthClientIds.web,
         scopes: ['openid', 'profile', 'email'],
         responseType: AuthSession.ResponseType.IdToken,
-        redirectUri: AuthSession.makeRedirectUri({
-          useProxy: true, // Utiliser le proxy Expo pour le développement
-          scheme: 'lasocoach', // Utiliser le scheme de l'app
-        }),
+        redirectUri: redirectUri,
+        usePKCE: false, // CRITIQUE: Désactiver PKCE car incompatible avec IdToken
         extraParams: {
           prompt: 'consent', // Forcer la sélection de compte à chaque fois
-          access_type: 'offline', // Pour obtenir un refresh token si nécessaire
         },
       });
 
@@ -116,9 +122,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       console.log('🔗 Redirect URI:', request.redirectUri);
 
       // Ouvrir la WebView pour l'authentification
-      const authResult = await request.promptAsync(discovery, {
-        useProxy: true,
-      });
+      const authResult = await request.promptAsync(discovery);
 
       console.log('📬 Résultat authentification:', authResult.type);
 
