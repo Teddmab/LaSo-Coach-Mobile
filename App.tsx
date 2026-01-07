@@ -215,9 +215,9 @@ function AppContent() {
         ) : (
           // Non-authenticated stack
           (<>
-            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Login" component={LoginScreen as any} />
             <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="PasswordReset" component={PasswordResetScreen} />
+            <Stack.Screen name="PasswordReset" component={PasswordResetScreen as any} />
           </>)
         )}
       </Stack.Navigator>
@@ -288,7 +288,7 @@ export default function App() {
             position="top"
             visibilityTime={5000}
             autoHide={true}
-            topOffset={20}
+            topOffset={60}
           />
         </StripeProvider>
       </SafeAreaProvider>

@@ -38,6 +38,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.afrotouch.lasocoach",
+      "versionCode": 4,
       "icon": "./assets/icon.png",
       "intentFilters": [
         {

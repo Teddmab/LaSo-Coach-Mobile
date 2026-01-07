@@ -4,9 +4,15 @@ import { CompositeNavigationProp } from '@react-navigation/native';
 
 // Types de navigation pour les paramètres de route
 export type RootStackParamList = {
-  Login: undefined;
+  Login: {
+    skipWelcomeSlides?: boolean;
+    forceShowWelcomeSlides?: boolean;
+    token?: string;
+  } | undefined;
   Register: undefined;
-  PasswordReset: undefined;
+  PasswordReset: {
+    token?: string;
+  } | undefined;
   Dashboard: undefined;
   Welcome: undefined;
 };
