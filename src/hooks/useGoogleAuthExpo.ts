@@ -22,13 +22,13 @@ interface UseGoogleAuthReturn {
 }
 
 /**
- * Hook pour l'authentification Google utilisant expo-auth-session (WebView)
+ * Hook pour l'authentification Google utilisant expo-auth-session avec WebView et proxy Expo
  * Alternative plus stable au SDK natif pour iOS
  * 
  * Avantages :
  * - Pas de crash natif
- * - Pas besoin de REVERSED_CLIENT_ID dans Info.plist
- * - Configuration plus simple
+ * - WebView avec proxy Expo = fonctionne parfaitement sans sessionStorage
+ * - Configuration simple
  * - Fonctionne avec Firebase Auth
  */
 export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAuthReturn => {
@@ -52,7 +52,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         console.log('🔧 Configuration Google Auth avec expo-auth-session');
         console.log('🌐 Web Client ID:', firebaseOAuthClientIds.web?.substring(0, 30) + '...');
         console.log('📱 Plateforme:', Platform.OS);
-        console.log('🚀 Utilisation de WebView (plus stable que SDK natif)');
+        console.log('🌐 Utilisation de WebView avec proxy Expo (stable et fonctionnel)');
         
         setIsConfigured(true);
       } catch (error: any) {
@@ -66,7 +66,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
   /**
    * Fonction pour se connecter avec Google via expo-auth-session
-   * Utilise une WebView au lieu du SDK natif
+   * Utilise une WebView avec le proxy Expo (fonctionne sans sessionStorage)
    */
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     // Vérifier que la configuration est prête
@@ -89,7 +89,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
     try {
       setIsPrompting(true);
 
-      console.log('🚀 Lancement de l\'authentification Google via WebView...');
+      console.log('🚀 Lancement de l\'authentification Google via WebView avec proxy Expo...');
 
       // Configuration OAuth Google
       const discovery = {
@@ -98,29 +98,13 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
       };
 
-      // Créer la requête d'authentification
-      // IMPORTANT: Utiliser IdToken pour obtenir un token compatible Firebase
-      // CRITIQUE: Pour éviter PKCE, créer la requête avec responseType: IdToken
-      // et ne pas définir codeChallenge (PKCE est automatique pour Code, pas pour IdToken)
-      
-      // CRITIQUE: Pour iOS, utiliser l'URL Firebase Auth handler au lieu du proxy Expo
-      // Firebase Auth handler: https://lasocoach-39710.firebaseapp.com/__/auth/handler
-      // Cette URL doit être configurée dans Google Cloud Console comme redirect URI autorisé
-      let redirectUri: string;
-      
-      if (Platform.OS === 'ios') {
-        // Pour iOS, utiliser Firebase Auth handler directement
-        const authDomain = Constants.expoConfig?.extra?.firebase?.authDomain || 'lasocoach-39710.firebaseapp.com';
-        redirectUri = `https://${authDomain}/__/auth/handler`;
-        console.log('🍎 [iOS] Redirect URI (Firebase Auth handler):', redirectUri);
-      } else {
-        // Pour Android, continuer à utiliser le proxy Expo en développement
+      // CRITIQUE: Utiliser le proxy Expo pour iOS ET Android
+      // Le proxy Expo fonctionne parfaitement avec WebView et évite le problème de sessionStorage
       const expoConfig = Constants.expoConfig;
       const owner = expoConfig?.owner || 'ohriginal-llc';
       const slug = expoConfig?.slug || 'laso-coach';
-      redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
-        console.log('🤖 [Android] Redirect URI (proxy Expo):', redirectUri);
-      }
+      const redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
+      console.log(`🌐 [${Platform.OS}] Redirect URI (proxy Expo):`, redirectUri);
 
       // CRITIQUE: Générer un nonce aléatoire pour responseType: IdToken
       // Google exige un nonce pour des raisons de sécurité (prévention des attaques de rejeu)
@@ -128,8 +112,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       console.log('🔐 Nonce généré pour sécurité OAuth:', nonce.substring(0, 20) + '...');
 
       // CRITIQUE: Utiliser responseType: IdToken pour obtenir directement l'id_token
-      // Firebase Auth handler peut gérer les deux flows (Code et IdToken)
-      // Avec IdToken, on obtient directement le token sans échange supplémentaire
+      // Le proxy Expo gère parfaitement le flow IdToken avec WebView
       const request = new AuthSession.AuthRequest({
         clientId: firebaseOAuthClientIds.web,
         scopes: ['openid', 'profile', 'email'],
@@ -142,10 +125,11 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         },
       });
 
-      console.log('📱 Ouverture de la WebView Google...');
+      console.log('📱 Ouverture de la WebView Google avec proxy Expo...');
       console.log('🔗 Redirect URI:', request.redirectUri);
 
-      // Ouvrir la WebView pour l'authentification
+      // CRITIQUE: Utiliser promptAsync() pour ouvrir une WebView avec le proxy Expo
+      // Le proxy Expo gère les redirections correctement et évite le problème "Something went wrong"
       const authResult = await request.promptAsync(discovery);
 
       console.log('📬 Résultat authentification:', authResult.type);
@@ -173,39 +157,26 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
       // Vérifier le résultat et extraire l'id_token
       if (authResult.type === 'success') {
-        // Chercher l'id_token dans les paramètres (peut être id_token ou idToken selon le format)
-        const idToken = authResult.params?.id_token || authResult.params?.idToken || authResult.params?.token;
+        // Avec promptAsync(), l'id_token est directement dans authResult.params
+        const idToken = authResult.params?.id_token;
         
         if (idToken) {
-        console.log('✅ idToken reçu:', idToken.substring(0, 50) + '...');
+          console.log('✅ idToken reçu depuis proxy Expo:', idToken.substring(0, 50) + '...');
           console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
 
-        // Utiliser la fonction appropriée (login ou register) avec Firebase
-        result = await googleAuthFunction(idToken);
+          // Utiliser la fonction appropriée (login ou register) avec Firebase
+          result = await googleAuthFunction(idToken);
 
-        console.log('✅ Authentification Firebase réussie');
+          console.log('✅ Authentification Firebase réussie');
         } else {
-          // Si pas d'id_token, vérifier si on a un code (cas où Firebase Auth handler n'a pas traité)
-          if (authResult.params?.code) {
-            console.log('⚠️ Code reçu mais idToken manquant. Firebase Auth handler devrait avoir traité cela.');
-            console.log('📝 Code reçu:', authResult.params.code.substring(0, 30) + '...');
-            console.log('📋 Tous les paramètres:', Object.keys(authResult.params));
-            
-            result = {
-              user: null,
-              error: 'Erreur lors de l\'obtention du token. Veuillez réessayer.',
-            };
-          } else {
-            console.error('❌ Réponse OAuth invalide - idToken manquant:', authResult.params);
-            console.log('📋 Paramètres reçus:', Object.keys(authResult.params || {}));
-            result = {
-              user: null,
-              error: 'Réponse OAuth invalide. Veuillez réessayer.',
-            };
-          }
+          console.error('❌ Réponse OAuth invalide - idToken manquant:', authResult.params);
+          result = {
+            user: null,
+            error: 'Réponse OAuth invalide. Veuillez réessayer.',
+          };
         }
       } else {
-        console.error('❌ Réponse OAuth invalide:', authResult);
+        console.error('❌ Réponse OAuth invalide:', authResult.type);
         result = {
           user: null,
           error: 'Réponse OAuth invalide. Veuillez réessayer.',
