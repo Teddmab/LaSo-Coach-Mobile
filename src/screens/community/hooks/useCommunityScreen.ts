@@ -28,6 +28,7 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
   const [modalImageIndex, setModalImageIndex] = useState(0);
   
   const scrollViewRef = useRef<any>(null);
+  const previousSelectedPostId = useRef<string | null | undefined>(selectedPostId);
 
   // Fetch profile data
   useEffect(() => {
@@ -54,14 +55,39 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
         // Le backend retourne mediaUrls qui est un tableau de strings
         const mediaUrls = post.mediaUrls || [];
         
-        // S'assurer que les données utilisateur sont correctement mappées
-        // Le backend peut retourner user avec firstName, name, avatar, etc.
-        const userData = post.user || {};
+        // Log complet de la structure du post pour debug
+        if (posts.indexOf(post) === 0) {
+          console.log('🔍 Structure complète du premier post:', {
+            postId: post.id,
+            allKeys: Object.keys(post),
+            hasUser: !!post.user,
+            hasUserCapital: !!post.User,
+            userType: typeof post.user,
+            UserType: typeof post.User,
+            userId: post.userId,
+            authorId: post.authorId,
+            createdBy: post.createdBy,
+            user: post.user,
+            User: post.User,
+          });
+        }
+        
+        // Le backend retourne les données utilisateur avec une majuscule "User" (Prisma/Sequelize)
+        // Le backend peut retourner les données utilisateur de différentes façons:
+        // 1. post.User (objet complet avec majuscule - Prisma/Sequelize)
+        // 2. post.user (objet complet avec minuscule - format normalisé)
+        // 3. post.userId + données séparées
+        // 4. post.authorId + données séparées
+        // 5. post.createdBy + données séparées
+        const userData = post.User || post.user || {};
+        const userId = post.userId || post.authorId || post.createdBy || userData.id;
+        
+        // Normaliser les données utilisateur en vérifiant toutes les variantes possibles
         const normalizedUser = {
-          id: userData.id || userData.userId || undefined,
-          firstName: userData.firstName || userData.first_name || undefined,
-          name: userData.name || userData.fullName || userData.firstName || undefined,
-          avatar: userData.avatar || userData.profilePicture || userData.profile_picture || undefined,
+          id: userId || userData.id || userData.userId || undefined,
+          firstName: userData.firstName || userData.first_name || post.userFirstName || undefined,
+          name: userData.name || userData.fullName || post.userName || userData.firstName || undefined,
+          avatar: userData.avatar || userData.profilePicture || userData.profile_picture || post.userAvatar || undefined,
         };
         
         // Log pour debug si les données utilisateur sont manquantes
@@ -69,23 +95,37 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
           console.log('⚠️ Post sans nom utilisateur:', {
             postId: post.id,
             userData: userData,
+            userId: userId,
             normalizedUser: normalizedUser,
+            postKeys: Object.keys(post),
           });
         }
         
-        // Log pour debug si l'avatar est manquant
-        if (!normalizedUser.avatar) {
-          console.log('⚠️ Post sans avatar utilisateur:', {
-            postId: post.id,
-            userId: normalizedUser.id,
-            userName: normalizedUser.firstName || normalizedUser.name,
-          });
-        }
+        // Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
+        const likes = post.Like || post.likes || [];
+        const normalizedLikes = Array.isArray(likes) ? likes : [];
+        
+        // Normaliser les commentaires (le backend peut retourner Comment avec majuscule ou comments avec minuscule)
+        const comments = post.Comment || post.comments || [];
+        const normalizedComments = Array.isArray(comments) ? comments : [];
+        
+        // Préserver le _count du backend (likes et comments)
+        // Utiliser la longueur des tableaux comme fallback si _count n'est pas disponible
+        const preservedCount = {
+          likes: post._count?.likes !== undefined && post._count.likes !== null
+            ? Number(post._count.likes)
+            : normalizedLikes.length,
+          comments: post._count?.comments !== undefined && post._count.comments !== null
+            ? Number(post._count.comments)
+            : normalizedComments.length,
+        };
         
         return {
           ...post,
           mediaUrls: mediaUrls, // Le backend retourne mediaUrls
           user: normalizedUser, // Normaliser les données utilisateur
+          likes: normalizedLikes, // Normaliser les likes pour la persistance
+          _count: preservedCount, // Préserver le _count avec les valeurs correctes
         };
       });
       
@@ -102,9 +142,10 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     fetchCommunityPosts();
   }, []);
 
-  // Scroll to selected post
+  // Scroll to selected post (uniquement quand selectedPostId change, pas quand communityPosts change)
   useEffect(() => {
-    if (selectedPostId && scrollViewRef.current && communityPosts.length > 0) {
+    // Ne scroll que si selectedPostId a vraiment changé (pas juste une mise à jour des posts)
+    if (selectedPostId && selectedPostId !== previousSelectedPostId.current && scrollViewRef.current && communityPosts.length > 0) {
       const selectedPostIndex = communityPosts.findIndex(post => post.id === selectedPostId);
       if (selectedPostIndex !== -1) {
         setTimeout(() => {
@@ -114,8 +155,10 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
           });
         }, 500);
       }
+      // Mettre à jour la référence pour éviter de scroll à nouveau
+      previousSelectedPostId.current = selectedPostId;
     }
-  }, [selectedPostId, communityPosts]);
+  }, [selectedPostId, communityPosts.length]); // Utiliser communityPosts.length au lieu de communityPosts pour éviter le scroll lors des mises à jour de contenu
 
   const handleLike = async (postId: string): Promise<void> => {
     try {
@@ -148,9 +191,11 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
               ...p,
               likes: updatedLikes,
               _count: {
-                ...p._count,
                 likes: newLikesCount,
+                comments: p._count?.comments ?? 0, // Préserver le nombre de commentaires
               },
+              // S'assurer que les données utilisateur sont préservées
+              user: p.user || undefined,
             };
           }
           return p;
@@ -160,16 +205,81 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       // Appel API en arrière-plan
       await CommunityApi.toggleLikePost(postId);
       
-      // Rafraîchir les données depuis le serveur pour s'assurer de la cohérence
-      // (mais sans rafraîchir visuellement la page)
-      const response: any = await CommunityApi.getPosts();
-      const posts = response.data?.posts || response.posts || [];
-      const updatedPost = posts.find((p: Post) => p.id === postId);
-      
-      if (updatedPost) {
-        setCommunityPosts(prevPosts =>
-          prevPosts.map(p => p.id === postId ? updatedPost : p)
-        );
+      // Récupérer le post mis à jour depuis le serveur pour avoir les données complètes des likes
+      // Cela garantit que le like est bien persisté et synchronisé avec le backend
+      try {
+        const updatedPostResponse: any = await CommunityApi.getPost(postId);
+        const rawUpdatedPost = updatedPostResponse.data?.post || updatedPostResponse.data || updatedPostResponse;
+        
+        if (rawUpdatedPost) {
+          // Normaliser les données utilisateur
+          const userData = rawUpdatedPost.User || rawUpdatedPost.user || {};
+          const userId = rawUpdatedPost.userId || rawUpdatedPost.authorId || rawUpdatedPost.createdBy || userData.id;
+          
+          const normalizedUser = {
+            id: userId || userData.id || userData.userId || undefined,
+            firstName: userData.firstName || userData.first_name || rawUpdatedPost.userFirstName || undefined,
+            name: userData.name || userData.fullName || rawUpdatedPost.userName || userData.firstName || undefined,
+            avatar: userData.avatar || userData.profilePicture || userData.profile_picture || rawUpdatedPost.userAvatar || undefined,
+          };
+          
+          // Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
+          const likes = rawUpdatedPost.Like || rawUpdatedPost.likes || [];
+          const normalizedLikes = Array.isArray(likes) ? likes : [];
+          
+          // Normaliser les commentaires (le backend peut retourner Comment avec majuscule ou comments avec minuscule)
+          const comments = rawUpdatedPost.Comment || rawUpdatedPost.comments || [];
+          const normalizedComments = Array.isArray(comments) ? comments : [];
+          
+          // Préserver le _count du backend ou utiliser la longueur des tableaux comme fallback
+          // Ne pas utiliser currentPost car il contient l'ancien état avant la mise à jour optimiste
+          const backendCount = rawUpdatedPost._count || {};
+          const preservedCount = {
+            likes: backendCount.likes !== undefined && backendCount.likes !== null
+              ? Number(backendCount.likes)
+              : normalizedLikes.length, // Utiliser directement la longueur du tableau normalisé
+            comments: backendCount.comments !== undefined && backendCount.comments !== null
+              ? Number(backendCount.comments)
+              : normalizedComments.length, // Utiliser directement la longueur du tableau normalisé
+          };
+          
+          console.log('📊 Mise à jour _count:', {
+            postId,
+            backendCount,
+            preservedCount,
+            normalizedLikesLength: normalizedLikes.length,
+            normalizedCommentsLength: normalizedComments.length,
+          });
+          
+          const updatedPost: Post = {
+            ...rawUpdatedPost,
+            mediaUrls: rawUpdatedPost.mediaUrls || [],
+            user: normalizedUser,
+            likes: normalizedLikes, // S'assurer que les likes sont bien inclus
+            comments: normalizedComments, // S'assurer que les commentaires sont bien inclus
+            _count: preservedCount, // Préserver le _count avec les valeurs correctes (ou utiliser la longueur des tableaux)
+          };
+          
+          // Mettre à jour uniquement le post spécifique sans changer l'ordre
+          setCommunityPosts(prevPosts =>
+            prevPosts.map(p => {
+              if (p.id === postId) {
+                return {
+                  ...p,
+                  ...updatedPost,
+                  // Préserver les données utilisateur, les likes et le _count
+                  user: updatedPost.user || p.user,
+                  likes: updatedPost.likes || p.likes,
+                  _count: updatedPost._count || p._count,
+                };
+              }
+              return p;
+            })
+          );
+        }
+      } catch (error) {
+        console.error('⚠️ Erreur lors de la récupération du post mis à jour:', error);
+        // En cas d'erreur, on garde la mise à jour optimiste locale
       }
     } catch (error) {
       // En cas d'erreur, restaurer l'état précédent
@@ -188,9 +298,41 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
         try {
           setLoadingComments(prev => ({ ...prev, [postId]: true }));
           const response: any = await CommunityApi.getComments(postId);
-          const comments = response.data?.comments || response.comments || [];
-          setPostComments(prev => ({ ...prev, [postId]: comments }));
+          const rawComments = response.data?.comments || response.comments || [];
+          
+          // Normaliser les données utilisateur des commentaires
+          const normalizedComments = rawComments.map((comment: any) => {
+            // Le backend peut retourner User avec majuscule ou user avec minuscule
+            const userData = comment.User || comment.user || {};
+            const userId = comment.userId || comment.authorId || comment.createdBy || userData.id;
+            
+            const normalizedUser = {
+              id: userId || userData.id || userData.userId || undefined,
+              firstName: userData.firstName || userData.first_name || comment.userFirstName || undefined,
+              name: userData.name || userData.fullName || comment.userName || userData.firstName || undefined,
+              avatar: userData.avatar || userData.profilePicture || userData.profile_picture || comment.userAvatar || undefined,
+            };
+            
+            return {
+              ...comment,
+              user: normalizedUser,
+            };
+          });
+          
+          console.log('💬 Commentaires normalisés:', {
+            postId,
+            count: normalizedComments.length,
+            firstComment: normalizedComments[0] ? {
+              id: normalizedComments[0].id,
+              hasUser: !!normalizedComments[0].user,
+              userName: normalizedComments[0].user?.name || normalizedComments[0].user?.firstName,
+              userAvatar: normalizedComments[0].user?.avatar,
+            } : null,
+          });
+          
+          setPostComments(prev => ({ ...prev, [postId]: normalizedComments }));
         } catch (error) {
+          console.error('❌ Erreur lors de la récupération des commentaires:', error);
           setPostComments(prev => ({ ...prev, [postId]: [] }));
         } finally {
           setLoadingComments(prev => ({ ...prev, [postId]: false }));
@@ -206,11 +348,52 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     if (text.trim()) {
       try {
         await CommunityApi.addComment(postId, text.trim());
+        // Recharger les commentaires pour avoir les données complètes (y compris les données utilisateur)
         const response: any = await CommunityApi.getComments(postId);
-        const comments = response.data?.comments || response.comments || [];
-        setPostComments(prev => ({ ...prev, [postId]: comments }));
+        const rawComments = response.data?.comments || response.comments || [];
+        
+        // Normaliser les données utilisateur des commentaires
+        const normalizedComments = rawComments.map((comment: any) => {
+          // Le backend peut retourner User avec majuscule ou user avec minuscule
+          const userData = comment.User || comment.user || {};
+          const userId = comment.userId || comment.authorId || comment.createdBy || userData.id;
+          
+          const normalizedUser = {
+            id: userId || userData.id || userData.userId || undefined,
+            firstName: userData.firstName || userData.first_name || comment.userFirstName || undefined,
+            name: userData.name || userData.fullName || comment.userName || userData.firstName || undefined,
+            avatar: userData.avatar || userData.profilePicture || userData.profile_picture || comment.userAvatar || undefined,
+          };
+          
+          return {
+            ...comment,
+            user: normalizedUser,
+          };
+        });
+        
+        // Mettre à jour le compteur de commentaires dans le post
+        const currentPost = communityPosts.find(p => p.id === postId);
+        if (currentPost) {
+          setCommunityPosts(prevPosts =>
+            prevPosts.map(p => {
+              if (p.id === postId) {
+                return {
+                  ...p,
+                  _count: {
+                    ...p._count,
+                    comments: normalizedComments.length, // Mettre à jour le nombre de commentaires
+                  },
+                };
+              }
+              return p;
+            })
+          );
+        }
+        
+        setPostComments(prev => ({ ...prev, [postId]: normalizedComments }));
         setCommentText(prev => ({ ...prev, [postId]: '' }));
       } catch (error) {
+        console.error('❌ Erreur lors de l\'ajout du commentaire:', error);
         Alert.alert('Erreur', 'Impossible d\'ajouter le commentaire');
       }
     }
@@ -363,6 +546,20 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       }
       throw error;
     }
+  };
+
+  const handleImagePress = (post: Post, imageIndex: number): void => {
+    if (post.mediaUrls && post.mediaUrls.length > 0) {
+      setModalImages(post.mediaUrls);
+      setModalImageIndex(imageIndex);
+      setShowImageModal(true);
+    }
+  };
+
+  const handleCloseImageModal = (): void => {
+    setShowImageModal(false);
+    setModalImages([]);
+    setModalImageIndex(0);
   };
 
   return {

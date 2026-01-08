@@ -13,13 +13,34 @@ class CommunityApi {
    */
   async getPosts(page = 1, limit = 10) {
     try {
-      
-      const response = await api.get(`/community/posts?page=${page}&limit=${limit}`);
+      // Inclure les données utilisateur et les likes dans la réponse
+      // Le backend peut utiliser Prisma (include) ou Sequelize (include) pour joindre les données
+      const response = await api.get(`/community/posts?page=${page}&limit=${limit}&include=user,likes`);
       
       // API returns: { status: "success", data: { posts: [...], pagination: {...} } }
+      // Les posts devraient maintenant inclure les données utilisateur (user: { id, firstName, name, avatar })
+      
+      // Log pour debug: vérifier la structure de la réponse
+      if (response.data?.data?.posts && response.data.data.posts.length > 0) {
+        const firstPost = response.data.data.posts[0];
+        console.log('📋 Structure du premier post:', {
+          postId: firstPost.id,
+          hasUser: !!firstPost.user,
+          userKeys: firstPost.user ? Object.keys(firstPost.user) : [],
+          userData: firstPost.user,
+          allKeys: Object.keys(firstPost),
+        });
+      }
       
       return response.data;
     } catch (error) {
+      // Si le paramètre include=user n'est pas supporté, essayer sans
+      // Certains backends peuvent utiliser d'autres paramètres comme populate=user
+      if (error.response?.status === 400 || error.response?.status === 404) {
+        console.warn('⚠️ Paramètre include non supporté, tentative sans paramètre');
+        const fallbackResponse = await api.get(`/community/posts?page=${page}&limit=${limit}`);
+        return fallbackResponse.data;
+      }
       throw error;
     }
   }
@@ -31,12 +52,19 @@ class CommunityApi {
    */
   async getPost(postId) {
     try {
+      // Inclure les données utilisateur et les likes dans la réponse
+      const response = await api.get(`/community/posts/${postId}?include=user,likes`);
       
-      const response = await api.get(`/community/posts/${postId}`);
-      
+      // API returns: { status: "success", data: { post: {...} } }
+      // Le post devrait maintenant inclure les données utilisateur et les likes
       
       return response.data;
     } catch (error) {
+      // Si le paramètre include n'est pas supporté, essayer sans
+      if (error.response?.status === 400 || error.response?.status === 404) {
+        const fallbackResponse = await api.get(`/community/posts/${postId}`);
+        return fallbackResponse.data;
+      }
       throw error;
     }
   }
@@ -217,13 +245,32 @@ class CommunityApi {
    */
   async getComments(postId, page = 1, limit = 10) {
     try {
-      
-      const response = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}`);
+      // Inclure les données utilisateur dans la réponse
+      const response = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}&include=user`);
       
       // API returns: { status: "success", data: { comments: [...], pagination: {...} } }
+      // Les commentaires devraient maintenant inclure les données utilisateur (user: { id, firstName, name, avatar })
+      
+      // Log pour debug: vérifier la structure de la réponse
+      if (response.data?.data?.comments && response.data.data.comments.length > 0) {
+        const firstComment = response.data.data.comments[0];
+        console.log('💬 Structure du premier commentaire:', {
+          commentId: firstComment.id,
+          hasUser: !!firstComment.user,
+          userKeys: firstComment.user ? Object.keys(firstComment.user) : [],
+          userData: firstComment.user,
+          allKeys: Object.keys(firstComment),
+        });
+      }
       
       return response.data;
     } catch (error) {
+      // Si le paramètre include=user n'est pas supporté, essayer sans
+      if (error.response?.status === 400 || error.response?.status === 404) {
+        console.warn('⚠️ Paramètre include=user non supporté pour les commentaires, tentative sans paramètre');
+        const fallbackResponse = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}`);
+        return fallbackResponse.data;
+      }
       throw error;
     }
   }

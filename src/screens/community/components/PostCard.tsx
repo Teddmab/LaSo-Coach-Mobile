@@ -6,7 +6,6 @@ import Avatar from '../../../components/Avatar';
 import { Post } from '../types';
 import { formatTimeAgo } from '../utils/communityUtils';
 import ImageCarousel from './ImageCarousel';
-import CommentSection from './CommentSection';
 
 interface PostCardProps {
   post: Post;
@@ -23,6 +22,7 @@ interface PostCardProps {
   onShare: (postId: string) => void;
   onReport?: (postId: string) => void;
   onPostPress?: (post: Post) => void;
+  isLast?: boolean; // Pour retirer la bordure du dernier post
 }
 
 const PostCard: React.FC<PostCardProps> = ({
@@ -40,6 +40,7 @@ const PostCard: React.FC<PostCardProps> = ({
   onShare,
   onReport,
   onPostPress,
+  isLast = false,
 }) => {
   const authorName = post.user?.firstName || post.user?.name || 'Utilisateur';
   const authorAvatar = post.user?.avatar || '';
@@ -47,99 +48,94 @@ const PostCard: React.FC<PostCardProps> = ({
   // Le backend retourne mediaUrls qui est un tableau de strings
   // Adapter comme dans la version web qui utilise post.mediaUrls
   const images = post.mediaUrls || [];
-  const likesCount = Number(post._count?.likes || 0);
-  const commentsCount = Number(post._count?.comments || 0);
+  // Utiliser _count.likes si disponible, sinon utiliser la longueur du tableau likes comme fallback
+  const likesCount = Number(
+    post._count?.likes !== undefined && post._count.likes !== null
+      ? post._count.likes
+      : (post.likes?.length ?? 0)
+  );
+  // Utiliser _count.comments si disponible, sinon utiliser la longueur du tableau comments comme fallback
+  const commentsCount = Number(
+    post._count?.comments !== undefined && post._count.comments !== null
+      ? post._count.comments
+      : (post.comments?.length ?? 0)
+  );
   const timeAgo = formatTimeAgo(post.createdAt);
 
   return (
-    <View style={styles.container}>
-      {/* Post Header */}
+    <View style={[styles.container, isLast && styles.containerLast]}>
+      {/* Post Header - Style Instagram */}
       <View style={styles.header}>
         <Avatar 
           source={{ uri: authorAvatar }} 
-          size={40}
+          size={32}
           style={styles.avatar}
           fallbackText={authorName?.charAt(0) || 'U'}
         />
         <View style={styles.authorInfo}>
           <Text style={styles.authorName}>{authorName}</Text>
-          <Text style={styles.postTime}>{timeAgo || 'Maintenant'}</Text>
         </View>
+        <Text style={styles.postTime}>{timeAgo || 'Maintenant'}</Text>
         <TouchableOpacity 
           style={styles.moreButton}
           onPress={() => {
-            // Show action sheet with report option
             if (onReport) {
               onReport(post.id);
             }
           }}
         >
-          <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.text.secondary} />
+          <Ionicons name="ellipsis-horizontal" size={24} color="#000000" />
         </TouchableOpacity>
       </View>
 
-      {/* Post Content */}
-      <View style={styles.content}>
-        {postContent ? (
-          <Text style={styles.postText}>{postContent}</Text>
-        ) : null}
-        {images.length > 0 ? (
-          <ImageCarousel 
-            postId={post.id} 
-            images={images}
-            onImagePress={(index) => onPostPress && onPostPress({ ...post, selectedImageIndex: index })}
-          />
-        ) : null}
-      </View>
-
-      {/* Post Actions - Style Facebook */}
-      <View style={styles.actions}>
-        <TouchableOpacity 
-          style={[styles.actionButton, isLiked && styles.actionButtonActive]}
-          onPress={() => onLike(post.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons 
-            name={isLiked ? "heart" : "heart-outline"} 
-            size={20} 
-            color={isLiked ? "#F44336" : "#65676B"} 
-          />
-          <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
-            {isLiked ? 'J\'aime' : 'J\'aime'}
-          </Text>
-          {likesCount > 0 && (
-            <Text style={[styles.actionText, isLiked && styles.actionTextActive, { marginLeft: 4 }]}>
-              ({likesCount})
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => onCommentIconPress(post.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="chatbubble-outline" size={20} color="#65676B" />
-          <Text style={styles.actionText}>Commenter</Text>
-          {commentsCount > 0 && (
-            <Text style={[styles.actionText, { marginLeft: 4 }]}>
-              ({commentsCount})
-            </Text>
-          )}
-        </TouchableOpacity>
-
-      </View>
-
-      {/* Comment Section */}
-        <CommentSection
-          postId={post.id}
-          showComments={showComments}
-          comments={comments}
-          loadingComments={loadingComments}
-          commentText={commentText}
-          onCommentTextChange={(text) => onCommentTextChange && onCommentTextChange(post.id, text)}
-          onCommentSubmit={() => onCommentSubmit(post.id)}
+      {/* Post Image - Style Instagram (pleine largeur) */}
+      {images.length > 0 && (
+        <ImageCarousel 
+          postId={post.id} 
+          images={images}
+          onImagePress={(index) => onPostPress && onPostPress({ ...post, selectedImageIndex: index })}
         />
+      )}
+
+      {/* Post Actions - Style Instagram (icônes avec compteurs) */}
+      <View style={styles.actions}>
+        <View style={styles.actionsLeft}>
+          <TouchableOpacity 
+            style={styles.actionIcon}
+            onPress={() => onLike(post.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons 
+              name={isLiked ? "heart" : "heart-outline"} 
+              size={24} 
+              color={isLiked ? "#F44336" : "#000000"} 
+            />
+            {likesCount > 0 && (
+              <Text style={styles.actionCount}>{likesCount}</Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionIcon}
+            onPress={() => onCommentIconPress(post.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chatbubble-outline" size={24} color="#000000" />
+            {commentsCount > 0 ? (
+              <Text style={styles.actionCount}>{commentsCount}</Text>
+            ) : null}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Post Content - Style Instagram (texte en bas) */}
+      {postContent ? (
+        <View style={styles.content}>
+          <Text style={styles.postText}>
+            <Text style={styles.authorNameInline}>{authorName} </Text>
+            {postContent}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -147,94 +143,81 @@ const PostCard: React.FC<PostCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 12,
-    overflow: 'hidden',
-    // Ombre style Facebook
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    width: '100%',
+    marginBottom: 0, // Pas d'espacement entre les posts
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBDBDB', // Ligne de séparation subtile entre les posts (style Instagram)
+    paddingBottom: 0, // Pas de padding supplémentaire
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-    borderWidth: 0.5,
-    borderColor: '#E4E6EB',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
   },
   authorInfo: {
     flex: 1,
   },
   authorName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#050505',
-    marginBottom: 2,
+    color: '#000000',
+  },
+  authorNameInline: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
   },
   postTime: {
-    fontSize: 13,
-    color: '#65676B',
+    fontSize: 12,
+    color: '#8E8E8E',
+    marginRight: 8,
   },
   moreButton: {
-    padding: 8,
-    borderRadius: 20,
+    padding: 4,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   postText: {
-    fontSize: 15,
-    color: '#050505',
+    fontSize: 14,
+    color: '#000000',
     lineHeight: 20,
-    marginBottom: 8,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#E4E6EB',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingTop: 8,
   },
-  actionButton: {
-    flex: 1,
+  actionsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    marginHorizontal: 2,
+    gap: 16,
   },
-  actionText: {
-    marginLeft: 6,
-    fontSize: 15,
-    color: '#65676B',
-    fontWeight: '600',
+  actionIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+    gap: 6,
   },
-  actionSpacer: {
-    flex: 1,
+  actionCount: {
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '400',
   },
-  actionButtonActive: {
-    backgroundColor: '#F0F2F5',
-  },
-  actionTextActive: {
-    color: '#F44336',
+  containerLast: {
+    borderBottomWidth: 0, // Pas de bordure pour le dernier post
   },
 });
 

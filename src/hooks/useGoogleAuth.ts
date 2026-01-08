@@ -131,9 +131,9 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       const timeoutId = setTimeout(() => {
         configureGoogleSignIn();
       }, 500);
-      return () => {
-        clearTimeout(timeoutId);
-      };
+    return () => {
+      clearTimeout(timeoutId);
+    };
     }
   }, []);
 
@@ -257,56 +257,29 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
             console.error('❌ [iOS] Code erreur:', iosSignInError.code);
             console.error('❌ [iOS] Message:', iosSignInError.message);
             
-            // Erreur commune iOS : Connexion annulée
+          // Erreur commune iOS : Connexion annulée
             if (iosSignInError.code === 'SIGN_IN_CANCELLED' || 
                 iosSignInError.code === '10' || 
                 iosSignInError.code === statusCodes.SIGN_IN_CANCELLED ||
                 iosSignInError.message?.toLowerCase().includes('cancel')) {
-              console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
-              result = {
-                user: null,
-                error: null,
-              };
-              setIsPrompting(false);
-              return result;
-            }
-            
-            // Erreur de configuration - ne pas faire crash l'app
+            console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
+            result = {
+              user: null,
+              error: null,
+            };
+            setIsPrompting(false);
+            return result;
+          }
+          
+          // Erreur de configuration - ne pas faire crash l'app
             if (iosSignInError.message?.includes('configuration') || 
                 iosSignInError.message?.includes('clientId') ||
                 iosSignInError.message?.includes('REVERSED_CLIENT_ID') ||
                 iosSignInError.message?.includes('URL scheme') ||
                 iosSignInError.message?.includes('failed to determine clientId')) {
               const errorMsg = 'Configuration Google Sign-In incorrecte. Vérifiez que REVERSED_CLIENT_ID est dans les URL schemes (Info.plist).';
-              console.error('❌ [iOS]', errorMsg);
+            console.error('❌ [iOS]', errorMsg);
               console.error('❌ [iOS] Vérifiez que le plugin withIOSCrashFix.js a ajouté le REVERSED_CLIENT_ID aux CFBundleURLSchemes');
-              result = {
-                user: null,
-                error: errorMsg,
-              };
-              setIsPrompting(false);
-              return result;
-            }
-            
-            // Erreur réseau ou autre - ne pas faire crash
-            if (iosSignInError.message?.includes('network') || 
-                iosSignInError.message?.includes('Network') ||
-                iosSignInError.message?.includes('timeout') ||
-                iosSignInError.message?.includes('connection')) {
-              const errorMsg = 'Erreur de connexion. Vérifiez votre connexion internet.';
-              console.error('❌ [iOS]', errorMsg);
-              result = {
-                user: null,
-                error: errorMsg,
-              };
-              setIsPrompting(false);
-              return result;
-            }
-            
-            // Pour toute autre erreur iOS, retourner gracieusement sans crash
-            const errorMsg = iosSignInError.message || 'Erreur lors de la connexion Google';
-            console.error('❌ [iOS] Erreur inconnue:', errorMsg);
-            console.error('❌ [iOS] Stack:', iosSignInError.stack);
             result = {
               user: null,
               error: errorMsg,
@@ -314,6 +287,33 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
             setIsPrompting(false);
             return result;
           }
+          
+          // Erreur réseau ou autre - ne pas faire crash
+            if (iosSignInError.message?.includes('network') || 
+                iosSignInError.message?.includes('Network') ||
+                iosSignInError.message?.includes('timeout') ||
+                iosSignInError.message?.includes('connection')) {
+            const errorMsg = 'Erreur de connexion. Vérifiez votre connexion internet.';
+            console.error('❌ [iOS]', errorMsg);
+            result = {
+              user: null,
+              error: errorMsg,
+            };
+            setIsPrompting(false);
+            return result;
+          }
+          
+          // Pour toute autre erreur iOS, retourner gracieusement sans crash
+            const errorMsg = iosSignInError.message || 'Erreur lors de la connexion Google';
+          console.error('❌ [iOS] Erreur inconnue:', errorMsg);
+            console.error('❌ [iOS] Stack:', iosSignInError.stack);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
+        }
         } else {
           // Pour Android, utiliser signIn() normalement
           userInfo = await GoogleSignin.signIn();

@@ -90,9 +90,9 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({ postId, images, onImagePr
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 8,
     position: 'relative',
-    marginHorizontal: -16, // Pour que l'image prenne toute la largeur
+    marginHorizontal: 0, // Style Instagram - pleine largeur sans marge
+    width: '100%',
   },
   carousel: {
     width: SCREEN_WIDTH,

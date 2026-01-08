@@ -103,37 +103,39 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       // CRITIQUE: Pour éviter PKCE, créer la requête avec responseType: IdToken
       // et ne pas définir codeChallenge (PKCE est automatique pour Code, pas pour IdToken)
       
-      // CRITIQUE: Utiliser le proxy Expo pour générer une URL HTTPS valide
-      // Google OAuth Web Client n'accepte que les URLs HTTPS, pas les schemes personnalisés (lasocoach://)
-      // Le proxy Expo génère: https://auth.expo.io/@owner/slug
+      // CRITIQUE: Pour iOS, utiliser l'URL Firebase Auth handler au lieu du proxy Expo
+      // Firebase Auth handler: https://lasocoach-39710.firebaseapp.com/__/auth/handler
+      // Cette URL doit être configurée dans Google Cloud Console comme redirect URI autorisé
       let redirectUri: string;
       
-      // Vérifier si on est en développement (Expo Go ou dev client avec proxy)
-      // En développement, utiliser le proxy Expo pour obtenir une URL HTTPS
+      if (Platform.OS === 'ios') {
+        // Pour iOS, utiliser Firebase Auth handler directement
+        const authDomain = Constants.expoConfig?.extra?.firebase?.authDomain || 'lasocoach-39710.firebaseapp.com';
+        redirectUri = `https://${authDomain}/__/auth/handler`;
+        console.log('🍎 [iOS] Redirect URI (Firebase Auth handler):', redirectUri);
+      } else {
+        // Pour Android, continuer à utiliser le proxy Expo en développement
       const expoConfig = Constants.expoConfig;
       const owner = expoConfig?.owner || 'ohriginal-llc';
       const slug = expoConfig?.slug || 'laso-coach';
-      
-      // Construire l'URL du proxy Expo manuellement pour garantir une URL HTTPS
       redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
-      
-      console.log('🔗 Redirect URI (proxy Expo):', redirectUri);
+        console.log('🤖 [Android] Redirect URI (proxy Expo):', redirectUri);
+      }
 
       // CRITIQUE: Générer un nonce aléatoire pour responseType: IdToken
       // Google exige un nonce pour des raisons de sécurité (prévention des attaques de rejeu)
-      // Le nonce doit être unique à chaque requête et vérifié dans la réponse
       const nonce = await Crypto.randomUUID();
       console.log('🔐 Nonce généré pour sécurité OAuth:', nonce.substring(0, 20) + '...');
 
-      // Créer AuthRequest avec responseType: IdToken
-      // CRITIQUE: Désactiver PKCE explicitement car incompatible avec responseType: IdToken
-      // PKCE est activé par défaut dans AuthRequest (usePKCE: true), il faut le désactiver
+      // CRITIQUE: Utiliser responseType: IdToken pour obtenir directement l'id_token
+      // Firebase Auth handler peut gérer les deux flows (Code et IdToken)
+      // Avec IdToken, on obtient directement le token sans échange supplémentaire
       const request = new AuthSession.AuthRequest({
         clientId: firebaseOAuthClientIds.web,
         scopes: ['openid', 'profile', 'email'],
         responseType: AuthSession.ResponseType.IdToken,
         redirectUri: redirectUri,
-        usePKCE: false, // CRITIQUE: Désactiver PKCE car incompatible avec IdToken
+        usePKCE: false, // PKCE non compatible avec IdToken
         extraParams: {
           prompt: 'consent', // Forcer la sélection de compte à chaque fois
           nonce: nonce, // CRITIQUE: Requis par Google pour responseType: IdToken (sécurité)
@@ -169,15 +171,39 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         return result;
       }
 
-      if (authResult.type === 'success' && authResult.params?.id_token) {
-        const idToken = authResult.params.id_token;
+      // Vérifier le résultat et extraire l'id_token
+      if (authResult.type === 'success') {
+        // Chercher l'id_token dans les paramètres (peut être id_token ou idToken selon le format)
+        const idToken = authResult.params?.id_token || authResult.params?.idToken || authResult.params?.token;
+        
+        if (idToken) {
         console.log('✅ idToken reçu:', idToken.substring(0, 50) + '...');
+          console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
 
         // Utiliser la fonction appropriée (login ou register) avec Firebase
-        console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
         result = await googleAuthFunction(idToken);
 
         console.log('✅ Authentification Firebase réussie');
+        } else {
+          // Si pas d'id_token, vérifier si on a un code (cas où Firebase Auth handler n'a pas traité)
+          if (authResult.params?.code) {
+            console.log('⚠️ Code reçu mais idToken manquant. Firebase Auth handler devrait avoir traité cela.');
+            console.log('📝 Code reçu:', authResult.params.code.substring(0, 30) + '...');
+            console.log('📋 Tous les paramètres:', Object.keys(authResult.params));
+            
+            result = {
+              user: null,
+              error: 'Erreur lors de l\'obtention du token. Veuillez réessayer.',
+            };
+          } else {
+            console.error('❌ Réponse OAuth invalide - idToken manquant:', authResult.params);
+            console.log('📋 Paramètres reçus:', Object.keys(authResult.params || {}));
+            result = {
+              user: null,
+              error: 'Réponse OAuth invalide. Veuillez réessayer.',
+            };
+          }
+        }
       } else {
         console.error('❌ Réponse OAuth invalide:', authResult);
         result = {

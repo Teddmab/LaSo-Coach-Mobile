@@ -1,27 +1,24 @@
 import { Platform } from 'react-native';
 import { useGoogleAuth } from './useGoogleAuth';
-import { useGoogleAuthExpo } from './useGoogleAuthExpo';
 
 /**
  * Hook hybride pour l'authentification Google
  * 
- * - iOS : Utilise expo-auth-session (WebView) - Plus stable, pas de crash
+ * - iOS : Utilise SDK natif Google Sign-In - UI native, pas de WebView, pas de problème sessionStorage
  * - Android : Utilise SDK natif - UI native, meilleure performance
  * 
- * Cette approche combine le meilleur des deux mondes :
- * - Stabilité sur iOS (pas de crash natif)
- * - Performance native sur Android
+ * Pourquoi SDK natif sur iOS maintenant ?
+ * - Firebase Auth handler nécessite sessionStorage (non disponible dans WebView)
+ * - Le SDK natif ouvre l'UI native de Google (Safari/App Google)
+ * - Gère correctement les redirections via REVERSED_CLIENT_ID
+ * - Retourne directement l'idToken sans passer par Firebase Auth handler
+ * - Plus stable maintenant que REVERSED_CLIENT_ID est configuré dans Info.plist
  */
 export const useGoogleAuthHybrid = (isRegistration: boolean = false) => {
-  if (Platform.OS === 'ios') {
-    // Sur iOS, utiliser expo-auth-session pour éviter les crashes
-    console.log('🍎 [iOS] Utilisation de expo-auth-session (WebView) - Plus stable');
-    return useGoogleAuthExpo(isRegistration);
-  } else {
-    // Sur Android, utiliser le SDK natif pour une meilleure expérience
-    console.log('🤖 [Android] Utilisation du SDK natif - UI native');
-    return useGoogleAuth(isRegistration);
-  }
+  // Utiliser le SDK natif sur toutes les plateformes
+  // Plus de WebView = Plus de problème avec sessionStorage/Firebase Auth handler
+  console.log(`📱 [${Platform.OS}] Utilisation du SDK natif Google Sign-In - UI native, pas de WebView`);
+  return useGoogleAuth(isRegistration);
 };
 
 export default useGoogleAuthHybrid;

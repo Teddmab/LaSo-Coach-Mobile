@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../constants/theme';
 import Avatar from '../components/Avatar';
@@ -8,6 +8,8 @@ import { useCommunityScreen } from './community/hooks/useCommunityScreen';
 import PostCard from './community/components/PostCard';
 import CreatePostModal from './community/components/CreatePostModal';
 import ReportPostModal from './community/components/ReportPostModal';
+import ImageFullScreenModal from './community/components/ImageFullScreenModal';
+import CommentBottomSheet from './community/components/CommentBottomSheet';
 import { ShimmerCard } from '../components/Shimmer';
 
 const CommunityScreen: React.FC<CommunityScreenProps> = ({
@@ -18,6 +20,9 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
   onPostPress,
 }) => {
   const insets = useSafeAreaInsets();
+  const [commentBottomSheetVisible, setCommentBottomSheetVisible] = useState(false);
+  const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
+  
   const {
     commentText,
     showCreatePostModal,
@@ -35,7 +40,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     setCommentText,
     setNewPostText,
     handleLike,
-    handleCommentIconPress,
+    handleCommentIconPress: originalHandleCommentIconPress,
     handleCommentSubmit,
     handleShare,
     handleCreatePost,
@@ -49,7 +54,30 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     handleReport,
     handleCloseReportModal,
     handleSubmitReport,
+    showImageModal,
+    modalImages,
+    modalImageIndex,
+    handleImagePress,
+    handleCloseImageModal,
   } = useCommunityScreen(selectedPostId);
+
+  // Gérer l'ouverture du bottom sheet de commentaires
+  const handleCommentIconPress = (postId: string) => {
+    setSelectedPostForComments(postId);
+    setCommentBottomSheetVisible(true);
+    // Appeler aussi la fonction originale pour charger les commentaires
+    originalHandleCommentIconPress(postId);
+  };
+
+  const handleCloseCommentBottomSheet = () => {
+    setCommentBottomSheetVisible(false);
+    setSelectedPostForComments(null);
+  };
+
+  const handleCommentSubmitWithBottomSheet = (postId: string) => {
+    handleCommentSubmit(postId);
+    // Le nouveau commentaire apparaîtra en haut grâce au tri dans CommentBottomSheet
+  };
 
   return (
     <>
@@ -91,30 +119,31 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
             </View>
           ) : communityPosts.length > 0 ? (
             communityPosts.map((post, index) => (
-              <View key={post.id}>
-                <TouchableOpacity 
-                  onPress={() => onPostPress && onPostPress(post)}
-                  activeOpacity={1}
-                >
-                  <PostCard
-                    post={post}
-                    currentUserId={currentUser?.id}
-                    isLiked={isPostLiked(post)}
-                    showComments={visibleComments[post.id] || false}
-                    comments={postComments[post.id] || []}
-                    loadingComments={loadingComments[post.id] || false}
-                    commentText={commentText[post.id] || ''}
-                    onLike={handleLike}
-                    onCommentIconPress={handleCommentIconPress}
-                    onCommentTextChange={(postId, text) => setCommentText(prev => ({ ...prev, [postId]: text }))}
-                    onCommentSubmit={handleCommentSubmit}
-                    onShare={handleShare}
-                    onReport={handleReport}
-                    onPostPress={onPostPress}
-                  />
-                </TouchableOpacity>
-                {index < communityPosts.length - 1 ? <View style={styles.postDivider} /> : null}
-              </View>
+              <PostCard
+                key={post.id}
+                post={post}
+                currentUserId={currentUser?.id}
+                isLiked={isPostLiked(post)}
+                showComments={visibleComments[post.id] || false}
+                comments={postComments[post.id] || []}
+                loadingComments={loadingComments[post.id] || false}
+                commentText={commentText[post.id] || ''}
+                onLike={handleLike}
+                onCommentIconPress={handleCommentIconPress}
+                onCommentTextChange={(postId, text) => setCommentText(prev => ({ ...prev, [postId]: text }))}
+                onCommentSubmit={handleCommentSubmit}
+                onShare={handleShare}
+                onReport={handleReport}
+                isLast={index === communityPosts.length - 1}
+                onPostPress={(post) => {
+                  // Si le post a un selectedImageIndex, ouvrir la modal plein écran
+                  if ((post as any).selectedImageIndex !== undefined && post.mediaUrls && post.mediaUrls.length > 0) {
+                    handleImagePress(post, (post as any).selectedImageIndex);
+                  } else if (onPostPress) {
+                    onPostPress(post);
+                  }
+                }}
+              />
             ))
           ) : (
             <View style={styles.emptyContainer}>
@@ -151,6 +180,34 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
         onPublish={handlePublishPost}
         onClose={handleCloseCreatePost}
       />
+
+      {/* Image Full Screen Modal */}
+      <ImageFullScreenModal
+        visible={showImageModal}
+        images={modalImages}
+        initialIndex={modalImageIndex}
+        onClose={handleCloseImageModal}
+      />
+
+      {/* Comment Bottom Sheet */}
+      {selectedPostForComments && (
+        <CommentBottomSheet
+          visible={commentBottomSheetVisible}
+          postId={selectedPostForComments}
+          comments={postComments[selectedPostForComments] || []}
+          loadingComments={loadingComments[selectedPostForComments] || false}
+          commentText={commentText[selectedPostForComments] || ''}
+          onClose={handleCloseCommentBottomSheet}
+          onCommentTextChange={(text) => setCommentText(prev => ({ ...prev, [selectedPostForComments]: text }))}
+          onCommentSubmit={async () => {
+            if (selectedPostForComments) {
+              await handleCommentSubmitWithBottomSheet(selectedPostForComments);
+              // Fermer le clavier après l'envoi du commentaire
+              Keyboard.dismiss();
+            }
+          }}
+        />
+      )}
     </>
   );
 };
@@ -161,40 +218,26 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: '#FFFFFF', // Style Instagram - fond blanc uni
   },
   scrollContent: {
     paddingBottom: (styleProps: any) => {
       // Calculer l'espace nécessaire pour la barre de navigation
-      // Barre de navigation: paddingTop (9) + icône (24) + paddingVertical (12*2) + paddingBottom (max(insets.bottom, 16))
-      // On ajoute un peu plus pour être sûr que les boutons sont visibles
       const insets = styleProps?.insets || { bottom: 0 };
       const bottomNavHeight = 9 + 24 + 24 + Math.max(insets.bottom || 16, 16);
-      return bottomNavHeight + 20; // 20px d'espace supplémentaire
+      return bottomNavHeight + 20;
     },
-    backgroundColor: '#F0F2F5',
+    backgroundColor: '#FFFFFF', // Style Instagram - fond blanc uni
   },
   introCard: {
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginHorizontal: 12,
-    marginTop: 12,
-    marginBottom: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E4E6EB',
-    // Ombre légère
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 0, // Style Instagram - pas d'espacement
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBDBDB', // Ligne de séparation subtile
   },
   introAvatar: {
     width: 40,
@@ -205,17 +248,13 @@ const styles = StyleSheet.create({
     borderColor: '#E4E6EB',
   },
   introText: {
-    fontSize: 15,
-    color: '#65676B',
+    fontSize: 14,
+    color: '#8E8E8E',
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#F0F2F5',
-    borderRadius: 20,
-  },
-  postDivider: {
-    height: 8,
-    backgroundColor: '#F0F2F5',
+    backgroundColor: '#FAFAFA',
+    borderRadius: 8,
   },
   sectionContainer: {
     padding: 20,

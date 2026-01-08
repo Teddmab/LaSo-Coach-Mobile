@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
-  ScrollView, 
   TouchableOpacity,
   Image
 } from 'react-native';
@@ -13,107 +12,95 @@ import AgoraIcon from '../icons/AgoraIcon';
 import { ShimmerCard } from '../Shimmer';
 
 const LAgoraCard = ({ posts, loading, onPostPress, onLikePress, onCommentPress }) => {
-  const renderPost = (post, index) => (
-    <TouchableOpacity 
-      key={post.id} 
-      style={styles.postCard}
-      onPress={() => onPostPress?.(post)}
-    >
-      {/* User Info */}
-      <View style={styles.userInfo}>
-        <Image 
-          source={{ uri: post.user?.avatar || 'https://via.placeholder.com/40' }} 
-          style={styles.userAvatar}
-        />
-        <Text style={styles.userName} numberOfLines={1}>
-          {post.user?.firstName || 'Utilisateur'}
-        </Text>
-      </View>
+  // Extraire les photos de profil uniques des utilisateurs qui ont posté (max 5)
+  const userAvatars = useMemo(() => {
+    if (!posts || posts.length === 0) return [];
+    
+    const uniqueAvatars = [];
+    const seenUserIds = new Set();
+    
+    for (const post of posts) {
+      const userId = post.user?.id || post.userId;
+      const avatar = post.user?.avatar;
+      
+      if (userId && avatar && !seenUserIds.has(userId) && uniqueAvatars.length < 5) {
+        uniqueAvatars.push(avatar);
+        seenUserIds.add(userId);
+      }
+    }
+    
+    return uniqueAvatars;
+  }, [posts]);
 
-      {/* Post Content */}
-      <Text style={styles.postContent} numberOfLines={3}>
-        {post.content}
-      </Text>
-
-      {/* Post Media */}
-      {post.mediaUrls && post.mediaUrls.length > 0 && (
-        <Image 
-          source={{ uri: post.mediaUrls[0] }} 
-          style={styles.postImage}
-          resizeMode="cover"
-        />
-      )}
-
-      {/* Engagement */}
-      <View style={styles.engagement}>
-        <TouchableOpacity 
-          style={styles.engagementItem}
-          onPress={() => onLikePress?.(post.id)}
-        >
-          <Ionicons 
-            name="thumbs-up" 
-            size={16} 
-            color={post._count?.likes > 0 ? theme.colors.primary : theme.colors.text.secondary} 
-          />
-          <Text style={styles.engagementText}>{post._count?.likes || 0}</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.engagementItem}
-          onPress={() => onCommentPress?.(post.id)}
-        >
-          <Ionicons 
-            name="chatbubble-outline" 
-            size={16} 
-            color={theme.colors.text.secondary} 
-          />
-          <Text style={styles.engagementText}>{post._count?.comments || 0}</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+  const handleCardPress = () => {
+    // Rediriger vers l'écran Agora si un post existe
+    if (posts && posts.length > 0 && onPostPress) {
+      onPostPress(posts[0]);
+    }
+  };
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      style={styles.container}
+      onPress={handleCardPress}
+      activeOpacity={0.8}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <AgoraIcon width={20} height={20} />
-          <Text style={styles.title}>L'Agora</Text>
+          <View style={styles.iconWrapper}>
+            <AgoraIcon width={24} height={24} />
+          </View>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>L'Agora</Text>
+            <Text style={styles.subtitle}>Espace d'échange</Text>
+          </View>
         </View>
-        <Text style={styles.subtitle}>Glisser pour voir plus de posts populaires</Text>
-        <View style={styles.navigationButtons}>
-          <TouchableOpacity style={styles.navButton}>
-            <Ionicons name="chevron-back" size={16} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navButton}>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-        </View>
+        <Ionicons name="arrow-forward-circle" size={24} color={theme.colors.primary} />
       </View>
 
-      {/* Posts */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.postsContainer}
-      >
+      {/* Body - Grande icône de conversation avec photos de profil empilées */}
+      <View style={styles.body}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ShimmerCard />
-            <ShimmerCard />
-            <ShimmerCard />
           </View>
-        ) : posts && posts.length > 0 ? (
-          posts.map((post, index) => renderPost(post, index))
         ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people-outline" size={48} color={theme.colors.text.secondary} />
-            <Text style={styles.emptyText}>Aucun post disponible</Text>
-          </View>
+          <>
+            {/* Grande icône de bulle de conversation avec effet de fond */}
+            <View style={styles.iconContainer}>
+              <View style={styles.iconBackground}>
+                <Ionicons 
+                  name="chatbubbles" 
+                  size={72} 
+                  color={theme.colors.primary} 
+                />
+              </View>
+            </View>
+
+            {/* Photos de profil empilées (max 5) */}
+            {userAvatars.length > 0 ? (
+              <View style={styles.avatarsContainer}>
+                {userAvatars.map((avatar, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: avatar }}
+                    style={styles.avatar}
+                  />
+                ))}
+                {posts && posts.length > 5 && (
+                  <View style={styles.moreAvatars}>
+                    <Text style={styles.moreAvatarsText}>+{posts.length - 5}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>Rejoignez la communauté</Text>
+            )}
+          </>
         )}
-      </ScrollView>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -121,123 +108,101 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
+    marginBottom: 40, // Augmenté pour soulever et voir la fin
+    borderRadius: 20,
+    padding: 24,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E8E8E8',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
+    gap: 12,
     flex: 1,
-    marginLeft: 16,
   },
-  navigationButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  navButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  iconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '15', // 15% d'opacité
     alignItems: 'center',
     justifyContent: 'center',
   },
-  postsContainer: {
-    paddingRight: 20,
-  },
-  postCard: {
-    width: 200,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 16,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  userAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  userName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+  titleContainer: {
     flex: 1,
   },
-  postContent: {
-    fontSize: 14,
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: theme.colors.text.primary,
-    lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 2,
   },
-  postImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  engagement: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  engagementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  engagementText: {
-    fontSize: 12,
+  subtitle: {
+    fontSize: 13,
     color: theme.colors.text.secondary,
+  },
+  body: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  iconContainer: {
+    marginBottom: 20,
+  },
+  iconBackground: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.colors.primary + '10', // 10% d'opacité pour un effet subtil
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 8, // Espacement entre les avatars alignés
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#E8E8E8',
+    backgroundColor: '#F0F0F0',
+  },
+  moreAvatars: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 2,
+    borderColor: '#E8E8E8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreAvatarsText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
+    marginTop: 8,
   },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
-    width: 200,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    width: 200,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 8,
   },
 });
 
