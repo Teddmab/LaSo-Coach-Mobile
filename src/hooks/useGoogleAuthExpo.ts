@@ -27,9 +27,11 @@ interface UseGoogleAuthReturn {
  * 
  * Avantages :
  * - Pas de crash natif
- * - WebView avec proxy Expo = fonctionne parfaitement sans sessionStorage
+ * - Proxy Expo génère une URL HTTPS valide (requis par Google OAuth Web Client)
  * - Configuration simple
  * - Fonctionne avec Firebase Auth
+ * 
+ * Note: Garder l'app au premier plan pendant l'authentification pour éviter "Something went wrong"
  */
 export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAuthReturn => {
   const { loginWithGoogle, registerWithGoogle } = useAuth();
@@ -52,7 +54,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         console.log('🔧 Configuration Google Auth avec expo-auth-session');
         console.log('🌐 Web Client ID:', firebaseOAuthClientIds.web?.substring(0, 30) + '...');
         console.log('📱 Plateforme:', Platform.OS);
-        console.log('🌐 Utilisation de WebView avec proxy Expo (stable et fonctionnel)');
+        console.log('🌐 Utilisation de WebView avec proxy Expo (URL HTTPS valide pour Google OAuth)');
         
         setIsConfigured(true);
       } catch (error: any) {
@@ -66,7 +68,8 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
   /**
    * Fonction pour se connecter avec Google via expo-auth-session
-   * Utilise une WebView avec le proxy Expo (fonctionne sans sessionStorage)
+   * Utilise une WebView avec proxy Expo (URL HTTPS valide requise par Google OAuth Web Client)
+   * IMPORTANT: Garder l'app au premier plan pendant l'authentification
    */
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     // Vérifier que la configuration est prête
@@ -90,6 +93,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       setIsPrompting(true);
 
       console.log('🚀 Lancement de l\'authentification Google via WebView avec proxy Expo...');
+      console.log('⚠️ IMPORTANT: Gardez l\'app au premier plan pendant l\'authentification');
 
       // Configuration OAuth Google
       const discovery = {
@@ -98,12 +102,12 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
       };
 
-      // CRITIQUE: Utiliser le proxy Expo pour iOS ET Android
-      // Le proxy Expo fonctionne parfaitement avec WebView et évite le problème de sessionStorage
-      const expoConfig = Constants.expoConfig;
-      const owner = expoConfig?.owner || 'ohriginal-llc';
-      const slug = expoConfig?.slug || 'laso-coach';
-      const redirectUri = `https://auth.expo.io/@${owner}/${slug}`;
+      // CRITIQUE: Utiliser le proxy Expo avec useProxy: true
+      // Google OAuth Web Client n'accepte que les URLs HTTPS (pas les deep links)
+      // Le proxy Expo génère une URL HTTPS valide: https://auth.expo.io/@owner/slug
+      const redirectUri = AuthSession.makeRedirectUri({
+        useProxy: true, // CRITIQUE: Utiliser le proxy Expo pour obtenir une URL HTTPS
+      });
       console.log(`🌐 [${Platform.OS}] Redirect URI (proxy Expo):`, redirectUri);
 
       // CRITIQUE: Générer un nonce aléatoire pour responseType: IdToken
@@ -128,11 +132,15 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       console.log('📱 Ouverture de la WebView Google avec proxy Expo...');
       console.log('🔗 Redirect URI:', request.redirectUri);
 
-      // CRITIQUE: Utiliser promptAsync() pour ouvrir une WebView avec le proxy Expo
-      // Le proxy Expo gère les redirections correctement et évite le problème "Something went wrong"
-      const authResult = await request.promptAsync(discovery);
+      // CRITIQUE: Utiliser promptAsync() avec useProxy: true pour utiliser le proxy Expo
+      // Le proxy Expo génère une URL HTTPS valide que Google accepte
+      // IMPORTANT: Garder l'app au premier plan pendant l'authentification pour éviter "Something went wrong"
+      const authResult = await request.promptAsync(discovery, {
+        useProxy: true, // CRITIQUE: Utiliser le proxy Expo pour obtenir une URL HTTPS valide
+      });
 
       console.log('📬 Résultat authentification:', authResult.type);
+      console.log('📋 Détails du résultat:', JSON.stringify(authResult, null, 2));
 
       // Vérifier le résultat
       if (authResult.type === 'cancel') {
@@ -140,6 +148,20 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         result = {
           user: null,
           error: null,
+        };
+        setIsPrompting(false);
+        return result;
+      }
+
+      // CRITIQUE: Gérer le cas "dismiss" qui arrive quand le proxy Expo ne peut pas rediriger
+      if (authResult.type === 'dismiss') {
+        console.warn('⚠️ Authentification Google dismissée - Le proxy Expo n\'a pas pu rediriger');
+        console.warn('⚠️ Cela peut arriver si l\'app est passée en arrière-plan pendant l\'authentification');
+        console.warn('⚠️ Solution: Gardez l\'app au premier plan pendant toute l\'authentification');
+        
+        result = {
+          user: null,
+          error: 'L\'authentification a été interrompue. Veuillez réessayer en gardant l\'application au premier plan pendant toute la durée de l\'authentification.',
         };
         setIsPrompting(false);
         return result;
