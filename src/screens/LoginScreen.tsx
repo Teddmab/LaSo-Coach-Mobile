@@ -1209,29 +1209,31 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     )}
                   </TouchableOpacity>
 
-                  {/* Google Login Button */}
-                  <TouchableOpacity
-                    style={[styles.googleButton, loading && styles.loginButtonDisabled]}
-                    onPress={handleGoogleLogin}
-                    disabled={loading || isGooglePrompting || !isGoogleAvailable}
-                    activeOpacity={0.8}
-                  >
-                    {loading || isGooglePrompting ? (
-                      <View style={styles.buttonContent}>
-                        <ActivityIndicator
-                          size="small"
-                          color="#000"
-                          style={styles.spinner}
-                        />
-                        <Text style={styles.googleButtonText}>Connexion...</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.buttonContent}>
-                        <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
-                        <Text style={styles.googleButtonText}>Continuer avec Google</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
+                  {/* Google Login Button - Only on Android */}
+                  {Platform.OS === 'android' && (
+                    <TouchableOpacity
+                      style={[styles.googleButton, loading && styles.loginButtonDisabled]}
+                      onPress={handleGoogleLogin}
+                      disabled={loading || isGooglePrompting || !isGoogleAvailable}
+                      activeOpacity={0.8}
+                    >
+                      {loading || isGooglePrompting ? (
+                        <View style={styles.buttonContent}>
+                          <ActivityIndicator
+                            size="small"
+                            color="#000"
+                            style={styles.spinner}
+                          />
+                          <Text style={styles.googleButtonText}>Connexion...</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.buttonContent}>
+                          <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
+                          <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  )}
 
                   {errors.general && (
                     <Text style={styles.generalErrorText}>{errors.general}</Text>
@@ -1402,8 +1404,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     </TouchableOpacity>
                   )}
 
-                  {/* Google Sign Up Button - Only show on steps 1-3 */}
-                  {currentStep < 4 && (
+                  {/* Google Sign Up Button - Only show on steps 1-3 and Android */}
+                  {currentStep < 4 && Platform.OS === 'android' && (
                     <>
                       {/* Divider */}
                       <View style={styles.dividerContainer}>
