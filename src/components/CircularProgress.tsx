@@ -76,7 +76,7 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
               )}
               {target && (
                 <Text style={[styles.targetText, { fontSize: size * 0.08 }]}>
-                  / {target}
+                  / {typeof target === 'number' ? target.toFixed(1) : target}
                 </Text>
               )}
             </>

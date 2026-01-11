@@ -9,6 +9,8 @@ export interface ProfileScreenProps {
   initialStep?: number;
   navigation?: any;
   onFAQPress?: () => void;
+  onStepCompleted?: () => void;
+  activeProfileTab?: 'profile' | 'informations' | 'rendezvous' | 'other';
 }
 
 export interface ProfileFormData {

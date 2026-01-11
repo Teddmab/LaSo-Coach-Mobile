@@ -125,6 +125,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           onStepPress={onProfileStepPress}
           subscriptionData={subscriptionData}
           onSubscriptionRenew={onSubscriptionRenew}
+          onRefresh={onRefresh}
+          dashboardData={dashboardData}
         />
       ) : (
         <>

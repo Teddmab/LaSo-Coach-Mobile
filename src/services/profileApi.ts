@@ -105,14 +105,25 @@ export class ProfileApi {
    */
   static async copyFileToAccessibleLocation(sourceUri, mimeType = 'image/jpeg') {
     try {
-      // On iOS or if already a file:// URI, return as-is
-      if (Platform.OS === 'ios' || sourceUri.startsWith('file://')) {
-        return sourceUri;
+      // If already a file:// URI that's accessible, return as-is
+      if (sourceUri.startsWith('file://')) {
+        // Verify the file exists
+        const fileInfo = await FileSystem.getInfoAsync(sourceUri);
+        if (fileInfo.exists) {
+          return sourceUri;
+        }
+        // If file doesn't exist, continue to copy it
       }
 
-      // On Android with content:// URI, copy to cache directory
-      if (sourceUri.startsWith('content://')) {
-        
+      // On iOS, ImagePicker may return ph:// or assets-library:// URIs
+      // On Android, it may return content:// URIs
+      // Both need to be copied to an accessible location
+      const needsCopy = sourceUri.startsWith('content://') || 
+                       sourceUri.startsWith('ph://') || 
+                       sourceUri.startsWith('assets-library://') ||
+                       (!sourceUri.startsWith('file://'));
+      
+      if (needsCopy) {
         // Determine file extension from mime type
         const extension = mimeType.includes('png') ? 'png' : 
                          mimeType.includes('gif') ? 'gif' : 
@@ -128,6 +139,15 @@ export class ProfileApi {
         }
         const destUri = `${cacheDir}${fileName}`;
         
+        console.log('📁 Copying file for upload:', {
+          platform: Platform.OS,
+          sourceUri: sourceUri.substring(0, 50) + '...',
+          sourceType: sourceUri.startsWith('ph://') ? 'ph:// (iOS Photo Library)' :
+                     sourceUri.startsWith('assets-library://') ? 'assets-library:// (iOS)' :
+                     sourceUri.startsWith('content://') ? 'content:// (Android)' :
+                     sourceUri.startsWith('file://') ? 'file://' : 'unknown',
+          destUri: destUri.substring(0, 50) + '...',
+        });
         
         // Copy the file using expo-file-system
         await FileSystem.copyAsync({
@@ -140,14 +160,22 @@ export class ProfileApi {
         if (!fileInfo.exists) {
           throw new Error('Failed to copy file to accessible location');
         }
+        
+        console.log('✅ File copied successfully:', {
+          destUri: destUri.substring(0, 50) + '...',
+          fileSize: fileInfo.size,
+        });
+        
         // CRITICAL: Ensure we return URI with file:// prefix for axios
         return destUri.startsWith('file://') ? destUri : `file://${destUri}`;
       }
 
-      // Unknown URI format, return as-is
+      // Already accessible file:// URI
       return sourceUri;
     } catch (error) {
+      console.error('❌ Error copying file to accessible location:', error);
       // If copy fails, return original URI as fallback
+      // But log the error so we can debug
       return sourceUri;
     }
   }

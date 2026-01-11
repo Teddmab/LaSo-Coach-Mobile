@@ -34,6 +34,27 @@ export type DashboardTabParamList = {
   Subscription: undefined;
 };
 
+// Stack Navigator pour les écrans overlay dans Dashboard
+export type DashboardOverlayStackParamList = {
+  Home: undefined;
+  Settings: undefined;
+  Profile: { initialStep?: number };
+  FAQ: undefined;
+  Notifications: undefined;
+  Agenda: undefined;
+  Community: undefined;
+  Chat: undefined;
+  Subscription: undefined;
+  Security: undefined;
+  Language: undefined;
+  NotificationSettings: undefined;
+  PrivacyPolicy: { source?: string };
+  TermsOfService: { source?: string };
+  PlatformRules: { source?: string };
+  ContactSupport: undefined;
+  About: undefined;
+};
+
 // Types de navigation pour les props
 export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 export type RegisterScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Register'>;

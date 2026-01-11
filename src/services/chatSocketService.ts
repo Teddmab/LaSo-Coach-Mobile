@@ -108,9 +108,11 @@ class ChatSocketService {
       // Don't aggressively tear down - let Socket.IO handle reconnection
       if (this.socket && !this.socket.connected && !this.socket.connecting) {
         // Remove all event listeners from old socket
-        this.socket.io.off('reconnect_attempt');
-        this.socket.io.off('reconnect');
-        this.socket.io.off('reconnect_failed');
+        if (this.socket.io) {
+          this.socket.io.off('reconnect_attempt');
+          this.socket.io.off('reconnect');
+          this.socket.io.off('reconnect_failed');
+        }
         this.socket.removeAllListeners();
         this.socket.disconnect();
         this.socket = null;
@@ -460,7 +462,9 @@ class ChatSocketService {
 
     this.socket.on('chat:message', listener);
     const unsubscribe = () => {
-      this.socket.off('chat:message', listener);
+      if (this.socket) {
+        this.socket.off('chat:message', listener);
+      }
     };
 
     // Store listener for cleanup
@@ -486,7 +490,9 @@ class ChatSocketService {
 
     this.socket.on('chat:created', listener);
     const unsubscribe = () => {
-      this.socket.off('chat:created', listener);
+      if (this.socket) {
+        this.socket.off('chat:created', listener);
+      }
     };
 
     const key = `chat:created-${Date.now()}`;
@@ -511,7 +517,9 @@ class ChatSocketService {
 
     this.socket.on('chat:participant_added', listener);
     const unsubscribe = () => {
-      this.socket.off('chat:participant_added', listener);
+      if (this.socket) {
+        this.socket.off('chat:participant_added', listener);
+      }
     };
 
     const key = `chat:participant_added-${Date.now()}`;
@@ -536,7 +544,9 @@ class ChatSocketService {
 
     this.socket.on('chat:participant_removed', listener);
     const unsubscribe = () => {
-      this.socket.off('chat:participant_removed', listener);
+      if (this.socket) {
+        this.socket.off('chat:participant_removed', listener);
+      }
     };
 
     const key = `chat:participant_removed-${Date.now()}`;
@@ -563,7 +573,9 @@ class ChatSocketService {
 
     this.socket.on('notification', listener);
     const unsubscribe = () => {
-      this.socket.off('notification', listener);
+      if (this.socket) {
+        this.socket.off('notification', listener);
+      }
     };
 
     const key = `notification-${Date.now()}`;
@@ -588,7 +600,9 @@ class ChatSocketService {
 
     this.socket.on('points:updated', listener);
     const unsubscribe = () => {
-      this.socket.off('points:updated', listener);
+      if (this.socket) {
+        this.socket.off('points:updated', listener);
+      }
     };
 
     const key = `points:updated-${Date.now()}`;
@@ -613,7 +627,9 @@ class ChatSocketService {
 
     this.socket.on('badge:level_unlocked', listener);
     const unsubscribe = () => {
-      this.socket.off('badge:level_unlocked', listener);
+      if (this.socket) {
+        this.socket.off('badge:level_unlocked', listener);
+      }
     };
 
     const key = `badge:level_unlocked-${Date.now()}`;
@@ -638,7 +654,9 @@ class ChatSocketService {
 
     this.socket.on('badge:updated', listener);
     const unsubscribe = () => {
-      this.socket.off('badge:updated', listener);
+      if (this.socket) {
+        this.socket.off('badge:updated', listener);
+      }
     };
 
     const key = `badge:updated-${Date.now()}`;

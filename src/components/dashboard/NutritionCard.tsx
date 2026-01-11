@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
@@ -207,66 +208,104 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       completionPercentage: 0,
       pointsEarned: 0,
       totalPoints: 554,
-      progress: 100
     }
   };
 
-  useEffect(() => {
-    const fetchNutritionData = async () => {
-      try {
-        setLoading(true);
+  const fetchNutritionData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch nutrition plans
+      const plansResponse = await nutritionAPI.getPlans();
+      
+      if (plansResponse.success && plansResponse.data.plans && plansResponse.data.plans.length > 0) {
+        const currentPlan = plansResponse.data.plans[0]; // Get the first plan for now
         
-        // Fetch nutrition plans
-        const plansResponse = await nutritionAPI.getPlans();
-        
-        if (plansResponse.success && plansResponse.data.plans && plansResponse.data.plans.length > 0) {
-          const currentPlan = plansResponse.data.plans[0]; // Get the first plan for now
+        // Fetch completion status for the current plan
+        try {
+          const completionResponse = await nutritionAPI.getCompletionStatus(currentPlan.id);
           
-          // Fetch completion status for the current plan
-          try {
-            const completionResponse = await nutritionAPI.getCompletionStatus(currentPlan.id);
-            
-            const nutritionData = {
-              plan: currentPlan,
-              completionStatus: completionResponse.success ? completionResponse.data : {
-                totalMeals: 0,
-                completedMeals: 0,
-                completionPercentage: 0,
-                pointsEarned: 0,
-                totalPoints: currentPlan.totalPoints || 0,
-                progress: 0
+          // Extract completion data from response
+          const completionData = completionResponse.success ? completionResponse.data : null;
+          
+          // Calculate completion percentage based on actual completed meals
+          // Handle both 'progress' and 'completionPercentage' fields from API
+          let completionPercentage = 0;
+          if (completionData) {
+            // If API returns completionPercentage, use it
+            if (completionData.completionPercentage !== undefined) {
+              completionPercentage = completionData.completionPercentage;
+            }
+            // If API returns progress, use it but ensure it's based on actual completion
+            else if (completionData.progress !== undefined) {
+              // Only use progress if it's calculated from actual completed meals
+              // Otherwise calculate it ourselves
+              const totalMeals = completionData.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0;
+              const completedMeals = completionData.completedMeals || 0;
+              if (totalMeals > 0) {
+                completionPercentage = Math.round((completedMeals / totalMeals) * 100);
+              } else {
+                completionPercentage = completionData.progress || 0;
               }
-            };
-            
-            setNutritionData(nutritionData);
-          } catch (completionError) {
-            // Use plan data without completion status
-            const nutritionData = {
-              plan: currentPlan,
-              completionStatus: {
-                totalMeals: currentPlan.menus?.[0]?.meals?.length || 0,
-                completedMeals: 0,
-                completionPercentage: 0,
-                pointsEarned: 0,
-                totalPoints: currentPlan.totalPoints || 0,
-                progress: 0
+            }
+            // Calculate from completedMeals and totalMeals if available
+            else {
+              const totalMeals = completionData.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0;
+              const completedMeals = completionData.completedMeals || 0;
+              if (totalMeals > 0) {
+                completionPercentage = Math.round((completedMeals / totalMeals) * 100);
               }
-            };
-            setNutritionData(nutritionData);
+            }
           }
-        } else {
-          setNutritionData(null);
+          
+          const nutritionData = {
+            plan: currentPlan,
+            completionStatus: {
+              totalMeals: completionData?.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0,
+              completedMeals: completionData?.completedMeals || 0,
+              completionPercentage: completionPercentage,
+              pointsEarned: completionData?.pointsEarned || 0,
+              totalPoints: currentPlan.totalPoints || 0,
+            }
+          };
+          
+          setNutritionData(nutritionData);
+        } catch (completionError) {
+          // Use plan data without completion status
+          const nutritionData = {
+            plan: currentPlan,
+            completionStatus: {
+              totalMeals: currentPlan.menus?.[0]?.meals?.length || 0,
+              completedMeals: 0,
+              completionPercentage: 0,
+              pointsEarned: 0,
+              totalPoints: currentPlan.totalPoints || 0,
+            }
+          };
+          setNutritionData(nutritionData);
         }
-      } catch (error) {
-        // Fallback to mock data for development
-        setNutritionData(mockNutritionData);
-      } finally {
-        setLoading(false);
+      } else {
+        setNutritionData(null);
       }
-    };
-
-    fetchNutritionData();
+    } catch (error) {
+      // Fallback to mock data for development
+      setNutritionData(mockNutritionData);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchNutritionData();
+  }, [fetchNutritionData]);
+
+  // Refresh data when screen comes into focus (e.g., after completing a meal)
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchNutritionData();
+    }, [fetchNutritionData])
+  );
 
   const getMealTypeIcon = (type) => {
     switch (type) {
@@ -663,30 +702,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
         </View>
       </View>
 
-      {/* Complete Day Button - Only show for today */}
-      {isToday && (
-        <TouchableOpacity 
-          style={styles.completeButton} 
-          onPress={async () => {
-            if (onPress) {
-              onPress();
-            }
-            
-            // TODO: Call API to mark day as complete
-            // if (nutritionData?.plan?.id) {
-            //   try {
-            //     await nutritionAPI.markDayComplete(nutritionData.plan.id, selectedDay);
-            //     // Refresh data after completion
-            //     // fetchNutritionData();
-            //   } catch (error) {
-            //   }
-            // }
-          }}
-        >
-          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-          <Text style={styles.completeButtonText}>Marquer le jour comme terminé</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 };

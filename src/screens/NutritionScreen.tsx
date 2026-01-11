@@ -31,7 +31,14 @@ import { ShimmerCard, ShimmerList } from '../components/Shimmer';
 // Create logger instance for NutritionScreen
 const logger = createLogger('NutritionScreen');
 
-import { NutritionScreenProps } from './nutrition/types';
+import { 
+  NutritionScreenProps, 
+  NutritionPlan, 
+  Meal, 
+  CompletionStatus, 
+  SubscriptionData,
+  MealInteraction 
+} from './nutrition/types';
 
 const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
   // State management
@@ -39,46 +46,51 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [currentDate] = useState(today); // Keep current date constant
   const [selectedDate, setSelectedDate] = useState(today.getDate());
   const [selectedDay, setSelectedDay] = useState(today.getDay() || 7); // Use current day of week
-  const [subscriptionData, setSubscriptionData] = useState(null);
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [showBlurOverlay, setShowBlurOverlay] = useState(false);
-  const [profileData, setProfileData] = useState(null);
-  const [nutritionPlans, setNutritionPlans] = useState([]);
-  const [currentPlan, setCurrentPlan] = useState(null);
-  const [dayMeals, setDayMeals] = useState([]);
-  const [tomorrowMeals, setTomorrowMeals] = useState([]);
-  const [completionStatus, setCompletionStatus] = useState(null);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
+  const [dayMeals, setDayMeals] = useState<Meal[]>([]);
+  const [tomorrowMeals, setTomorrowMeals] = useState<Meal[]>([]);
+  const [completionStatus, setCompletionStatus] = useState<CompletionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
   // Meal interaction states
-  const [mealInteractions, setMealInteractions] = useState({});
+  const [mealInteractions, setMealInteractions] = useState<MealInteraction>({});
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [selectedMealForFeedback, setSelectedMealForFeedback] = useState(null);
+  const [selectedMealForFeedback, setSelectedMealForFeedback] = useState<Meal | null>(null);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackRating, setFeedbackRating] = useState(5);
   
   // Selected meal for preview
-  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   
   // Tab state for meal preview
-  const [activeMealTab, setActiveMealTab] = useState('recipe'); // 'recipe' or 'ingredients' (composition removed)
+  const [activeMealTab, setActiveMealTab] = useState<'recipe' | 'ingredients'>('recipe');
   
   // YouTube video state
-  const [youtubeVideoId, setYoutubeVideoId] = useState(null);
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [showYoutubeModal, setShowYoutubeModal] = useState(false);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
-  const [youtubeModalTab, setYoutubeModalTab] = useState('recipe'); // Tab state for YouTube modal (default to recipe, composition removed)
+  const [youtubeModalTab, setYoutubeModalTab] = useState<'recipe' | 'ingredients'>('recipe');
+  
+  // Plan video modal state
+  const [showPlanVideoModal, setShowPlanVideoModal] = useState(false);
+  const [planVideoId, setPlanVideoId] = useState<string | null>(null);
+  const [planVideoPlaying, setPlanVideoPlaying] = useState(false);
   
   // Meal completion modal state
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [mealsToComplete, setMealsToComplete] = useState([]);
+  const [mealsToComplete, setMealsToComplete] = useState<Meal[]>([]);
   
   // Full-screen image modal state
   const [showImageModal, setShowImageModal] = useState(false);
-  const [fullScreenImageUrl, setFullScreenImageUrl] = useState(null);
+  const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
 
   // Extract YouTube video ID from URL
-  const getYouTubeVideoId = (url) => {
+  const getYouTubeVideoId = (url: string | null | undefined): string | null => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
@@ -115,34 +127,54 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // Flag pour éviter les appels multiples simultanés
   const [isLoadingDayData, setIsLoadingDayData] = useState(false);
+  const [isFetchingAllData, setIsFetchingAllData] = useState(false);
+  const hasInitialLoadRef = React.useRef(false);
+  const lastFetchAttemptRef = React.useRef<{ planId: string | null; subscriptionId: string | null } | null>(null);
 
   useEffect(() => {
     fetchAllData();
+    hasInitialLoadRef.current = true;
   }, []);
 
   // Mise à jour automatique quand l'écran revient au focus
   useFocusEffect(
     useCallback(() => {
+      // Ne rien faire si on est déjà en train de charger
+      if (isFetchingAllData || isLoadingDayData) {
+        return;
+      }
+
       // Rafraîchir les données quand l'écran revient au focus
       if (currentPlan && subscriptionData && !isLoadingDayData) {
+        // Si on a un plan et une subscription, charger les données du jour
         loadDayData();
-      } else if (!currentPlan || !subscriptionData) {
-        // Si pas de plan, essayer de charger les données
+      } else if (!hasInitialLoadRef.current) {
+        // Seulement charger si c'est le premier chargement (ne devrait pas arriver ici car fait dans useEffect)
         fetchAllData();
       }
+      // Si on a déjà chargé mais qu'il n'y a toujours pas de plan,
+      // ne pas recharger indéfiniment - juste laisser l'UI afficher l'état vide
+      // Le useFocusEffect ne doit pas déclencher de rechargement si on n'a pas de plan
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPlan?.id, subscriptionData])
   );
 
   useEffect(() => {
-    if (currentPlan && subscriptionData && !isLoadingDayData) {
+    if (currentPlan && subscriptionData && !isLoadingDayData && !isFetchingAllData) {
       loadDayData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPlan?.id, selectedDate, subscriptionData]);
 
   const fetchAllData = async () => {
+    // Éviter les appels multiples simultanés
+    if (isFetchingAllData) {
+      logger.debug('fetchAllData already in progress, skipping...');
+      return;
+    }
+
     try {
+      setIsFetchingAllData(true);
       setLoading(true);
       logger.group('📥 FETCH ALL DATA - Initial Load');
       logger.info('Starting data fetch for NutritionScreen');
@@ -154,6 +186,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       ]).then(results => results[0]);
       
       let subscription = null;
+      let loadedPlan = null; // Pour tracker le plan chargé
       if (subscriptionRes.status === 'fulfilled') {
         subscription = subscriptionRes.value;
       }
@@ -221,13 +254,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         // Field mapping
         logger.debug('Field Mapping: Subscription data structure', {
           'subscription.status': subscription?.status,
-          'subscription.endDate': subscription?.endDate || subscription?.subscription?.endDate,
-          'subscription.startDate': subscription?.startDate || subscription?.subscription?.startDate,
-          'subscription.isTrial': subscription?.isTrial,
-          'subscription.planName': subscription?.planName,
+          'subscription.endDate': (subscription as any)?.endDate || (subscription as any)?.subscription?.endDate,
+          'subscription.startDate': (subscription as any)?.startDate || (subscription as any)?.subscription?.startDate,
+          'subscription.isTrial': (subscription as any)?.isTrial,
+          'subscription.planName': (subscription as any)?.planName,
         });
         
-        setSubscriptionData(subscription);
+        setSubscriptionData(subscription as SubscriptionData);
         
         // Logic: Check if banner should be displayed
         const status = subscription?.status || subscription?.subscription?.status;
@@ -309,7 +342,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         
         // Field mapping
         logger.debug('Field Mapping: Plans data structure', {
-          'data.plans': plansData?.data?.plans?.map(plan => ({
+          'data.plans': plansData?.data?.plans?.map((plan: NutritionPlan) => ({
             id: plan.id,
             name: plan.name,
             isActive: plan.isActive,
@@ -322,10 +355,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         setNutritionPlans(allPlans);
         
         // Logic: Set current plan (first active plan or first available)
-        const activePlan = allPlans.find(plan => plan.isActive) || allPlans[0];
+        const activePlan = allPlans.find((plan: NutritionPlan) => plan.isActive) || allPlans[0];
         logger.debug('Logic: Current plan selection', {
           totalPlans: allPlans.length,
-          activePlansCount: allPlans.filter(p => p.isActive).length,
+          activePlansCount: allPlans.filter((p: NutritionPlan) => p.isActive).length,
           selectedPlan: activePlan ? {
             id: activePlan.id,
             name: activePlan.name,
@@ -338,8 +371,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         
         if (activePlan) {
           setCurrentPlan(activePlan);
+          loadedPlan = activePlan; // Sauvegarder pour la référence
           logger.info('Current plan set', { planName: activePlan.name, planId: activePlan.id });
         } else {
+          loadedPlan = null; // Pas de plan chargé
           logger.warn('No nutrition plans available', {
             plansCount: 0,
             subscriptionStatus: subscription?.status,
@@ -369,14 +404,26 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       });
     } finally {
       setLoading(false);
+      setIsFetchingAllData(false);
+      
+      // Mettre à jour la référence du dernier état chargé pour éviter les boucles
+      // Utiliser les valeurs locales chargées plutôt que l'état qui peut ne pas être à jour
+      // Note: loadedPlan et subscription sont des variables locales dans le scope try
+      const finalPlanId = currentPlan?.id || null;
+      const finalSubscriptionId = (subscriptionData as any)?.subscription?.id || (subscriptionData as any)?.id || null;
+      lastFetchAttemptRef.current = {
+        planId: finalPlanId,
+        subscriptionId: finalSubscriptionId,
+      };
     }
   };
 
   // Calculate which day in the nutrition plan cycle based on selected date
-  const calculateNutritionPlanDay = (selectedDate) => {
+  const calculateNutritionPlanDay = (selectedDate: Date | number): number => {
     logger.group('📅 CALCULATE PLAN DAY');
+    const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
     logger.debug('Input: Calculating plan day for selected date', {
-      selectedDate: selectedDate?.toDateString?.() || selectedDate,
+      selectedDate: dateObj.toDateString(),
       subscriptionStartDate: subscriptionData?.subscription?.startDate,
       planNumDays: currentPlan?.numDays,
     });
@@ -391,14 +438,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       return 1; // Default to day 1
     }
 
-    const startDate = new Date(subscriptionData.subscription.startDate);
+    const startDate = new Date((subscriptionData as any).subscription.startDate);
     startDate.setHours(0, 0, 0, 0);
     
-    const currentDate = new Date(selectedDate);
+    const currentDate = dateObj;
     currentDate.setHours(0, 0, 0, 0);
     
     // Calculate days since subscription started (0-indexed)
-    const daysSinceStart = Math.floor((currentDate - startDate) / (1000 * 60 * 60 * 24));
+    const daysSinceStart = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
     
     // Logic: Calculate which day in the plan cycle (1-indexed, repeating)
     // Example: 3-day plan cycles as 1,2,3,1,2,3...
@@ -465,33 +512,33 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // Logic: Get meals for today (calculated plan day)
       logger.debug('Logic: Finding menu for plan day', {
         planDay,
-        availableMenuDays: currentPlan.menus?.map(m => m.day) || [],
+        availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
         searchCriteria: `menu.day === ${planDay}`
       });
       
-      const dayMenu = currentPlan.menus?.find(menu => menu.day === planDay);
+      const dayMenu = currentPlan.menus?.find((menu: any) => menu.day === planDay);
       
       if (dayMenu) {
         logger.debug('API Response: Day menu found', {
           menuDay: dayMenu.day,
           mealsCount: dayMenu.meals?.length || 0,
-          mealIds: dayMenu.meals?.map(m => ({ id: m.id, name: m.name, type: m.type })) || [],
+          mealIds: dayMenu.meals?.map((m: Meal) => ({ id: m.id, name: m.name, type: m.type })) || [],
         });
         
         // Field mapping
         logger.debug('Field Mapping: Day menu structure', {
           'menu.day': dayMenu.day,
-          'menu.meals[].id': dayMenu.meals?.map(m => m.id) || [],
-          'menu.meals[].name': dayMenu.meals?.map(m => m.name) || [],
-          'menu.meals[].type': dayMenu.meals?.map(m => m.type) || [],
-          'menu.meals[].imageUrl': dayMenu.meals?.map(m => m.imageUrl ? 'present' : 'missing') || [],
+          'menu.meals[].id': dayMenu.meals?.map((m: Meal) => m.id) || [],
+          'menu.meals[].name': dayMenu.meals?.map((m: Meal) => m.name) || [],
+          'menu.meals[].type': dayMenu.meals?.map((m: Meal) => m.type) || [],
+          'menu.meals[].imageUrl': dayMenu.meals?.map((m: Meal) => m.imageUrl ? 'present' : 'missing') || [],
         });
         
         const meals = dayMenu.meals || [];
         setDayMeals(meals);
         
         // Load interaction status for each meal
-        const interactionPromises = meals.map(async (meal) => {
+        const interactionPromises = meals.map(async (meal: Meal) => {
           try {
             const interactionRes = await nutritionAPI.getMealInteraction(meal.id);
             logger.debug('Meal interaction response', { 
@@ -521,10 +568,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         });
         
         const interactionResults = await Promise.allSettled(interactionPromises);
-        const newInteractions = {};
+        const newInteractions: MealInteraction = {};
         interactionResults.forEach((result) => {
           if (result.status === 'fulfilled' && result.value) {
-            newInteractions[result.value.mealId] = result.value.interaction;
+            const interaction = result.value.interaction;
+            if (interaction === 'like' || interaction === 'dislike' || interaction === null) {
+              newInteractions[result.value.mealId] = interaction;
+            }
           }
         });
         
@@ -550,24 +600,24 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // Logic: Get meals for tomorrow
       logger.debug('Logic: Finding menu for tomorrow plan day', {
         tomorrowPlanDay,
-        availableMenuDays: currentPlan.menus?.map(m => m.day) || [],
+        availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
         searchCriteria: `menu.day === ${tomorrowPlanDay}`
       });
       
-      const tomorrowMenu = currentPlan.menus?.find(menu => menu.day === tomorrowPlanDay);
+      const tomorrowMenu = currentPlan.menus?.find((menu: any) => menu.day === tomorrowPlanDay);
       
       if (tomorrowMenu) {
         logger.debug('API Response: Tomorrow menu found', {
           menuDay: tomorrowMenu.day,
           mealsCount: tomorrowMenu.meals?.length || 0,
-          mealIds: tomorrowMenu.meals?.map(m => ({ id: m.id, name: m.name, type: m.type })) || [],
+          mealIds: tomorrowMenu.meals?.map((m: Meal) => ({ id: m.id, name: m.name, type: m.type })) || [],
         });
         
         const tomorrowMealsList = tomorrowMenu.meals || [];
         setTomorrowMeals(tomorrowMealsList);
         
         // Load interaction status for tomorrow's meals
-        const tomorrowInteractionPromises = tomorrowMealsList.map(async (meal) => {
+        const tomorrowInteractionPromises = tomorrowMealsList.map(async (meal: Meal) => {
           try {
             const interactionRes = await nutritionAPI.getMealInteraction(meal.id);
             logger.debug('Tomorrow meal interaction response', { 
@@ -597,10 +647,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         });
         
         const tomorrowInteractionResults = await Promise.allSettled(tomorrowInteractionPromises);
-        const tomorrowNewInteractions = {};
+        const tomorrowNewInteractions: MealInteraction = {};
         tomorrowInteractionResults.forEach((result) => {
           if (result.status === 'fulfilled' && result.value) {
-            tomorrowNewInteractions[result.value.mealId] = result.value.interaction;
+            const interaction = result.value.interaction;
+            if (interaction === 'like' || interaction === 'dislike' || interaction === null) {
+              tomorrowNewInteractions[result.value.mealId] = interaction;
+            }
           }
         });
         
@@ -663,7 +716,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         
         setCompletionStatus(completionData);
         logger.info('Completion status loaded');
-      } catch (error) {
+      } catch (error: any) {
         logger.error('API Response: Completion status fetch failed', error?.message || error);
         console.error('❌ [LOAD DAY DATA] Erreur lors du chargement du statut de complétion', {
           planId: currentPlan.id,
@@ -702,7 +755,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   };
 
   // Meal interaction functions
-  const handleMealLike = async (mealId) => {
+  const handleMealLike = async (mealId: string) => {
     logger.group('👍 MEAL LIKE ACTION');
     logger.info('User Action: Meal like button pressed', { mealId });
     
@@ -746,7 +799,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       });
       
       setMealInteractions(prev => {
-        const updated = { ...prev, [mealId]: updatedInteraction };
+        const interaction: 'like' | 'dislike' | null = updatedInteraction === 'like' ? 'like' : 
+                                                      updatedInteraction === 'dislike' ? 'dislike' : null;
+        const updated: MealInteraction = { ...prev, [mealId]: interaction };
         logger.debug('Updated mealInteractions state', { mealId, updatedInteraction, allInteractions: updated });
         return updated;
       });
@@ -782,7 +837,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }
   };
 
-  const handleMealDislike = async (mealId) => {
+  const handleMealDislike = async (mealId: string) => {
     logger.group('👎 MEAL DISLIKE ACTION');
     logger.info('User Action: Meal dislike button pressed', { mealId });
     
@@ -826,7 +881,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       });
       
       setMealInteractions(prev => {
-        const updated = { ...prev, [mealId]: updatedInteraction };
+        const interaction: 'like' | 'dislike' | null = updatedInteraction === 'like' ? 'like' : 
+                                                      updatedInteraction === 'dislike' ? 'dislike' : null;
+        const updated: MealInteraction = { ...prev, [mealId]: interaction };
         logger.debug('Updated mealInteractions state', { mealId, updatedInteraction, allInteractions: updated });
         return updated;
       });
@@ -862,7 +919,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }
   };
 
-  const handleMealComplete = async (mealId) => {
+  const handleMealComplete = async (mealId: string) => {
     console.log('🔵 [MEAL COMPLETE] ==========================================');
     console.log('🔵 [MEAL COMPLETE] Début de la complétion du repas');
     console.log('🔵 [MEAL COMPLETE] mealId:', mealId);
@@ -897,7 +954,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           completedMealIds: completionData?.dayProgress?.completedMealIds || [],
           mealStatus: completionData?.mealStatus || {},
         });
-      } catch (error) {
+      } catch (error: any) {
         logger.warn('Could not load fresh completion status, using cached', { error });
         console.warn('⚠️ [MEAL COMPLETE] Impossible de charger le statut frais, utilisation du cache', {
           mealId,
@@ -1066,7 +1123,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       }
       console.log('🔵 [MEAL COMPLETE] ✅ Complétion réussie');
       logger.groupEnd();
-    } catch (error) {
+    } catch (error: any) {
       // Log détaillé de l'erreur avec console.log pour être sûr de voir l'erreur
       console.error('🔴 [MEAL COMPLETE] ❌ ERREUR DÉTECTÉE ==========================================');
       console.error('🔴 [MEAL COMPLETE] error.message:', error?.message);
@@ -1167,7 +1224,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }
   };
 
-  const handleMealFeedback = (meal) => {
+  const handleMealFeedback = (meal: Meal) => {
     setSelectedMealForFeedback(meal);
     setFeedbackText('');
     setFeedbackRating(5);
@@ -1213,9 +1270,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       setShowFeedbackModal(false);
       setSelectedMealForFeedback(null);
       logger.groupEnd();
-    } catch (error) {
-      logger.error('Error submitting feedback', error);
-      logger.groupEnd();
+      } catch (error: any) {
+        logger.error('Error submitting feedback', error);
+        logger.groupEnd();
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -1225,7 +1282,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   };
 
   // Check if a date is outside subscription coverage
-  const isDateOutsideSubscription = (date) => {
+  const isDateOutsideSubscription = (date: Date) => {
     // Réduire les logs pour éviter la répétition excessive
     if (!subscriptionData) {
       return false;
@@ -1282,7 +1339,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   // Recalculate weekDays whenever subscriptionData changes
   const weekDays = useMemo(() => generateWeekDays(), [subscriptionData]);
 
-  const formatDate = (date) => {
+  const formatDate = (date: Date) => {
     const months = [
       'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
       'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'
@@ -1294,14 +1351,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   };
 
   // Function to sort meals by type in correct order
-  const sortMealsByType = (meals) => {
+  const sortMealsByType = (meals: Meal[]): Meal[] => {
     const typeOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
-    return meals.sort((a, b) => {
+    return meals.sort((a: Meal, b: Meal) => {
       return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type);
     });
   };
 
-  const renderMealCard = (meal) => {
+  const renderMealCard = (meal: Meal) => {
     const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
     // Vérifier le statut de complétion de manière plus robuste
     const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id) === true;
@@ -1493,6 +1550,34 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             <Text style={styles.menuTitle}>Menu du jour</Text>
             <Text style={styles.menuDate}>{formatDate(currentDate)}</Text>
           </View>
+          {/* Plan name with video button */}
+          {currentPlan && (
+            <TouchableOpacity 
+              style={styles.planNameRow}
+              onPress={() => {
+                if (currentPlan.youtubeUrl) {
+                  const videoId = getYouTubeVideoId(currentPlan.youtubeUrl);
+                  if (videoId) {
+                    setPlanVideoId(videoId);
+                    setPlanVideoPlaying(true);
+                    setShowPlanVideoModal(true);
+                    logger.info('User Action: Opening plan video modal', {
+                      planId: currentPlan.id,
+                      planName: currentPlan.name,
+                      videoId
+                    });
+                  }
+                }
+              }}
+              disabled={!currentPlan.youtubeUrl}
+              activeOpacity={currentPlan.youtubeUrl ? 0.7 : 1}
+            >
+              <Text style={styles.planNameText}>{currentPlan.name}</Text>
+              {currentPlan.youtubeUrl && (
+                <Ionicons name="play-circle" size={24} color={theme.colors.primary} />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Week Calendar */}
@@ -1501,7 +1586,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.calendarContent}
-            initialScrollIndex={3}
           >
             {weekDays.map((day) => (
               <TouchableOpacity
@@ -1534,7 +1618,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     logger.info('User Action: Date selected', {
                       selectedDate: day.number,
                       selectedDayOfWeek: day.dayOfWeek,
-                      dayLabel: day.label,
                       isToday: day.isToday,
                       isOutsideSubscription: day.isOutsideSubscription,
                     });
@@ -1576,8 +1659,59 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </ScrollView>
         </View>
 
-        {/* Meals List */}
-        <View style={styles.mealsContainer}>
+        {/* Locked Menu Card - Show when no active plan */}
+        {!currentPlan && (
+          <View style={styles.lockedMenuCard}>
+            <View style={styles.lockedMenuHeader}>
+              <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
+              <Text style={styles.lockedMenuTitle}>Menu du jour</Text>
+            </View>
+            
+            {/* Locked Menu Message */}
+            <View style={styles.lockedMenuContainer}>
+              {/* Title */}
+              <Text style={styles.lockedMenuTitleText}>Menus verrouillés</Text>
+              
+              {/* Description */}
+              <Text style={styles.lockedMenuDescription}>
+                Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
+              </Text>
+              
+              {/* Primary Button */}
+              <TouchableOpacity 
+                style={styles.lockedSubscriptionButton}
+                onPress={handleSubscriptionRenew}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#BA68C8', '#9C27B0']}
+                  style={styles.lockedSubscriptionButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.lockedSubscriptionButtonText}>Voir les plans d'abonnement</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              {/* Free Trial Link */}
+              <TouchableOpacity 
+                style={styles.lockedFreeTrialLink}
+                onPress={handleSubscriptionRenew}
+              >
+                <Text style={styles.lockedFreeTrialText}>Commencer avec l'essai gratuit</Text>
+              </TouchableOpacity>
+              
+              {/* Additional Text */}
+              <Text style={styles.lockedFreeTrialDescription}>
+                Commencez gratuitement avec notre essai gratuit !
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Meals List - Only show when there's an active plan */}
+        {currentPlan && (
+          <View style={styles.mealsContainer}>
           {/* Today's Meals */}
           {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
             <>
@@ -1592,7 +1726,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     <View style={styles.mealsSectionHeader}>
                       <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
                     </View>
-                    {sortMealsByType(dayMeals).map((meal) => renderMealCard(meal))}
+                    {sortMealsByType(dayMeals).map((meal: Meal) => renderMealCard(meal))}
                     
                     {/* Complete All Button - only for today's meals */}
                     {isToday && (
@@ -1626,22 +1760,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     <View style={[styles.mealsSectionHeader, { marginTop: dayMeals.length > 0 ? 24 : 0 }]}>
                       <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
                     </View>
-                    {sortMealsByType(tomorrowMeals).map((meal) => renderMealCard(meal))}
+                    {sortMealsByType(tomorrowMeals).map((meal: Meal) => renderMealCard(meal))}
                   </>
                 );
               })()}
             </>
-          ) : (
-            <View style={styles.emptyStateContainer}>
-              <Text style={styles.emptyStateIcon}>🍽️</Text>
-              <Text style={styles.emptyStateTitle}>Aucun repas planifié</Text>
-              <Text style={styles.emptyStateSubtitle}>
-                Pas de repas prévus pour aujourd'hui et demain
-              </Text>
-              <Text style={styles.debugText}>Debug: Selected day: {selectedDay}, Meals count: {dayMeals.length}</Text>
-            </View>
-          )}
-        </View>
+          ) : null}
+          </View>
+        )}
       </ScrollView>
 
       {/* Feedback Modal */}
@@ -1801,7 +1927,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       width={videoWidth}
                       videoId={youtubeVideoId}
                       play={youtubePlaying}
-                      onChangeState={(event) => {
+                      onChangeState={(event: string) => {
                         if (event === 'playing') {
                           setYoutubePlaying(true);
                         } else if (event === 'paused' || event === 'ended') {
@@ -1811,7 +1937,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       onReady={() => {
                         logger.debug('YouTube player ready', { videoId: youtubeVideoId });
                       }}
-                      onError={(error) => {
+                      onError={(error: any) => {
                         logger.error('YouTube player error', { videoId: youtubeVideoId, error });
                         Toast.show({
                           type: 'error',
@@ -1912,15 +2038,18 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       <Text style={styles.contentTitle}>Recette</Text>
                       {selectedMeal.instructions && selectedMeal.instructions.length > 0 ? (
                         (() => {
-                          let instructions = selectedMeal.instructions;
-                          if (typeof instructions === 'string') {
+                          let instructions: string[] = [];
+                          if (Array.isArray(selectedMeal.instructions)) {
+                            instructions = selectedMeal.instructions;
+                          } else if (typeof selectedMeal.instructions === 'string') {
                             try {
-                              instructions = JSON.parse(instructions);
+                              const parsed = JSON.parse(selectedMeal.instructions);
+                              instructions = Array.isArray(parsed) ? parsed : [selectedMeal.instructions];
                             } catch (e) {
-                              instructions = [instructions];
+                              instructions = [selectedMeal.instructions];
                             }
                           }
-                          return instructions.map((instruction, index) => (
+                          return instructions.map((instruction: string, index: number) => (
                             <Text key={index} style={styles.recipeStep}>
                               {index + 1}. {instruction}
                             </Text>
@@ -1949,7 +2078,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                         }
                         
                         return ingredients && ingredients.length > 0 ? (
-                          ingredients.map((ingredient, index) => {
+                          ingredients.map((ingredient: any, index: number) => {
                             const ingredientName = typeof ingredient === 'string' ? ingredient : (ingredient.name || ingredient);
                             const ingredientAmount = ingredient.amount;
                             const ingredientUnit = ingredient.unit;
@@ -2046,7 +2175,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             </View>
             
             <ScrollView style={styles.completionModalBody}>
-              {mealsToComplete.map((meal) => {
+              {mealsToComplete.map((meal: Meal) => {
                 const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
                 // Vérifier le statut de complétion de deux façons pour être sûr
                 const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
@@ -2133,7 +2262,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 style={styles.completeAllButton}
                 onPress={async () => {
                   // Filtrer seulement les repas non complétés
-                  const incompleteMeals = mealsToComplete.filter(meal => {
+                  const incompleteMeals = mealsToComplete.filter((meal: Meal) => {
                     const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
                     const isCompletedByStatus = completionStatus?.mealStatus?.[meal.id]?.completed;
                     return !isCompletedByIds && !isCompletedByStatus;
@@ -2192,6 +2321,69 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         visible={showBlurOverlay}
         onRenew={handleSubscriptionRenew}
       />
+      
+      {/* Plan Video Modal */}
+      <Modal
+        visible={showPlanVideoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowPlanVideoModal(false);
+          setPlanVideoPlaying(false);
+        }}
+      >
+        <View style={styles.planVideoModalOverlay}>
+          <View style={styles.planVideoModalContent}>
+            <View style={styles.planVideoModalHeader}>
+              <Text style={styles.planVideoModalTitle}>
+                {currentPlan?.name || 'Vidéo du plan'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowPlanVideoModal(false);
+                  setPlanVideoPlaying(false);
+                }}
+                style={styles.planVideoModalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            {planVideoId && (() => {
+              const screenWidth = Dimensions.get('window').width;
+              const videoWidth = screenWidth - 32;
+              const videoHeight = Math.round((videoWidth * 9) / 16);
+              
+              return (
+                <View style={[styles.planVideoPlayerContainer, { width: videoWidth }]}>
+                  <YoutubePlayer
+                    height={videoHeight}
+                    width={videoWidth}
+                    videoId={planVideoId}
+                    play={planVideoPlaying}
+                    onChangeState={(event: string) => {
+                      if (event === 'playing') {
+                        setPlanVideoPlaying(true);
+                      } else if (event === 'paused' || event === 'ended') {
+                        setPlanVideoPlaying(false);
+                      }
+                    }}
+                    onError={(error: any) => {
+                      logger.error('Plan video player error', { videoId: planVideoId, error });
+                      Toast.show({
+                        type: 'error',
+                        text1: 'Erreur',
+                        text2: 'Impossible de charger la vidéo'
+                      });
+                    }}
+                    webViewStyle={{ opacity: 0.99 }}
+                  />
+                </View>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
       
       <Toast />
     </>
@@ -2553,11 +2745,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'flex-start',
     marginTop: 8,
-  },
-  mealTime: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    fontStyle: 'italic',
   },
   mealNutritionInfo: {
     flexDirection: 'row',
@@ -2946,7 +3133,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.text.primary,
   },
-  nutritionalValue: {
+  nutritionalValueText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.primary,
@@ -3428,6 +3615,157 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: '100%',
     height: '100%',
+  },
+  
+  // Locked Menu Card Styles
+  lockedMenuCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  lockedMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  lockedMenuTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+    marginLeft: 8,
+  },
+  lockedMenuContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  lockedPlateIconContainer: {
+    marginBottom: 24,
+  },
+  lockedPlateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#F3E5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  lockedForkIcon: {
+    position: 'absolute',
+    left: -8,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  lockedKnifeIcon: {
+    position: 'absolute',
+    right: -8,
+    top: '50%',
+    transform: [{ translateY: -8 }],
+  },
+  lockedMenuTitleText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  lockedMenuDescription: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  lockedSubscriptionButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 16,
+  },
+  lockedSubscriptionButtonGradient: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedSubscriptionButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  lockedFreeTrialLink: {
+    marginBottom: 8,
+  },
+  lockedFreeTrialText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  lockedFreeTrialDescription: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  // Plan Name Row Styles
+  planNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  planNameText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  // Plan Video Modal Styles
+  planVideoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planVideoModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    width: '95%',
+    maxHeight: '90%',
+    padding: 20,
+  },
+  planVideoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  planVideoModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  planVideoModalCloseButton: {
+    padding: 4,
+  },
+  planVideoPlayerContainer: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: '#000000',
   },
 });
 

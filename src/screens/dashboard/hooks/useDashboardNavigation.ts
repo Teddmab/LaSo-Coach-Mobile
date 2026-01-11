@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export const useDashboardNavigation = () => {
+export const useDashboardNavigation = (navigateOverlay?: (screenName: string, params?: any) => void) => {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [currentScreen, setCurrentScreen] = useState<string>('home');
   const [previousScreen, setPreviousScreen] = useState<string | null>(null);
@@ -12,15 +12,25 @@ export const useDashboardNavigation = () => {
       setShowMoreMenu(true);
       console.log('Tab pressed: more - showing menu');
     } else if (['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile', 'subscription', 'language', 'notification-settings'].includes(tabId)) {
-      // Écrans spéciaux qui ne sont pas des onglets de navigation
+      // Écrans spéciaux qui ne sont pas des onglets de navigation - utiliser Stack Navigator
       console.log('Screen navigation:', tabId);
-      setCurrentScreen((prevScreen) => {
-        // Store previous screen before navigating (unless we're already on that screen)
-        if (prevScreen !== tabId && prevScreen !== 'home' && prevScreen !== 'settings') {
-          setPreviousScreen(prevScreen);
-        }
-        return tabId;
-      });
+      const routeMap: Record<string, string> = {
+        'settings': 'Settings',
+        'notifications': 'Notifications',
+        'faq': 'FAQ',
+        'chat': 'Chat',
+        'community': 'Community',
+        'agenda': 'Agenda',
+        'profile': 'Profile',
+        'subscription': 'Subscription',
+        'language': 'Language',
+        'notification-settings': 'NotificationSettings',
+      };
+      const routeName = routeMap[tabId];
+      if (routeName && navigateOverlay) {
+        navigateOverlay(routeName as any);
+      }
+      setCurrentScreen(tabId);
     } else {
       // Onglets de navigation principaux
       console.log('Tab pressed:', tabId);
@@ -33,10 +43,10 @@ export const useDashboardNavigation = () => {
         return tabId;
       });
     }
-  }, []);
+  }, [navigateOverlay]);
 
   const handleMoreMenuItemPress = useCallback((itemId: string): void => {
-    const pageNames: Record<string, string> = {
+    const routeMap: Record<string, string> = {
       'chat': 'Chat',
       'notifications': 'Notifications',
       'community': 'Community',
@@ -44,31 +54,23 @@ export const useDashboardNavigation = () => {
       'settings': 'Settings',
     };
     
-    const pageName = pageNames[itemId] || itemId;
-    console.log('📊 Page Navigation:', pageName);
+    const routeName = routeMap[itemId];
+    console.log('📊 Page Navigation:', routeName || itemId);
     
-    switch (itemId) {
-      case 'chat':
-        setCurrentScreen('chat');
-        break;
-      case 'notifications':
-        setCurrentScreen('notifications');
-        break;
-      case 'community':
-        setCurrentScreen('community');
-        break;
-      case 'agenda':
-        setCurrentScreen('agenda');
-        break;
-      case 'settings':
-        setCurrentScreen('settings');
-        break;
-      default:
-        console.log('Unknown menu item:', itemId);
+    if (routeName && navigateOverlay) {
+      navigateOverlay(routeName as any);
+      const screenMap: Record<string, string> = {
+        'Chat': 'chat',
+        'Notifications': 'notifications',
+        'Community': 'community',
+        'Agenda': 'agenda',
+        'Settings': 'settings',
+      };
+      setCurrentScreen(screenMap[routeName] || itemId);
     }
     
     setShowMoreMenu(false);
-  }, []);
+  }, [navigateOverlay]);
 
   const handleMoreMenuClose = useCallback((): void => {
     setShowMoreMenu(false);
@@ -76,7 +78,7 @@ export const useDashboardNavigation = () => {
 
   const handleProfileStepPress = useCallback((stepId: number): void => {
     const stepNames: Record<number, string> = {
-      1: 'Mon Profile',
+      1: 'Mon profil',
       2: 'Mes Objectifs',
       3: 'Recommandations',
       4: 'Rendez-vous',

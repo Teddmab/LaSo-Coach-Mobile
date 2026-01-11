@@ -277,7 +277,15 @@ class FirebaseAuthService {
       // Update Firebase profile if needed
       if (data.firstName || data.lastName) {
         const displayName = `${data.firstName || this.currentUser?.firstName || ''} ${data.lastName || this.currentUser?.lastName || ''}`.trim();
-        await updateProfile(this.getAuth().currentUser, { displayName });
+        const currentUser = this.getAuth().currentUser;
+        if (currentUser) {
+          if (isCompatAuth()) {
+            await currentUser.updateProfile({ displayName });
+          } else {
+            const { updateProfile } = require('firebase/auth');
+            await updateProfile(currentUser, { displayName });
+          }
+        }
       }
 
       // Update current user
@@ -367,7 +375,12 @@ class FirebaseAuthService {
       // 3. Ensure Firebase display name is up-to-date
       const displayName = `${credentials.firstName} ${credentials.lastName || ''}`.trim();
       if (displayName) {
-        await updateProfile(userCredential.user, { displayName });
+        if (isCompatAuth()) {
+          await userCredential.user.updateProfile({ displayName });
+        } else {
+          const { updateProfile } = require('firebase/auth');
+          await updateProfile(userCredential.user, { displayName });
+        }
       }
 
       // 4. Fetch full user profile from backend

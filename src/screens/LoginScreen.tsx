@@ -28,6 +28,7 @@ import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
 import SubscriptionApi from '../services/subscriptionApi';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
+import HelpBottomSheet from '../components/auth/HelpBottomSheet';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -97,6 +98,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
   const [showWelcomeSlides, setShowWelcomeSlides] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
+  const [showHelpBottomSheet, setShowHelpBottomSheet] = useState<boolean>(false);
 
   const { login, register, forgotPassword, loading } = useAuth();
   const {
@@ -182,7 +184,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     setErrors({});
 
     try {
-      const result = await login(email.trim(), password);
+      const result = await login(email.trim(), password.trim());
       
       if (result.user) {
         // Navigation will be handled by the authentication flow
@@ -1488,6 +1490,23 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
           <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
       )}
+
+      {/* Help Floating Button - Only show when not in welcome slides */}
+      {!showWelcomeSlides && (
+        <TouchableOpacity
+          style={styles.helpFloatingButton}
+          onPress={() => setShowHelpBottomSheet(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="help-circle" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+      )}
+
+      {/* Help Bottom Sheet */}
+      <HelpBottomSheet
+        visible={showHelpBottomSheet}
+        onClose={() => setShowHelpBottomSheet(false)}
+      />
     </View>
   );
 }
@@ -2001,5 +2020,25 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     fontSize: 14,
     color: '#666',
+  },
+  helpFloatingButton: {
+    position: 'absolute',
+    bottom: 215,
+    right: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    zIndex: 1000,
   },
 }); 

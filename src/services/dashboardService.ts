@@ -285,10 +285,22 @@ export class DashboardService {
     if (!tascc) {
     }
 
+    // Helper function to parse and validate numbers
+    const parseNumber = (value, defaultValue = 0) => {
+      if (value === null || value === undefined) return defaultValue;
+      const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    // Extract profile data - handle both Profile (nested) and profile (flat) structures
+    const profileData = profile?.Profile || profile || {};
+    
     // Weight progress calculation - use backend data with fallbacks
-    const weightInitial = profile?.initialWeight || 70;
-    const weightCurrent = measurements?.weight || 67;
-    const weightTarget = profile?.targetWeight || 60;
+    // Ensure values are numbers, not strings
+    // Check both profile.initialWeight and profile.Profile.initialWeight
+    const weightInitial = parseNumber(profileData?.initialWeight || profile?.initialWeight, 70);
+    const weightCurrent = parseNumber(measurements?.weight, weightInitial); // Fallback to initial if no current measurement
+    const weightTarget = parseNumber(profileData?.targetWeight || profile?.targetWeight, 60);
     
     // Removed verbose logging
     
@@ -299,9 +311,11 @@ export class DashboardService {
     );
 
     // Waist progress calculation - use backend data with fallbacks
-    const waistInitial = profile?.initialWaistSize || 90;
-    const waistCurrent = measurements?.waistSize || 85;
-    const waistTarget = profile?.targetWaistSize || 80;
+    // Ensure values are numbers, not strings
+    // Check both profile.initialWaistSize and profile.Profile.initialWaistSize
+    const waistInitial = parseNumber(profileData?.initialWaistSize || profile?.initialWaistSize, 90);
+    const waistCurrent = parseNumber(measurements?.waistSize, waistInitial); // Fallback to initial if no current measurement
+    const waistTarget = parseNumber(profileData?.targetWaistSize || profile?.targetWaistSize, 80);
     
     // Removed verbose logging
     
@@ -398,9 +412,18 @@ export class DashboardService {
       
       
       // Extract data according to specification
-      const profile = profileRes.data?.data?.profile || profileRes.data?.profile;
+      // Handle both nested (data.profile) and flat (profile) structures
+      const rawProfile = profileRes.data?.data?.profile || profileRes.data?.data?.Profile || profileRes.data?.profile || profileRes.data?.Profile || profileRes.data?.data;
+      const profile = rawProfile?.Profile || rawProfile;
       const measurements = measurementsRes.data?.data?.measurements || measurementsRes.data?.measurements;
       const tasccProgress = profileRes.data?.data?.tasccProgress || profileRes.data?.tasccProgress;
+      
+      // Helper function to parse numbers
+      const parseNumber = (value, defaultValue = 0) => {
+        if (value === null || value === undefined) return defaultValue;
+        const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+        return isNaN(parsed) ? defaultValue : parsed;
+      };
       
       // Get latest measurement (most recent)
       const latestMeasurement = Array.isArray(measurements) && measurements.length > 0 
@@ -409,15 +432,17 @@ export class DashboardService {
       
       
       // Calculate current values with priority order as per specification
-      const currentWeight = latestMeasurement?.weight ?? profile?.weight ?? profile?.initialWeight ?? 0;
-      const currentWaist = latestMeasurement?.waistSize ?? profile?.waistSize ?? profile?.initialWaistSize ?? 0;
-      const currentPoints = tasccProgress?.totalPoints ?? 0;
+      // Ensure values are numbers
+      const currentWeight = parseNumber(latestMeasurement?.weight ?? profile?.weight ?? profile?.initialWeight, 0);
+      const currentWaist = parseNumber(latestMeasurement?.waistSize ?? profile?.waistSize ?? profile?.initialWaistSize, 0);
+      const currentPoints = parseNumber(tasccProgress?.totalPoints, 0);
       
       // Calculate progress percentages as per specification
-      const initialWeight = profile?.initialWeight || 0;
-      const targetWeight = profile?.targetWeight || 0;
-      const initialWaist = profile?.initialWaistSize || 0;
-      const targetWaist = profile?.targetWaistSize || 0;
+      // Ensure values are numbers and use correct field names
+      const initialWeight = parseNumber(profile?.initialWeight, 0);
+      const targetWeight = parseNumber(profile?.targetWeight, 0);
+      const initialWaist = parseNumber(profile?.initialWaistSize, 0);
+      const targetWaist = parseNumber(profile?.targetWaistSize, 0);
       
       const weightProgress = Math.abs(initialWeight - currentWeight) / Math.abs(initialWeight - targetWeight) * 100;
       const waistProgress = Math.abs(initialWaist - currentWaist) / Math.abs(initialWaist - targetWaist) * 100;
@@ -646,8 +671,8 @@ export class DashboardService {
           maxPointsForCurrentBadge: maxPointsForCurrentBadge, // Total points needed to complete current badge
           nextBadgeName: nextBadgeName, // Current badge name (since we're completing it)
           
-          // Badge summary
-          unlockedBadges: summary.unlockedBadges || badges.filter(b => b.isUnlocked).length || 0,
+          // Badge summary - support both field names
+          unlockedBadges: summary.unlockedBadges || summary.badgesUnlocked || badges.filter(b => b.isUnlocked).length || 0,
           totalBadges: summary.totalBadges || badges.length || 10,
           
           // Progress calculation (using maxPointsForCurrentBadge if available)

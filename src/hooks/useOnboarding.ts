@@ -48,12 +48,18 @@ export const useOnboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to get user ID (check both id and uid)
+  const getUserId = (): string | null => {
+    return user?.id || user?.uid || null;
+  };
+
   /**
    * Étape 1/4 : Complete Profile Setup
    * Points: 100
    */
   const completeProfileSetup = async (profileData: ProfileData): Promise<OnboardingResult> => {
-    if (!user?.id) {
+    const userId = getUserId();
+    if (!userId) {
       const err = 'User not authenticated';
       setError(err);
       return { success: false, error: err };
@@ -62,7 +68,7 @@ export const useOnboarding = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await OnboardingApi.completeProfileSetup(user.id, profileData);
+      const result = await OnboardingApi.completeProfileSetup(userId, profileData);
       if (result.success) {
         return { success: true, data: result.data };
       } else {
@@ -84,7 +90,8 @@ export const useOnboarding = () => {
    * Points: 30
    */
   const completeGoalsSetup = async (goalsData: GoalsData): Promise<OnboardingResult> => {
-    if (!user?.id) {
+    const userId = getUserId();
+    if (!userId) {
       const err = 'User not authenticated';
       setError(err);
       return { success: false, error: err };
@@ -93,7 +100,7 @@ export const useOnboarding = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await OnboardingApi.completeGoalsSetup(user.id, goalsData);
+      const result = await OnboardingApi.completeGoalsSetup(userId, goalsData);
       if (result.success) {
         return { success: true, data: result.data };
       } else {
@@ -115,7 +122,8 @@ export const useOnboarding = () => {
    * Points: 20
    */
   const completeRecommendations = async (photoConsent: boolean): Promise<OnboardingResult> => {
-    if (!user?.id) {
+    const userId = getUserId();
+    if (!userId) {
       const err = 'User not authenticated';
       setError(err);
       return { success: false, error: err };
@@ -124,7 +132,7 @@ export const useOnboarding = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await OnboardingApi.completeRecommendations(user.id, photoConsent);
+      const result = await OnboardingApi.completeRecommendations(userId, photoConsent);
       if (result.success) {
         return { success: true, data: result.data };
       } else {
@@ -146,7 +154,8 @@ export const useOnboarding = () => {
    * Points: 25
    */
   const completeRendezVous = async (rendezVousData: RendezVousData): Promise<OnboardingResult> => {
-    if (!user?.id) {
+    const userId = getUserId();
+    if (!userId) {
       const err = 'User not authenticated';
       setError(err);
       return { success: false, error: err };
@@ -155,7 +164,7 @@ export const useOnboarding = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await OnboardingApi.completeRendezVous(user.id, rendezVousData);
+      const result = await OnboardingApi.completeRendezVous(userId, rendezVousData);
       if (result.success) {
         return { success: true, data: result.data };
       } else {

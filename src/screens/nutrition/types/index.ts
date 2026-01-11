@@ -15,6 +15,7 @@ export interface NutritionPlan {
   isActive?: boolean;
   numDays?: number;
   menus?: Menu[];
+  youtubeUrl?: string;
 }
 
 export interface Menu {

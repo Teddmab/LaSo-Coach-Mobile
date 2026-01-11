@@ -30,8 +30,13 @@ import { ShimmerCard, Shimmer } from '../components/Shimmer';
 
 import { ProfileScreenProps } from './profile/types';
 import { useOnboarding } from '../hooks/useOnboarding';
+import { useAuth } from '../context/FirebaseAuthContext';
+import ProfileInformationsSection from '../components/profile/ProfileInformationsSection';
+import ProfileRendezvousSection from '../components/profile/ProfileRendezvousSection';
+import ProfileOtherInfosSection from '../components/profile/ProfileOtherInfosSection';
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress, onStepCompleted, activeProfileTab }) => {
+  const { refreshProfile } = useAuth();
   const [currentStep, setCurrentStep] = useState(initialStep);
   const { completeProfileSetup, completeGoalsSetup, completeRecommendations, completeRendezVous, loading: onboardingLoading } = useOnboarding();
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -56,6 +61,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
   const [durationOptions] = useState(['30 minutes', '60 minutes', '90 minutes']);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [showProfileCompleteSuccess, setShowProfileCompleteSuccess] = useState(false);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [OnboardingAccordionComponent, setOnboardingAccordionComponent] = useState<React.ComponentType<any> | null>(null);
   
   // Modal states for selection
   const [showCountryModal, setShowCountryModal] = useState(false);
@@ -277,6 +285,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         console.log('📊 Profile: No progress data available');
         setProgressData(null);
       }
+      
+      // Fetch dashboard data for onboarding (lazy import to avoid NativeEventEmitter issues)
+      try {
+        const { default: DashboardService } = await import('../services/dashboardService');
+        const dashboard = await DashboardService.getDashboardData();
+        setDashboardData(dashboard);
+      } catch (error) {
+        console.log('📊 Profile: No dashboard data available');
+        setDashboardData(null);
+      }
+
+      // Fetch subscription data
+      await checkSubscriptionStatus();
       
       // Fetch occupation options
       // Set occupation options from the UI list
@@ -567,6 +588,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             avatar: avatarUrl
           }));
           
+          // Rafraîchir le profil dans le contexte pour mettre à jour l'avatar partout
+          try {
+            await refreshProfile();
+          } catch (error) {
+            console.warn('⚠️ Could not refresh profile context:', error);
+          }
+          
           Toast.show({
             type: 'success',
             text1: 'Avatar mis à jour',
@@ -626,6 +654,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
   };
 
+  // Preload OnboardingAccordion component at startup to avoid delay when clicking
+  React.useEffect(() => {
+    if (!OnboardingAccordionComponent) {
+      import('../components/profile/OnboardingAccordion').then(module => {
+        setOnboardingAccordionComponent(() => module.default);
+      });
+    }
+  }, [OnboardingAccordionComponent]);
+
+
   // Check if all 4 steps are completed - defined early for use in effects
   const isProfileComplete = React.useMemo(() => {
     if (progressData && progressData.completedSteps) {
@@ -680,7 +718,29 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       return;
     }
 
-    // Original behavior for incomplete profile
+    // Check if current step is already completed
+    const completedSteps = progressData?.completedSteps || [];
+    const isStepCompleted = (step: number) => {
+      switch (step) {
+        case 1: return completedSteps.includes('profile_setup');
+        case 2: return completedSteps.includes('goals_setup');
+        case 3: return completedSteps.includes('recommendations');
+        case 4: return completedSteps.includes('rendezvous');
+        default: return false;
+      }
+    };
+
+    // If current step is already completed and no modifications, go to next step
+    if (isStepCompleted(currentStep) && !hasModifications) {
+      if (currentStep < 4) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        onClose();
+      }
+      return;
+    }
+
+    // Original behavior for incomplete profile or if there are modifications
     if (currentStep === 1) {
       setShowSaveModal(true);
     } else if (currentStep === 2) {
@@ -697,9 +757,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       }
       setShowRecommendationsModal(true);
     } else if (currentStep === 4) {
-      // Onboarding completed - redirect to home
-      console.log('Onboarding completed, redirecting to home');
-      onClose(); // This will close the profile screen and return to dashboard
+      // Onboarding completed - stay on page (no redirect)
+      console.log('Onboarding completed, staying on page');
     } else {
       // Handle next step for other steps
       console.log('Next step from step:', currentStep);
@@ -812,6 +871,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text1: 'Profil sauvegardé',
         text2: 'Vos informations ont été mises à jour avec succès (+100 points)',
       });
+      
+      // Notify parent to refresh dashboard data
+      if (onStepCompleted) {
+        onStepCompleted();
+      }
     } catch (error: any) {
       console.error('❌ Profile: Error saving profile:', error);
       
@@ -882,6 +946,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text1: 'Objectifs sauvegardés',
         text2: 'Vos objectifs ont été enregistrés avec succès (+30 points)',
       });
+      
+      // Notify parent to refresh dashboard data
+      if (onStepCompleted) {
+        onStepCompleted();
+      }
     } catch (error: any) {
       console.error('❌ Objectives: Error saving objectives:', error);
       
@@ -924,6 +993,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text1: 'Recommandations sauvegardées',
         text2: 'Vos recommandations ont été enregistrées avec succès (+20 points)',
       });
+      
+      // Notify parent to refresh dashboard data
+      if (onStepCompleted) {
+        onStepCompleted();
+      }
     } catch (error: any) {
       console.error('❌ Recommendations: Error saving recommendations:', error);
       
@@ -1169,21 +1243,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       // Close confirmation modal
       setShowConfirmationModal(false);
 
-      // Onboarding completed - redirect to home
+      // Onboarding completed - stay on the page and show success message
       // Note: completeRendezVous a déjà créé le rendez-vous et mis à jour la progression
-      console.log('✅ Onboarding completed (Step 4/4), redirecting to home');
-      onClose(); // This will close the profile screen and return to dashboard
+      console.log('✅ Onboarding completed (Step 4/4), staying on page');
 
-      // Show success message
+      // Show success banner at the top of the page
+      setShowProfileCompleteSuccess(true);
+
+      // Show toast message
       Toast.show({
         type: 'success',
-        text1: 'Rendez-vous confirmé',
+        text1: 'Profil complété avec succès',
         text2: 'Votre rendez-vous a été programmé avec succès (+25 points)',
       });
 
       // Refresh data to show updated information
       await fetchProfileData(false);
       await fetchRendezvousData();
+      
+      // Notify parent to refresh dashboard data
+      if (onStepCompleted) {
+        onStepCompleted();
+      }
 
     } catch (error) {
       console.error('❌ Error in confirmation modal action:', error);
@@ -2971,6 +3052,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         />
       )}
 
+      {/* Profile Complete Success Banner */}
+      {showProfileCompleteSuccess && currentStep === 4 && (
+        <View style={styles.profileCompleteBanner}>
+          <View style={styles.profileCompleteBannerContent}>
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            <View style={styles.profileCompleteBannerText}>
+              <Text style={styles.profileCompleteBannerTitle}>Profil complété avec succès !</Text>
+              <Text style={styles.profileCompleteBannerSubtitle}>
+                Votre rendez-vous a été programmé avec succès (+25 points)
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => setShowProfileCompleteSuccess(false)}
+              style={styles.profileCompleteBannerClose}
+            >
+              <Ionicons name="close" size={20} color={theme.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
@@ -2979,19 +3081,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           // Clean up any open modals if needed
         }}
       >
-        {/* Profile Header */}
-        {currentStep <= 4 && (
+        {/* Profile Header - Only show for 'informations' and 'profile' tabs */}
+        {(activeProfileTab === 'informations' || activeProfileTab === 'profile' || !activeProfileTab) && (
           <View style={styles.profileHeader}>
-        {loading ? (
+            {loading ? (
               <>
                 <Shimmer width={80} height={80} borderRadius={40} />
                 <View style={styles.profileHeaderText}>
                   <Shimmer width="60%" height={24} style={{ marginBottom: 8 }} />
                   <Shimmer width="80%" height={16} />
-          </View>
+                </View>
               </>
-        ) : (
-          <>
+            ) : (
+              <>
                 <View style={styles.profileImageContainer}>
                   <Pressable 
                     onPress={handleAvatarUpload}
@@ -3018,133 +3120,114 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                   </Pressable>
                 </View>
                 <View style={styles.profileHeaderText}>
-                  <Text style={styles.profileTitle}>{getStepTitle()}</Text>
+                  <Text style={styles.profileTitle}>Mon profil</Text>
                   <Text style={styles.profileSubtitle}>
-                    {getStepSubtitle()}
+                    {(() => {
+                      // Try user first
+                      if (user?.firstName && user?.lastName) {
+                        return `${user.firstName} ${user.lastName}`;
+                      }
+                      if (user?.name) return user.name;
+                      if (user?.firstName) return user.firstName;
+                      if (user?.lastName) return user.lastName;
+                      // Try profileData
+                      if (profileData?.firstName && profileData?.lastName) {
+                        return `${profileData.firstName} ${profileData.lastName}`;
+                      }
+                      if (profileData?.name) return profileData.name;
+                      if (profileData?.firstName) return profileData.firstName;
+                      return '';
+                    })()}
                   </Text>
                 </View>
               </>
             )}
-              </View>
-            )}
-
-        {/* Info Banner */}
-        {currentStep <= 4 && (
-          <View style={styles.infoBanner}>
-            {loading ? (
-              <Shimmer width="100%" height={60} borderRadius={12} />
-            ) : (
-            <Text style={styles.infoBannerText}>
-              {getInfoBannerText()}
-            </Text>
-            )}
           </View>
         )}
 
-        {/* Profile Complete Status */}
-        {currentStep <= 4 && (
-          <View style={styles.statusContainer}>
-            {loading ? (
-              <Shimmer width="100%" height={40} borderRadius={12} />
-            ) : (
-              <>
-            <View style={styles.statusIcon}>
-              <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
-            </View>
-            <Text style={styles.statusText}>
-              {getStatusText()}
-            </Text>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* Form Content */}
+        {/* Section Content */}
         {loading ? (
           <>
             <View style={styles.formSection}>
               <Shimmer width="40%" height={20} style={{ marginBottom: 16 }} />
               <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
-              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
-              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
-            </View>
-            <View style={styles.formSection}>
-              <Shimmer width="40%" height={20} style={{ marginBottom: 16 }} />
-              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
-              <Shimmer width="100%" height={48} style={{ marginBottom: 12 }} />
             </View>
           </>
         ) : (
           <Animated.View style={{ opacity: fadeAnim }}>
-        {currentStep === 1 ? (
-          <>
-            {renderPersonalInfo()}
-            {renderProfileInfo()}
-          </>
-        ) : currentStep === 2 ? (
-          renderObjectivesForm()
-        ) : currentStep === 3 ? (
-          renderRecommendationsForm()
-        ) : currentStep === 4 ? (
-          renderAppointmentForm()
-        ) : null}
+            {(!activeProfileTab || activeProfileTab === 'profile') && (
+              <>
+                {OnboardingAccordionComponent ? (
+                  <OnboardingAccordionComponent
+                    user={user}
+                    dashboardData={dashboardData}
+                    onStepComplete={async () => {
+                      await fetchProfileData(false);
+                      if (onStepCompleted) {
+                        onStepCompleted();
+                      }
+                    }}
+                  />
+                ) : (
+                  <View style={styles.formSection}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                  </View>
+                )}
+              </>
+            )}
+
+            {activeProfileTab === 'informations' && (
+              <ProfileInformationsSection
+                user={user}
+                profileData={profileData}
+                dashboardData={dashboardData}
+                onEdit={() => {
+                  // Ouvrir le bottom sheet pour modifier les informations
+                }}
+                onSave={async () => {
+                  // Rafraîchir les données du profil
+                  await fetchProfileData(false);
+                  
+                  // Rafraîchir aussi dashboardData pour avoir les dernières données d'onboarding
+                  try {
+                    const { default: DashboardService } = await import('../services/dashboardService');
+                    const dashboard = await DashboardService.getDashboardData();
+                    setDashboardData(dashboard);
+                    console.log('✅ Profile: Dashboard data refreshed after save');
+                  } catch (error) {
+                    console.log('⚠️ Profile: Could not refresh dashboard data:', error);
+                  }
+                  
+                  // Notifier le parent pour rafraîchir les données du dashboard
+                  if (onStepCompleted) {
+                    onStepCompleted();
+                  }
+                }}
+              />
+            )}
+
+            {activeProfileTab === 'rendezvous' && (
+              <ProfileRendezvousSection
+                onEdit={() => {
+                  // Ouvrir le modal pour créer/modifier le rendez-vous
+                  handleRescheduleAppointment();
+                }}
+              />
+            )}
+
+            {activeProfileTab === 'other' && (
+              <ProfileOtherInfosSection
+                subscriptionData={subscriptionData}
+                onRenewSubscription={() => {
+                  if (onTabPress) {
+                    onTabPress('subscriptions');
+                  }
+                }}
+              />
+            )}
           </Animated.View>
         )}
       </ScrollView>
-
-      {/* Navigation Footer - Juste au-dessus de la barre de navigation fixe */}
-      {currentStep <= 4 && (
-        <View style={styles.navigationFooter}>
-          {/* Pas de bouton retour à l'étape 1 */}
-          {currentStep > 1 ? (
-          <TouchableOpacity style={styles.prevButton} onPress={handlePrevious}>
-            <Ionicons name="chevron-back" size={20} color="#666" />
-          </TouchableOpacity>
-          ) : (
-            <View style={styles.prevButtonPlaceholder} />
-          )}
-          
-          <View style={styles.stepIndicator}>
-            {isProfileComplete ? (
-              <Text style={styles.stepTextComplete}>
-                Étape {currentStep}/4 - Profil complété
-              </Text>
-            ) : (
-              <Text style={styles.stepText}>
-                Étape {currentStep} sur 4
-              </Text>
-            )}
-            <View style={styles.progressBar}>
-              <View style={[
-                styles.progressFill, 
-                { width: `${getStepProgress()}%` },
-                isProfileComplete && styles.progressFillComplete
-              ]} />
-            </View>
-          </View>
-          
-          <View style={styles.pointsContainer}>
-            <Text style={styles.pointsLabel}>Points:</Text>
-            <Text style={styles.pointsValue}>{getPoints()}</Text>
-          </View>
-          
-          <TouchableOpacity 
-            style={[
-              styles.nextButton,
-              isProfileComplete && currentStep === 4 && styles.nextButtonDisabled
-            ]} 
-            onPress={handleNext}
-            disabled={isProfileComplete && currentStep === 4}
-          >
-            <Text style={styles.nextButtonText}>
-              {getNextButtonText()}
-            </Text>
-            {!(isProfileComplete && currentStep === 4) && (
-              <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Save Confirmation Modal */}
       {renderSaveModal()}
@@ -4364,6 +4447,38 @@ const styles = StyleSheet.create({
   activeTabButtonText: {
     color: theme.colors.primary,
   },
+  profileTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    overflow: 'hidden',
+  },
+  profileTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRightColor: '#E0E0E0',
+  },
+  profileTabActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  profileTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  profileTabTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
   subscriptionTable: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -4602,6 +4717,37 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
     flex: 1,
     paddingVertical: 12,
+  },
+  // Profile Complete Success Banner
+  profileCompleteBanner: {
+    backgroundColor: '#E8F5E9',
+    borderBottomWidth: 1,
+    borderBottomColor: '#C8E6C9',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  profileCompleteBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  profileCompleteBannerText: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 12,
+  },
+  profileCompleteBannerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2E7D32',
+    marginBottom: 4,
+  },
+  profileCompleteBannerSubtitle: {
+    fontSize: 14,
+    color: '#4CAF50',
+  },
+  profileCompleteBannerClose: {
+    padding: 4,
   },
 });
 

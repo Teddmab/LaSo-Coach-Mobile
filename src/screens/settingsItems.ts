@@ -8,11 +8,10 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
     color: '#4CAF50',
     expandable: true,
     subItems: [
-      { id: 'mon-profile', title: 'Mon Profile' },
-      { id: 'mes-objectifs', title: 'Mes Objectifs' },
-      { id: 'recommandations', title: 'Recommandations' },
+      { id: 'mon-profile', title: 'Mon profil' },
+      { id: 'informations', title: 'Informations' },
       { id: 'rendez-vous', title: 'Rendez-vous' },
-      { id: 'confirmation', title: 'Confirmation' },
+      { id: 'autre-infos', title: 'Autre infos' },
     ],
   },
   {

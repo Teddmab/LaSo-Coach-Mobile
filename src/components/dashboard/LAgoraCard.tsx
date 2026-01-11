@@ -7,11 +7,20 @@ import {
   Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import LottieView from 'lottie-react-native';
 import { theme } from '../../constants/theme';
 import AgoraIcon from '../icons/AgoraIcon';
 import { ShimmerCard } from '../Shimmer';
 
-const LAgoraCard = ({ posts, loading, onPostPress, onLikePress, onCommentPress }) => {
+interface LAgoraCardProps {
+  posts?: any[];
+  loading?: boolean;
+  onPostPress?: (post: any) => void;
+  onLikePress?: (postId: string) => void;
+  onCommentPress?: (postId: string) => void;
+}
+
+const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, onLikePress, onCommentPress }) => {
   // Extraire les photos de profil uniques des utilisateurs qui ont posté (max 5)
   const userAvatars = useMemo(() => {
     if (!posts || posts.length === 0) return [];
@@ -33,9 +42,15 @@ const LAgoraCard = ({ posts, loading, onPostPress, onLikePress, onCommentPress }
   }, [posts]);
 
   const handleCardPress = () => {
-    // Rediriger vers l'écran Agora si un post existe
-    if (posts && posts.length > 0 && onPostPress) {
-      onPostPress(posts[0]);
+    // Toujours rediriger vers l'écran Agora (Community)
+    // Si un post existe, on le passe pour pré-sélection, sinon on passe null
+    if (onPostPress) {
+      if (posts && posts.length > 0) {
+        onPostPress(posts[0]);
+      } else {
+        // Naviguer vers Community même sans posts
+        onPostPress(null);
+      }
     }
   };
 
@@ -70,10 +85,11 @@ const LAgoraCard = ({ posts, loading, onPostPress, onLikePress, onCommentPress }
             {/* Grande icône de bulle de conversation avec effet de fond */}
             <View style={styles.iconContainer}>
               <View style={styles.iconBackground}>
-                <Ionicons 
-                  name="chatbubbles" 
-                  size={72} 
-                  color={theme.colors.primary} 
+                <LottieView
+                  source={require('../../../assets/artychat.json')}
+                  style={styles.chatAnimation}
+                  autoPlay
+                  loop
                 />
               </View>
             </View>
@@ -156,12 +172,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   iconBackground: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     backgroundColor: theme.colors.primary + '10', // 10% d'opacité pour un effet subtil
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  chatAnimation: {
+    width: 160,
+    height: 160,
   },
   avatarsContainer: {
     flexDirection: 'row',

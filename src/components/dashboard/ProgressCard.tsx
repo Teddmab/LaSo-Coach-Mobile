@@ -66,28 +66,48 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
    * @returns {ProgressData} Transformed progress data
    */
   const transformProgressData = (apiData: any): ProgressData => {
+    // Ensure all values are numbers and properly formatted
+    const parseNumber = (value: any, defaultValue: number = 0): number => {
+      if (value === null || value === undefined) return defaultValue;
+      const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const initialWeight = parseNumber(apiData.initialWeight, 0);
+    const currentWeight = parseNumber(apiData.currentWeight, 0);
+    const targetWeight = parseNumber(apiData.targetWeight, 0);
+    const initialWaistSize = parseNumber(apiData.initialWaistSize, 0);
+    const currentWaistSize = parseNumber(apiData.currentWaistSize, 0);
+    const targetWaistSize = parseNumber(apiData.targetWaistSize, 0);
+
+    // Log for debugging
+    logger.debug('Transforming progress data', {
+      weight: { initial: initialWeight, current: currentWeight, target: targetWeight },
+      waist: { initial: initialWaistSize, current: currentWaistSize, target: targetWaistSize },
+    });
+
     const base: ProgressData = {
       weight: {
-        progress: apiData.weightProgress || 0,
-        initial: apiData.initialWeight || 0,
-        current: apiData.currentWeight || 0,
-        target: apiData.targetWeight || 0,
-        remaining: Math.max(0, (apiData.targetWeight || 0) - (apiData.currentWeight || 0)),
-        lost: Math.max(0, (apiData.initialWeight || 0) - (apiData.currentWeight || 0)),
+        progress: parseNumber(apiData.weightProgress, 0),
+        initial: initialWeight,
+        current: currentWeight,
+        target: targetWeight,
+        remaining: Math.max(0, targetWeight - currentWeight),
+        lost: Math.max(0, initialWeight - currentWeight),
       },
       waist: {
-        progress: apiData.waistProgress || 0,
-        initial: apiData.initialWaistSize || 0,
-        current: apiData.currentWaistSize || 0,
-        target: apiData.targetWaistSize || 0,
-        remaining: Math.max(0, (apiData.targetWaistSize || 0) - (apiData.currentWaistSize || 0)),
-        reduced: Math.max(0, (apiData.initialWaistSize || 0) - (apiData.currentWaistSize || 0)),
+        progress: parseNumber(apiData.waistProgress, 0),
+        initial: initialWaistSize,
+        current: currentWaistSize,
+        target: targetWaistSize,
+        remaining: Math.max(0, targetWaistSize - currentWaistSize),
+        reduced: Math.max(0, initialWaistSize - currentWaistSize),
       },
       points: {
-        progress: apiData.pointsProgress || 0,
-        current: apiData.currentPoints || 0,
-        max: apiData.maxPoints || 100,
-        remaining: Math.max(0, (apiData.maxPoints || 100) - (apiData.currentPoints || 0)),
+        progress: parseNumber(apiData.pointsProgress, 0),
+        current: parseNumber(apiData.currentPoints, 0),
+        max: parseNumber(apiData.maxPoints, 100),
+        remaining: Math.max(0, parseNumber(apiData.maxPoints, 100) - parseNumber(apiData.currentPoints, 0)),
       },
     };
 

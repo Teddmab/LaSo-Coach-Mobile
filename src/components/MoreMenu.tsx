@@ -22,7 +22,7 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
     {
       id: 'chat',
       title: 'Chat Coach',
-      subtitle: 'Parlez avec votre coach',
+      subtitle: 'Espace de message',
       icon: 'chatbubble-outline',
       color: '#4CAF50',
     },
@@ -49,8 +49,8 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
     },
     {
       id: 'settings',
-      title: 'Paramètres',
-      subtitle: 'Gérez votre compte',
+      title: 'Paramètres de compte',
+      subtitle: 'Configurations',
       icon: 'settings-outline',
       color: '#F44336',
     },
@@ -163,7 +163,7 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>LaSo Coach v1.0.0</Text>
+          <Text style={styles.footerText}>© LaSoCoach</Text>
           <Text style={styles.footerSubtext}>We are what we eat! 🥗</Text>
         </View>
       </Animated.View>

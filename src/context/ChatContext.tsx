@@ -1,7 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState, Dimensions, Platform } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
-import * as Notifications from 'expo-notifications';
+// Lazy load native modules to avoid NativeEventEmitter crash at startup
+let NetInfo: any = null;
+let Notifications: any = null;
+
+const getNetInfo = () => {
+  if (!NetInfo) {
+    try {
+      NetInfo = require('@react-native-community/netinfo').default;
+    } catch (error) {
+      console.warn('⚠️ [ChatContext] Failed to load NetInfo:', error);
+    }
+  }
+  return NetInfo;
+};
+
+const getNotifications = () => {
+  if (!Notifications) {
+    try {
+      Notifications = require('expo-notifications');
+    } catch (error) {
+      console.warn('⚠️ [ChatContext] Failed to load Notifications:', error);
+    }
+  }
+  return Notifications;
+};
+
 import { useAuth } from './FirebaseAuthContext';
 import chatApi from '../services/chatApi';
 import chatSocketService from '../services/chatSocketService';
@@ -96,7 +120,10 @@ export const ChatProvider = ({ children }) => {
    * CRITICAL: Let Socket.IO handle reconnection automatically - don't manually reconnect
    */
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
+    const netInfo = getNetInfo();
+    if (!netInfo) return;
+    
+    const unsubscribe = netInfo.addEventListener(state => {
       const isConnected = state.isConnected && state.isInternetReachable;
       
       if (isConnected) {
@@ -372,7 +399,10 @@ export const ChatProvider = ({ children }) => {
       const messagePreview = message.content?.substring(0, 100) || 'New message';
       
       
-      await Notifications.scheduleNotificationAsync({
+      const notifications = getNotifications();
+      if (!notifications) return;
+      
+      await notifications.scheduleNotificationAsync({
         content: {
           title: `New message from ${senderName}`,
           body: messagePreview,

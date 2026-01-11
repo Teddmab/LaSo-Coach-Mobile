@@ -100,13 +100,14 @@ class OnboardingApi {
   static async completeProfileSetup(userId, profileData) {
     try {
       // Build address string: "line1; line2; city; postalCode; country"
+      // Keep all parts even if empty to maintain structure
       const addressParts = [
-        profileData.addressLine1,
-        profileData.addressLine2,
-        profileData.city,
-        profileData.postalCode,
-        profileData.country
-      ].filter(part => part && part !== ''); // Remove empty parts
+        profileData.addressLine1 || '',
+        profileData.addressLine2 || '',
+        profileData.city || '',
+        profileData.postalCode || '',
+        profileData.country || ''
+      ];
       const addressString = addressParts.join('; ');
       
       const payload = {
@@ -159,6 +160,19 @@ class OnboardingApi {
         }
       }
       
+      // Marquer l'étape comme complétée dans le système d'onboarding pour obtenir les 100 points
+      try {
+        const progressPayload = {
+          step: 'profile_setup',
+          completed: true
+        };
+        const progressEndpoint = API_CONFIG.endpoints.onboarding.progress;
+        await api.patch(progressEndpoint, progressPayload);
+      } catch (progressError: any) {
+        // Log l'erreur mais ne bloque pas le processus si le profil est mis à jour
+        console.warn('⚠️ Failed to mark profile_setup as completed:', progressError?.message);
+      }
+      
       return {
         success: true,
         data: response.data
@@ -192,6 +206,19 @@ class OnboardingApi {
       };
       
       const response = await api.put(API_CONFIG.endpoints.profile.update, payload);
+      
+      // Marquer l'étape comme complétée dans le système d'onboarding pour obtenir les 30 points
+      try {
+        const progressPayload = {
+          step: 'goals_setup',
+          completed: true
+        };
+        const progressEndpoint = API_CONFIG.endpoints.onboarding.progress;
+        await api.patch(progressEndpoint, progressPayload);
+      } catch (progressError: any) {
+        // Log l'erreur mais ne bloque pas le processus si le profil est mis à jour
+        console.warn('⚠️ Failed to mark goals_setup as completed:', progressError?.message);
+      }
       
       return {
         success: true,

@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import NetInfo from '@react-native-community/netinfo';
+// Lazy load native module to avoid NativeEventEmitter crash at startup
+let NetInfo: any = null;
+
+const getNetInfo = () => {
+  if (!NetInfo) {
+    try {
+      NetInfo = require('@react-native-community/netinfo').default;
+    } catch (error) {
+      console.warn('⚠️ [NetworkStatus] Failed to load NetInfo:', error);
+    }
+  }
+  return NetInfo;
+};
 
 const NetworkStatus: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean>(true);
@@ -9,7 +21,10 @@ const NetworkStatus: React.FC = () => {
   const [fadeAnim] = useState<Animated.Value>(new Animated.Value(0));
 
   useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
+    const netInfo = getNetInfo();
+    if (!netInfo) return;
+    
+    const unsubscribe = netInfo.addEventListener((state) => {
       const wasConnected = isConnected;
       setIsConnected(state.isConnected ?? false);
       

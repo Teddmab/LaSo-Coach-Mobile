@@ -1,7 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+// Lazy load native modules to avoid NativeEventEmitter crash at startup
+let Notifications: any = null;
+let Device: any = null;
+
+const getNotifications = () => {
+  if (!Notifications) {
+    try {
+      Notifications = require('expo-notifications');
+    } catch (error) {
+      console.warn('⚠️ [NotificationContext] Failed to load Notifications:', error);
+    }
+  }
+  return Notifications;
+};
+
+const getDevice = () => {
+  if (!Device) {
+    try {
+      Device = require('expo-device');
+    } catch (error) {
+      console.warn('⚠️ [NotificationContext] Failed to load Device:', error);
+    }
+  }
+  return Device;
+};
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import notificationsAPI from '../services/notificationsApi';
 import chatSocketService from '../services/chatSocketService';
@@ -32,21 +56,26 @@ interface NotificationContextType {
 }
 
 // Configure notification handling - wrapped in try-catch to avoid crash if module not ready
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async (notification: Notifications.Notification): Promise<Notifications.NotificationBehavior> => {
-      return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      };
-    },
-  });
-} catch (error) {
-  console.warn('⚠️ [Notifications] Failed to set notification handler:', error);
-}
+// This will be called lazily when notifications are first used
+const setupNotificationHandler = () => {
+  try {
+    const notifications = getNotifications();
+    if (!notifications) return;
+    
+    notifications.setNotificationHandler({
+      handleNotification: async (notification: any): Promise<any> => {
+        return {
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        };
+      },
+    });
+  } catch (error) {
+    console.warn('⚠️ [Notifications] Failed to set notification handler:', error);
+  }
+};
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
@@ -108,16 +137,23 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
       
       // Check if device is physical device
-      if (!Device.isDevice) {
+      const device = getDevice();
+      if (!device || !device.isDevice) {
         return false;
       }
       
+      // Setup notification handler on first use
+      setupNotificationHandler();
+      
+      const notifications = getNotifications();
+      if (!notifications) return false;
+      
       // Request permissions
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      const { status: existingStatus } = await notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
       if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await notifications.requestPermissionsAsync();
         finalStatus = status;
       }
       
@@ -127,7 +163,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
 
       // Get push token
-      const token = await Notifications.getExpoPushTokenAsync({
+      const token = await notifications.getExpoPushTokenAsync({
         projectId: '6f5af143-a419-447d-a44e-3b3e230cf397', // Your EAS project ID
       });
       
@@ -330,7 +366,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         return;
       }
       
-      await Notifications.scheduleNotificationAsync({
+      const notifications = getNotifications();
+      if (!notifications) return;
+      
+      await notifications.scheduleNotificationAsync({
         content: {
           title: notification.title,
           body: notification.message || '',
@@ -350,7 +389,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   }, [unreadCount]);
 
   // Handle notification response (when user taps on notification)
-  const handleNotificationResponse = (response: Notifications.NotificationResponse): void => {
+  const handleNotificationResponse = (response: any): void => {
     // TODO: Navigate to appropriate screen based on notification data
   };
 
@@ -421,14 +460,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // Debug function to check notification permissions
   const checkNotificationStatus = async (): Promise<any> => {
     try {
-      const permissions = await Notifications.getPermissionsAsync();
+      const notifications = getNotifications();
+      const device = getDevice();
+      if (!notifications || !device) return null;
+      
+      const permissions = await notifications.getPermissionsAsync();
       
       const token = await AsyncStorage.getItem('expoPushToken');
       
       return {
         permissions,
         token,
-        isDevice: Device.isDevice,
+        isDevice: device.isDevice,
         platform: Platform.OS
       };
     } catch (error: any) {
@@ -446,9 +489,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     initialize();
 
     // Add notification event listeners
-    const notificationListener = Notifications.addNotificationReceivedListener((notification: Notifications.Notification) => {
+    const notifications = getNotifications();
+    if (!notifications) return;
+    
+    const notificationListener = notifications.addNotificationReceivedListener((notification: any) => {
     });
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response: Notifications.NotificationResponse) => {
+    const responseListener = notifications.addNotificationResponseReceivedListener((response: any) => {
       handleNotificationResponse(response);
     });
 

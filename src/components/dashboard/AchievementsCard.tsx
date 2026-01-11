@@ -31,9 +31,22 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
   const pointsNeededForNext = badgesData?.pointsNeededForNext || 0; // Remaining points to finish
   const maxPointsForCurrentBadge = badgesData?.maxPointsForCurrentBadge || null; // Total points needed
   const nextBadgeName = badgesData?.nextBadgeName || null;
-  const unlockedBadges = badgesData?.unlockedBadges || 0;
+  // Support both unlockedBadges and badgesUnlocked field names
+  const unlockedBadges = badgesData?.unlockedBadges || badgesData?.badgesUnlocked || 0;
   const totalBadges = badgesData?.totalBadges || 10;
   const progressPercentage = badgesData?.progressPercentage || 0;
+  
+  // Debug logging
+  if (__DEV__) {
+    console.log('🏆 [AchievementsCard] Badge data:', {
+      unlockedBadges,
+      totalBadges,
+      userPoints,
+      currentBadge,
+      progressPercentage,
+      rawData: badgesData
+    });
+  }
   
   // Calculate points earned for current badge (if maxPoints is available)
   const pointsEarnedForCurrentBadge = maxPointsForCurrentBadge !== null 
@@ -85,7 +98,17 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
 
   // Calculate progress percentage for the progress bar (based on points earned vs points needed)
   const badgeProgressPercentage = progressPercentage;
-  const globalProgressPercentage = (unlockedBadges / totalBadges) * 100;
+  // Calculate global progress percentage with safety checks
+  const globalProgressPercentage = totalBadges > 0 
+    ? Math.min((unlockedBadges / totalBadges) * 100, 100)
+    : 0;
+  
+  // Ensure we have valid values for display
+  const displayUnlockedBadges = Math.max(0, unlockedBadges);
+  const displayTotalBadges = Math.max(1, totalBadges); // At least 1 to avoid division by zero
+  const displayGlobalProgress = totalBadges > 0 
+    ? Math.min((displayUnlockedBadges / displayTotalBadges) * 100, 100)
+    : 0;
 
   // Debug logging to show expected data structure (BadgeProgressWidget)
   React.useEffect(() => {
@@ -178,12 +201,12 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
           <View 
             style={[
               styles.progressBarFill, 
-              { width: `${globalProgressPercentage}%` }
+              { width: `${displayGlobalProgress}%` }
             ]} 
           />
         </View>
         <Text style={styles.progressText}>
-          {unlockedBadges} badges débloqués sur {totalBadges} ({globalProgressPercentage.toFixed(1)}% global)
+          {displayUnlockedBadges} badges débloqués sur {displayTotalBadges} ({displayGlobalProgress.toFixed(1)}% global)
         </Text>
       </View>
 
