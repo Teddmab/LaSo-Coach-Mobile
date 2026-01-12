@@ -6,15 +6,22 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity,
-  Image
+  Image,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
+import { useIOSSimulation } from '../../hooks/useIOSSimulation';
+import CheckStatusButton from '../subscription/CheckStatusButton';
+import { useAuth } from '../../context/FirebaseAuthContext';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+  const { refreshProfile } = useAuth();
   const [nutritionData, setNutritionData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -414,11 +421,66 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
                                  subscriptionStatus === 'CANCELLED' ||
                                  (!subscriptionData && !nutritionData);
   
-  // Show locked menu only if subscription is expired/inactive AND no nutrition data
-  // OR if we have subscription data but it's expired/inactive
-  const shouldShowLockedMenu = isSubscriptionExpired || (!subscriptionData && !nutritionData);
+  // Vérifier si l'utilisateur a un abonnement actif
+  const hasActiveSubscription = subscriptionStatus === 'ACTIVE' || 
+                                 subscriptionData?.hasActiveSubscription === true ||
+                                 (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
   
-  if (shouldShowLockedMenu) {
+  // Sur iOS, si pas d'abonnement, afficher une carte iOS spéciale (sans blur)
+  // Sur Android, afficher la carte "Menus verrouillés" classique
+  const shouldShowLockedMenuAndroid = (isSubscriptionExpired || (!subscriptionData && !nutritionData)) && !isIOS;
+  const shouldShowIOSLockedCard = isIOS && !hasActiveSubscription;
+  
+  // Carte iOS spéciale pour menu verrouillé (sans blur, remplace complètement la carte Android)
+  if (shouldShowIOSLockedCard) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
+          <Text style={styles.title}>Menu du jour</Text>
+        </View>
+        
+        {/* iOS Locked Menu Card - Remplace la carte Android */}
+        <View style={styles.iosLockedContainer}>
+          {/* Plate Icon */}
+          <View style={styles.plateIconContainer}>
+            <View style={styles.plateIcon}>
+              <Ionicons name="restaurant" size={40} color="#9C27B0" />
+              <View style={styles.forkIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+              <View style={styles.knifeIcon}>
+                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+              </View>
+            </View>
+          </View>
+          
+          {/* Title */}
+          <Text style={styles.lockedTitle}>Menus verrouillés</Text>
+          
+          {/* Description */}
+          <Text style={styles.lockedDescription}>
+            Menu du jour disponible avec un abonnement actif. Visitez{' '}
+            <Text style={styles.websiteHighlight}>app.lasocoach.com</Text> pour vous abonner.
+          </Text>
+          
+          {/* iOS Check Status Button */}
+          <View style={styles.iosCheckStatusContainer}>
+            <CheckStatusButton
+              onStatusChecked={async (hasActiveSubscription) => {
+                if (hasActiveSubscription && refreshProfile) {
+                  await refreshProfile();
+                }
+              }}
+            />
+          </View>
+        </View>
+      </View>
+    );
+  }
+  
+  // Carte Android classique "Menus verrouillés"
+  if (shouldShowLockedMenuAndroid) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -922,6 +984,19 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 20,
   },
+  // iOS Locked Card Styles (remplace la carte Android)
+  iosLockedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    minHeight: 200, // Assure une hauteur minimale similaire à la carte Android
+  },
+  iosCheckStatusContainer: {
+    width: '100%',
+    marginTop: 16,
+    alignItems: 'center',
+  },
   plateIconContainer: {
     marginBottom: 24,
   },
@@ -960,6 +1035,11 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 24,
     paddingHorizontal: 8,
+  },
+  websiteHighlight: {
+    color: '#10B981', // Vert
+    fontStyle: 'italic',
+    fontWeight: '600',
   },
   subscriptionButton: {
     borderRadius: 12,

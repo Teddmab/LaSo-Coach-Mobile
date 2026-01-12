@@ -3,11 +3,13 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  TouchableOpacity
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../constants/theme';
+import CheckStatusButton from './subscription/CheckStatusButton';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 
 interface SubscriptionBannerProps {
   subscriptionData?: any;
@@ -18,6 +20,9 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
   subscriptionData,
   onRenew 
 }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+
   if (!subscriptionData) {
     return null;
   }
@@ -51,8 +56,10 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
         iconColor: '#F44336',
         gradientColors: ['#F44336', '#D32F2F'],
         title: 'Abonnement Expiré',
-        subtitle: 'Renouvelez pour continuer l\'accès',
-        buttonText: 'Renouveler',
+        subtitle: isIOS 
+          ? 'Visitez app.lasocoach.com pour renouveler votre abonnement'
+          : 'Renouvelez pour continuer l\'accès',
+        buttonText: isIOS ? undefined : 'Renouveler',
         buttonColor: '#FFFFFF',
         buttonTextColor: '#F44336'
       };
@@ -62,8 +69,10 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
         iconColor: '#FF9800',
         gradientColors: ['#FF9800', '#F57C00'],
         title: `Expire dans ${daysRemaining} jour(s)`,
-        subtitle: 'Renouvelez pour éviter l\'interruption',
-        buttonText: 'Renouveler',
+        subtitle: isIOS
+          ? 'Visitez app.lasocoach.com pour renouveler votre abonnement'
+          : 'Renouvelez pour éviter l\'interruption',
+        buttonText: isIOS ? undefined : 'Renouveler',
         buttonColor: '#FFFFFF',
         buttonTextColor: '#FF9800'
       };
@@ -105,14 +114,19 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
           <Text style={styles.subtitle}>{config.subtitle}</Text>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: config.buttonColor }]}
-          onPress={handleRenew}
-        >
-          <Text style={[styles.actionButtonText, { color: config.buttonTextColor }]}>
-            {config.buttonText}
-          </Text>
-        </TouchableOpacity>
+        {/* Sur iOS, afficher le bouton de vérification au lieu du bouton de renouvellement */}
+        {isIOS ? (
+          <CheckStatusButton variant="compact" onStatusChecked={handleRenew} />
+        ) : config.buttonText ? (
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: config.buttonColor }]}
+            onPress={handleRenew}
+          >
+            <Text style={[styles.actionButtonText, { color: config.buttonTextColor }]}>
+              {config.buttonText}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </LinearGradient>
   );

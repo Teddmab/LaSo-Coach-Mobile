@@ -5,11 +5,12 @@ import ProgressCard from '../../../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../../../components/dashboard/ProfileCompletionCard';
 import AchievementsCard from '../../../components/dashboard/AchievementsCard';
 import NutritionCard from '../../../components/dashboard/NutritionCard';
-import BlurredCard from '../../../components/BlurredCard';
 import AgoraContentCard from '../../../components/dashboard/AgoraContentCard';
 import LAgoraCard from '../../../components/dashboard/LAgoraCard';
 import { Ionicons } from '@expo/vector-icons';
 import { ShimmerCard } from '../../../components/Shimmer';
+import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
+import { useAuth } from '../../../context/FirebaseAuthContext';
 
 interface DashboardContentProps {
   isProfileComplete: boolean;
@@ -60,6 +61,18 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   onMarkContentComplete,
   onCompleteDayPress,
 }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+
+  // Vérifier si l'utilisateur a un abonnement actif
+  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' || 
+                                 subscriptionData?.hasActiveSubscription === true ||
+                                 (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+
+  // Sur Android : Si pas d'abonnement, NutritionCard affiche la carte "Menus verrouillés"
+  // Sur iOS : Si pas d'abonnement, NutritionCard affiche une carte iOS spéciale (sans blur)
+  const shouldBlurOnIOS = isIOS && !hasActiveSubscription;
+
   // Harmoniser les points de badges sur le Home avec la progression (profil / onboarding)
   const mergedAchievementsData = React.useMemo(() => {
     if (!achievementsData) return achievementsData;
@@ -156,28 +169,24 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       />
 
       {/* Nutrition Card */}
-      <BlurredCard
-        isBlurred={shouldBlurMenu}
-        onPress={onSubscriptionRenew}
-        blurMessage="Menu du jour disponible avec un abonnement actif"
-      >
-        <NutritionCard
-          onPress={() => {
-            if (shouldBlurMenu) {
+      <NutritionCard
+        onPress={() => {
+          if (shouldBlurOnIOS) {
+            if (!isIOS) {
               onSubscriptionRenew();
-            } else {
-              onCompleteDayPress();
             }
-          }}
-          onMealPress={(meal: any) => {
-            if (!shouldBlurMenu) {
-              onMealPress(meal);
-            }
-          }}
-          subscriptionData={subscriptionData}
-          onSubscriptionPress={onSubscriptionRenew}
-        />
-      </BlurredCard>
+          } else {
+            onCompleteDayPress();
+          }
+        }}
+        onMealPress={(meal: any) => {
+          if (!shouldBlurOnIOS) {
+            onMealPress(meal);
+          }
+        }}
+        subscriptionData={subscriptionData}
+        onSubscriptionPress={onSubscriptionRenew}
+      />
 
       <LAgoraCard 
         posts={communityPosts}

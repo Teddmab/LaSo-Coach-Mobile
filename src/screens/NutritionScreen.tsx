@@ -21,12 +21,15 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
 import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
+import CheckStatusButton from '../components/subscription/CheckStatusButton';
 import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
 import Toast from 'react-native-toast-message';
 import { createLogger } from '../utils/logger';
 import { ShimmerCard, ShimmerList } from '../components/Shimmer';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
+import { useAuth } from '../context/FirebaseAuthContext';
 
 // Create logger instance for NutritionScreen
 const logger = createLogger('NutritionScreen');
@@ -41,6 +44,10 @@ import {
 } from './nutrition/types';
 
 const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+  const { refreshProfile } = useAuth();
+
   // State management
   const today = new Date();
   const [currentDate] = useState(today); // Keep current date constant
@@ -48,6 +55,15 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [selectedDay, setSelectedDay] = useState(today.getDay() || 7); // Use current day of week
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [showBlurOverlay, setShowBlurOverlay] = useState(false);
+  
+  // Vérifier si l'utilisateur a un abonnement actif
+  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' || 
+                                 subscriptionData?.hasActiveSubscription === true ||
+                                 (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+  
+  // Sur Android : Si pas d'abonnement, on utilise showBlurOverlay (carte "Menus verrouillés" dans NutritionCard)
+  // Sur iOS : Si pas d'abonnement, on floute au lieu d'afficher la carte "Menus verrouillés"
+  const shouldShowBlur = (isIOS && !hasActiveSubscription) || (showBlurOverlay && !isIOS);
   const [profileData, setProfileData] = useState<any>(null);
   const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
   const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
@@ -1555,7 +1571,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             <TouchableOpacity 
               style={styles.planNameRow}
               onPress={() => {
-                if (currentPlan.youtubeUrl) {
+                if (!isIOS && currentPlan.youtubeUrl) {
                   const videoId = getYouTubeVideoId(currentPlan.youtubeUrl);
                   if (videoId) {
                     setPlanVideoId(videoId);
@@ -1569,11 +1585,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                   }
                 }
               }}
-              disabled={!currentPlan.youtubeUrl}
+              disabled={isIOS || !currentPlan.youtubeUrl}
               activeOpacity={currentPlan.youtubeUrl ? 0.7 : 1}
             >
               <Text style={styles.planNameText}>{currentPlan.name}</Text>
-              {currentPlan.youtubeUrl && (
+              {!isIOS && currentPlan.youtubeUrl && (
                 <Ionicons name="play-circle" size={24} color={theme.colors.primary} />
               )}
             </TouchableOpacity>
@@ -1669,42 +1685,82 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             
             {/* Locked Menu Message */}
             <View style={styles.lockedMenuContainer}>
+              {/* Plate Icon - Afficher sur iOS aussi */}
+              <View style={styles.lockedPlateIconContainer}>
+                <View style={styles.lockedPlateIcon}>
+                  <Ionicons name="restaurant" size={40} color="#9C27B0" />
+                  <View style={styles.lockedForkIcon}>
+                    <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+                  </View>
+                  <View style={styles.lockedKnifeIcon}>
+                    <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
+                  </View>
+                </View>
+              </View>
+              
               {/* Title */}
               <Text style={styles.lockedMenuTitleText}>Menus verrouillés</Text>
               
               {/* Description */}
               <Text style={styles.lockedMenuDescription}>
-                Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
+                {isIOS 
+                  ? (
+                    <>
+                      Menu du jour disponible avec un abonnement actif. Visitez{' '}
+                      <Text style={styles.websiteHighlight}>app.lasocoach.com</Text> pour vous abonner.
+                    </>
+                  )
+                  : "Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel."
+                }
               </Text>
               
-              {/* Primary Button */}
-              <TouchableOpacity 
-                style={styles.lockedSubscriptionButton}
-                onPress={handleSubscriptionRenew}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#BA68C8', '#9C27B0']}
-                  style={styles.lockedSubscriptionButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+              {/* Primary Button - Masqué sur iOS */}
+              {!isIOS && (
+                <TouchableOpacity 
+                  style={styles.lockedSubscriptionButton}
+                  onPress={handleSubscriptionRenew}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.lockedSubscriptionButtonText}>Voir les plans d'abonnement</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={['#BA68C8', '#9C27B0']}
+                    style={styles.lockedSubscriptionButtonGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={styles.lockedSubscriptionButtonText}>Voir les plans d'abonnement</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
               
-              {/* Free Trial Link */}
-              <TouchableOpacity 
-                style={styles.lockedFreeTrialLink}
-                onPress={handleSubscriptionRenew}
-              >
-                <Text style={styles.lockedFreeTrialText}>Commencer avec l'essai gratuit</Text>
-              </TouchableOpacity>
+              {/* Free Trial Link - Masqué sur iOS */}
+              {!isIOS && (
+                <TouchableOpacity 
+                  style={styles.lockedFreeTrialLink}
+                  onPress={handleSubscriptionRenew}
+                >
+                  <Text style={styles.lockedFreeTrialText}>Commencer avec l'essai gratuit</Text>
+                </TouchableOpacity>
+              )}
               
-              {/* Additional Text */}
-              <Text style={styles.lockedFreeTrialDescription}>
-                Commencez gratuitement avec notre essai gratuit !
-              </Text>
+              {/* iOS Check Status Button */}
+              {isIOS && (
+                <View style={styles.iosMessageContainer}>
+                  <CheckStatusButton
+                    onStatusChecked={async (hasActiveSubscription) => {
+                      if (hasActiveSubscription && refreshProfile) {
+                        await refreshProfile();
+                      }
+                    }}
+                  />
+                </View>
+              )}
+              
+              {/* Additional Text - Masqué sur iOS */}
+              {!isIOS && (
+                <Text style={styles.lockedFreeTrialDescription}>
+                  Commencez gratuitement avec notre essai gratuit !
+                </Text>
+              )}
             </View>
           </View>
         )}
@@ -1712,8 +1768,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         {/* Meals List - Only show when there's an active plan */}
         {currentPlan && (
           <View style={styles.mealsContainer}>
-          {/* Today's Meals */}
-          {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
+            {/* Today's Meals */}
+            {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
             <>
               {dayMeals.length > 0 && (() => {
                 // Check if selected date is today
@@ -2318,8 +2374,21 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
       {/* Blur Overlay for Expired Subscription */}
       <BlurOverlay
-        visible={showBlurOverlay}
-        onRenew={handleSubscriptionRenew}
+        visible={shouldShowBlur && !isIOS}
+        onRenew={isIOS ? undefined : handleSubscriptionRenew}
+        customButton={isIOS ? (
+          <CheckStatusButton
+            onStatusChecked={async (hasActiveSubscription) => {
+              if (hasActiveSubscription && refreshProfile) {
+                await refreshProfile();
+              }
+            }}
+          />
+        ) : undefined}
+        message={isIOS 
+          ? "Menu du jour disponible avec un abonnement actif. Visitez app.lasocoach.com pour vous abonner."
+          : "Cette fonctionnalité nécessite un abonnement actif. Renouvelez votre abonnement pour continuer à accéder à toutes les fonctionnalités."
+        }
       />
       
       {/* Plan Video Modal */}
@@ -3684,6 +3753,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 8,
   },
+  websiteHighlight: {
+    color: '#10B981', // Vert
+    fontStyle: 'italic',
+    fontWeight: '600',
+  },
   lockedSubscriptionButton: {
     borderRadius: 12,
     overflow: 'hidden',
@@ -3715,6 +3789,11 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     textAlign: 'center',
     marginTop: 4,
+  },
+  iosMessageContainer: {
+    alignItems: 'center',
+    marginTop: 16,
+    width: '100%',
   },
   // Plan Name Row Styles
   planNameRow: {

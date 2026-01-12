@@ -10,14 +10,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../constants/theme';
 
-const BlurredCard = ({ 
+interface BlurredCardProps {
+  children: React.ReactNode;
+  isBlurred?: boolean;
+  onPress?: () => void;
+  blurMessage?: string;
+  customButton?: React.ReactNode; // Bouton personnalisé (pour iOS)
+}
+
+const BlurredCard: React.FC<BlurredCardProps> = ({ 
   children,
   isBlurred = false,
   onPress,
-  blurMessage = "Fonctionnalité disponible avec un abonnement actif"
+  blurMessage = "Fonctionnalité disponible avec un abonnement actif",
+  customButton
 }) => {
   if (!isBlurred) {
-    return children;
+    return <>{children}</>;
   }
 
   return (
@@ -38,7 +47,9 @@ const BlurredCard = ({
               <Ionicons name="lock-closed" size={32} color="#FFFFFF" />
             </View>
             <Text style={styles.blurMessage}>{blurMessage}</Text>
-            {onPress && (
+            {customButton ? (
+              customButton
+            ) : onPress ? (
               <TouchableOpacity 
                 style={styles.unlockButton}
                 onPress={onPress}
@@ -46,7 +57,7 @@ const BlurredCard = ({
                 <Ionicons name="card" size={16} color="#FFFFFF" />
                 <Text style={styles.unlockButtonText}>Débloquer</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         </LinearGradient>
       </View>

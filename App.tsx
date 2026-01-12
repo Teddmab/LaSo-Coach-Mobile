@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
+import { IOSSimulationProvider } from './src/context/IOSSimulationContext';
 import { initializeTokenManager } from './src/services/api';
 import Config from './src/config/env';
 import LoginScreen from './src/screens/LoginScreen';
@@ -18,6 +19,7 @@ import Toast from 'react-native-toast-message';
 import { toastConfig } from './src/config/toastConfig';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import NetworkStatus from './src/components/NetworkStatus';
+import IOSSimulationButton from './src/components/IOSSimulationButton';
 import { RootStackParamList } from './src/types/navigation';
 import './src/utils/consoleFilter';
 
@@ -222,29 +224,33 @@ function AppContent() {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator 
-        initialRouteName={isAuthenticated ? "Dashboard" : "Login"}
-        screenOptions={{ 
-          headerShown: false,
-          gestureEnabled: false
-        }}
-      >
-        {isAuthenticated ? (
-          // Authenticated stack
-          (<Stack.Screen name="Dashboard" component={DashboardScreen} />)
-        ) : (
-          // Non-authenticated stack
-          (<>
-            <Stack.Screen name="Login" component={LoginScreen as any} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="PasswordReset" component={PasswordResetScreen as any} />
-          </>)
-        )}
-      </Stack.Navigator>
-      {/* StatusBar pour le contenu de l'app - style light pour fonds sombres */}
-      <StatusBar style="light" />
-    </NavigationContainer>
+    <>
+      <NavigationContainer ref={navigationRef}>
+        <Stack.Navigator 
+          initialRouteName={isAuthenticated ? "Dashboard" : "Login"}
+          screenOptions={{ 
+            headerShown: false,
+            gestureEnabled: false
+          }}
+        >
+          {isAuthenticated ? (
+            // Authenticated stack
+            (<Stack.Screen name="Dashboard" component={DashboardScreen} />)
+          ) : (
+            // Non-authenticated stack
+            (<>
+              <Stack.Screen name="Login" component={LoginScreen as any} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="PasswordReset" component={PasswordResetScreen as any} />
+            </>)
+          )}
+        </Stack.Navigator>
+        {/* StatusBar pour le contenu de l'app - style light pour fonds sombres */}
+        <StatusBar style="light" />
+      </NavigationContainer>
+      {/* Bouton flottant iOS Simulation - Visible partout sur Android */}
+      <IOSSimulationButton />
+    </>
   );
 }
 
@@ -314,8 +320,10 @@ export default function App() {
           <AuthProvider>
             <NotificationProvider>
               <ChatProvider>
-                <NetworkStatus />
-                <AppContent />
+                <IOSSimulationProvider>
+                  <NetworkStatus />
+                  <AppContent />
+                </IOSSimulationProvider>
               </ChatProvider>
             </NotificationProvider>
           </AuthProvider>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
@@ -8,6 +8,7 @@ import SettingsList from './settings/components/SettingsList';
 import LogoutSection from './settings/components/LogoutSection';
 import { SETTINGS_ITEMS } from './settings/constants/settingsItems';
 import { ScreenContent } from './shared';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({
   user,
@@ -22,6 +23,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     profileData,
     toggleSection,
   } = useSettings();
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+
+  // Filtrer l'item "Abonnement & Paiement" sur iOS
+  const filteredSettingsItems = useMemo(() => {
+    if (isIOS) {
+      return SETTINGS_ITEMS.filter(item => item.id !== 'subscription');
+    }
+    return SETTINGS_ITEMS;
+  }, [isIOS]);
 
   const handleSettingPress = (itemId: string): void => {
 
@@ -79,7 +90,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       <ScreenContent>
         {/* Settings Items */}
         <SettingsList
-          items={SETTINGS_ITEMS}
+          items={filteredSettingsItems}
           expandedSections={expandedSections}
           onItemPress={handleSettingPress}
           onSubItemPress={handleSubItemPress}

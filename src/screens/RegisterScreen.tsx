@@ -19,6 +19,7 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '../constants/theme';
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import type { RegisterScreenNavigationProp } from '../types/navigation';
 
 interface FormData {
@@ -69,6 +70,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
   } = useGoogleAuthHybrid(true); // Pass true for registration mode - iOS utilise WebView, Android SDK natif
+  const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
 
   /**
    * Update form data
@@ -543,8 +545,8 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
                     )}
                   </TouchableOpacity>
 
-                  {/* Google Signup Button - Only on Android */}
-                  {Platform.OS === 'android' && (
+                  {/* Google Signup Button - Only on Android (ou si simulation iOS désactivée) */}
+                  {Platform.OS === 'android' && !isIOSSimulationEnabled && (
                     <TouchableOpacity
                       style={[styles.googleButton, loading && styles.registerButtonDisabled]}
                       onPress={handleGoogleSignup}

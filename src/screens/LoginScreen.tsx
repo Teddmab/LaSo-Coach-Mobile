@@ -25,7 +25,7 @@ import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS, theme } from '../constants/
 import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
-import SubscriptionApi from '../services/subscriptionApi';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
 import HelpBottomSheet from '../components/auth/HelpBottomSheet';
@@ -106,6 +106,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
   } = useGoogleAuthHybrid(); // iOS utilise WebView, Android SDK natif
+  const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
   
   /**
    * Handle Google login
@@ -414,25 +415,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
       // Register user
       await register(registrationData);
 
-      // After successful registration, activate free plan automatically (aligned with web version)
-      try {
-        // Get all available plans
-        const plans = await SubscriptionApi.getPlans();
-        
-        // Find the free plan (price === 0 or isFree === true)
-        const freePlan = plans.find((plan: any) => 
-          plan.price === 0 || plan.isFree || plan.name?.toLowerCase().includes('free')
-        );
-
-        if (freePlan && freePlan.id) {
-          // Activate free plan using the same endpoint as web version
-          await SubscriptionApi.activateFreeTrial(freePlan.id);
-        }
-      } catch (subscriptionError: any) {
-        // Don't block registration if free plan activation fails
-        // User can still activate it later from the subscription page
-        console.warn('Free plan activation failed after registration:', subscriptionError);
-      }
+      // Note: No automatic plan activation - user must manually subscribe to a plan
     } catch (error: any) {
       setErrors({ general: 'Une erreur est survenue lors de l\'inscription' });
     }
@@ -1211,8 +1194,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     )}
                   </TouchableOpacity>
 
-                  {/* Google Login Button - Only on Android */}
-                  {Platform.OS === 'android' && (
+                  {/* Google Login Button - Only on Android (ou si simulation iOS désactivée) */}
+                  {Platform.OS === 'android' && !isIOSSimulationEnabled && (
                     <TouchableOpacity
                       style={[styles.googleButton, loading && styles.loginButtonDisabled]}
                       onPress={handleGoogleLogin}
@@ -1406,8 +1389,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     </TouchableOpacity>
                   )}
 
-                  {/* Google Sign Up Button - Only show on steps 1-3 and Android */}
-                  {currentStep < 4 && Platform.OS === 'android' && (
+                  {/* Google Sign Up Button - Only show on steps 1-3 and Android (ou si simulation iOS désactivée) */}
+                  {currentStep < 4 && Platform.OS === 'android' && !isIOSSimulationEnabled && (
                     <>
                       {/* Divider */}
                       <View style={styles.dividerContainer}>

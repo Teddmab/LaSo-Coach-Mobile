@@ -11,9 +11,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../constants/theme';
 
-const BlurOverlay = ({ 
+interface BlurOverlayProps {
+  visible: boolean;
+  onRenew?: () => void;
+  customButton?: React.ReactNode; // Bouton personnalisé (pour iOS)
+  message?: string;
+}
+
+const BlurOverlay: React.FC<BlurOverlayProps> = ({ 
   visible, 
-  onRenew
+  onRenew,
+  customButton,
+  message = "Cette fonctionnalité nécessite un abonnement actif. Renouvelez votre abonnement pour continuer à accéder à toutes les fonctionnalités."
 }) => {
   const handleRenew = () => {
     if (onRenew) {
@@ -43,19 +52,22 @@ const BlurOverlay = ({
 
             {/* Message */}
             <Text style={styles.message}>
-              Cette fonctionnalité nécessite un abonnement actif. 
-              Renouvelez votre abonnement pour continuer à accéder à toutes les fonctionnalités.
+              {message}
             </Text>
 
             {/* Actions */}
             <View style={styles.actions}>
-              <TouchableOpacity 
-                style={styles.renewButton}
-                onPress={handleRenew}
-              >
-                <Ionicons name="card" size={20} color="#FFFFFF" />
-                <Text style={styles.renewButtonText}>Renouveler l'abonnement</Text>
-              </TouchableOpacity>
+              {customButton ? (
+                customButton
+              ) : onRenew ? (
+                <TouchableOpacity 
+                  style={styles.renewButton}
+                  onPress={handleRenew}
+                >
+                  <Ionicons name="card" size={20} color="#FFFFFF" />
+                  <Text style={styles.renewButtonText}>Renouveler l'abonnement</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           </LinearGradient>
         </View>

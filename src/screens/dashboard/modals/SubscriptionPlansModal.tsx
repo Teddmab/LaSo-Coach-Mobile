@@ -3,8 +3,10 @@ import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import SubscriptionPaymentFlow from '../../../components/SubscriptionPaymentFlow';
+import UpgradePrompt from '../../../components/subscription/UpgradePrompt';
 import SubscriptionApi from '../../../services/subscriptionApi';
 import { ShimmerCard } from '../../../components/Shimmer';
+import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 
 interface SubscriptionPlansModalProps {
   visible: boolean;
@@ -31,6 +33,9 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
   onPaymentError,
   onClosePaymentFlow,
 }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+
   return (
     <Modal
       visible={visible}
@@ -63,14 +68,27 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
           
           {/* Content */}
           {showPaymentFlow && selectedPlan ? (
-            <SubscriptionPaymentFlow
-              visible={true}
-              plan={selectedPlan}
-              onClose={onClosePaymentFlow}
-              onSuccess={onPaymentSuccess}
-              onError={onPaymentError}
-              isEmbedded={true}
-            />
+            isIOS ? (
+              <ScrollView style={styles.content} contentContainerStyle={styles.upgradePromptContainer}>
+                <UpgradePrompt
+                  onCheckStatus={async () => {
+                    // Rafraîchir le statut et fermer
+                    await onPaymentSuccess({});
+                    onClosePaymentFlow();
+                  }}
+                  onClose={onClosePaymentFlow}
+                />
+              </ScrollView>
+            ) : (
+              <SubscriptionPaymentFlow
+                visible={true}
+                plan={selectedPlan}
+                onClose={onClosePaymentFlow}
+                onSuccess={onPaymentSuccess}
+                onError={onPaymentError}
+                isEmbedded={true}
+              />
+            )
           ) : (
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
               {loading ? (
@@ -102,27 +120,30 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                     >
                       <View style={styles.planContent}>
                         <Text style={styles.planName}>{plan.name}</Text>
-                        <View style={styles.planPricing}>
-                          {plan.discountPrice && plan.discountPrice < plan.price ? (
-                            <View style={styles.pricingRow}>
-                              <Text style={[styles.planPrice, { color: theme.colors.primary }]}>
-                                {plan.currency || '€'}{plan.discountPrice}
-                              </Text>
-                              <Text style={[styles.planPrice, styles.discountedPrice]}>
+                        {/* Masquer les prix sur iOS */}
+                        {!isIOS && (
+                          <View style={styles.planPricing}>
+                            {plan.discountPrice && plan.discountPrice < plan.price ? (
+                              <View style={styles.pricingRow}>
+                                <Text style={[styles.planPrice, { color: theme.colors.primary }]}>
+                                  {plan.currency || '€'}{plan.discountPrice}
+                                </Text>
+                                <Text style={[styles.planPrice, styles.discountedPrice]}>
+                                  {plan.currency || '€'}{plan.price}
+                                </Text>
+                              </View>
+                            ) : (
+                              <Text style={styles.planPrice}>
                                 {plan.currency || '€'}{plan.price}
                               </Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.planPrice}>
-                              {plan.currency || '€'}{plan.price}
-                            </Text>
-                          )}
-                          {plan.duration && (
-                            <Text style={styles.planDuration}>
-                              / {plan.duration}
-                            </Text>
-                          )}
-                        </View>
+                            )}
+                            {plan.duration && (
+                              <Text style={styles.planDuration}>
+                                / {plan.duration}
+                              </Text>
+                            )}
+                          </View>
+                        )}
                         {plan.features && plan.features.length > 0 && (
                           <Text style={styles.planFeatures}>
                             {plan.features.slice(0, 2).join(' • ')}
@@ -262,6 +283,9 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     color: theme.colors.text.secondary,
+  },
+  upgradePromptContainer: {
+    paddingBottom: 40,
   },
 });
 

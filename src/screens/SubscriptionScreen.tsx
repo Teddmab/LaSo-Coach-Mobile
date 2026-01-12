@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { theme } from '../constants/theme';
 import FixedLayout from '../components/FixedLayout';
 import SubscriptionPaymentFlow from '../components/SubscriptionPaymentFlow';
+import UpgradePrompt from '../components/subscription/UpgradePrompt';
+import CheckStatusButton from '../components/subscription/CheckStatusButton';
 import { useAuth } from '../context/FirebaseAuthContext';
 import { SubscriptionScreenProps, PaymentData } from './subscription/types';
 import { useSubscriptionScreen } from './subscription/hooks/useSubscriptionScreen';
@@ -11,6 +13,8 @@ import ManageSubscriptionCard from './subscription/components/ManageSubscription
 import PlanCard from './subscription/components/PlanCard';
 import InvoiceModal from './subscription/components/InvoiceModal';
 import { ShimmerCard, ShimmerList } from '../components/Shimmer';
+import { subscriptionStatusService } from '../services/subscription/SubscriptionStatusService';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 
 const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   navigation,
@@ -23,6 +27,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 }) => {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
 
   const {
     loading,
@@ -44,11 +50,37 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     isPlanClickable,
   } = useSubscriptionScreen(navigation, refreshProfile);
 
+  // État pour le modal UpgradePrompt sur iOS
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [selectedPlanForUpgrade, setSelectedPlanForUpgrade] = useState<any>(null);
+
   const handleFAQPress = () => {
     if (onTabPress) {
       onTabPress('faq');
     } else if (navigation) {
     }
+  };
+
+  // Gérer la sélection de plan sur iOS (afficher UpgradePrompt au lieu du flux de paiement)
+  const handleIOSPlanSelect = (plan: any) => {
+    if (isIOS) {
+      setSelectedPlanForUpgrade(plan);
+      setShowUpgradePrompt(true);
+    } else {
+      handlePlanSelect(plan);
+    }
+  };
+
+  // Gérer la vérification du statut sur iOS
+  const handleCheckStatus = async () => {
+    const status = await subscriptionStatusService.refreshStatus();
+    if (status.hasActiveSubscription) {
+      // Rafraîchir les données de l'écran
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+    }
+    setShowUpgradePrompt(false);
   };
 
   const currentPlanId = currentSubscription?.subscription?.plan?.id;
@@ -143,9 +175,22 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
               key={plan.id}
               plan={plan}
               isCurrent={plan.id === currentPlanId}
-              onSelect={handlePlanSelect}
+              onSelect={isIOS ? handleIOSPlanSelect : handlePlanSelect}
             />
           ))}
+          
+          {/* Bouton de vérification du statut sur iOS */}
+          {isIOS && (
+            <View style={styles.iosCheckStatusContainer}>
+              <CheckStatusButton
+                onStatusChecked={async (hasActiveSubscription) => {
+                  if (hasActiveSubscription && refreshProfile) {
+                    await refreshProfile();
+                  }
+                }}
+              />
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -156,7 +201,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         onClose={() => setShowInvoiceModal(false)}
       />
 
-      {showPaymentFlow && selectedPlan && (
+      {/* Flux de paiement - Android uniquement */}
+      {!isIOS && showPaymentFlow && selectedPlan && (
         <Modal
           visible={showPaymentFlow}
           animationType="slide"
@@ -193,6 +239,48 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
                   onError={handlePaymentError}
                 />
               </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* UpgradePrompt - iOS uniquement */}
+      {isIOS && showUpgradePrompt && (
+        <Modal
+          visible={showUpgradePrompt}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => {
+            setShowUpgradePrompt(false);
+            setSelectedPlanForUpgrade(null);
+          }}
+        >
+          <View style={styles.bottomSheetOverlay}>
+            <TouchableOpacity
+              style={styles.bottomSheetBackdrop}
+              activeOpacity={1}
+              onPress={() => {
+                setShowUpgradePrompt(false);
+                setSelectedPlanForUpgrade(null);
+              }}
+            />
+            <View style={styles.bottomSheetContainer}>
+              <View style={styles.bottomSheetHandleContainer}>
+                <View style={styles.bottomSheetHandle} />
+              </View>
+              
+              <ScrollView 
+                style={styles.bottomSheetContent}
+                contentContainerStyle={styles.upgradePromptContent}
+              >
+                <UpgradePrompt
+                  onCheckStatus={handleCheckStatus}
+                  onClose={() => {
+                    setShowUpgradePrompt(false);
+                    setSelectedPlanForUpgrade(null);
+                  }}
+                />
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -280,6 +368,14 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: '#CCCCCC',
     borderRadius: 2,
+  },
+  iosCheckStatusContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  upgradePromptContent: {
+    paddingBottom: 40,
   },
 });
 
