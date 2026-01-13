@@ -16,7 +16,7 @@ config.resolver = {
   // Prefer CommonJS over ESM to avoid module resolution issues
   resolverMainFields: ['react-native', 'browser', 'main'],
   // Resolve source extensions including .mjs and .cjs for ESM modules
-  sourceExts: [...(config.resolver.sourceExts || []), 'mjs', 'cjs'],
+  sourceExts: [...(config.resolver.sourceExts || []), 'mjs', 'cjs', 'json'],
   // Resolve platform-specific extensions
   platforms: ['ios', 'android', 'native', 'web'],
 };
