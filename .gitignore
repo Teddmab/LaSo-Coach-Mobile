@@ -92,6 +92,7 @@ secure-keys/
 !package-lock.json
 !tsconfig.json
 !android/app/google-services.json
+!assets/**/*.json
 .env.production
 client_secret_*.json
 
