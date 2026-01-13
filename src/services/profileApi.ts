@@ -319,10 +319,10 @@ export class ProfileApi {
         throw new Error('FormData does not contain file information');
       }
       
-      // react-native-blob-util can handle file:// URIs directly
-      // But on Android, we might need to remove the prefix
+      // react-native-blob-util requires file path without file:// prefix on both iOS and Android
+      // CRITICAL: Remove file:// prefix for ReactNativeBlobUtil.wrap() to work correctly
       let filePath = fileUri;
-      if (Platform.OS === 'android' && filePath.startsWith('file://')) {
+      if (filePath.startsWith('file://')) {
         filePath = filePath.replace('file://', '');
       }
       

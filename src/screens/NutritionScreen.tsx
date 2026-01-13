@@ -765,6 +765,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     logger.info('User Action: Subscription renewal requested');
     logger.debug('Action: Closing blur overlay and navigating to subscription page');
     setShowBlurOverlay(false);
+    // Sur iOS, ne pas rediriger vers la page subscription (Reader App model)
+    if (isIOS) {
+      // Juste fermer le blur overlay, les cartes verrouillées afficheront le message de vérifier le statut
+      return;
+    }
     if (onSubscriptionRenew) {
       onSubscriptionRenew();
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { BackHandler, Platform, View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { useFocusEffect, NavigationContainerRef } from '@react-navigation/native';
 import { useAuth } from '../context/FirebaseAuthContext';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import DashboardLayout from './dashboard/components/DashboardLayout';
 import SubscriptionPlansModal from './dashboard/modals/SubscriptionPlansModal';
 import { DashboardOverlayStack } from './dashboard/components/DashboardOverlayStack';
@@ -32,6 +33,8 @@ import DefisScreen from './DefisScreen';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navigation }) => {
   const { logout: authLogout } = useAuth();
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
   
   // Custom hooks for data management
   const { dashboardData, fetchDashboardData, setDashboardData } = useDashboardData();
@@ -314,7 +317,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
-    // Rediriger vers la page d'abonnement dédiée
+    // Sur iOS, ne pas rediriger vers la page subscription (Reader App model)
+    // Les cartes verrouillées afficheront le message de vérifier le statut
+    if (isIOS) {
+      // Sur iOS, on ne redirige jamais vers la page subscription
+      return;
+    }
+    // Rediriger vers la page d'abonnement dédiée (Android uniquement)
     navigateOverlay('Subscription');
   };
 

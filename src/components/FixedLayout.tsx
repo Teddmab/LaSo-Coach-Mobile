@@ -25,6 +25,8 @@ interface FixedLayoutProps {
   showBackButton?: boolean;
   /** Callback appelé quand le bouton retour est pressé */
   onBackPress?: () => void;
+  /** Message optionnel pour iOS quand abonnement expiré (affiché dans le header) */
+  subscriptionMessage?: string;
 }
 
 /**
@@ -48,6 +50,7 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   hideHeader = false,
   showBackButton = false,
   onBackPress,
+  subscriptionMessage,
 }) => {
   const insets = useSafeAreaInsets();
   
@@ -78,6 +81,7 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
             showNotificationBadge={showNotificationBadge}
             showBackButton={showBackButton}
             onBackPress={onBackPress}
+            subscriptionMessage={subscriptionMessage}
           />
         </View>
       )}

@@ -87,6 +87,11 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
     return null;
   }
 
+  // Sur iOS, ne pas afficher le banner - on affichera juste un message dans le header
+  if (isIOS) {
+    return null;
+  }
+
   const handleRenew = () => {
     if (onRenew) {
       onRenew();

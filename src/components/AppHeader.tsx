@@ -17,6 +17,7 @@ interface AppHeaderProps {
   showNotificationBadge?: boolean;
   showBackButton?: boolean;
   onBackPress?: () => void;
+  subscriptionMessage?: string; // Message optionnel pour iOS quand abonnement expiré
 }
 
 /**
@@ -39,13 +40,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   showNotificationBadge = true,
   showBackButton = false,
   onBackPress,
+  subscriptionMessage,
 }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
   const shouldShowBackButton = isIOS && showBackButton && onBackPress;
 
   return (
-    <View style={[styles.header, showLogo && styles.headerWithLogo]}>
+    <View style={[styles.header, showLogo && styles.headerWithLogo, subscriptionMessage && isIOS && styles.headerWithMessage]}>
       {/* Left Side: Back Button (iOS) + Logo or Title */}
       <View style={styles.headerLeft}>
         {/* Back Button à gauche (iOS seulement) */}
@@ -58,15 +60,21 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <Ionicons name="chevron-back" size={24} color={theme.colors.text.primary} />
           </TouchableOpacity>
         )}
-        {showLogo ? (
-          <Image 
-            source={require('../../assets/logo.png')} 
-            style={[styles.headerLogo, styles.headerLogoAdjusted]}
-            resizeMode="contain"
-          />
-        ) : (
-          <Text style={styles.headerTitle}>{title}</Text>
-        )}
+        <View style={styles.titleContainer}>
+          {showLogo ? (
+            <Image 
+              source={require('../../assets/logo.png')} 
+              style={[styles.headerLogo, styles.headerLogoAdjusted]}
+              resizeMode="contain"
+            />
+          ) : (
+            <Text style={styles.headerTitle}>{title}</Text>
+          )}
+          {/* Message d'abonnement expiré sur iOS (sans bouton) */}
+          {subscriptionMessage && isIOS && (
+            <Text style={styles.subscriptionMessage}>{subscriptionMessage}</Text>
+          )}
+        </View>
       </View>
 
       {/* Right Side: Action Buttons */}
@@ -140,6 +148,10 @@ const styles = StyleSheet.create({
     height: '100%', // Prend toute la hauteur disponible
     gap: 8,
   },
+  titleContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -147,6 +159,17 @@ const styles = StyleSheet.create({
     lineHeight: 24, // Hauteur de ligne fixe pour un alignement cohérent
     includeFontPadding: false, // Évite le padding supplémentaire sur Android
     textAlignVertical: 'center', // Aligne verticalement le texte
+  },
+  subscriptionMessage: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    marginTop: 2,
+    fontStyle: 'italic',
+    includeFontPadding: false,
+  },
+  headerWithMessage: {
+    minHeight: 72, // Augmenter la hauteur si message présent
+    height: 72,
   },
   headerLogo: {
     width: 120,

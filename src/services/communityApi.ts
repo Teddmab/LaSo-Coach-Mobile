@@ -105,9 +105,10 @@ class CommunityApi {
         
         // Add images with field name 'media' (backend expects this exact name with multer.array('media', 5))
         files.forEach((file, index) => {
-          // Normalize file path for Android
+          // CRITICAL: ReactNativeBlobUtil.wrap() requires file path without file:// prefix on both iOS and Android
+          // Remove file:// prefix for ReactNativeBlobUtil to work correctly
           let filePath = file.uri;
-          if (Platform.OS === 'android' && filePath.startsWith('file://')) {
+          if (filePath.startsWith('file://')) {
             filePath = filePath.replace('file://', '');
           }
           
