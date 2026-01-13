@@ -29,7 +29,8 @@ const getDevice = () => {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import notificationsAPI from '../services/notificationsApi';
 import chatSocketService from '../services/chatSocketService';
-import { getFirebaseApp } from '../config/firebaseApp';
+// Removed Firebase import - Expo Push Notifications doesn't require Firebase to be initialized
+// Firebase is only needed for FCM on Android, but Expo handles this internally
 import { useAuth } from './FirebaseAuthContext';
 
 interface Notification {
@@ -125,19 +126,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // Initialize push notifications
   const initializePushNotifications = async (): Promise<boolean> => {
     try {
-      // Ensure Firebase is initialized before accessing Expo push token - with error handling
-      try {
-        const firebaseApp = getFirebaseApp();
-        if (!firebaseApp) {
-          console.warn('⚠️ [NotificationProvider] Firebase not initialized, skipping push notifications');
-          return false;
-        }
-      } catch (firebaseError: any) {
-        console.warn('⚠️ [NotificationProvider] Firebase initialization error:', firebaseError.message);
-        return false;
-      }
-      
-      // Check if device is physical device
+      // Check if device is physical device (Expo Push only works on physical devices)
       const device = getDevice();
       if (!device || !device.isDevice) {
         console.log('📱 [NotificationProvider] Not a physical device, skipping push notifications');
@@ -177,29 +166,46 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       console.log('✅ [NotificationProvider] Push notification permissions granted');
 
       // Get push token
+      // NOTE: Expo Push Notifications can work without Firebase initialized
+      // Firebase is only needed for FCM on Android, but Expo handles this internally
       console.log('📱 [NotificationProvider] Getting Expo push token...');
-      const token = await notifications.getExpoPushTokenAsync({
-        projectId: '6f5af143-a419-447d-a44e-3b3e230cf397', // Your EAS project ID
-      });
-      
-      console.log('✅ [NotificationProvider] Push token obtained:', token.data.substring(0, 30) + '...');
-      
-      // Check if token has changed (e.g., after app reinstall)
-      const storedToken = await AsyncStorage.getItem('expoPushToken');
-      const tokenChanged = storedToken !== token.data;
-      
-      // Store token for backend registration
-      await AsyncStorage.setItem('expoPushToken', token.data);
-      
-      // Register token with backend (always register, even if same, to keep backend updated)
-      console.log('📱 [NotificationProvider] Registering push token with backend...');
-      await registerPushToken(token.data, tokenChanged);
-      
-      console.log('✅ [NotificationProvider] Push token registered with backend');
-      
-      return true;
+      try {
+        const token = await notifications.getExpoPushTokenAsync({
+          projectId: '6f5af143-a419-447d-a44e-3b3e230cf397', // Your EAS project ID
+        });
+        
+        console.log('✅ [NotificationProvider] Push token obtained:', token.data.substring(0, 30) + '...');
+        
+        // Check if token has changed (e.g., after app reinstall)
+        const storedToken = await AsyncStorage.getItem('expoPushToken');
+        const tokenChanged = storedToken !== token.data;
+        
+        // Store token for backend registration
+        await AsyncStorage.setItem('expoPushToken', token.data);
+        
+        // Register token with backend (only if user is authenticated)
+        // We check authentication here because we need a valid token to register
+        if (isAuthenticated) {
+          console.log('📱 [NotificationProvider] Registering push token with backend...');
+          await registerPushToken(token.data, tokenChanged);
+          console.log('✅ [NotificationProvider] Push token registered with backend');
+        } else {
+          console.log('📱 [NotificationProvider] User not authenticated, token will be registered after login');
+        }
+        
+        return true;
+      } catch (tokenError: any) {
+        // Handle FCM/Firebase initialization errors gracefully
+        if (tokenError.message?.includes('Firebase') || tokenError.message?.includes('FCM')) {
+          console.warn('⚠️ [NotificationProvider] Firebase/FCM not initialized yet, will retry later:', tokenError.message);
+          // Don't fail completely - we can retry when Firebase is ready
+          return false;
+        }
+        throw tokenError; // Re-throw other errors
+      }
     } catch (error: any) {
       console.error('❌ [NotificationProvider] Error initializing push notifications:', error);
+      // Don't block app startup if push notifications fail
       return false;
     }
   };
