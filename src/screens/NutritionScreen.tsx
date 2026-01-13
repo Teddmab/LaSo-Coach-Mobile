@@ -1619,22 +1619,32 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 ]}
                 onPress={() => {
                   if (day.isOutsideSubscription) {
-                    // Show alert for dates outside subscription
-                    Alert.alert(
-                      '⚠️ Hors Abonnement',
-                      'Cette date est en dehors de votre période d\'abonnement. Renouvelez votre abonnement pour accéder aux menus.',
-                      [
-                        { text: 'Annuler', style: 'cancel' },
-                        { 
-                          text: 'Renouveler', 
-                          onPress: () => {
-                            if (onSubscriptionRenew) {
-                              onSubscriptionRenew();
+                    // Sur iOS, afficher une notification Toast au lieu d'une Alert
+                    if (isIOS) {
+                      Toast.show({
+                        type: 'info',
+                        text1: 'Session expirée',
+                        text2: 'Votre session n\'est plus en règle. Rendez-vous sur app.lasocoach.com pour vérifier l\'état de votre session.',
+                        visibilityTime: 5000,
+                      });
+                    } else {
+                      // Sur Android, afficher l'alerte classique
+                      Alert.alert(
+                        '⚠️ Hors Abonnement',
+                        'Cette date est en dehors de votre période d\'abonnement. Renouvelez votre abonnement pour accéder aux menus.',
+                        [
+                          { text: 'Annuler', style: 'cancel' },
+                          { 
+                            text: 'Renouveler', 
+                            onPress: () => {
+                              if (onSubscriptionRenew) {
+                                onSubscriptionRenew();
+                              }
                             }
                           }
-                        }
-                      ]
-                    );
+                        ]
+                      );
+                    }
                   } else {
                     logger.info('User Action: Date selected', {
                       selectedDate: day.number,
@@ -1680,8 +1690,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </ScrollView>
         </View>
 
-        {/* Locked Menu Card - Show when no active plan */}
-        {!currentPlan && (
+        {/* Locked Menu Card - Show when no active plan or subscription expired */}
+        {(!currentPlan || !hasActiveSubscription) && (
           <View style={styles.lockedMenuCard}>
             <View style={styles.lockedMenuHeader}>
               <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
@@ -1770,8 +1780,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </View>
         )}
 
-        {/* Meals List - Only show when there's an active plan */}
-        {currentPlan && (
+        {/* Meals List - Only show when there's an active plan AND active subscription */}
+        {currentPlan && hasActiveSubscription && (
           <View style={styles.mealsContainer}>
             {/* Today's Meals */}
             {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
@@ -2458,8 +2468,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </View>
         </View>
       </Modal>
-      
-      <Toast />
     </>
   );
 };

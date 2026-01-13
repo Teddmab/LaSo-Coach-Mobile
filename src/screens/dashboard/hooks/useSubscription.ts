@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import SubscriptionService, { SUBSCRIPTION_STATUS } from '../../../services/subscriptionService';
+import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 
 export const useSubscription = () => {
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [showSubscriptionAlert, setShowSubscriptionAlert] = useState<boolean>(false);
   const [subscriptionAlertType, setSubscriptionAlertType] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
 
   const checkSubscriptionStatus = useCallback(async (): Promise<void> => {
     try {
@@ -48,10 +51,18 @@ export const useSubscription = () => {
           });
         }
       } else if (statusRequiresModal) {
-        setSubscriptionAlertType('expired');
-        setShowSubscriptionAlert(true);
-        if (__DEV__) {
-          console.log('⚠️ [useSubscription] Subscription expired/inactive - showing alert');
+        // Sur iOS, ne pas afficher l'alerte (Reader App model)
+        // Sur Android, afficher l'alerte normalement
+        if (!isIOS) {
+          setSubscriptionAlertType('expired');
+          setShowSubscriptionAlert(true);
+          if (__DEV__) {
+            console.log('⚠️ [useSubscription] Subscription expired/inactive - showing alert');
+          }
+        } else {
+          // Sur iOS, ne pas afficher l'alerte même si l'abonnement est expiré
+          setShowSubscriptionAlert(false);
+          setSubscriptionAlertType(null);
         }
       } else {
         setShowSubscriptionAlert(false);
@@ -72,8 +83,14 @@ export const useSubscription = () => {
         daysRemaining: 0,
         requiresRenewal: true
       });
-      setSubscriptionAlertType('expired');
-      setShowSubscriptionAlert(true);
+      // Sur iOS, ne pas afficher l'alerte même en cas d'erreur
+      if (!isIOS) {
+        setSubscriptionAlertType('expired');
+        setShowSubscriptionAlert(true);
+      } else {
+        setShowSubscriptionAlert(false);
+        setSubscriptionAlertType(null);
+      }
     } finally {
       setLoading(false);
     }

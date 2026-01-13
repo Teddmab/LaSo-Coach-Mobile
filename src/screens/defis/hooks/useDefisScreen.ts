@@ -6,6 +6,7 @@ import chatSocketService from '../../../services/chatSocketService';
 import api from '../../../services/api';
 import { API_CONFIG } from '../../../config/apiConfig';
 import SubscriptionService from '../../../services/subscriptionService';
+import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 import {
   Badge,
   BadgeSummary,
@@ -22,6 +23,8 @@ try {
 }
 
 export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -202,6 +205,38 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
   };
 
   const assignChallenge = async (challengeId: string): Promise<void> => {
+    // Vérifier l'état de l'abonnement avant d'accepter le défi
+    try {
+      const subscriptionStatus = await SubscriptionService.getSubscriptionStatus();
+      const hasActiveSubscription = subscriptionStatus?.status === 'ACTIVE' || 
+                                   subscriptionStatus?.hasActiveSubscription === true ||
+                                   (subscriptionStatus?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionStatus?.isExpired);
+      
+      if (!hasActiveSubscription) {
+        // Sur iOS, afficher une notification Toast (comme sur Nutrition)
+        if (isIOS) {
+          Toast.show({
+            type: 'info',
+            text1: 'Session expirée',
+            text2: 'Votre session n\'est plus en règle. Rendez-vous sur app.lasocoach.com pour vérifier l\'état de votre session.',
+            visibilityTime: 5000,
+          });
+        } else {
+          // Sur Android, afficher un message d'erreur
+          Toast.show({
+            type: 'error',
+            text1: 'Abonnement requis',
+            text2: 'Vous devez avoir un abonnement actif pour accepter des défis.',
+          });
+        }
+        return;
+      }
+    } catch (error) {
+      // En cas d'erreur de vérification, continuer quand même (ne pas bloquer)
+      console.warn('Erreur lors de la vérification de l\'abonnement:', error);
+    }
+    
+    // Si l'abonnement est actif, procéder à l'acceptation du défi
     try {
       const response: any = await api.post(API_CONFIG.endpoints.challenges.assign(challengeId), {});
       

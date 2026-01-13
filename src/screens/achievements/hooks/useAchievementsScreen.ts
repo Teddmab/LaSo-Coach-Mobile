@@ -7,6 +7,7 @@ import BadgeApi from '../../../services/badgeApi';
 import chatSocketService from '../../../services/chatSocketService';
 import SubscriptionService from '../../../services/subscriptionService';
 import DashboardService from '../../../services/dashboardService';
+import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 import {
   LeaderboardUser,
   UserPosition,
@@ -27,6 +28,8 @@ try {
 }
 
 export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [showBlurOverlay, setShowBlurOverlay] = useState(false);
   const [profileData, setProfileData] = useState<any>(null);
@@ -176,8 +179,11 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
       const data = await SubscriptionService.getSubscriptionStatus();
       setSubscriptionData(data);
       
-      if ((data as any).requiresRenewal) {
+      // Sur iOS, ne pas afficher le blur (Reader App model)
+      if ((data as any).requiresRenewal && !isIOS) {
         setShowBlurOverlay(true);
+      } else {
+        setShowBlurOverlay(false);
       }
     } catch (error) {
       setSubscriptionData({
@@ -185,7 +191,12 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
         isExpired: true,
         requiresRenewal: true,
       });
-      setShowBlurOverlay(true);
+      // Sur iOS, ne pas afficher le blur même en cas d'erreur
+      if (!isIOS) {
+        setShowBlurOverlay(true);
+      } else {
+        setShowBlurOverlay(false);
+      }
     }
   };
 
@@ -316,13 +327,61 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
   };
 
   const assignChallenge = async (challengeId: string): Promise<void> => {
+    // Vérifier l'état de l'abonnement avant d'accepter le défi
+    try {
+      const subscriptionStatus = await SubscriptionService.getSubscriptionStatus();
+      const hasActiveSubscription = subscriptionStatus?.status === 'ACTIVE' || 
+                                   subscriptionStatus?.hasActiveSubscription === true ||
+                                   (subscriptionStatus?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionStatus?.isExpired);
+      
+      if (!hasActiveSubscription) {
+        // Sur iOS, afficher une notification Toast (comme sur Nutrition)
+        if (isIOS) {
+          Toast.show({
+            type: 'info',
+            text1: 'Session expirée',
+            text2: 'Votre session n\'est plus en règle. Rendez-vous sur app.lasocoach.com pour vérifier l\'état de votre session.',
+            visibilityTime: 5000,
+          });
+        } else {
+          // Sur Android, afficher un message d'erreur
+          Toast.show({
+            type: 'error',
+            text1: 'Abonnement requis',
+            text2: 'Vous devez avoir un abonnement actif pour accepter des défis.',
+          });
+        }
+        return;
+      }
+    } catch (error) {
+      // En cas d'erreur de vérification, continuer quand même (ne pas bloquer)
+      console.warn('Erreur lors de la vérification de l\'abonnement:', error);
+    }
+    
+    // Si l'abonnement est actif, procéder à l'acceptation du défi
     try {
       const response: any = await api.post(API_CONFIG.endpoints.challenges.assign(challengeId), {});
       
       if (response.data?.success) {
+        Toast.show({
+          type: 'success',
+          text1: 'Défi accepté',
+          text2: 'Vous avez accepté ce défi avec succès',
+        });
         fetchChallenges();
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: 'Impossible d\'accepter ce défi',
+        });
       }
     } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible d\'accepter ce défi',
+      });
     }
   };
 

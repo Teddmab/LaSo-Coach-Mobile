@@ -42,14 +42,16 @@ const withIOSCrashFix = (config) => {
     }
 
     // S'assurer que la version est correcte (toujours mettre à jour pour correspondre à app.json)
-    const expectedVersion = config.version || '1.0.5';
+    // Lire depuis expo.version ou config.version (app.json)
+    const expectedVersion = config.expo?.version || config.version || '1.0.6';
     if (!infoPlist.CFBundleShortVersionString || infoPlist.CFBundleShortVersionString !== expectedVersion) {
       infoPlist.CFBundleShortVersionString = expectedVersion;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleShortVersionString to: ${expectedVersion}`);
     }
 
     // S'assurer que le build number est correct (toujours mettre à jour pour correspondre à app.json)
-    const expectedBuildNumber = config.ios?.buildNumber || config.buildNumber || '7';
+    // Lire depuis expo.ios.buildNumber ou config.ios.buildNumber (app.json)
+    const expectedBuildNumber = config.expo?.ios?.buildNumber || config.ios?.buildNumber || config.buildNumber || '22';
     if (!infoPlist.CFBundleVersion || infoPlist.CFBundleVersion !== expectedBuildNumber) {
       infoPlist.CFBundleVersion = expectedBuildNumber;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleVersion to: ${expectedBuildNumber}`);

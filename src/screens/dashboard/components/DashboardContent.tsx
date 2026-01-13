@@ -143,13 +143,22 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         />
       ) : (
         <>
-          {/* Badge vert minimaliste pour profil complété */}
-          <View style={styles.profileCompleteBadge}>
-            <View style={styles.badgeContent}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={styles.badgeText}>Profil complété +175 pts</Text>
+          {/* Badge pour profil complété ou abonnement expiré */}
+          {hasActiveSubscription ? (
+            <View style={styles.profileCompleteBadge}>
+              <View style={styles.badgeContent}>
+                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                <Text style={styles.badgeText}>Profil complété +175 pts</Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.subscriptionExpiredBadge}>
+              <View style={styles.badgeContent}>
+                <Ionicons name="warning" size={16} color="#F44336" />
+                <Text style={styles.subscriptionExpiredText}>Abonnement expiré</Text>
+              </View>
+            </View>
+          )}
           <ProgressCard
             key={dashboardData?.fetchedAt || 'initial'}
             dashboardData={dashboardData}
@@ -231,6 +240,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#15803D',
+  },
+  subscriptionExpiredBadge: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 8,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F44336',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  subscriptionExpiredText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F44336',
+    marginLeft: 6,
   },
   agoraSection: {
     marginTop: 20,

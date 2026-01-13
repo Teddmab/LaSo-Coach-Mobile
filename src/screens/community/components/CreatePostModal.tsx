@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, Image, ScrollView, StyleSheet, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../../../constants/theme';
 import { SelectedImage } from '../types';
@@ -28,19 +29,33 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
   onPublish,
   onClose,
 }) => {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={false}
+      transparent={true}
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+        style={styles.keyboardAvoidingView}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        <View style={styles.overlay}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={onClose}
+          />
+          <View style={[styles.container, { paddingBottom: insets.bottom, height: '85%', maxHeight: '85%' }]}>
+            {/* Handle */}
+            <View style={styles.handleContainer}>
+              <View style={styles.handle} />
+            </View>
+
+            {/* Header */}
+            <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
             <Text style={styles.cancelText}>Annuler</Text>
           </TouchableOpacity>
@@ -100,15 +115,41 @@ const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </TouchableOpacity>
           )}
         </ScrollView>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  keyboardAvoidingView: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  backdrop: {
+    flex: 1,
+  },
+  container: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    minHeight: 400,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D0D0D0',
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
@@ -162,6 +203,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: '#FFFFFF',
+    paddingBottom: 20,
   },
   textInput: {
     fontSize: 16,

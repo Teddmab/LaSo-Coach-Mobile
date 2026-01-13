@@ -68,7 +68,16 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               resizeMode="contain"
             />
           ) : (
-            <Text style={styles.headerTitle}>{title}</Text>
+            <Text 
+              style={[
+                styles.headerTitle,
+                title.length > 20 && styles.headerTitleLong // Réduire la taille si le titre est trop long
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </Text>
           )}
           {/* Message d'abonnement expiré sur iOS (sans bouton) */}
           {subscriptionMessage && isIOS && (
@@ -159,6 +168,10 @@ const styles = StyleSheet.create({
     lineHeight: 24, // Hauteur de ligne fixe pour un alignement cohérent
     includeFontPadding: false, // Évite le padding supplémentaire sur Android
     textAlignVertical: 'center', // Aligne verticalement le texte
+    flexShrink: 1, // Permet au texte de rétrécir si nécessaire
+  },
+  headerTitleLong: {
+    fontSize: 16, // Réduire la taille pour les titres longs
   },
   subscriptionMessage: {
     fontSize: 11,

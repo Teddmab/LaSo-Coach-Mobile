@@ -87,9 +87,9 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
                 <TextInput
                   style={styles.input}
                   value={form.weight}
-                  onChangeText={(text) => onFormChange({ weight: text })}
+                  onChangeText={(text) => onFormChange({ weight: text.replace(/[^0-9.]/g, '') })}
                   placeholder="Ex: 75.5"
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   maxLength={5}
                   placeholderTextColor={theme.colors.text.secondary}
                   editable={!form.saving}
@@ -101,9 +101,9 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
                 <TextInput
                   style={styles.input}
                   value={form.waistSize}
-                  onChangeText={(text) => onFormChange({ waistSize: text })}
+                  onChangeText={(text) => onFormChange({ waistSize: text.replace(/[^0-9.]/g, '') })}
                   placeholder="Ex: 85.0"
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   maxLength={5}
                   placeholderTextColor={theme.colors.text.secondary}
                   editable={!form.saving}
