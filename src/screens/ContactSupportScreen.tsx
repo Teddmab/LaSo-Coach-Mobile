@@ -22,6 +22,8 @@ interface ContactSupportScreenProps {
   avatarSource?: any;
   avatarFallbackText?: string;
   user?: any;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 type RequestType = 'bug' | 'technical' | 'inappropriate' | 'delete_account';
@@ -33,6 +35,8 @@ const ContactSupportScreen: React.FC<ContactSupportScreenProps> = ({
   avatarSource,
   avatarFallbackText,
   user,
+  showBackButton = false,
+  onBackPress,
 }) => {
   const [requestType, setRequestType] = useState<RequestType | null>(null);
   const [subject, setSubject] = useState('');
@@ -145,6 +149,8 @@ ID: ${user?.id || 'Non disponible'}
       onProfilePress={() => {}}
       avatarSource={avatarSource}
       avatarFallbackText={avatarFallbackText}
+      showBackButton={showBackButton}
+      onBackPress={onBackPress}
     >
       <ScrollView
         style={styles.container}

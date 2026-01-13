@@ -7,6 +7,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
+// Preload all bottom sheets at module level for instant availability
+import ProfileStep1BottomSheet from '../dashboard/ProfileStep1BottomSheet';
+import ProfileStep2BottomSheet from '../dashboard/ProfileStep2BottomSheet';
+import ProfileStep3BottomSheet from '../dashboard/ProfileStep3BottomSheet';
+import ProfileStep4BottomSheet from '../dashboard/ProfileStep4BottomSheet';
 
 interface OnboardingAccordionProps {
   user: any;
@@ -38,40 +43,6 @@ const OnboardingAccordion: React.FC<OnboardingAccordionProps> = ({
   const [showStep2BottomSheet, setShowStep2BottomSheet] = useState(false);
   const [showStep3BottomSheet, setShowStep3BottomSheet] = useState(false);
   const [showStep4BottomSheet, setShowStep4BottomSheet] = useState(false);
-  
-  // Lazy load bottom sheets to avoid NativeEventEmitter issues
-  const [Step1BottomSheet, setStep1BottomSheet] = React.useState<React.ComponentType<any> | null>(null);
-  const [Step2BottomSheet, setStep2BottomSheet] = React.useState<React.ComponentType<any> | null>(null);
-  const [Step3BottomSheet, setStep3BottomSheet] = React.useState<React.ComponentType<any> | null>(null);
-  const [Step4BottomSheet, setStep4BottomSheet] = React.useState<React.ComponentType<any> | null>(null);
-  
-  // Preload all bottom sheets at component mount to avoid delay when clicking
-  React.useEffect(() => {
-    // Preload all bottom sheets in parallel
-    const preloadBottomSheets = async () => {
-      const imports = await Promise.all([
-        import('../dashboard/ProfileStep1BottomSheet').catch(() => null),
-        import('../dashboard/ProfileStep2BottomSheet').catch(() => null),
-        import('../dashboard/ProfileStep3BottomSheet').catch(() => null),
-        import('../dashboard/ProfileStep4BottomSheet').catch(() => null),
-      ]);
-
-      if (imports[0]?.default && !Step1BottomSheet) {
-        setStep1BottomSheet(() => imports[0]!.default);
-      }
-      if (imports[1]?.default && !Step2BottomSheet) {
-        setStep2BottomSheet(() => imports[1]!.default);
-      }
-      if (imports[2]?.default && !Step3BottomSheet) {
-        setStep3BottomSheet(() => imports[2]!.default);
-      }
-      if (imports[3]?.default && !Step4BottomSheet) {
-        setStep4BottomSheet(() => imports[3]!.default);
-      }
-    };
-
-    preloadBottomSheets();
-  }, []);
 
   // Get onboarding data
   const onboardingData = dashboardData?.onboarding?.data || {};
@@ -253,42 +224,34 @@ const OnboardingAccordion: React.FC<OnboardingAccordionProps> = ({
         {STEPS.map(step => renderStepItem(step))}
       </View>
 
-      {/* Bottom Sheets - Lazy loaded */}
-      {Step1BottomSheet && (
-        <Step1BottomSheet
-          visible={showStep1BottomSheet}
-          onClose={() => setShowStep1BottomSheet(false)}
-          onComplete={() => handleStepComplete(1)}
-          user={user}
-          dashboardData={dashboardData}
-        />
-      )}
+      {/* Bottom Sheets - Preloaded at module level */}
+      <ProfileStep1BottomSheet
+        visible={showStep1BottomSheet}
+        onClose={() => setShowStep1BottomSheet(false)}
+        onComplete={() => handleStepComplete(1)}
+        user={user}
+        dashboardData={dashboardData}
+      />
       
-      {Step2BottomSheet && (
-        <Step2BottomSheet
-          visible={showStep2BottomSheet}
-          onClose={() => setShowStep2BottomSheet(false)}
-          onComplete={() => handleStepComplete(2)}
-          dashboardData={dashboardData}
-        />
-      )}
+      <ProfileStep2BottomSheet
+        visible={showStep2BottomSheet}
+        onClose={() => setShowStep2BottomSheet(false)}
+        onComplete={() => handleStepComplete(2)}
+        dashboardData={dashboardData}
+      />
       
-      {Step3BottomSheet && (
-        <Step3BottomSheet
-          visible={showStep3BottomSheet}
-          onClose={() => setShowStep3BottomSheet(false)}
-          onComplete={() => handleStepComplete(3)}
-        />
-      )}
+      <ProfileStep3BottomSheet
+        visible={showStep3BottomSheet}
+        onClose={() => setShowStep3BottomSheet(false)}
+        onComplete={() => handleStepComplete(3)}
+      />
       
-      {Step4BottomSheet && (
-        <Step4BottomSheet
-          visible={showStep4BottomSheet}
-          onClose={() => setShowStep4BottomSheet(false)}
-          onComplete={() => handleStepComplete(4)}
-          dashboardData={dashboardData}
-        />
-      )}
+      <ProfileStep4BottomSheet
+        visible={showStep4BottomSheet}
+        onClose={() => setShowStep4BottomSheet(false)}
+        onComplete={() => handleStepComplete(4)}
+        dashboardData={dashboardData}
+      />
     </>
   );
 };

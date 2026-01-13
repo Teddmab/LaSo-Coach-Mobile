@@ -53,6 +53,7 @@ interface NotificationContextType {
   showLocalNotification: (notification: Notification) => Promise<void>;
   testNotification: () => Promise<void>;
   checkNotificationStatus: () => Promise<any>;
+  unregisterPushToken: () => Promise<void>; // Expose unregister function for logout
 }
 
 // Configure notification handling - wrapped in try-catch to avoid crash if module not ready
@@ -139,6 +140,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       // Check if device is physical device
       const device = getDevice();
       if (!device || !device.isDevice) {
+        console.log('📱 [NotificationProvider] Not a physical device, skipping push notifications');
         return false;
       }
       
@@ -148,51 +150,112 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const notifications = getNotifications();
       if (!notifications) return false;
       
-      // Request permissions
+      console.log('📱 [NotificationProvider] Requesting push notification permissions...');
+      
+      // Request permissions with better user messaging
       const { status: existingStatus } = await notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
       
       if (existingStatus !== 'granted') {
-        const { status } = await notifications.requestPermissionsAsync();
+        console.log('📱 [NotificationProvider] Permissions not granted, requesting...');
+        const { status } = await notifications.requestPermissionsAsync({
+          ios: {
+            allowAlert: true,
+            allowBadge: true,
+            allowSound: true,
+            allowAnnouncements: false,
+          },
+        });
         finalStatus = status;
       }
       
       if (finalStatus !== 'granted') {
+        console.warn('⚠️ [NotificationProvider] Push notification permissions denied');
         return false;
       }
-
+      
+      console.log('✅ [NotificationProvider] Push notification permissions granted');
 
       // Get push token
+      console.log('📱 [NotificationProvider] Getting Expo push token...');
       const token = await notifications.getExpoPushTokenAsync({
         projectId: '6f5af143-a419-447d-a44e-3b3e230cf397', // Your EAS project ID
       });
       
+      console.log('✅ [NotificationProvider] Push token obtained:', token.data.substring(0, 30) + '...');
+      
+      // Check if token has changed (e.g., after app reinstall)
+      const storedToken = await AsyncStorage.getItem('expoPushToken');
+      const tokenChanged = storedToken !== token.data;
       
       // Store token for backend registration
       await AsyncStorage.setItem('expoPushToken', token.data);
       
-      // Register token with backend
-      await registerPushToken(token.data);
+      // Register token with backend (always register, even if same, to keep backend updated)
+      console.log('📱 [NotificationProvider] Registering push token with backend...');
+      await registerPushToken(token.data, tokenChanged);
+      
+      console.log('✅ [NotificationProvider] Push token registered with backend');
       
       return true;
     } catch (error: any) {
+      console.error('❌ [NotificationProvider] Error initializing push notifications:', error);
       return false;
     }
   };
 
   // Register push token with backend
-  const registerPushToken = async (token: string): Promise<void> => {
+  const registerPushToken = async (token: string, isNewToken: boolean = false): Promise<void> => {
     try {
+      if (!isAuthenticated) {
+        console.warn('⚠️ [NotificationProvider] User not authenticated, skipping token registration');
+        return;
+      }
       
-      // TODO: Implement API call to register push token with your backend
-      // Example:
-      // await api.post('/notifications/register-token', { 
-      //   token, 
-      //   platform: Platform.OS,
-      //   deviceId: await Device.getDeviceIdAsync()
-      // });
+      const device = getDevice();
+      const deviceId = device?.osBuildId || undefined;
       
+      console.log('📡 [NotificationProvider] Sending push token to backend...', {
+        token: token.substring(0, 30) + '...',
+        platform: Platform.OS,
+        deviceId,
+        isNewToken,
+      });
+      
+      await notificationsAPI.registerPushToken({
+        token,
+        platform: Platform.OS,
+        deviceId,
+      });
+      
+      console.log('✅ [NotificationProvider] Push token successfully registered with backend');
     } catch (error: any) {
+      console.error('❌ [NotificationProvider] Failed to register push token:', error);
+      // Don't throw - allow app to continue even if token registration fails
+    }
+  };
+
+  // Unregister push token from backend
+  const unregisterPushToken = async (): Promise<void> => {
+    try {
+      const token = await AsyncStorage.getItem('expoPushToken');
+      if (!token) {
+        console.log('📱 [NotificationProvider] No push token to unregister');
+        return;
+      }
+      
+      console.log('📡 [NotificationProvider] Unregistering push token from backend...');
+      
+      await notificationsAPI.unregisterPushToken({ token });
+      
+      // Remove token from storage
+      await AsyncStorage.removeItem('expoPushToken');
+      
+      console.log('✅ [NotificationProvider] Push token successfully unregistered');
+    } catch (error: any) {
+      console.error('❌ [NotificationProvider] Failed to unregister push token:', error);
+      // Still remove token from storage even if API call fails
+      await AsyncStorage.removeItem('expoPushToken');
     }
   };
 
@@ -492,9 +555,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     const notifications = getNotifications();
     if (!notifications) return;
     
+    // Listener for notifications received when app is in foreground/background
     const notificationListener = notifications.addNotificationReceivedListener((notification: any) => {
+      console.log('📬 [NotificationProvider] Notification received:', {
+        title: notification.request.content.title,
+        body: notification.request.content.body,
+        data: notification.request.content.data,
+      });
+      
+      // If app is in background, the OS will display the notification
+      // If app is in foreground, we can handle it here if needed
+      // The notification handler (setupNotificationHandler) will show it
     });
+    
+    // Listener for when user taps on a notification (app opened from notification)
     const responseListener = notifications.addNotificationResponseReceivedListener((response: any) => {
+      console.log('👆 [NotificationProvider] Notification tapped:', {
+        title: response.notification.request.content.title,
+        data: response.notification.request.content.data,
+      });
+      
       handleNotificationResponse(response);
     });
 
@@ -524,6 +604,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       authInitializedRef.current = true;
       fetchUnreadCount();
       initializeWebSocket();
+      // Re-initialize push notifications when user logs in
+      initializePushNotifications();
+    } else if (!isAuthenticated && authInitializedRef.current) {
+      // User logged out - unregister push token
+      authInitializedRef.current = false;
+      unregisterPushToken();
     }
   }, [authReady, isAuthenticated]);
 

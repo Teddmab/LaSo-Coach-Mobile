@@ -24,6 +24,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   onTabPress,
   user: propUser,
   activeTab = 'home',
+  showBackButton = false,
+  onBackPress,
 }) => {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
@@ -104,6 +106,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
         activeTab={activeTab || 'home'}
         onTabPress={onTabPress}
+        showBackButton={showBackButton}
+        onBackPress={onBackPress}
       >
         <ScrollView 
           style={styles.content} 
@@ -121,24 +125,26 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   }
 
   return (
-    <FixedLayout
-      headerTitle="Abonnement"
-      onHelpPress={handleFAQPress}
-      onNotificationPress={() => {
-        if (onTabPress) {
-          onTabPress('notifications');
-        }
-      }}
-      onProfilePress={() => {
-        if (onTabPress) {
-          onTabPress('settings');
-        }
-      }}
-      avatarSource={profileData?.avatar || user?.avatar}
-      avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-      activeTab={activeTab || 'home'}
-      onTabPress={onTabPress}
-    >
+      <FixedLayout
+        headerTitle="Abonnement"
+        onHelpPress={handleFAQPress}
+        onNotificationPress={() => {
+          if (onTabPress) {
+            onTabPress('notifications');
+          }
+        }}
+        onProfilePress={() => {
+          if (onTabPress) {
+            onTabPress('settings');
+          }
+        }}
+        avatarSource={profileData?.avatar || user?.avatar}
+        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
+        activeTab={activeTab || 'home'}
+        onTabPress={onTabPress}
+        showBackButton={showBackButton}
+        onBackPress={onBackPress}
+      >
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}

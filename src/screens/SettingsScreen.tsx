@@ -48,8 +48,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       onClose(itemId);
     } else if (itemId === 'subscription' && onClose) {
       onClose('subscription');
-    } else if (itemId === 'security' && onClose) {
-      onClose('security');
+    } else if (itemId === 'privacy' && onClose) {
+      // Privacy section is expandable, handled above
+      return;
+    } else if (itemId === 'security-connection' && onClose) {
+      onClose('security-connection');
     } else if (itemId === 'language' && onClose) {
       onClose('language');
     } else if (itemId === 'notifications' && onClose) {

@@ -73,6 +73,17 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
   };
   
   const startEditing = (section: 'personalInfo' | 'profile' | 'objectives') => {
+    // Check if onboarding is complete before allowing editing
+    if (!isOnboardingComplete) {
+      Toast.show({
+        type: 'info',
+        text1: 'Onboarding incomplet',
+        text2: 'Veuillez d\'abord compléter l\'onboarding pour débloquer la modification des informations.',
+        visibilityTime: 4000,
+      });
+      return;
+    }
+    
     setEditingSections(prev => ({
       ...prev,
       [section]: true,
@@ -174,6 +185,10 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
   const isStep1Completed = completedSteps.includes('profile_setup');
   const isStep2Completed = completedSteps.includes('goals_setup');
   const isStep3Completed = completedSteps.includes('recommendations');
+  const isStep4Completed = completedSteps.includes('rendezvous');
+  
+  // Check if onboarding is fully completed (all 4 steps)
+  const isOnboardingComplete = isStep1Completed && isStep2Completed && isStep3Completed && isStep4Completed;
 
   // Debug log - comprehensive data check
   if (__DEV__) {
@@ -804,10 +819,23 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
           {isEditable && !isEditing && (
             <TouchableOpacity
               onPress={() => startEditing(sectionKey)}
-              style={styles.modifyButton}
+              style={[
+                styles.modifyButton,
+                !isOnboardingComplete && styles.modifyButtonDisabled
+              ]}
+              disabled={!isOnboardingComplete}
             >
-              <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
-              <Text style={styles.modifyButtonText}>Modifier</Text>
+              <Ionicons 
+                name="create-outline" 
+                size={18} 
+                color={!isOnboardingComplete ? theme.colors.text.secondary : theme.colors.primary} 
+              />
+              <Text style={[
+                styles.modifyButtonText,
+                !isOnboardingComplete && styles.modifyButtonTextDisabled
+              ]}>
+                Modifier
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1172,6 +1200,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.primary,
     fontWeight: '500',
+  },
+  modifyButtonDisabled: {
+    opacity: 0.5,
+    borderColor: theme.colors.text.secondary,
+  },
+  modifyButtonTextDisabled: {
+    color: theme.colors.text.secondary,
   },
   cancelButtonSmall: {
     paddingHorizontal: 12,

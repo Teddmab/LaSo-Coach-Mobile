@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import { SecurityFormData } from '../types';
@@ -12,6 +12,8 @@ interface SecurityFormProps {
   onConfirmPasswordChange: (password: string) => void;
   onUpdateEmail: () => void;
   onChangePassword: () => void;
+  emailSaving?: boolean;
+  passwordSaving?: boolean;
 }
 
 const SecurityForm: React.FC<SecurityFormProps> = ({
@@ -22,6 +24,8 @@ const SecurityForm: React.FC<SecurityFormProps> = ({
   onConfirmPasswordChange,
   onUpdateEmail,
   onChangePassword,
+  emailSaving = false,
+  passwordSaving = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -40,8 +44,16 @@ const SecurityForm: React.FC<SecurityFormProps> = ({
           autoCapitalize="none"
           placeholderTextColor="#999"
         />
-        <TouchableOpacity style={styles.updateButton} onPress={onUpdateEmail}>
-          <Text style={styles.updateButtonText}>Mettre à jour</Text>
+        <TouchableOpacity
+          style={[styles.updateButton, emailSaving && styles.updateButtonDisabled]}
+          onPress={onUpdateEmail}
+          disabled={emailSaving}
+        >
+          {emailSaving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.updateButtonText}>Mettre à jour</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -75,8 +87,16 @@ const SecurityForm: React.FC<SecurityFormProps> = ({
           secureTextEntry
           placeholderTextColor="#999"
         />
-        <TouchableOpacity style={styles.updateButton} onPress={onChangePassword}>
-          <Text style={styles.updateButtonText}>Changer le mot de passe</Text>
+        <TouchableOpacity
+          style={[styles.updateButton, passwordSaving && styles.updateButtonDisabled]}
+          onPress={onChangePassword}
+          disabled={passwordSaving}
+        >
+          {passwordSaving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.updateButtonText}>Changer le mot de passe</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -126,6 +146,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 8,
+  },
+  updateButtonDisabled: {
+    opacity: 0.6,
   },
   updateButtonText: {
     color: '#FFFFFF',

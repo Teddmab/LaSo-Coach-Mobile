@@ -15,7 +15,7 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
     ],
   },
   {
-    id: 'security',
+    id: 'privacy',
     title: 'Confidentialité & Termes',
     icon: 'shield-checkmark-outline',
     color: '#4CAF50',
@@ -25,6 +25,12 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
       { id: 'terms-of-service', title: 'Termes de service' },
       { id: 'platform-rules', title: 'Règles de la plateforme' },
     ],
+  },
+  {
+    id: 'security-connection',
+    title: 'Sécurité & Connexion',
+    icon: 'lock-closed-outline',
+    color: '#4CAF50',
   },
   {
     id: 'notifications',

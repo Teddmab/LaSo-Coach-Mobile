@@ -586,6 +586,79 @@ export class ProfileApi {
       throw error;
     }
   }
+
+  /**
+   * Delete user account
+   * @returns {Promise<Object>} Delete response
+   */
+  static async deleteAccount() {
+    try {
+      // Récupérer le token Firebase pour l'authentification
+      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
+      const idToken = await firebaseAuthService.getIdToken();
+
+      if (!idToken) {
+        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
+      }
+
+      const endpoint = '/profile';
+      const Config = require('../config/env').default;
+      const url = `${Config.API_BASE_URL}${endpoint}`;
+      
+      console.log('🗑️ [ProfileApi.deleteAccount] Starting account deletion...');
+      console.log('📡 [ProfileApi.deleteAccount] Endpoint:', endpoint);
+      console.log('📡 [ProfileApi.deleteAccount] Method: DELETE');
+      console.log('📡 [ProfileApi.deleteAccount] Full URL:', url);
+      console.log('📦 [ProfileApi.deleteAccount] Payload: {} (DELETE request, no body)');
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      const text = await response.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        // Si ce n'est pas du JSON, on garde null
+      }
+
+      console.log('📥 [ProfileApi.deleteAccount] Response status:', response.status);
+      console.log('📥 [ProfileApi.deleteAccount] Response text:', text.substring(0, 200));
+      if (json) {
+        console.log('📥 [ProfileApi.deleteAccount] Response data:', JSON.stringify(json, null, 2));
+      }
+
+      if (!response.ok) {
+        const message = json?.message || `Erreur lors de la suppression du compte (code ${response.status})`;
+        const error: any = new Error(message);
+        error.status = response.status;
+        error.data = json;
+        console.error('❌ [ProfileApi.deleteAccount] Account deletion failed');
+        console.error('❌ [ProfileApi.deleteAccount] Response status:', response.status);
+        console.error('❌ [ProfileApi.deleteAccount] Response data:', JSON.stringify(json, null, 2));
+        throw error;
+      }
+
+      console.log('✅ [ProfileApi.deleteAccount] Account deletion successful');
+      
+      // Retourner la réponse complète pour vérification
+      return json || { success: true };
+    } catch (error: any) {
+      console.error('❌ [ProfileApi.deleteAccount] Account deletion failed');
+      console.error('❌ [ProfileApi.deleteAccount] Error:', error);
+      if (error.status) {
+        console.error('❌ [ProfileApi.deleteAccount] Response status:', error.status);
+        console.error('❌ [ProfileApi.deleteAccount] Response data:', JSON.stringify(error.data, null, 2));
+      }
+      throw error;
+    }
+  }
 }
 
 export default ProfileApi;

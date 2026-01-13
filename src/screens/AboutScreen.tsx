@@ -10,6 +10,8 @@ interface AboutScreenProps {
   onTabPress?: (tabId: string) => void;
   avatarSource?: any;
   avatarFallbackText?: string;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 const AboutScreen: React.FC<AboutScreenProps> = ({
@@ -18,6 +20,8 @@ const AboutScreen: React.FC<AboutScreenProps> = ({
   onTabPress,
   avatarSource,
   avatarFallbackText,
+  showBackButton = false,
+  onBackPress,
 }) => {
   const appVersion = '1.0.0'; // Version depuis app.json
 
@@ -31,6 +35,8 @@ const AboutScreen: React.FC<AboutScreenProps> = ({
       onProfilePress={() => {}}
       avatarSource={avatarSource}
       avatarFallbackText={avatarFallbackText}
+      showBackButton={showBackButton}
+      onBackPress={onBackPress}
     >
       <ScrollView
         style={styles.container}

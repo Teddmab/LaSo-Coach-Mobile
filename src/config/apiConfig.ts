@@ -154,6 +154,8 @@ export const API_CONFIG = {
       markRead: '/notifications/:id/read',
       markAllRead: '/notifications/read/all', // Aligned with web version
       settings: '/notifications/settings',
+      registerToken: '/notifications/register-token', // Register Expo push token
+      unregisterToken: '/notifications/unregister-token', // Unregister Expo push token
     },
 
     // Subscription endpoints

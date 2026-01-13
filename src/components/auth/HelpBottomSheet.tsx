@@ -109,32 +109,93 @@ Email de contact: ${email}
 Cette demande a été envoyée depuis l'application mobile LaSo Coach.
       `.trim();
 
-      const emailSubject = encodeURIComponent(`Demande d'aide - ${selectedOptionData?.title || 'Autre'}`);
-      const emailBodyEncoded = encodeURIComponent(emailBody);
-      const mailtoUrl = `mailto:support@lasocoach.com?subject=${emailSubject}&body=${emailBodyEncoded}`;
-
-      const canOpen = await Linking.canOpenURL(mailtoUrl);
-      if (canOpen) {
-        await Linking.openURL(mailtoUrl);
-        Toast.show({
-          type: 'success',
-          text1: 'Succès',
-          text2: 'Votre application email va s\'ouvrir',
-          visibilityTime: 3000,
-        });
-        // Reset form after a short delay
-        setTimeout(() => {
-          setSelectedOption(null);
-          setEmail('');
-          setCustomMessage('');
-          setErrors({});
-          onClose();
-        }, 1000);
-      } else {
+      const emailSubject = `Demande d'aide - ${selectedOptionData?.title || 'Autre'}`;
+      
+      try {
+        // Essayer d'abord avec une URL mailto simple (sans body pour éviter les problèmes de longueur)
+        const mailtoUrlSimple = `mailto:support@lasocoach.com?subject=${encodeURIComponent(emailSubject)}`;
+        
+        // Vérifier si on peut ouvrir mailto: en général
+        const canOpenMailto = await Linking.canOpenURL('mailto:');
+        
+        if (canOpenMailto) {
+          try {
+            // Essayer d'abord avec le body complet
+            const emailBodyEncoded = encodeURIComponent(emailBody);
+            const mailtoUrlFull = `mailto:support@lasocoach.com?subject=${encodeURIComponent(emailSubject)}&body=${emailBodyEncoded}`;
+            
+            // Essayer d'ouvrir l'URL complète
+            await Linking.openURL(mailtoUrlFull);
+            
+            Toast.show({
+              type: 'success',
+              text1: 'Succès',
+              text2: 'Votre application email va s\'ouvrir',
+              visibilityTime: 3000,
+            });
+            
+            // Reset form after a short delay
+            setTimeout(() => {
+              setSelectedOption(null);
+              setEmail('');
+              setCustomMessage('');
+              setErrors({});
+              onClose();
+            }, 1000);
+            return;
+          } catch (fullUrlError) {
+            // Si l'URL complète échoue (trop longue), essayer avec juste le sujet
+            console.log('⚠️ Full mailto URL failed, trying simple version:', fullUrlError);
+            try {
+              await Linking.openURL(mailtoUrlSimple);
+              // Afficher le contenu dans une alerte pour que l'utilisateur puisse le copier
+              Alert.alert(
+                'Email ouvert',
+                `Votre application email s'est ouverte.\n\nVeuillez copier le contenu suivant dans votre email :\n\n${emailBody}`,
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      setSelectedOption(null);
+                      setEmail('');
+                      setCustomMessage('');
+                      setErrors({});
+                      onClose();
+                    }
+                  }
+                ]
+              );
+              return;
+            } catch (simpleUrlError) {
+              console.error('❌ Error opening simple mailto URL:', simpleUrlError);
+              throw simpleUrlError;
+            }
+          }
+        } else {
+          // Aucune app email disponible
+          throw new Error('No email app available');
+        }
+      } catch (error: any) {
+        console.error('❌ Error opening email:', error);
+        
+        // Afficher le contenu formaté dans une alerte avec instructions
+        const emailContent = `À: support@lasocoach.com\nSujet: ${emailSubject}\n\n${emailBody}`;
+        
         Alert.alert(
-          'Erreur',
-          'Impossible d\'ouvrir l\'application email. Veuillez envoyer votre demande à support@lasocoach.com',
-          [{ text: 'OK' }]
+          'Aucune application email',
+          `Aucune application email n'est configurée sur votre appareil.\n\nVeuillez envoyer un email à :\n\nsupport@lasocoach.com\n\nAvec le sujet :\n${emailSubject}\n\nEt le contenu suivant :\n\n${emailBody}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setSelectedOption(null);
+                setEmail('');
+                setCustomMessage('');
+                setErrors({});
+                onClose();
+              }
+            }
+          ]
         );
       }
     } catch (error: any) {

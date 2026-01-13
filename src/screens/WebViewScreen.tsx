@@ -11,6 +11,8 @@ interface WebViewScreenProps {
   onTabPress?: (tabId: string) => void;
   avatarSource?: any;
   avatarFallbackText?: string;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 const WebViewScreen: React.FC<WebViewScreenProps> = ({
@@ -21,6 +23,8 @@ const WebViewScreen: React.FC<WebViewScreenProps> = ({
   onTabPress,
   avatarSource,
   avatarFallbackText,
+  showBackButton = false,
+  onBackPress,
 }) => {
   const [loading, setLoading] = React.useState(true);
 
@@ -34,6 +38,8 @@ const WebViewScreen: React.FC<WebViewScreenProps> = ({
       onProfilePress={() => {}}
       avatarSource={avatarSource}
       avatarFallbackText={avatarFallbackText}
+      showBackButton={showBackButton}
+      onBackPress={onBackPress}
     >
       <View style={styles.container}>
         {loading && (

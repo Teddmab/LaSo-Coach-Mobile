@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from './Avatar';
 import NotificationBadge from './NotificationBadge';
+import { useIOSSimulation } from '../hooks/useIOSSimulation';
 
 interface AppHeaderProps {
   title?: string;
@@ -14,6 +15,8 @@ interface AppHeaderProps {
   avatarSource?: ImageSourcePropType | string;
   avatarFallbackText?: string;
   showNotificationBadge?: boolean;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 /**
@@ -34,11 +37,27 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   avatarSource,
   avatarFallbackText = '',
   showNotificationBadge = true,
+  showBackButton = false,
+  onBackPress,
 }) => {
+  const { shouldShowIOSOnly } = useIOSSimulation();
+  const isIOS = shouldShowIOSOnly();
+  const shouldShowBackButton = isIOS && showBackButton && onBackPress;
+
   return (
     <View style={[styles.header, showLogo && styles.headerWithLogo]}>
-      {/* Left Side: Logo or Title - Pas d'animation pour éviter l'effet de chargement */}
+      {/* Left Side: Back Button (iOS) + Logo or Title */}
       <View style={styles.headerLeft}>
+        {/* Back Button à gauche (iOS seulement) */}
+        {shouldShowBackButton && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={onBackPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        )}
         {showLogo ? (
           <Image 
             source={require('../../assets/logo.png')} 
@@ -115,8 +134,11 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
-    justifyContent: 'center', // Aligne verticalement le contenu (logo ou titre)
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
     height: '100%', // Prend toute la hauteur disponible
+    gap: 8,
   },
   headerTitle: {
     fontSize: 20,
@@ -146,6 +168,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center', // Aligne verticalement le contenu du bouton
     alignItems: 'center', // Aligne horizontalement le contenu du bouton
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

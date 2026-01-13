@@ -63,10 +63,18 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
   initialRouteName = 'Home',
 }) => {
   // Navigation stack state - simule une pile de navigation
+  // La pile commence toujours avec 'Home' pour permettre le retour
   const [navigationStack, setNavigationStack] = useState<Array<{
     name: keyof DashboardOverlayStackParamList;
     params?: any;
-  }>>([{ name: initialRouteName }]);
+  }>>(() => {
+    // Si initialRouteName est 'Home', on commence avec juste Home
+    // Sinon, on commence avec Home puis l'écran initial
+    if (initialRouteName === 'Home') {
+      return [{ name: 'Home' }];
+    }
+    return [{ name: 'Home' }, { name: initialRouteName }];
+  });
 
   // Current screen
   const currentScreen = navigationStack[navigationStack.length - 1]?.name || initialRouteName;
@@ -74,17 +82,44 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
 
   // Navigation methods
   const navigate = useCallback((name: keyof DashboardOverlayStackParamList, params?: any) => {
-    setNavigationStack(prev => [...prev, { name, params }]);
+    setNavigationStack(prev => {
+      // Ne pas ajouter si c'est déjà l'écran actuel
+      if (prev.length > 0 && prev[prev.length - 1].name === name) {
+        return prev;
+      }
+      return [...prev, { name, params }];
+    });
   }, []);
 
   const goBack = useCallback(() => {
     setNavigationStack(prev => {
       if (prev.length > 1) {
-        return prev.slice(0, -1);
+        const newStack = prev.slice(0, -1);
+        const previousScreen = newStack[newStack.length - 1];
+        
+        // Si on revient à Home, fermer l'overlay et retourner au Dashboard principal
+        if (previousScreen.name === 'Home') {
+          // Appeler onTabPress('home') pour fermer l'overlay immédiatement
+          setTimeout(() => {
+            if (onTabPress) {
+              onTabPress('home');
+            }
+          }, 0);
+          // Retourner la nouvelle pile pour mettre à jour l'état
+          return newStack;
+        }
+        
+        return newStack;
+      }
+      // Si on est déjà sur Home, fermer l'overlay
+      if (onTabPress) {
+        setTimeout(() => {
+          onTabPress('home');
+        }, 0);
       }
       return prev;
     });
-  }, []);
+  }, [onTabPress]);
 
   const canGoBack = useCallback(() => {
     return navigationStack.length > 1;
@@ -106,18 +141,41 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
     };
   }, [overlayNavigationRef, navigate, goBack, canGoBack]);
 
-  // Update stack when initialRouteName changes (only on mount or when route changes from Home)
+  // Update stack when initialRouteName changes (quand on navigue depuis Home vers un autre écran)
   useEffect(() => {
     if (initialRouteName && initialRouteName !== 'Home') {
       setNavigationStack(prev => {
-        // Only update if we're currently on Home
+        // Si la pile ne contient que Home, on ajoute le nouvel écran
         if (prev.length === 1 && prev[0].name === 'Home') {
-          return [{ name: initialRouteName }];
+          return [{ name: 'Home' }, { name: initialRouteName }];
         }
+        // Si on est déjà sur l'écran initial, on ne change rien
+        if (prev.length > 0 && prev[prev.length - 1].name === initialRouteName) {
+          return prev;
+        }
+        // Sinon, on garde la pile actuelle
         return prev;
       });
+    } else if (initialRouteName === 'Home') {
+      // Si on revient à Home, on réinitialise la pile avec juste Home
+      setNavigationStack([{ name: 'Home' }]);
     }
   }, [initialRouteName]);
+
+  // Effect to close overlay when returning to Home
+  useEffect(() => {
+    // Si on est sur Home et qu'il n'y a qu'un élément dans la pile, fermer l'overlay
+    // Cela se produit quand on revient à Home depuis un autre écran
+    if (currentScreen === 'Home' && navigationStack.length === 1) {
+      // Utiliser un petit délai pour éviter les conflits avec les mises à jour d'état
+      const timer = setTimeout(() => {
+        if (onTabPress) {
+          onTabPress('home');
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentScreen, navigationStack.length, onTabPress]);
 
   // Helper function to render screen based on current screen name
   const renderScreen = () => {
@@ -129,6 +187,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
 
     switch (currentScreen) {
       case 'Home':
+        // Ne pas rendre null, mais fermer l'overlay via l'effet ci-dessus
         return null;
 
       case 'Settings':
@@ -142,6 +201,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <SettingsScreen
               user={user}
@@ -159,7 +220,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
                   stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'other' });
                 } else if (target === 'subscription') {
                   stackNavigation.navigate('Subscription');
-                } else if (target === 'security') {
+                } else if (target === 'security-connection') {
                   stackNavigation.navigate('Security');
                 } else if (target === 'language') {
                   stackNavigation.navigate('Language');
@@ -210,6 +271,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <ProfileScreen
               user={user}
@@ -246,6 +309,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <FAQScreen
               onClose={() => stackNavigation.goBack()}
@@ -267,6 +332,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
             showNotificationBadge={false}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <NotificationsScreen
               user={user}
@@ -289,6 +356,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <AgendaScreen
               user={user}
@@ -311,6 +380,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <CommunityScreen
               user={user}
@@ -333,6 +404,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <ChatScreen
               user={user}
@@ -353,6 +426,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             user={user}
             onTabPress={onTabPress}
             isStandalone={true}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 
@@ -364,6 +439,9 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onTabPress={onTabPress}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            onLogout={onLogout}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
             onLinkPress={(linkId) => {
               setWebViewSource('security');
               if (linkId === 'privacy-policy') {
@@ -388,6 +466,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <LanguageScreen
               onClose={() => stackNavigation.goBack()}
@@ -408,6 +488,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onProfilePress={() => stackNavigation.navigate('Settings')}
             avatarSource={avatarData.avatarSource}
             avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           >
             <NotificationSettingsScreen
               onClose={() => stackNavigation.goBack()}
@@ -423,6 +505,12 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             url="https://lasocoach.com/privacy-policy"
             title="Politique de Confidentialité"
             onClose={() => stackNavigation.goBack()}
+            activeTab={activeTab}
+            onTabPress={onTabPress}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 
@@ -432,6 +520,12 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             url="https://lasocoach.com/terms-of-service"
             title="Conditions d'Utilisation"
             onClose={() => stackNavigation.goBack()}
+            activeTab={activeTab}
+            onTabPress={onTabPress}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 
@@ -441,6 +535,12 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             url="https://lasocoach.com/platform-rules"
             title="Règles de la Plateforme"
             onClose={() => stackNavigation.goBack()}
+            activeTab={activeTab}
+            onTabPress={onTabPress}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 
@@ -450,6 +550,11 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onClose={() => stackNavigation.goBack()}
             onTabPress={onTabPress}
             activeTab={activeTab}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+            user={user}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 
@@ -459,6 +564,10 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onClose={() => stackNavigation.goBack()}
             onTabPress={onTabPress}
             activeTab={activeTab}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
           />
         );
 

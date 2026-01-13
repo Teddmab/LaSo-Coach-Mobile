@@ -94,6 +94,40 @@ export const notificationsAPI = {
     } catch (error) {
       throw error;
     }
+  },
+
+  /**
+   * Register push token with backend
+   * Endpoint: POST /api/v1/notifications/register-token
+   * @param {Object} tokenData - Push token data
+   * @param {string} tokenData.token - Expo push token (ExponentPushToken[...])
+   * @param {string} tokenData.platform - Platform ('ios' | 'android')
+   * @param {string} tokenData.deviceId - Optional device identifier
+   * @returns {Promise<Object>} Registration response
+   */
+  async registerPushToken(tokenData) {
+    try {
+      const response = await api.post('/notifications/register-token', tokenData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
+   * Unregister push token from backend
+   * Endpoint: POST /api/v1/notifications/unregister-token
+   * @param {Object} tokenData - Push token data
+   * @param {string} tokenData.token - Expo push token to unregister
+   * @returns {Promise<Object>} Unregistration response
+   */
+  async unregisterPushToken(tokenData) {
+    try {
+      const response = await api.post('/notifications/unregister-token', tokenData);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
   }
 };
 

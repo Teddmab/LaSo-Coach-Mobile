@@ -10,6 +10,8 @@ export interface SubscriptionScreenProps {
   onTabPress?: (tabId: string) => void;
   user?: User | null;
   activeTab?: string;
+  showBackButton?: boolean;
+  onBackPress?: () => void;
 }
 
 export interface Plan {

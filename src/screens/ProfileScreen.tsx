@@ -34,6 +34,10 @@ import { useAuth } from '../context/FirebaseAuthContext';
 import ProfileInformationsSection from '../components/profile/ProfileInformationsSection';
 import ProfileRendezvousSection from '../components/profile/ProfileRendezvousSection';
 import ProfileOtherInfosSection from '../components/profile/ProfileOtherInfosSection';
+// Preload OnboardingAccordion at module level for instant availability
+import OnboardingAccordion from '../components/profile/OnboardingAccordion';
+// Preload DashboardService at module level for instant availability
+import DashboardService from '../services/dashboardService';
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress, onStepCompleted, activeProfileTab }) => {
   const { refreshProfile } = useAuth();
@@ -286,9 +290,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         setProgressData(null);
       }
       
-      // Fetch dashboard data for onboarding (lazy import to avoid NativeEventEmitter issues)
+      // Fetch dashboard data for onboarding (DashboardService is now preloaded at module level)
       try {
-        const { default: DashboardService } = await import('../services/dashboardService');
         const dashboard = await DashboardService.getDashboardData();
         setDashboardData(dashboard);
       } catch (error) {
@@ -654,14 +657,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     }
   };
 
-  // Preload OnboardingAccordion component at startup to avoid delay when clicking
-  React.useEffect(() => {
-    if (!OnboardingAccordionComponent) {
-      import('../components/profile/OnboardingAccordion').then(module => {
-        setOnboardingAccordionComponent(() => module.default);
-      });
-    }
-  }, [OnboardingAccordionComponent]);
+  // OnboardingAccordion is now preloaded at module level - no lazy loading needed
 
 
   // Check if all 4 steps are completed - defined early for use in effects
@@ -3157,22 +3153,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Animated.View style={{ opacity: fadeAnim }}>
             {(!activeProfileTab || activeProfileTab === 'profile') && (
               <>
-                {OnboardingAccordionComponent ? (
-                  <OnboardingAccordionComponent
-                    user={user}
-                    dashboardData={dashboardData}
-                    onStepComplete={async () => {
-                      await fetchProfileData(false);
-                      if (onStepCompleted) {
-                        onStepCompleted();
-                      }
-                    }}
-                  />
-                ) : (
-                  <View style={styles.formSection}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
-                  </View>
-                )}
+                <OnboardingAccordion
+                  user={user}
+                  dashboardData={dashboardData}
+                  onStepComplete={async () => {
+                    await fetchProfileData(false);
+                    if (onStepCompleted) {
+                      onStepCompleted();
+                    }
+                  }}
+                />
               </>
             )}
 
@@ -3190,7 +3180,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
                   
                   // Rafraîchir aussi dashboardData pour avoir les dernières données d'onboarding
                   try {
-                    const { default: DashboardService } = await import('../services/dashboardService');
+                    // DashboardService is now preloaded at module level
                     const dashboard = await DashboardService.getDashboardData();
                     setDashboardData(dashboard);
                     console.log('✅ Profile: Dashboard data refreshed after save');

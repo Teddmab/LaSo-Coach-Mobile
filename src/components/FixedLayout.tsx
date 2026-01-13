@@ -21,6 +21,10 @@ interface FixedLayoutProps {
   showNotificationBadge?: boolean;
   /** Permet de masquer le header interne si l'écran gère déjà son propre AppHeader */
   hideHeader?: boolean;
+  /** Affiche un bouton retour dans le header (iOS uniquement) */
+  showBackButton?: boolean;
+  /** Callback appelé quand le bouton retour est pressé */
+  onBackPress?: () => void;
 }
 
 /**
@@ -42,6 +46,8 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   onTabPress,
   showNotificationBadge = true,
   hideHeader = false,
+  showBackButton = false,
+  onBackPress,
 }) => {
   const insets = useSafeAreaInsets();
   
@@ -70,6 +76,8 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
             avatarSource={avatarSource}
             avatarFallbackText={avatarFallbackText}
             showNotificationBadge={showNotificationBadge}
+            showBackButton={showBackButton}
+            onBackPress={onBackPress}
           />
         </View>
       )}

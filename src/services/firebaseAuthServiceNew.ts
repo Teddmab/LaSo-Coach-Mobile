@@ -800,10 +800,26 @@ class FirebaseAuthService {
     try {
       const user = this.getAuth().currentUser;
       if (!user) throw new Error('No user logged in');
-      await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
+      
+      const endpoint = API_CONFIG.endpoints.profile.delete;
+      console.log('🔥 [FirebaseAuthService.deleteAccount] Starting Firebase account deletion...');
+      console.log('📡 [FirebaseAuthService.deleteAccount] Backend endpoint:', endpoint);
+      console.log('📡 [FirebaseAuthService.deleteAccount] Method: DELETE');
+      console.log('👤 [FirebaseAuthService.deleteAccount] Firebase user UID:', user.uid);
+      console.log('📦 [FirebaseAuthService.deleteAccount] Payload: {} (DELETE request, no body)');
+      
+      await this.backendApi.delete(endpoint);
+      console.log('✅ [FirebaseAuthService.deleteAccount] Backend deletion successful');
+      
+      console.log('🔥 [FirebaseAuthService.deleteAccount] Deleting Firebase user...');
       await user.delete();
+      console.log('✅ [FirebaseAuthService.deleteAccount] Firebase user deletion successful');
+      
       this.currentUser = null;
+      console.log('✅ [FirebaseAuthService.deleteAccount] Account deletion completed');
     } catch (error) {
+      console.error('❌ [FirebaseAuthService.deleteAccount] Account deletion failed');
+      console.error('❌ [FirebaseAuthService.deleteAccount] Error:', error);
       throw new Error(this.getErrorMessage(error));
     }
   }

@@ -14,25 +14,30 @@ const DangerZone: React.FC<DangerZoneProps> = ({ onDeleteAccount }) => {
         <Text style={styles.dangerZoneTitle}>Zone de danger</Text>
       </View>
       
-      <Text style={styles.dangerZoneSubtitle}>Suppression définitive du compte</Text>
-      <Text style={styles.dangerZoneText}>
-        Cette action supprimera définitivement votre compte et toutes vos données. Cette action est irréversible.
-      </Text>
-      
-      <Text style={styles.dangerZoneListTitle}>Données qui seront supprimées :</Text>
-      <View style={styles.dangerZoneList}>
-        <Text style={styles.dangerZoneListItem}>
-          • Informations de profil (nom, email, poids, objectifs)
+      <View style={styles.dangerZoneContent}>
+        <Text style={styles.dangerZoneSubtitle}>Suppression définitive du compte</Text>
+        <Text style={styles.dangerZoneText}>
+          Cette action supprimera définitivement votre compte et toutes vos données. 
+          Cette action est <Text style={styles.boldText}>irréversible</Text>.
         </Text>
-        <Text style={styles.dangerZoneListItem}>
-          • Progrès fitness (mesures, photos, réalisations)
-        </Text>
-        <Text style={styles.dangerZoneListItem}>
-          • Historique d'abonnement et tokens de paiement
-        </Text>
-        <Text style={styles.dangerZoneListItem}>
-          • Activité et données d'utilisation de l'application
-        </Text>
+        
+        <View style={styles.dataListContainer}>
+          <Text style={styles.dataListTitle}>Données qui seront supprimées :</Text>
+          <View style={styles.dataList}>
+            <Text style={styles.dataListItem}>
+              • Informations de profil (nom, email, poids, objectifs)
+            </Text>
+            <Text style={styles.dataListItem}>
+              • Progrès fitness (mesures, photos, réalisations)
+            </Text>
+            <Text style={styles.dataListItem}>
+              • Historique d'abonnement et tokens de paiement
+            </Text>
+            <Text style={styles.dataListItem}>
+              • Activité et données d'utilisation de l'application
+            </Text>
+          </View>
+        </View>
       </View>
       
       <TouchableOpacity style={styles.deleteButton} onPress={onDeleteAccount}>
@@ -45,52 +50,70 @@ const DangerZone: React.FC<DangerZoneProps> = ({ onDeleteAccount }) => {
 
 const styles = StyleSheet.create({
   dangerZone: {
-    backgroundColor: '#FFF5F5',
-    borderRadius: 12,
-    padding: 20,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 16,
+    padding: 24,
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#FFE0E0',
+    borderColor: '#FFCDD2',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   dangerZoneHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   dangerZoneTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#F44336',
+    color: '#C62828',
     marginLeft: 12,
+  },
+  dangerZoneContent: {
+    marginBottom: 20,
   },
   dangerZoneSubtitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#F44336',
+    color: '#C62828',
     marginBottom: 8,
   },
   dangerZoneText: {
     fontSize: 14,
-    color: '#F44336',
+    color: '#C62828',
     marginBottom: 16,
     lineHeight: 20,
   },
-  dangerZoneListTitle: {
-    fontSize: 14,
+  boldText: {
+    fontWeight: '700',
+  },
+  dataListContainer: {
+    backgroundColor: '#FFCDD2',
+    borderWidth: 1,
+    borderColor: '#EF9A9A',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8,
+  },
+  dataListTitle: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#F44336',
+    color: '#C62828',
     marginBottom: 8,
   },
-  dangerZoneList: {
-    marginBottom: 20,
+  dataList: {
+    gap: 4,
   },
-  dangerZoneListItem: {
-    fontSize: 14,
-    color: '#F44336',
-    marginBottom: 6,
-    lineHeight: 20,
+  dataListItem: {
+    fontSize: 12,
+    color: '#C62828',
+    lineHeight: 18,
   },
   deleteButton: {
     backgroundColor: '#F44336',
@@ -99,12 +122,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
   deleteButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
   },
 });
 
