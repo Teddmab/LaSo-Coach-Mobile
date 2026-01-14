@@ -588,10 +588,13 @@ export class ProfileApi {
   }
 
   /**
-   * Delete user account
+   * Delete user account (mobile-friendly endpoint)
+   * @param {Object} feedback - Optional feedback with reason and comments
+   * @param {string} feedback.reason - Reason for account deletion
+   * @param {string} feedback.comments - Additional comments/feedback
    * @returns {Promise<Object>} Delete response
    */
-  static async deleteAccount() {
+  static async deleteAccount(feedback?: { reason?: string; comments?: string }) {
     try {
       // Récupérer le token Firebase pour l'authentification
       const firebaseAuthService = require('./firebaseAuthServiceNew').default;
@@ -601,23 +604,32 @@ export class ProfileApi {
         throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
       }
 
-      const endpoint = '/profile';
+      // Utiliser l'endpoint mobile-friendly selon le commit: POST /api/v1/user/account-deletion
+      // Si cet endpoint n'existe pas encore, fallback sur DELETE /api/v1/profile
+      const API_CONFIG = require('../config/apiConfig').API_CONFIG;
+      const endpoint = API_CONFIG.endpoints.profile.deleteMobile || '/user/account-deletion'; // Endpoint mobile-friendly (pas de mot de passe requis)
       const Config = require('../config/env').default;
       const url = `${Config.API_BASE_URL}${endpoint}`;
       
+      const payload = {
+        reason: feedback?.reason || undefined,
+        feedback: feedback?.comments || undefined, // Le backend peut utiliser 'feedback' ou 'comments'
+      };
+      
       console.log('🗑️ [ProfileApi.deleteAccount] Starting account deletion...');
       console.log('📡 [ProfileApi.deleteAccount] Endpoint:', endpoint);
-      console.log('📡 [ProfileApi.deleteAccount] Method: DELETE');
+      console.log('📡 [ProfileApi.deleteAccount] Method: POST');
       console.log('📡 [ProfileApi.deleteAccount] Full URL:', url);
-      console.log('📦 [ProfileApi.deleteAccount] Payload: {} (DELETE request, no body)');
+      console.log('📦 [ProfileApi.deleteAccount] Payload:', JSON.stringify(payload, null, 2));
       
       const response = await fetch(url, {
-        method: 'DELETE',
+        method: 'POST', // POST pour l'endpoint mobile-friendly
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': `Bearer ${idToken}`,
         },
+        body: JSON.stringify(payload),
       });
 
       const text = await response.text();

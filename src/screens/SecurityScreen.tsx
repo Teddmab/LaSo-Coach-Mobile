@@ -145,9 +145,9 @@ const SecurityScreen: React.FC<SecurityScreenProps> = ({
     });
     
     try {
-      // Delete account from backend
-      console.log('📡 [SecurityScreen] Calling ProfileApi.deleteAccount()...');
-      await ProfileApi.deleteAccount();
+      // Delete account from backend with feedback
+      console.log('📡 [SecurityScreen] Calling ProfileApi.deleteAccount() with feedback...');
+      await ProfileApi.deleteAccount(feedback);
       console.log('✅ [SecurityScreen] Backend account deletion successful');
       
       // Delete Firebase account

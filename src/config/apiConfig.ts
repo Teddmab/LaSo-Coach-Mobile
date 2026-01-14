@@ -28,6 +28,7 @@ export const API_CONFIG = {
       create: '/profile',         // ✅ POST /profile - Créer le Profile si inexistant
       update: '/profile',
       delete: '/profile',
+      deleteMobile: '/user/account-deletion', // ✅ POST /api/v1/user/account-deletion - Mobile-friendly (no password)
       avatar: '/profile/avatar',  // Will be /api/v1/profile/avatar or /profile/avatar depending on API_BASE_URL
     },
 
