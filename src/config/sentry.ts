@@ -80,7 +80,7 @@ export const initSentry = () => {
       initialScope: {
         tags: {
           platform: 'ios',
-          app_version: '1.0.5',
+          app_version: '1.0.6',
         },
       },
       
