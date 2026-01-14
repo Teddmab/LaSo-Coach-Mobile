@@ -248,8 +248,8 @@ function AppContent() {
         {/* StatusBar pour le contenu de l'app - style light pour fonds sombres */}
         <StatusBar style="light" />
       </NavigationContainer>
-      {/* Bouton flottant iOS Simulation - Visible pour le développement */}
-      <IOSSimulationButton />
+      {/* Bouton flottant iOS Simulation - Masqué pour le build production */}
+      {/* <IOSSimulationButton /> */}
     </>
   );
 }
