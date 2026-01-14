@@ -1623,8 +1623,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     if (isIOS) {
                       Toast.show({
                         type: 'info',
-                        text1: 'Session expirée',
-                        text2: 'Votre session n\'est plus en règle. Rendez-vous sur app.lasocoach.com pour vérifier l\'état de votre session.',
+                        text1: 'Statut non vérifié',
+                        text2: 'L\'accès à ce contenu dépend de votre statut actuel. Veuillez vérifier votre accès pour continuer.',
                         visibilityTime: 5000,
                       });
                     } else {
@@ -1721,8 +1721,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 {isIOS 
                   ? (
                     <>
-                      Menu du jour disponible avec un abonnement actif. Visitez{' '}
-                      <Text style={styles.websiteHighlight}>app.lasocoach.com</Text> pour vous abonner.
+                      L'accès aux menus et défis nécessite un suivi actif avec{' '}
+                      <Text style={styles.lasocoachHighlight}>LaSoCoach</Text>. Vérifiez votre statut ou contactez-nous pour plus d'informations.
                     </>
                   )
                   : "Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel."
@@ -3767,6 +3767,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   websiteHighlight: {
+    color: '#10B981', // Vert
+    fontStyle: 'italic',
+    fontWeight: '600',
+  },
+  lasocoachHighlight: {
     color: '#10B981', // Vert
     fontStyle: 'italic',
     fontWeight: '600',

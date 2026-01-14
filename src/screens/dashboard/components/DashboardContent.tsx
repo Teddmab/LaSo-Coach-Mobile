@@ -155,7 +155,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             <View style={styles.subscriptionExpiredBadge}>
               <View style={styles.badgeContent}>
                 <Ionicons name="warning" size={16} color="#F44336" />
-                <Text style={styles.subscriptionExpiredText}>Abonnement expiré</Text>
+                <Text style={styles.subscriptionExpiredText}>Statut à vérifier</Text>
               </View>
             </View>
           )}

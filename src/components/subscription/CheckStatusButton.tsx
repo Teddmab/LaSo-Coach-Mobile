@@ -40,8 +40,8 @@ const CheckStatusButton: React.FC<CheckStatusButtonProps> = ({
       } else {
         Toast.show({
           type: 'info',
-          text1: 'Aucun abonnement actif',
-          text2: 'Visitez app.lasocoach.com pour vous abonner.',
+          text1: 'Statut non vérifié',
+          text2: 'L\'accès à ce contenu dépend de votre statut actuel. Veuillez vérifier votre accès pour continuer.',
         });
       }
 

@@ -217,8 +217,8 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         if (isIOS) {
           Toast.show({
             type: 'info',
-            text1: 'Session expirée',
-            text2: 'Votre session n\'est plus en règle. Rendez-vous sur app.lasocoach.com pour vérifier l\'état de votre session.',
+            text1: 'Statut non vérifié',
+            text2: 'L\'accès à ce contenu dépend de votre statut actuel. Veuillez vérifier votre accès pour continuer.',
             visibilityTime: 5000,
           });
         } else {

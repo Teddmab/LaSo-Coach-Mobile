@@ -460,8 +460,8 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
           
           {/* Description */}
           <Text style={styles.lockedDescription}>
-            Menu du jour disponible avec un abonnement actif. Visitez{' '}
-            <Text style={styles.websiteHighlight}>app.lasocoach.com</Text> pour vous abonner.
+            L'accès aux menus et défis nécessite un suivi actif avec{' '}
+            <Text style={styles.lasocoachHighlight}>LaSoCoach</Text>. Vérifiez votre statut ou contactez-nous pour plus d'informations.
           </Text>
           
           {/* iOS Check Status Button */}
@@ -1037,6 +1037,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   websiteHighlight: {
+    color: '#10B981', // Vert
+    fontStyle: 'italic',
+    fontWeight: '600',
+  },
+  lasocoachHighlight: {
     color: '#10B981', // Vert
     fontStyle: 'italic',
     fontWeight: '600',
