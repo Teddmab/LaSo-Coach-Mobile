@@ -12,7 +12,7 @@ const withIOSCrashFix = (config) => {
     // Permissions pour expo-image-picker
     if (!infoPlist.NSPhotoLibraryUsageDescription) {
       infoPlist.NSPhotoLibraryUsageDescription = 
-        'Nous avons besoin d\'accéder à vos photos pour vous permettre de changer votre avatar et d\'ajouter des photos de progression.';
+        'Pour sélectionner des photos afin de publier, suivre votre progression en images ou valider des défis.';
       console.log('✅ [withIOSCrashFix] Added NSPhotoLibraryUsageDescription');
     }
 
