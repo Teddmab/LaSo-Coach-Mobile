@@ -12,7 +12,7 @@ const withIOSCrashFix = (config) => {
     // Permissions pour expo-image-picker
     if (!infoPlist.NSPhotoLibraryUsageDescription) {
       infoPlist.NSPhotoLibraryUsageDescription = 
-        'Pour sélectionner des photos afin de publier, suivre votre progression en images ou valider des défis.';
+        'Ceci vous permettra de publier vos photos dans l\'Agora, suivre votre progression en images, valider des défis ou sélectionner votre avatar.';
       console.log('✅ [withIOSCrashFix] Added NSPhotoLibraryUsageDescription');
     }
 
@@ -51,7 +51,7 @@ const withIOSCrashFix = (config) => {
 
     // S'assurer que le build number est correct (toujours mettre à jour pour correspondre à app.json)
     // Lire depuis expo.ios.buildNumber ou config.ios.buildNumber (app.json)
-    const expectedBuildNumber = config.expo?.ios?.buildNumber || config.ios?.buildNumber || config.buildNumber || '26';
+    const expectedBuildNumber = config.expo?.ios?.buildNumber || config.ios?.buildNumber || config.buildNumber || '27';
     if (!infoPlist.CFBundleVersion || infoPlist.CFBundleVersion !== expectedBuildNumber) {
       infoPlist.CFBundleVersion = expectedBuildNumber;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleVersion to: ${expectedBuildNumber}`);

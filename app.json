@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "26",
+      "buildNumber": "27",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
@@ -28,7 +28,10 @@
       },
       "infoPlist": {
         "SKAdNetworkItems": [],
-        "CFBundleIconName": "AppIcon"
+        "CFBundleIconName": "AppIcon",
+        "NSPhotoLibraryUsageDescription": "Ceci vous permettra de publier vos photos dans l'Agora, suivre votre progression en images, valider des défis ou sélectionner votre avatar.",
+        "NSCameraUsageDescription": "Nous avons besoin d'accéder à votre appareil photo pour vous permettre de prendre des photos pour compléter vos défis.",
+        "NSPhotoLibraryAddUsageDescription": "Nous avons besoin de votre permission pour sauvegarder des photos dans votre galerie."
       }
     },
     "android": {
