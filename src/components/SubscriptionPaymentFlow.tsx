@@ -17,6 +17,17 @@ import { useStripe, CardField } from '@stripe/stripe-react-native';
 import { WebView } from 'react-native-webview';
 import SubscriptionApi from '../services/subscriptionApi';
 import { theme } from '../constants/theme';
+import { 
+  MOBILE_MONEY_COUNTRIES,
+  getCountryByCode,
+  getProviderNames,
+  validatePhoneNumber,
+  formatPhoneNumber,
+  type MobileMoneyCountry 
+} from '../config/mobileMoneyConfig';
+import MobileMoneyPaymentForm, { MobileMoneyPaymentData } from './MobileMoneyPaymentForm';
+import * as mobileMoneyApi from '../services/mobileMoneyApi';
+import { usePaymentTracking } from '../context/PaymentContext';
 
 /**
  * SubscriptionPaymentFlow - Composant de paiement étape par étape pour mobile
@@ -37,10 +48,11 @@ export default function SubscriptionPaymentFlow({
 }) {
   const styles = createStyles(theme);
   const { confirmPayment } = useStripe();
+  const paymentTracking = usePaymentTracking();
 
   // États du flux
   const [currentStep, setCurrentStep] = useState(0); // 0: confirmation abonnement, 1: méthode, 2: infos, 3: traitement, 4: résultat
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('stripe'); // 'stripe' ou 'paypal'
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('stripe'); // 'stripe' ou 'paypal' ou 'mobile'
   const [autoRenewal, setAutoRenewal] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
@@ -62,6 +74,13 @@ export default function SubscriptionPaymentFlow({
   const [paypalApprovalUrl, setPaypalApprovalUrl] = useState(null);
   const [paypalPayerId, setPaypalPayerId] = useState(null);
   const [showPayPalWebView, setShowPayPalWebView] = useState(false);
+
+  // États pour Mobile Money
+  const [mobileMoneyCountry, setMobileMoneyCountry] = useState<string>(MOBILE_MONEY_COUNTRIES[0]?.code || 'COD');
+  const [mobileMoneyProvider, setMobileMoneyProvider] = useState<string>('');
+  const [mobileMoneyPhoneNumber, setMobileMoneyPhoneNumber] = useState<string>('');
+  const [mobileMoneyCurrency, setMobileMoneyCurrency] = useState<string>('USD');
+  const [mobileMoneyDepositId, setMobileMoneyDepositId] = useState<string | null>(null);
 
   // Réinitialiser les états quand le modal s'ouvre
   useEffect(() => {
@@ -94,6 +113,12 @@ export default function SubscriptionPaymentFlow({
     setPaypalApprovalUrl(null);
     setPaypalPayerId(null);
     setShowPayPalWebView(false);
+    // Reset mobile money states
+    setMobileMoneyCountry(MOBILE_MONEY_COUNTRIES[0]?.code || 'COD');
+    setMobileMoneyProvider('');
+    setMobileMoneyPhoneNumber('');
+    setMobileMoneyCurrency('USD');
+    setMobileMoneyDepositId(null);
   };
 
   /**
@@ -139,43 +164,8 @@ export default function SubscriptionPaymentFlow({
           subscription: subscriptionData,
         });
       }
-    } catch (error: any) {
-      // Vérifier si l'erreur indique qu'un abonnement existe déjà
+    } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de l\'activation de l\'abonnement gratuit';
-      const errorCode = error.response?.data?.code || error.response?.status;
-      
-      // Détecter si l'utilisateur a déjà un abonnement actif
-      const hasExistingSubscription = 
-        errorMessage?.toLowerCase().includes('déjà un abonnement') ||
-        errorMessage?.toLowerCase().includes('already have a subscription') ||
-        errorMessage?.toLowerCase().includes('subscription already exists') ||
-        errorMessage?.toLowerCase().includes('abonnement actif') ||
-        errorMessage?.toLowerCase().includes('active subscription') ||
-        errorCode === 409 || // Conflict
-        error.response?.status === 409;
-
-      if (hasExistingSubscription) {
-        // Afficher un message informatif au lieu d'une erreur
-        setError(null);
-        setSuccess(true);
-        setCurrentStep(4);
-        
-        Toast.show({
-          type: 'info',
-          text1: 'Abonnement existant',
-          text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
-          visibilityTime: 4000,
-        });
-        
-        if (onSuccess) {
-          onSuccess({
-            planId: plan.id,
-            paymentMethod: 'free',
-            subscription: null,
-            hasExistingSubscription: true,
-          });
-        }
-      } else {
       setError(errorMessage);
       setCurrentStep(4);
       
@@ -184,7 +174,6 @@ export default function SubscriptionPaymentFlow({
         text1: 'Erreur',
         text2: errorMessage,
       });
-      }
     } finally {
       setProcessing(false);
     }
@@ -241,51 +230,10 @@ export default function SubscriptionPaymentFlow({
         
         // Si ni URL ni sessionId/clientSecret, erreur
         throw new Error('Réponse Stripe invalide: URL ou sessionId/clientSecret requis');
-      } catch (error: any) {
+      } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la session de paiement';
-        const errorCode = error.response?.data?.code || error.response?.status;
-        
-        // Détecter si l'utilisateur a déjà un abonnement actif
-        const hasExistingSubscription = 
-          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
-          errorMessage?.toLowerCase().includes('already have a subscription') ||
-          errorMessage?.toLowerCase().includes('subscription already exists') ||
-          errorMessage?.toLowerCase().includes('abonnement actif') ||
-          errorMessage?.toLowerCase().includes('active subscription') ||
-          errorCode === 409 ||
-          error.response?.status === 409;
-
-        if (hasExistingSubscription) {
-          // Afficher un message informatif au lieu d'une erreur
-          setError(null);
-          setSuccess(true);
-          setCurrentStep(4);
-          
-          Toast.show({
-            type: 'info',
-            text1: 'Abonnement existant',
-            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
-            visibilityTime: 4000,
-          });
-          
-          if (onSuccess) {
-            onSuccess({
-              planId: plan.id,
-              paymentMethod: selectedPaymentMethod,
-              subscription: null,
-              hasExistingSubscription: true,
-            });
-          }
-        } else {
         setError(errorMessage);
         setCurrentStep(4);
-          
-          Toast.show({
-            type: 'error',
-            text1: 'Erreur',
-            text2: errorMessage,
-          });
-        }
       } finally {
         setProcessing(false);
       }
@@ -317,54 +265,16 @@ export default function SubscriptionPaymentFlow({
         } else {
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
-      } catch (error: any) {
+      } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
-        const errorCode = error.response?.data?.code || error.response?.status;
-        
-        // Détecter si l'utilisateur a déjà un abonnement actif
-        const hasExistingSubscription = 
-          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
-          errorMessage?.toLowerCase().includes('already have a subscription') ||
-          errorMessage?.toLowerCase().includes('subscription already exists') ||
-          errorMessage?.toLowerCase().includes('abonnement actif') ||
-          errorMessage?.toLowerCase().includes('active subscription') ||
-          errorCode === 409 ||
-          error.response?.status === 409;
-
-        if (hasExistingSubscription) {
-          // Afficher un message informatif au lieu d'une erreur
-          setError(null);
-          setSuccess(true);
-          setCurrentStep(4);
-          
-          Toast.show({
-            type: 'info',
-            text1: 'Abonnement existant',
-            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
-            visibilityTime: 4000,
-          });
-          
-          if (onSuccess) {
-            onSuccess({
-              planId: plan.id,
-              paymentMethod: selectedPaymentMethod,
-              subscription: null,
-              hasExistingSubscription: true,
-            });
-          }
-        } else {
         setError(errorMessage);
         setCurrentStep(4);
-          
-          Toast.show({
-            type: 'error',
-            text1: 'Erreur',
-            text2: errorMessage,
-          });
-        }
       } finally {
         setProcessing(false);
       }
+    } else if (selectedPaymentMethod === 'mobile') {
+      // Pour Mobile Money, passer directement à l'étape 2 (formulaire de paiement mobile)
+      setCurrentStep(2);
     } else {
       // Par défaut, passer à l'étape 2
       setCurrentStep(2);
@@ -372,7 +282,167 @@ export default function SubscriptionPaymentFlow({
   };
 
   /**
-   * Étape 2 : Saisie des informations de paiement
+   * Gestionnaire de paiement Mobile Money
+   */
+  const handleMobileMoneySubmit = async (paymentData: MobileMoneyPaymentData) => {
+    try {
+      setProcessing(true);
+      setError(null);
+
+      // Créer transaction tracking
+      const transactionId = `mm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      paymentTracking.startPayment({
+        transactionId,
+        provider: paymentData.provider,
+        phoneNumber: paymentData.phoneNumber,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+
+      // Initier le paiement mobile money
+      const paymentResponse = await mobileMoneyApi.initiateMobileMoneyPayment({
+        phoneNumber: paymentData.phoneNumber,
+        provider: paymentData.provider,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        subscriptionPlanId: plan.id,
+      });
+
+      setMobileMoneyDepositId(paymentResponse.transactionId);
+      
+      // Passer à l'étape de confirmation (attendre la réponse de l'utilisateur sur le téléphone)
+      setCurrentStep(3);
+      
+      // Afficher notification
+      Toast.show({
+        type: 'success',
+        text1: 'Paiement initié',
+        text2: `Confirmez le paiement sur votre téléphone ${paymentData.provider}`,
+      });
+
+      // Commencer à sonder le statut du paiement
+      pollMobileMoneyStatus(paymentResponse.transactionId, paymentData.provider);
+    } catch (error) {
+      const errorMessage = error.message || 'Erreur lors de l\'initiation du paiement mobile';
+      setError(errorMessage);
+      paymentTracking.failPayment(mobileMoneyDepositId || '', errorMessage);
+      setCurrentStep(4);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Sonder le statut du paiement mobile money
+   */
+  const pollMobileMoneyStatus = async (transactionId: string, provider: string) => {
+    try {
+      const status = await mobileMoneyApi.pollPaymentStatus(transactionId, 60, 2000);
+
+      if (status.status === 'completed') {
+        paymentTracking.completePayment(transactionId, 'active');
+        
+        // Vérifier et activer l'abonnement
+        const verification = await mobileMoneyApi.verifyMobileMoneyPayment({
+          transactionId,
+          provider,
+        });
+
+        if (verification.verified && verification.subscriptionActivated) {
+          setSuccess(true);
+          setCurrentStep(4);
+          
+          Toast.show({
+            type: 'success',
+            text1: 'Paiement approuvé',
+            text2: 'Votre abonnement est maintenant actif',
+          });
+
+          if (onSuccess) {
+            setTimeout(() => onSuccess(true), 1500);
+          }
+        } else {
+          throw new Error('Échec de l\'activation de l\'abonnement');
+        }
+      } else if (status.status === 'failed' || status.status === 'cancelled') {
+        const errorMsg = status.errorMessage || 'Le paiement a été refusé';
+        paymentTracking.failPayment(transactionId, errorMsg);
+        setError(errorMsg);
+        setCurrentStep(4);
+      }
+    } catch (error) {
+      console.error('Erreur lors du sondage du statut:', error);
+      paymentTracking.failPayment(transactionId, error.message);
+      setError('Erreur lors de la vérification du paiement');
+      setCurrentStep(4);
+    }
+  };
+
+  /**
+   * Étape 2 : Affichage du formulaire Mobile Money
+   */
+  const renderStep2_MobileMoneyForm = () => (
+    <View style={styles.stepContainer}>
+      <MobileMoneyPaymentForm
+        amount={plan?.price || 0}
+        currency={mobileMoneyCurrency}
+        onSubmit={handleMobileMoneySubmit}
+        isLoading={processing}
+      />
+      <TouchableOpacity
+        style={[styles.button, styles.backButton]}
+        onPress={() => setCurrentStep(1)}
+        disabled={processing}
+      >
+        <Text style={styles.backButtonText}>← Retour</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  /**
+   * Étape 3 : Attendre la confirmation du paiement Mobile Money
+   */
+  const renderStep3_MobileMoneyWaiting = () => (
+    <View style={styles.stepContainer}>
+      <View style={styles.centerContent}>
+        <ActivityIndicator size="large" color={theme.primary} style={{ marginBottom: 20 }} />
+        <Text style={styles.stepTitle}>Paiement en cours...</Text>
+        <Text style={styles.stepDescription}>
+          Veuillez confirmer le paiement sur votre téléphone {selectedPaymentMethod === 'mobile' ? 'mobile' : ''}
+        </Text>
+        
+        {mobileMoneyDepositId && (
+          <View style={styles.transactionInfo}>
+            <Text style={styles.transactionLabel}>ID Transaction:</Text>
+            <Text style={styles.transactionId}>{mobileMoneyDepositId}</Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.button, styles.cancelButton]}
+          onPress={async () => {
+            if (mobileMoneyDepositId) {
+              try {
+                await mobileMoneyApi.cancelMobileMoneyPayment(mobileMoneyDepositId);
+              } catch (e) {
+                console.error('Erreur lors de l\'annulation:', e);
+              }
+            }
+            setCurrentStep(2);
+          }}
+          disabled={processing}
+        >
+          <Text style={styles.cancelButtonText}>Annuler</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  /**
+   * Étape 2 : Saisie des informations de paiement (retour au flux original pour cette étape)
    */
   const formatCardNumber = (text) => {
     // Supprimer tous les espaces
@@ -449,51 +519,10 @@ export default function SubscriptionPaymentFlow({
         } else {
           throw new Error('Réponse PayPal invalide: orderId et approvalUrl requis');
         }
-      } catch (error: any) {
+      } catch (error) {
         const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de la création de la commande PayPal';
-        const errorCode = error.response?.data?.code || error.response?.status;
-        
-        // Détecter si l'utilisateur a déjà un abonnement actif
-        const hasExistingSubscription = 
-          errorMessage?.toLowerCase().includes('déjà un abonnement') ||
-          errorMessage?.toLowerCase().includes('already have a subscription') ||
-          errorMessage?.toLowerCase().includes('subscription already exists') ||
-          errorMessage?.toLowerCase().includes('abonnement actif') ||
-          errorMessage?.toLowerCase().includes('active subscription') ||
-          errorCode === 409 ||
-          error.response?.status === 409;
-
-        if (hasExistingSubscription) {
-          // Afficher un message informatif au lieu d'une erreur
-          setError(null);
-          setSuccess(true);
-          setCurrentStep(4);
-          
-          Toast.show({
-            type: 'info',
-            text1: 'Abonnement existant',
-            text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
-            visibilityTime: 4000,
-          });
-          
-          if (onSuccess) {
-            onSuccess({
-              planId: plan.id,
-              paymentMethod: selectedPaymentMethod,
-              subscription: null,
-              hasExistingSubscription: true,
-            });
-          }
-        } else {
         setError(errorMessage);
         setCurrentStep(4);
-          
-          Toast.show({
-            type: 'error',
-            text1: 'Erreur',
-            text2: errorMessage,
-          });
-        }
       } finally {
         setProcessing(false);
       }
@@ -584,14 +613,6 @@ export default function SubscriptionPaymentFlow({
       setSuccess(true);
       setCurrentStep(4);
       
-      // Log pour debug de l'erreur de plan nutritionnel
-      console.log('✅ [SubscriptionPaymentFlow] Subscription confirmed successfully', {
-        planId: plan.id,
-        subscriptionData: subscriptionData?.data || subscriptionData,
-        hasNutritionPlan: !!(subscriptionData?.data?.assignedPlan || subscriptionData?.assignedPlan),
-        nutritionPlanId: subscriptionData?.data?.assignedPlan?.id || subscriptionData?.assignedPlan?.id,
-      });
-      
       if (onSuccess) {
         onSuccess({
           planId: plan.id,
@@ -601,53 +622,8 @@ export default function SubscriptionPaymentFlow({
           subscription: subscriptionData,
         });
       }
-    } catch (error: any) {
-      // Log détaillé de l'erreur pour identifier le problème de plan nutritionnel
-      console.error('❌ [SubscriptionPaymentFlow] Error confirming payment/subscription', {
-        error: error.message,
-        errorResponse: error.response?.data,
-        errorStatus: error.response?.status,
-        planId: plan.id,
-        paymentMethod: selectedPaymentMethod,
-      });
-      // Vérifier si l'erreur indique qu'un abonnement existe déjà
+    } catch (error) {
       const errorMessage = error.response?.data?.message || error.message || 'Erreur lors du traitement du paiement';
-      const errorCode = error.response?.data?.code || error.response?.status;
-      
-      // Détecter si l'utilisateur a déjà un abonnement actif
-      const hasExistingSubscription = 
-        errorMessage?.toLowerCase().includes('déjà un abonnement') ||
-        errorMessage?.toLowerCase().includes('already have a subscription') ||
-        errorMessage?.toLowerCase().includes('subscription already exists') ||
-        errorMessage?.toLowerCase().includes('abonnement actif') ||
-        errorMessage?.toLowerCase().includes('active subscription') ||
-        errorCode === 409 || // Conflict
-        error.response?.status === 409;
-
-      if (hasExistingSubscription) {
-        // Afficher un message informatif au lieu d'une erreur
-        setError(null);
-        setSuccess(true);
-        setCurrentStep(4);
-        
-        Toast.show({
-          type: 'info',
-          text1: 'Abonnement existant',
-          text2: 'Vous possédez déjà un abonnement actif. Vous pouvez le gérer depuis votre profil.',
-          visibilityTime: 4000,
-        });
-        
-        if (onSuccess) {
-          onSuccess({
-            planId: plan.id,
-            paymentMethod: selectedPaymentMethod,
-            sessionId: stripeSessionId || null,
-            orderId: paypalOrderId || null,
-            subscription: null,
-            hasExistingSubscription: true,
-          });
-        }
-      } else {
       setError(errorMessage);
       setCurrentStep(4);
       
@@ -656,7 +632,6 @@ export default function SubscriptionPaymentFlow({
         text1: 'Erreur de paiement',
         text2: errorMessage,
       });
-      }
     } finally {
       setProcessing(false);
     }
@@ -888,6 +863,27 @@ export default function SubscriptionPaymentFlow({
             </View>
           </View>
           {selectedPaymentMethod === 'paypal' && (
+            <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.paymentMethodOption,
+            selectedPaymentMethod === 'mobile' && styles.paymentMethodSelected,
+          ]}
+          onPress={() => handlePaymentMethodSelect('mobile')}
+        >
+          <View style={styles.paymentMethodInfo}>
+            <View style={styles.paymentMethodIcon}>
+              <Text style={styles.mobileIcon}>MM</Text>
+            </View>
+            <View style={styles.paymentMethodText}>
+              <Text style={styles.paymentMethodName}>Paiement mobile</Text>
+              <Text style={styles.paymentMethodDesc}>Airtel / Vodacom / Orange</Text>
+            </View>
+          </View>
+          {selectedPaymentMethod === 'mobile' && (
             <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
           )}
         </TouchableOpacity>
@@ -1480,6 +1476,11 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#0070BA',
+  },
+  mobileIcon: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FF6B35',
   },
   paymentMethodText: {
     flex: 1,
