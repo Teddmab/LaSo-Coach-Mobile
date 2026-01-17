@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { theme } from '../constants/theme';
 import { ChatScreenProps } from './chat/types';
 import { useChatScreen } from './chat/hooks/useChatScreen';
+import { useUgcTerms } from '../hooks/useUgcTerms';
+import UgcTermsModal from '../components/UgcTermsModal';
 import ConversationList from './chat/components/ConversationList';
 import ChatView from './chat/components/ChatView';
 
@@ -11,6 +14,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
   onTabPress,
   activeTab,
 }) => {
+  const navigation = useNavigation();
+  
+  // ✅ COMPLIANCE: Track blocked users to instantly remove their messages
+  const [blockedUsers, setBlockedUsers] = React.useState<Set<string>>(new Set());
+
   const {
     conversations,
     messages,
@@ -30,12 +38,39 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     handleBackPress,
   } = useChatScreen();
 
+  // Phase 7 - TODO #7: Test UGC terms modal on chat entry
+  const {
+    termsAccepted,
+    termsLoading,
+    showTermsModal,
+    handleAcceptTerms,
+    handleDeclineTerms,
+  } = useUgcTerms();
+
+  const handleViewTerms = () => {
+    navigation.navigate('TermsAndPolicies' as never);
+  };
+
   return (
     <>
-      {activeChatId && currentChat ? (
+      {/* Phase 7 - TODO #8: Display loading state while checking terms */}
+      {termsLoading && !termsAccepted ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      ) : !termsAccepted ? (
+        // User has not accepted terms - show prompt
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>📋 Terms Required</Text>
+          <Text style={styles.emptyText}>
+            Please accept our community guidelines to access chat features.
+          </Text>
+        </View>
+      ) : activeChatId && currentChat ? (
         <ChatView
           conversation={currentChat}
-          messages={messages}
+          // ✅ COMPLIANCE: Filter out messages from blocked users
+          messages={messages.filter(msg => !blockedUsers.has(msg.senderId))}
           messageText={messageText}
           loading={loading}
           isSocketConnected={isSocketConnected}
@@ -70,11 +105,49 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
           )}
         </>
       )}
+
+      {/* UGC Terms Modal */}
+      <UgcTermsModal
+        visible={showTermsModal}
+        onAccept={handleAcceptTerms}
+        onDecline={handleDeclineTerms}
+        onViewTerms={handleViewTerms}
+      />
     </>
   );
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: theme.colors.background,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   connectionStatus: {
     position: 'absolute',
     bottom: 80,

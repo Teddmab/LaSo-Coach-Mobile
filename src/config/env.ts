@@ -10,7 +10,6 @@ import {
   NODE_ENV,
   WS_BASE_URL,
   WS_BASE_URL_DEV,
-  STRIPE_PUBLISHABLE_KEY,
 } from '@env';
 
 const extraEnv = Constants.expoConfig?.extra?.env ?? {};
@@ -141,9 +140,6 @@ const Config = {
   // App Configuration
   APP_NAME: APP_NAME || Constants.expoConfig?.name || 'LasoCoach',
   APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.0.0',
-  
-  // Stripe Configuration
-  STRIPE_PUBLISHABLE_KEY: extraEnv.stripePublishableKey || STRIPE_PUBLISHABLE_KEY || null,
   
   // Debug Configuration
   DEBUG_MODE:

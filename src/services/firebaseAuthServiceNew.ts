@@ -794,16 +794,48 @@ class FirebaseAuthService {
   }
 
   /**
-   * Delete user account
+   * Delete user account and all associated data
+   * CRITICAL: Complete wipe - removes account, all data, all tokens, all cache
+   * Calls backend to delete user record, then deletes Firebase account
    */
   async deleteAccount() {
     try {
+      console.log('🗑️ ACCOUNT DELETION - Starting complete account deletion process...');
+      
       const user = this.getAuth().currentUser;
       if (!user) throw new Error('No user logged in');
-      await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
-      await user.delete();
+
+      // 1. Delete account on backend first (atomic operation)
+      console.log('📡 Deleting user account from backend...');
+      try {
+        await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
+        console.log('✅ Backend account deleted');
+      } catch (backendError: any) {
+        // If backend deletion fails, don't proceed with Firebase deletion
+        throw new Error(
+          backendError.response?.data?.message || 'Failed to delete account on backend'
+        );
+      }
+
+      // 2. Delete Firebase user
+      console.log('🔥 Deleting Firebase account...');
+      if (isCompatAuth()) {
+        await user.delete();
+      } else {
+        const { deleteUser } = require('firebase/auth');
+        await deleteUser(user);
+      }
+      console.log('✅ Firebase account deleted');
+
+      // 3. Perform complete logout cleanup to remove all traces
+      // This is critical for account deletion - must clear everything
+      console.log('🧹 Performing complete cleanup...');
+      await this.logout();
+
       this.currentUser = null;
+      console.log('✅✅✅ ACCOUNT DELETION COMPLETE - All data removed');
     } catch (error) {
+      console.error('❌ Account deletion failed:', error);
       throw new Error(this.getErrorMessage(error));
     }
   }

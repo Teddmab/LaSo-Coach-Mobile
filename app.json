@@ -40,6 +40,7 @@
       "package": "com.afrotouch.lasocoach",
       "versionCode": 5,
       "icon": "./assets/icon.png",
+      "minSdkVersion": 24,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -99,10 +100,10 @@
     "plugins": [
       "expo-web-browser",
       "./plugins/withFirebaseConfig.js",
-      "./plugins/withReactNativeIAP.js",
       "./plugins/withPreserveIcons.js",
       "./plugins/withIOSCrashFix.js",
-      "./plugins/withFixMacOSSupport.js"
+      "./plugins/withFixMacOSSupport.js",
+      "./plugins/withPermissionStrings.js"
     ]
   }
 }

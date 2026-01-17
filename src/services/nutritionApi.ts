@@ -1,5 +1,6 @@
 import api from './api';
 import { AxiosResponse } from 'axios';
+import { isIOSCompanionMode } from '../config/featureFlags';
 
 /**
  * Nutrition API Service
@@ -40,11 +41,26 @@ export const nutritionAPI: {
 
   /**
    * Get current subscription
+   * ✅ APPLE COMPLIANCE: Returns companion mode status on iOS
    * Endpoint: GET /api/v1/subscriptions/current
    * @returns {Promise<Object>} Current subscription data
    */
   async getCurrentSubscription() {
     try {
+      // 🍎 iOS COMPANION MODE: Return companion mode status, don't call API
+      if (isIOSCompanionMode()) {
+        console.warn('🍎 [NutritionApi] Subscription endpoint blocked on iOS companion mode');
+        return {
+          status: 'success',
+          data: {
+            subscriptionStatus: 'COMPANION_MODE',
+            accessLevel: 'FREE',
+            message: 'iOS companion app - subscription information not available',
+            timestamp: new Date().toISOString(),
+          }
+        };
+      }
+
       const response = await api.get('/subscriptions/current');
       return response.data;
     } catch (error) {

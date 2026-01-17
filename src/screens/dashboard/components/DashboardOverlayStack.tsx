@@ -8,13 +8,14 @@ import NotificationsScreen from '../../NotificationsScreen';
 import AgendaScreen from '../../AgendaScreen';
 import CommunityScreen from '../../CommunityScreen';
 import ChatScreen from '../../ChatScreen';
-import SubscriptionScreen from '../../SubscriptionScreen';
 import SecurityScreen from '../../SecurityScreen';
+import AccountSettingsScreen from '../../AccountSettingsScreen';
 import LanguageScreen from '../../settings/LanguageScreen';
 import NotificationSettingsScreen from '../../settings/NotificationSettingsScreen';
 import WebViewScreen from '../../WebViewScreen';
 import ContactSupportScreen from '../../ContactSupportScreen';
 import AboutScreen from '../../AboutScreen';
+import TermsAndPoliciesScreen from '../../TermsAndPoliciesScreen';
 import MoreMenu from '../../../components/MoreMenu';
 
 interface DashboardOverlayStackProps {
@@ -344,19 +345,18 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
           </FixedLayout>
         );
 
-      case 'Subscription':
+      case 'Security':
         return (
-          <SubscriptionScreen
-            navigation={navigation}
+          <AccountSettingsScreen
             onClose={() => stackNavigation.goBack()}
-            onNext={() => {}}
-            user={user}
+            activeTab={activeTab}
             onTabPress={onTabPress}
-            isStandalone={true}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
           />
         );
 
-      case 'Security':
+      case 'SecurityPolicies':
         return (
           <SecurityScreen
             onClose={() => stackNavigation.goBack()}
@@ -460,6 +460,24 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
             onTabPress={onTabPress}
             activeTab={activeTab}
           />
+        );
+
+      case 'TermsAndPolicies':
+        return (
+          <FixedLayout
+            headerTitle="Termes & Politiques"
+            activeTab={activeTab}
+            onTabPress={onTabPress}
+            onHelpPress={() => stackNavigation.navigate('FAQ')}
+            onNotificationPress={() => stackNavigation.navigate('Notifications')}
+            onProfilePress={() => stackNavigation.navigate('Settings')}
+            avatarSource={avatarData.avatarSource}
+            avatarFallbackText={avatarData.avatarFallbackText}
+          >
+            <TermsAndPoliciesScreen
+              onClose={() => stackNavigation.goBack()}
+            />
+          </FixedLayout>
         );
 
       default:

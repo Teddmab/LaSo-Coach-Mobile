@@ -10,7 +10,6 @@ declare module '@env' {
   export const NODE_ENV: string | undefined;
   export const WS_BASE_URL: string | undefined;
   export const WS_BASE_URL_DEV: string | undefined;
-  export const STRIPE_PUBLISHABLE_KEY: string | undefined;
   export const FIREBASE_API_KEY: string | undefined;
   export const FIREBASE_AUTH_DOMAIN: string | undefined;
   export const FIREBASE_PROJECT_ID: string | undefined;

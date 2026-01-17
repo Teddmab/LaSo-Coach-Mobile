@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Plan } from '../types';
 import { getPlanBackgroundColor } from '../utils/subscriptionUtils';
-import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 
 interface PlanCardProps {
   plan: Plan;
@@ -12,8 +11,6 @@ interface PlanCardProps {
 }
 
 const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
-  const { shouldShowIOSOnly } = useIOSSimulation();
-  const isIOS = shouldShowIOSOnly();
   const backgroundColor = getPlanBackgroundColor(plan.name);
   const features = plan.features || [];
 
@@ -34,40 +31,26 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
       <View style={[styles.planCardContent, { backgroundColor }]}>
         <Text style={styles.planCardNameLarge}>{plan.name}</Text>
         
-        {/* Masquer les prix sur iOS (Reader App model) */}
-        {!isIOS && (
-          <View style={styles.planCardPricing}>
-            {plan.originalPrice && plan.originalPrice > plan.price && (
-              <Text style={styles.planCardOldPrice}>
-                {plan.currency || '€'}{plan.originalPrice} /mois
-              </Text>
-            )}
-            <Text style={styles.planCardPriceLarge}>
-              {plan.currency || '€'}{plan.price}
+        <View style={styles.planCardPricing}>
+          {plan.originalPrice && plan.originalPrice > plan.price && (
+            <Text style={styles.planCardOldPrice}>
+              {plan.currency || '€'}{plan.originalPrice} /mois
             </Text>
-          </View>
-        )}
+          )}
+          <Text style={styles.planCardPriceLarge}>
+            {plan.currency || '€'}{plan.price}
+          </Text>
+        </View>
         
-        {/* Sur iOS, masquer le bouton "S'abonner" et afficher seulement "Plan actuel" si c'est le plan actuel */}
-        {isIOS ? (
-          isCurrent ? (
-            <View style={styles.planCurrentBadge}>
-              <Text style={[styles.planCurrentBadgeText, { color: backgroundColor }]}>
-                Plan actuel
-              </Text>
-            </View>
-          ) : null
-        ) : (
-          <TouchableOpacity 
-            style={styles.planSubscribeButton}
-            onPress={() => onSelect(plan)}
-            disabled={isCurrent}
-          >
-            <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
-              {isCurrent ? 'Plan actuel' : "S'abonner"}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity 
+          style={styles.planSubscribeButton}
+          onPress={() => onSelect(plan)}
+          disabled={isCurrent}
+        >
+          <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
+            {isCurrent ? 'Plan actuel' : "S'abonner"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {features.length > 0 && (
@@ -173,17 +156,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#2C3E50',
     flex: 1,
-  },
-  planCurrentBadge: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    opacity: 0.9,
-  },
-  planCurrentBadgeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
 

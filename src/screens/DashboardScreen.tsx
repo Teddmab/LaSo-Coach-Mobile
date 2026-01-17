@@ -3,7 +3,6 @@ import { BackHandler, Platform, View, Text, StyleSheet, Modal, ScrollView, Touch
 import { useFocusEffect, NavigationContainerRef } from '@react-navigation/native';
 import { useAuth } from '../context/FirebaseAuthContext';
 import DashboardLayout from './dashboard/components/DashboardLayout';
-import SubscriptionPlansModal from './dashboard/modals/SubscriptionPlansModal';
 import { DashboardOverlayStack } from './dashboard/components/DashboardOverlayStack';
 import FixedLayout from '../components/FixedLayout';
 import MoreMenu from '../components/MoreMenu';
@@ -13,7 +12,6 @@ import { useDashboardNavigation } from './dashboard/hooks/useDashboardNavigation
 import { useAchievements } from './dashboard/hooks/useAchievements';
 import { useAgenda } from './dashboard/hooks/useAgenda';
 import { useCommunity } from './dashboard/hooks/useCommunity';
-import SubscriptionApi from '../services/subscriptionApi';
 import { AgendaApi } from '../services/agendaApi';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +22,12 @@ import type { Meal } from './nutrition/types';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DashboardOverlayStackParamList } from '../types/navigation';
 
+// ✅ PHASE 1: Import feature flags for testing
+import { useCompanionMode } from '../hooks/useCompanionMode';
+
+// TODO: PHASE 6 - Import entitlements hook for checking user access rights
+import { useEntitlements } from '../hooks/useEntitlements';
+
 // Import all screen components (still in .js, will be migrated later)
 import ProgressScreen from './ProgressScreen';
 import NutritionScreen from './NutritionScreen';
@@ -32,6 +36,9 @@ import DefisScreen from './DefisScreen';
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navigation }) => {
   const { logout: authLogout } = useAuth();
+  
+  // TODO: PHASE 6 - Get user entitlements to determine feature access
+  const { entitlements, loading: entitlementsLoading, canAccess, refresh: refreshEntitlements } = useEntitlements();
   
   // Custom hooks for data management
   const { dashboardData, fetchDashboardData, setDashboardData } = useDashboardData();
@@ -51,13 +58,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     handleLikePress: handleCommunityLikePress 
   } = useCommunity();
   
+  // ✅ PHASE 1: Test companion mode hook
+  const companionMode = useCompanionMode();
+  
   // Local state
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [showPlansBottomSheet, setShowPlansBottomSheet] = useState<boolean>(false);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState<boolean>(false);
-  const [showPaymentFlow, setShowPaymentFlow] = useState<boolean>(false);
-  const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showCompleteDayModal, setShowCompleteDayModal] = useState<boolean>(false);
   const [selectedMeals, setSelectedMeals] = useState<any[]>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
@@ -145,6 +150,32 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       setCurrentScreen(screenValue);
     }
   }, [setCurrentScreen]);
+  
+  // ✅ PHASE 1: Log companion mode status for testing
+  useEffect(() => {
+    console.log('🏁 [Dashboard] Companion Mode Status:', {
+      isCompanionMode: companionMode.isCompanionMode,
+      canShowPurchaseFlows: companionMode.canShowPurchaseFlows,
+      canInitializePayments: companionMode.canInitializePayments,
+      canUseIAP: companionMode.canUseIAP,
+      platform: companionMode.platform,
+      companionMessage: companionMode.companionMessage,
+    });
+  }, [companionMode]);
+
+  // TODO: PHASE 6 - Log entitlements for testing
+  useEffect(() => {
+    console.log('📋 [Dashboard] User Entitlements:', {
+      loading: entitlementsLoading,
+      subscriptionStatus: entitlements.subscriptionStatus,
+      canAccessNutrition: entitlements.canAccessNutrition,
+      canAccessChat: entitlements.canAccessChat,
+      canAccessAnalytics: entitlements.canAccessAdvancedAnalytics,
+      canAccessCoaching: entitlements.canAccessCoachingPlans,
+      canAccessDiet: entitlements.canAccessDietPlans,
+      expiresAt: entitlements.subscriptionExpiresAt,
+    });
+  }, [entitlements, entitlementsLoading]);
   
   // Override handleMoreMenuItemPress to use navigateOverlay
   const handleMoreMenuItemPress = useCallback((itemId: string) => {
@@ -319,56 +350,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   };
 
   const loadSubscriptionPlans = async (): Promise<void> => {
-    try {
-      setLoadingPlans(true);
-      const plans = await SubscriptionApi.getPlans();
-      // Filter out plans without valid IDs
-      const validPlans = plans.filter((plan: any) => 
-        plan?.id && typeof plan.id === 'string' && plan.id.trim() !== ''
-      );
-      setSubscriptionPlans(validPlans);
-    } catch (error: any) {
-      throw error;
-    } finally {
+    // Subscription plans loading disabled - using backend entitlements only
+    return;
+  };
       setLoadingPlans(false);
     }
-  };
-
-  const handlePlanSelect = async (plan: any): Promise<void> => {
-    try {
-      setSelectedPlan(plan);
-      setShowPaymentFlow(true);
-    } catch (error: any) {
-    }
-  };
-
-  const handlePaymentSuccess = async (paymentData: any): Promise<void> => {
-    Toast.show({
-      type: 'success',
-      text1: 'Abonnement activé',
-      text2: 'Votre abonnement a été activé avec succès',
-    });
-    
-    // Rafraîchir toutes les données après activation de l'abonnement
-    await Promise.all([
-      checkSubscriptionStatus(),
-      fetchDashboardData(),
-      fetchAchievementsData(),
-      fetchAgendaData(),
-      fetchCommunityPosts(),
-    ]);
-    
-    setShowPaymentFlow(false);
-    setSelectedPlan(null);
-    setShowPlansBottomSheet(false);
-  };
-
-  const handlePaymentError = (error: any): void => {
-    Toast.show({
-      type: 'error',
-      text1: 'Erreur de paiement',
-      text2: error.message || 'Une erreur est survenue lors du paiement',
-    });
   };
 
   const handleCompleteProfile = (): void => {
@@ -826,25 +812,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         </View>
       </Modal>
 
-      <SubscriptionPlansModal
-        visible={showPlansBottomSheet}
-        plans={subscriptionPlans}
-        loading={loadingPlans}
-        selectedPlan={selectedPlan}
-        showPaymentFlow={showPaymentFlow}
-        onClose={() => {
-          setShowPlansBottomSheet(false);
-          setShowPaymentFlow(false);
-          setSelectedPlan(null);
-        }}
-        onPlanSelect={handlePlanSelect}
-        onPaymentSuccess={handlePaymentSuccess}
-        onPaymentError={handlePaymentError}
-        onClosePaymentFlow={() => {
-          setShowPaymentFlow(false);
-          setSelectedPlan(null);
-        }}
-      />
     </>
   );
 };

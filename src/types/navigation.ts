@@ -53,6 +53,7 @@ export type DashboardOverlayStackParamList = {
   PlatformRules: { source?: string };
   ContactSupport: undefined;
   About: undefined;
+  TermsAndPolicies: undefined;
 };
 
 // Types de navigation pour les props

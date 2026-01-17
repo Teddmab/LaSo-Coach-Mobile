@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
 import { IOSSimulationProvider } from './src/context/IOSSimulationContext';
+// TODO: PHASE 4 - Import companion mode guard
+import { isIOSCompanionMode } from './src/config/featureFlags';
 import { initializeTokenManager } from './src/services/api';
 import Config from './src/config/env';
 import LoginScreen from './src/screens/LoginScreen';
@@ -55,8 +57,6 @@ function AppContent() {
 
   // Global deep link handler
   const handleDeepLink = (url: string | null) => {
-    console.log('🔗 Global deep link received:', url);
-    
     if (!url) return;
     
     try {
@@ -65,52 +65,10 @@ function AppContent() {
       const path = urlObj.pathname;
       const params = Object.fromEntries(urlObj.searchParams);
       
-      console.log('🔗 Parsed URL - Path:', path, 'Params:', params);
-      
       // Navigate based on the path
       switch (path) {
-        case '/onboarding/subscription-success':
-          console.log('🔗 Navigating to subscription success with session_id:', params.session_id);
-          // Navigate to dashboard and show success message
-          if (navigationRef.current) {
-            navigationRef.current.navigate('Dashboard');
-            // Show success toast
-            setTimeout(() => {
-              Toast.show({
-                type: 'success',
-                text1: 'Paiement réussi',
-                text2: 'Votre abonnement a été activé avec succès!',
-              });
-            }, 1000);
-          }
-          break;
-          
-        case '/onboarding/subscription-cancel':
-          console.log('🔗 Navigating to subscription cancel');
-          // Navigate to dashboard and show cancel message
-          if (navigationRef.current) {
-            navigationRef.current.navigate('Dashboard');
-            // Show cancel toast
-            setTimeout(() => {
-              Toast.show({
-                type: 'info',
-                text1: 'Paiement annulé',
-                text2: 'Votre paiement a été annulé.',
-              });
-            }, 1000);
-          }
-          break;
-          
-        case '/onboarding/subscription':
-          console.log('🔗 Navigating to subscription screen');
-          // Navigate to dashboard (subscription is handled within dashboard)
-          if (navigationRef.current) {
-            navigationRef.current.navigate('Dashboard');
-          }
-          break;
           
         default:
-          console.log('🔗 Unknown deep link path:', path);
           break;
       }
     } catch (error) {
@@ -121,7 +79,6 @@ function AppContent() {
   // Handle deep links when app is already running
   useEffect(() => {
     const handleUrl = (event: { url: string }) => {
-      console.log('🔗 URL event received:', event);
       handleDeepLink(event.url);
     };
 
@@ -129,7 +86,6 @@ function AppContent() {
     const handleInitialURL = async () => {
       try {
         const initialURL = await Linking.getInitialURL();
-        console.log('🔗 Initial URL:', initialURL);
         if (initialURL) {
           handleDeepLink(initialURL);
         }
@@ -255,8 +211,6 @@ function AppContent() {
 }
 
 export default function App() {
-  console.log('📱 LaSo Coach App starting...');
-  
   // Calculate position at 20% from top for Toast
   // Position at 20% of screen height from top
   const screenHeight = React.useMemo(() => Dimensions.get('window').height, []);
@@ -273,37 +227,12 @@ export default function App() {
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
     try {
-      console.log('🔐 [Startup] Initializing app dependencies...');
       initializeTokenManager();
       
-      // Try to fetch Stripe key from backend if not in config
-      if (!Config.STRIPE_PUBLISHABLE_KEY || Config.STRIPE_PUBLISHABLE_KEY === 'pk_test_placeholder') {
-        console.log('🔑 [Stripe] Attempting to fetch publishable key from backend...');
-        // Use dynamic import to avoid crash if module not available
-        import('./src/services/subscriptionApi')
-          .then((module) => {
-            const SubscriptionApi = module.default;
-            return SubscriptionApi.getStripePublishableKey();
-          })
-          .then((backendKey: string | null) => {
-            if (backendKey) {
-              console.log('✅ [Stripe] Publishable key loaded from backend');
-              setStripeKey(backendKey);
-            } else {
-              console.warn('⚠️ [Stripe] Publishable key not found in backend. Using placeholder.');
-            }
-          })
-          .catch((error: Error) => {
-            console.warn('⚠️ [Stripe] Could not fetch key from backend:', error.message);
-            // Don't crash app if Stripe key fetch fails
-          });
-      } else {
-        console.log('✅ [Stripe] Publishable key loaded from configuration');
-      }
+      // Stripe/payment infrastructure removed - using backend entitlements for feature gating
 
       // Profile components are now preloaded via static imports at the top of the file
       // This ensures they are bundled and ready immediately at app startup
-      console.log('✅ [Startup] Profile components preloaded via static imports');
     } catch (error: any) {
       console.error('❌ [Startup] Error initializing app dependencies:', error);
       // Don't crash - continue with default values
@@ -313,31 +242,55 @@ export default function App() {
   // Stripe publishable key - from config or backend
   const STRIPE_PUBLISHABLE_KEY = stripeKey;
   
-  return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-          <AuthProvider>
-            <NotificationProvider>
-              <ChatProvider>
-                <IOSSimulationProvider>
-                  <NetworkStatus />
-                  <AppContent />
-                </IOSSimulationProvider>
-              </ChatProvider>
-            </NotificationProvider>
-          </AuthProvider>
-          <Toast 
-            position="top"
-            visibilityTime={3000}
-            autoHide={true}
-            topOffset={topOffset20Percent}
-            config={toastConfig as any}
-          />
-        </StripeProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
-  );
+  // TODO: PHASE 5 - Conditionally wrap with StripeProvider based on companion mode
+  // In companion mode, skip StripeProvider to avoid SDK initialization
+  const renderContent = () => {
+    const content = (
+      <>
+        <AuthProvider>
+          <NotificationProvider>
+            <ChatProvider>
+              <IOSSimulationProvider>
+                <NetworkStatus />
+                <AppContent />
+              </IOSSimulationProvider>
+            </ChatProvider>
+          </NotificationProvider>
+        </AuthProvider>
+        <Toast 
+          position="top"
+          visibilityTime={3000}
+          autoHide={true}
+          topOffset={topOffset20Percent}
+          config={toastConfig as any}
+        />
+      </>
+    );
+
+    if (isIOSCompanionMode()) {
+      // In companion mode, skip StripeProvider to avoid SDK initialization
+      return (
+        <ErrorBoundary>
+          <SafeAreaProvider>
+            {content}
+          </SafeAreaProvider>
+        </ErrorBoundary>
+      );
+    }
+
+    // Normal mode: use StripeProvider
+    return (
+      <ErrorBoundary>
+        <SafeAreaProvider>
+          <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+            {content}
+          </StripeProvider>
+        </SafeAreaProvider>
+      </ErrorBoundary>
+    );
+  };
+  
+  return renderContent();
 }
 
 const styles = StyleSheet.create({
