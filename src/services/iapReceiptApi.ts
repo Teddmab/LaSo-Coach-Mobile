@@ -1,5 +1,6 @@
 import api from './api';
 import { Platform } from 'react-native';
+import { isIOSCompanionMode } from '../config/featureFlags';
 
 /**
  * IAP Receipt Validation API
@@ -7,15 +8,28 @@ import { Platform } from 'react-native';
  * 
  * CRITICAL: All purchases MUST be validated server-side before granting access
  * This prevents fraud and ensures subscription integrity
+ * 
+ * APPLE COMPLIANCE (Guideline 3.1.1):
+ * - iOS companion mode blocks all payment validation
+ * - Receipt validation returns error on iOS
+ * - No subscription syncing on iOS
  */
 class IAPReceiptApi {
   /**
    * Validate iOS App Store receipt
+   * ✅ APPLE COMPLIANCE: Blocks receipt validation on iOS companion mode
    * @param {Object} receiptData - Receipt data from iOS purchase
    * @returns {Promise<Object>} Validation response
    */
   static async validateiOSReceipt(receiptData) {
     try {
+      // 🍎 iOS COMPANION MODE: Block payment validation
+      if (isIOSCompanionMode()) {
+        console.warn('🍎 [IAPReceiptApi] Receipt validation blocked on iOS companion mode');
+        const error = new Error('Payment validation not available on iOS companion app');
+        error.code = 'COMPANION_MODE_BLOCKED';
+        throw error;
+      }
       
       const response = await api.post('/payments/validate-ios-receipt', {
         receiptData: receiptData.transactionReceipt,
@@ -54,15 +68,21 @@ class IAPReceiptApi {
 
   /**
    * Validate receipt (automatically detects platform)
+   * ✅ APPLE COMPLIANCE: Blocks validation on iOS
    * @param {Object} receiptData - Receipt data from purchase
    * @returns {Promise<Object>} Validation response
    */
   static async validateReceipt(receiptData) {
     try {
+      // 🍎 iOS COMPANION MODE: Block payment validation on iOS
+      if (receiptData.platform === 'ios' || Platform.OS === 'ios' || isIOSCompanionMode()) {
+        console.warn('🍎 [IAPReceiptApi] Receipt validation blocked on iOS');
+        const error = new Error('Payment validation not available on iOS companion app');
+        error.code = 'COMPANION_MODE_BLOCKED';
+        throw error;
+      }
       
-      if (receiptData.platform === 'ios') {
-        return await this.validateiOSReceipt(receiptData);
-      } else if (receiptData.platform === 'android') {
+      if (receiptData.platform === 'android') {
         return await this.validateAndroidReceipt(receiptData);
       } else {
         throw new Error('Unsupported platform for receipt validation');
@@ -74,12 +94,26 @@ class IAPReceiptApi {
 
   /**
    * Check subscription status from native store
+   * ✅ APPLE COMPLIANCE: Returns companion mode status on iOS
    * Used to sync subscription status with backend
    * @param {string} userId - User ID
    * @returns {Promise<Object>} Subscription status
    */
   static async syncSubscriptionStatus(userId) {
     try {
+      // 🍎 iOS COMPANION MODE: Return companion mode status, don't call API
+      if (Platform.OS === 'ios' || isIOSCompanionMode()) {
+        console.warn('🍎 [IAPReceiptApi] Subscription sync blocked on iOS companion mode');
+        return {
+          status: 'success',
+          data: {
+            subscriptionStatus: 'COMPANION_MODE',
+            accessLevel: 'FREE',
+            message: 'iOS companion app - no active subscription',
+            timestamp: new Date().toISOString(),
+          }
+        };
+      }
       
       const response = await api.post('/payments/sync-subscription-status', {
         userId,

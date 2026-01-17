@@ -11,7 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
-import SubscriptionApi from '../../services/subscriptionApi';
 
 interface InvoicesBottomSheetProps {
   visible: boolean;
@@ -52,27 +51,9 @@ const InvoicesBottomSheet: React.FC<InvoicesBottomSheetProps> = ({
   }, [visible]);
 
   const fetchInvoices = async () => {
-    try {
-      setLoading(true);
-      const response: any = await SubscriptionApi.getHistory();
-      
-      if (response && response.data) {
-        if (Array.isArray(response.data)) {
-          setInvoices(response.data);
-        } else if (response.data.subscriptions) {
-          setInvoices(response.data.subscriptions);
-        } else if (response.data.invoices) {
-          setInvoices(response.data.invoices);
-        } else if (response.data.history) {
-          setInvoices(response.data.history);
-        } else {
-          setInvoices([]);
-        }
-      } else if (Array.isArray(response)) {
-        setInvoices(response);
-      } else {
-        setInvoices([]);
-      }
+    // Invoice history disabled - subscription payment system removed
+    setInvoices([]);
+  };
     } catch (error) {
       console.error('Error fetching invoices:', error);
       setInvoices([]);

@@ -19,10 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { theme, TYPOGRAPHY } from '../constants/theme';
-import SubscriptionBanner from '../components/SubscriptionBanner';
-import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
-import SubscriptionScreen from './SubscriptionScreen';
 import Avatar from '../components/Avatar';
 import NotificationBadge from '../components/NotificationBadge';
 import * as ImagePicker from 'expo-image-picker';
@@ -2688,11 +2685,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           <Text style={styles.planBadgeText}>Flexy</Text>
         </View>
         
-        <View style={styles.priceContainer}>
-          <Text style={styles.oldPrice}>15€</Text>
-          <Text style={styles.currentPrice}>5€ / mois</Text>
-          <Text style={styles.discount}>-67%</Text>
-        </View>
+        {/* Pricing removed for compliance - use web portal for pricing info */}
         
         <View style={styles.billingInfo}>
           <Text style={styles.billingText}>Date de paiement : 7/12/2025</Text>
@@ -2726,10 +2719,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             </View>
             <View style={styles.planDetails}>
               <Text style={styles.planName}>Flexy</Text>
-              <View style={styles.planPricing}>
-                <Text style={styles.planOldPrice}>15$</Text>
-                <Text style={styles.planCurrentPrice}>5$</Text>
-              </View>
+              {/* Pricing removed for compliance */}
               <Text style={styles.planBilling}>Facturé mensuellement</Text>
               <Text style={styles.planStatus}>Vous êtes actuellement abonné à cette formule.</Text>
             </View>
@@ -2766,10 +2756,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
               <View style={styles.planPricing}>
                 <Text style={styles.planOldPrice}>85$</Text>
                 <Text style={styles.planCurrentPrice}>50$</Text>
-              </View>
-              <Text style={styles.planBilling}>Facturé mensuellement</Text>
-            </View>
-          </View>
+              {/* Pricing removed for compliance */}
           
           <TouchableOpacity style={styles.subscribeButton} onPress={() => handleSubscribe('premium')}>
             <Text style={styles.subscribeButtonText}>S'abonner</Text>

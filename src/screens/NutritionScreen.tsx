@@ -30,6 +30,7 @@ import { createLogger } from '../utils/logger';
 import { ShimmerCard, ShimmerList } from '../components/Shimmer';
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import { useAuth } from '../context/FirebaseAuthContext';
+import { useCompanionMode } from '../hooks/useCompanionMode';
 
 // Create logger instance for NutritionScreen
 const logger = createLogger('NutritionScreen');
@@ -47,6 +48,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
   const { refreshProfile } = useAuth();
+  const { isCompanionMode } = useCompanionMode();
 
   // State management
   const today = new Date();
@@ -194,6 +196,31 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       setLoading(true);
       logger.group('📥 FETCH ALL DATA - Initial Load');
       logger.info('Starting data fetch for NutritionScreen');
+      
+      // ✅ COMPLIANCE: In iOS companion mode, skip all premium content fetching
+      if (isCompanionMode) {
+        logger.info('🍎 iOS COMPANION MODE: Skipping premium content fetch');
+        setSubscriptionData({
+          status: 'COMPANION_MODE',
+          accessLevel: 'FREE',
+          daysRemaining: 0,
+          hasActiveSubscription: false,
+          subscription: null,
+          message: 'Manage your subscription on the web at lasocoach.com',
+          isExpired: false,
+          isExpiringSoon: false,
+          requiresRenewal: false,
+        } as any);
+        setNutritionPlans([]);
+        setCurrentPlan(null);
+        setDayMeals([]);
+        setTomorrowMeals([]);
+        setCompletionStatus(null);
+        setLoading(false);
+        setIsFetchingAllData(false);
+        logger.groupEnd();
+        return;
+      }
       
       // Step 1: Fetch subscription status FIRST to determine if we should fetch plans
       logger.debug('API Request: Fetching subscription status first');
@@ -1729,34 +1756,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 }
               </Text>
               
-              {/* Primary Button - Masqué sur iOS */}
-              {!isIOS && (
-                <TouchableOpacity 
-                  style={styles.lockedSubscriptionButton}
-                  onPress={handleSubscriptionRenew}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#BA68C8', '#9C27B0']}
-                    style={styles.lockedSubscriptionButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={styles.lockedSubscriptionButtonText}>Voir les plans d'abonnement</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-              
-              {/* Free Trial Link - Masqué sur iOS */}
-              {!isIOS && (
-                <TouchableOpacity 
-                  style={styles.lockedFreeTrialLink}
-                  onPress={handleSubscriptionRenew}
-                >
-                  <Text style={styles.lockedFreeTrialText}>Commencer avec l'essai gratuit</Text>
-                </TouchableOpacity>
-              )}
-              
               {/* iOS Check Status Button */}
               {isIOS && (
                 <View style={styles.iosMessageContainer}>
@@ -1768,13 +1767,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     }}
                   />
                 </View>
-              )}
-              
-              {/* Additional Text - Masqué sur iOS */}
-              {!isIOS && (
-                <Text style={styles.lockedFreeTrialDescription}>
-                  Commencez gratuitement avec notre essai gratuit !
-                </Text>
               )}
             </View>
           </View>
@@ -2401,8 +2393,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           />
         ) : undefined}
         message={isIOS 
-          ? "Menu du jour disponible avec un abonnement actif. Visitez app.lasocoach.com pour vous abonner."
-          : "Cette fonctionnalité nécessite un abonnement actif. Renouvelez votre abonnement pour continuer à accéder à toutes les fonctionnalités."
+          ? "Accès réservé aux comptes autorisés. Vérifiez votre statut auprès du support si nécessaire."
+          : "Cette fonctionnalité nécessite un compte autorisé par le support."
         }
       />
       
@@ -2660,39 +2652,22 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   outsideSubscriptionText: {
-    color: '#F44336',
-    fontWeight: '600',
-  },
-  weekendDayNumber: {
+    display: 'none',
     color: '#FF6B6B',
   },
-  weekendDayName: {
-    color: '#FF6B6B',
-  },
-  warningIcon: {
+    display: 'none',
     position: 'absolute',
     top: 4,
-    right: 4,
-  },
-  completionStatusCard: {
-    backgroundColor: '#FFFFFF',
+    display: 'none',
     marginHorizontal: 20,
     marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    display: 'none',
   },
   completionStatusTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+    display: 'none',
     marginBottom: 12,
   },
-  completionProgress: {
-    alignItems: 'center',
-  },
-  progressBar: {
+    display: 'none',
     width: '100%',
     height: 8,
     backgroundColor: '#E5E7EB',
@@ -3767,9 +3742,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   websiteHighlight: {
-    color: '#10B981', // Vert
-    fontStyle: 'italic',
-    fontWeight: '600',
+    // Hidden: external steering removed for App Store compliance
+    display: 'none',
   },
   lasocoachHighlight: {
     color: '#10B981', // Vert
