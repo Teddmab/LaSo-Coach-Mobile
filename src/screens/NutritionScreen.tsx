@@ -21,7 +21,6 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
 import BlurOverlay from '../components/BlurOverlay';
 import SubscriptionBanner from '../components/SubscriptionBanner';
-import CheckStatusButton from '../components/subscription/CheckStatusButton';
 import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
@@ -1756,18 +1755,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 }
               </Text>
               
-              {/* iOS Check Status Button */}
-              {isIOS && (
-                <View style={styles.iosMessageContainer}>
-                  <CheckStatusButton
-                    onStatusChecked={async (hasActiveSubscription) => {
-                      if (hasActiveSubscription && refreshProfile) {
-                        await refreshProfile();
-                      }
-                    }}
-                  />
-                </View>
-              )}
+              {/* iOS: Subscription status managed on web portal */}
             </View>
           </View>
         )}
@@ -2383,15 +2371,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       <BlurOverlay
         visible={shouldShowBlur && !isIOS}
         onRenew={isIOS ? undefined : handleSubscriptionRenew}
-        customButton={isIOS ? (
-          <CheckStatusButton
-            onStatusChecked={async (hasActiveSubscription) => {
-              if (hasActiveSubscription && refreshProfile) {
-                await refreshProfile();
-              }
-            }}
-          />
-        ) : undefined}
+        customButton={undefined}
         message={isIOS 
           ? "Accès réservé aux comptes autorisés. Vérifiez votre statut auprès du support si nécessaire."
           : "Cette fonctionnalité nécessite un compte autorisé par le support."
