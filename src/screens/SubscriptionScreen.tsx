@@ -6,6 +6,7 @@ import SubscriptionPaymentFlow from '../components/SubscriptionPaymentFlow';
 import { useAuth } from '../context/FirebaseAuthContext';
 import { SubscriptionScreenProps, PaymentData } from './subscription/types';
 import { useSubscriptionScreen } from './subscription/hooks/useSubscriptionScreen';
+import { useCompanionMode } from '../hooks/useCompanionMode';
 import YourPremiumCard from './subscription/components/YourPremiumCard';
 import ManageSubscriptionCard from './subscription/components/ManageSubscriptionCard';
 import PlanCard from './subscription/components/PlanCard';
@@ -25,6 +26,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 }) => {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
+  const { isCompanionMode, companionMessage } = useCompanionMode();
 
   const {
     loading,
@@ -144,14 +146,24 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
             </Text>
           </TouchableOpacity>
 
-          {plans.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              isCurrent={plan.id === currentPlanId}
-              onSelect={handlePlanSelect}
-            />
-          ))}
+          {/* ✅ COMPLIANCE: iOS Companion Mode - Hide paid plans */}
+          {isCompanionMode ? (
+            <View style={styles.companionModeContainer}>
+              <Text style={styles.companionModeTitle}>Gestion des abonnements</Text>
+              <Text style={styles.companionModeMessage}>
+                {companionMessage || 'Gérez votre abonnement sur le site web à lasocoach.com'}
+              </Text>
+            </View>
+          ) : (
+            plans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                isCurrent={plan.id === currentPlanId}
+                onSelect={handlePlanSelect}
+              />
+            ))
+          )}
         </View>
       </ScrollView>
 
@@ -286,6 +298,26 @@ const styles = StyleSheet.create({
     height: 4,
     backgroundColor: '#CCCCCC',
     borderRadius: 2,
+  },
+  companionModeContainer: {
+    backgroundColor: theme.colors.surface,
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  companionModeTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  companionModeMessage: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

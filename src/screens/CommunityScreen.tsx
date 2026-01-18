@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,9 @@ import Avatar from '../components/Avatar';
 import { CommunityScreenProps } from './community/types';
 import { useCommunityScreen } from './community/hooks/useCommunityScreen';
 import { useUgcTerms } from '../hooks/useUgcTerms';
+import { useModeration } from '../hooks/useModeration';
 import UgcTermsModal from '../components/UgcTermsModal';
+import BlockUserModal from '../components/BlockUserModal';
 import PostCard from './community/components/PostCard';
 import CreatePostModal from './community/components/CreatePostModal';
 import ReportPostModal from './community/components/ReportPostModal';
@@ -26,8 +28,21 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
   const insets = useSafeAreaInsets();
   const [commentBottomSheetVisible, setCommentBottomSheetVisible] = useState(false);
   const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
-  // ✅ COMPLIANCE: Track blocked users to instantly remove their content
-  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+  
+  // ✅ COMPLIANCE: Moderation hook for blocking users
+  const {
+    blockedUsers: blockedUsersList,
+    isUserBlocked,
+    blockUser: blockUserAction,
+    unblockUser: unblockUserAction,
+  } = useModeration();
+  
+  // Convert array to Set for O(1) lookup
+  const blockedUsers = React.useMemo(() => new Set(blockedUsersList), [blockedUsersList]);
+  
+  // Block user modal state
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [userToBlock, setUserToBlock] = useState<{ id: string; name: string } | null>(null);
 
   // Phase 7 - TODO #9: Test UGC terms modal on community entry
   const {
@@ -98,6 +113,32 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     // Le nouveau commentaire apparaîtra en haut grâce au tri dans CommentBottomSheet
   };
 
+  // ✅ COMPLIANCE: Handle user blocking
+  const handleBlockUser = (userId: string, userName: string) => {
+    setUserToBlock({ id: userId, name: userName });
+    setShowBlockModal(true);
+  };
+
+  const handleConfirmBlock = async (userId: string) => {
+    try {
+      const isBlocked = isUserBlocked(userId);
+      if (isBlocked) {
+        await unblockUserAction(userId);
+      } else {
+        await blockUserAction(userId);
+      }
+      setShowBlockModal(false);
+      setUserToBlock(null);
+    } catch (error) {
+      console.error('❌ [CommunityScreen] Error blocking user:', error);
+    }
+  };
+
+  const handleCancelBlock = () => {
+    setShowBlockModal(false);
+    setUserToBlock(null);
+  };
+
   return (
     <>
       {/* Phase 7 - TODO #10: Display loading state while checking terms */}
@@ -153,7 +194,10 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
             ) : communityPosts.length > 0 ? (
               // ✅ COMPLIANCE: Filter out posts from blocked users
               communityPosts
-                .filter(post => !blockedUsers.has(post.userId))
+                .filter(post => {
+                  const postUserId = post.userId || post.user?.id;
+                  return postUserId && !blockedUsers.has(String(postUserId));
+                })
                 .map((post, index) => (
                 <PostCard
                   key={post.id}
@@ -170,6 +214,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
                   onCommentSubmit={handleCommentSubmit}
                   onShare={handleShare}
                   onReport={handleReport}
+                  onBlockUser={handleBlockUser}
                   isLast={index === communityPosts.length - 1}
                   onPostPress={(post) => {
                     // Si le post a un selectedImageIndex, ouvrir la modal plein écran
@@ -253,6 +298,18 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
         onDecline={handleDeclineTerms}
         onViewTerms={handleViewTerms}
       />
+
+      {/* Block User Modal */}
+      {userToBlock && (
+        <BlockUserModal
+          visible={showBlockModal}
+          userId={userToBlock.id}
+          userName={userToBlock.name}
+          isBlocked={isUserBlocked(userToBlock.id)}
+          onConfirm={handleConfirmBlock}
+          onCancel={handleCancelBlock}
+        />
+      )}
     </>
   );
 };

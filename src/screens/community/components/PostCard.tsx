@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import Avatar from '../../../components/Avatar';
@@ -21,6 +21,7 @@ interface PostCardProps {
   onCommentSubmit: (postId: string) => void;
   onShare: (postId: string) => void;
   onReport?: (postId: string) => void;
+  onBlockUser?: (userId: string, userName: string) => void;
   onPostPress?: (post: Post) => void;
   isLast?: boolean; // Pour retirer la bordure du dernier post
 }
@@ -39,6 +40,7 @@ const PostCard: React.FC<PostCardProps> = ({
   onCommentSubmit,
   onShare,
   onReport,
+  onBlockUser,
   onPostPress,
   isLast = false,
 }) => {
@@ -61,6 +63,48 @@ const PostCard: React.FC<PostCardProps> = ({
       : (post.comments?.length ?? 0)
   );
   const timeAgo = formatTimeAgo(post.createdAt);
+  const [showMenu, setShowMenu] = useState(false);
+  const postUserId = post.userId || post.user?.id;
+  const isOwnPost = postUserId && currentUserId && String(postUserId) === String(currentUserId);
+
+  const handleMorePress = () => {
+    if (isOwnPost) {
+      // Si c'est son propre post, seulement signaler
+      if (onReport) {
+        onReport(post.id);
+      }
+    } else {
+      // Menu pour les posts des autres
+      Alert.alert(
+        'Options',
+        '',
+        [
+          {
+            text: 'Signaler',
+            onPress: () => {
+              if (onReport) {
+                onReport(post.id);
+              }
+            },
+          },
+          {
+            text: 'Bloquer l\'utilisateur',
+            style: 'destructive',
+            onPress: () => {
+              if (onBlockUser && postUserId) {
+                onBlockUser(String(postUserId), authorName);
+              }
+            },
+          },
+          {
+            text: 'Annuler',
+            style: 'cancel',
+          },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
 
   return (
     <View style={[styles.container, isLast && styles.containerLast]}>
@@ -78,11 +122,7 @@ const PostCard: React.FC<PostCardProps> = ({
         <Text style={styles.postTime}>{timeAgo || 'Maintenant'}</Text>
         <TouchableOpacity 
           style={styles.moreButton}
-          onPress={() => {
-            if (onReport) {
-              onReport(post.id);
-            }
-          }}
+          onPress={handleMorePress}
         >
           <Ionicons name="ellipsis-horizontal" size={24} color="#000000" />
         </TouchableOpacity>

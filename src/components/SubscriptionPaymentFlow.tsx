@@ -28,6 +28,7 @@ import {
 import MobileMoneyPaymentForm, { MobileMoneyPaymentData } from './MobileMoneyPaymentForm';
 import * as mobileMoneyApi from '../services/mobileMoneyApi';
 import { usePaymentTracking } from '../context/PaymentContext';
+import { useCompanionMode } from '../hooks/useCompanionMode';
 
 /**
  * SubscriptionPaymentFlow - Composant de paiement étape par étape pour mobile
@@ -49,6 +50,7 @@ export default function SubscriptionPaymentFlow({
   const styles = createStyles(theme);
   const { confirmPayment } = useStripe();
   const paymentTracking = usePaymentTracking();
+  const { isCompanionMode, companionMessage } = useCompanionMode();
 
   // États du flux
   const [currentStep, setCurrentStep] = useState(0); // 0: confirmation abonnement, 1: méthode, 2: infos, 3: traitement, 4: résultat
@@ -744,6 +746,27 @@ export default function SubscriptionPaymentFlow({
       );
     }
 
+    // ✅ COMPLIANCE: iOS Companion Mode - Hide paid plans
+    if (isCompanionMode) {
+      return (
+        <View style={styles.stepContainer}>
+          <View style={styles.companionModeContainer}>
+            <Ionicons name="information-circle-outline" size={48} color={theme.colors.text.secondary} />
+            <Text style={styles.companionModeTitle}>Gestion des abonnements</Text>
+            <Text style={styles.companionModeMessage}>
+              {companionMessage || 'Gérez votre abonnement sur le site web à lasocoach.com'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={onClose}
+            >
+              <Text style={styles.cancelButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
     // Pour les plans payants, afficher l'interface normale avec "Suivant"
     return (
       <View style={styles.stepContainer}>
@@ -802,29 +825,51 @@ export default function SubscriptionPaymentFlow({
     );
   };
 
-  const renderStep1_MethodSelection = () => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { fontSize: 18 }]}>Choisir une méthode</Text>
-      <Text style={styles.stepSubtitle}>Sélectionnez votre méthode de paiement préférée</Text>
-
-      {plan && (
-        <View style={styles.planSummary}>
-          <Text style={styles.planSummaryName}>{plan.name}</Text>
-          <Text style={styles.planSummaryPrice}>
-            {plan.discountPrice && plan.discountPrice < plan.price ? (
-              <>
-                <Text style={styles.planPriceDiscount}>€{plan.discountPrice}</Text>
-                <Text style={styles.planPriceOriginal}> €{plan.price}</Text>
-              </>
-            ) : (
-              `€${plan.price}`
-            )}
-            <Text style={styles.planPricePeriod}> / {SubscriptionApi.getBillingPeriod(plan.duration)}</Text>
-          </Text>
+  const renderStep1_MethodSelection = () => {
+    // ✅ COMPLIANCE: iOS Companion Mode - Hide all payment methods
+    if (isCompanionMode) {
+      return (
+        <View style={styles.stepContainer}>
+          <View style={styles.companionModeContainer}>
+            <Ionicons name="information-circle-outline" size={48} color={theme.colors.text.secondary} />
+            <Text style={styles.companionModeTitle}>Gestion des abonnements</Text>
+            <Text style={styles.companionModeMessage}>
+              {companionMessage || 'Gérez votre abonnement sur le site web à lasocoach.com'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, styles.cancelButton]}
+              onPress={onClose}
+            >
+              <Text style={styles.cancelButtonText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      )}
+      );
+    }
 
-      <View style={styles.paymentMethods}>
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={[styles.stepTitle, { fontSize: 18 }]}>Choisir une méthode</Text>
+        <Text style={styles.stepSubtitle}>Sélectionnez votre méthode de paiement préférée</Text>
+
+        {plan && (
+          <View style={styles.planSummary}>
+            <Text style={styles.planSummaryName}>{plan.name}</Text>
+            <Text style={styles.planSummaryPrice}>
+              {plan.discountPrice && plan.discountPrice < plan.price ? (
+                <>
+                  <Text style={styles.planPriceDiscount}>€{plan.discountPrice}</Text>
+                  <Text style={styles.planPriceOriginal}> €{plan.price}</Text>
+                </>
+              ) : (
+                `€${plan.price}`
+              )}
+              <Text style={styles.planPricePeriod}> / {SubscriptionApi.getBillingPeriod(plan.duration)}</Text>
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.paymentMethods}>
         <TouchableOpacity
           style={[
             styles.paymentMethodOption,
@@ -912,8 +957,9 @@ export default function SubscriptionPaymentFlow({
           <Text style={styles.continueButtonText}>Continuer</Text>
         )}
       </TouchableOpacity>
-    </View>
-  );
+      </View>
+    );
+  };
 
   const renderStep2_CardInput = () => {
     // Pour Stripe, vérifier si on doit afficher la webview
@@ -1728,6 +1774,27 @@ const createStyles = (theme) => StyleSheet.create({
   },
   backButton: {
     padding: 4,
+  },
+  companionModeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    minHeight: 300,
+  },
+  companionModeTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  companionModeMessage: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
   },
 });
 

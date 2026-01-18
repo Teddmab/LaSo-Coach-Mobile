@@ -5,7 +5,9 @@ import { theme } from '../constants/theme';
 import { ChatScreenProps } from './chat/types';
 import { useChatScreen } from './chat/hooks/useChatScreen';
 import { useUgcTerms } from '../hooks/useUgcTerms';
+import { useModeration } from '../hooks/useModeration';
 import UgcTermsModal from '../components/UgcTermsModal';
+import BlockUserModal from '../components/BlockUserModal';
 import ConversationList from './chat/components/ConversationList';
 import ChatView from './chat/components/ChatView';
 
@@ -16,8 +18,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const navigation = useNavigation();
   
-  // ✅ COMPLIANCE: Track blocked users to instantly remove their messages
-  const [blockedUsers, setBlockedUsers] = React.useState<Set<string>>(new Set());
+  // ✅ COMPLIANCE: Moderation hook for blocking users
+  const {
+    blockedUsers: blockedUsersList,
+    isUserBlocked,
+    blockUser: blockUserAction,
+    unblockUser: unblockUserAction,
+  } = useModeration();
+  
+  // Convert array to Set for O(1) lookup
+  const blockedUsers = React.useMemo(() => new Set(blockedUsersList), [blockedUsersList]);
+  
+  // Block user modal state
+  const [showBlockModal, setShowBlockModal] = React.useState(false);
+  const [userToBlock, setUserToBlock] = React.useState<{ id: string; name: string } | null>(null);
 
   const {
     conversations,
@@ -51,6 +65,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     navigation.navigate('TermsAndPolicies' as never);
   };
 
+  // ✅ COMPLIANCE: Handle user blocking
+  const handleBlockUser = (userId: string, userName: string) => {
+    setUserToBlock({ id: userId, name: userName });
+    setShowBlockModal(true);
+  };
+
+  const handleConfirmBlock = async (userId: string) => {
+    try {
+      const isBlocked = isUserBlocked(userId);
+      if (isBlocked) {
+        await unblockUserAction(userId);
+      } else {
+        await blockUserAction(userId);
+      }
+      setShowBlockModal(false);
+      setUserToBlock(null);
+    } catch (error) {
+      console.error('❌ [ChatScreen] Error blocking user:', error);
+    }
+  };
+
+  const handleCancelBlock = () => {
+    setShowBlockModal(false);
+    setUserToBlock(null);
+  };
+
   return (
     <>
       {/* Phase 7 - TODO #8: Display loading state while checking terms */}
@@ -70,7 +110,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         <ChatView
           conversation={currentChat}
           // ✅ COMPLIANCE: Filter out messages from blocked users
-          messages={messages.filter(msg => !blockedUsers.has(msg.senderId))}
+          messages={messages.filter(msg => {
+            const senderId = msg.senderId || msg.sender?.id;
+            return senderId && !blockedUsers.has(String(senderId));
+          })}
           messageText={messageText}
           loading={loading}
           isSocketConnected={isSocketConnected}
@@ -78,6 +121,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
           onMessageTextChange={setMessageText}
           onSendMessage={handleSendMessage}
           onBackPress={handleBackPress}
+          onBlockUser={handleBlockUser}
         />
       ) : (
         <>
@@ -113,6 +157,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
         onDecline={handleDeclineTerms}
         onViewTerms={handleViewTerms}
       />
+
+      {/* Block User Modal */}
+      {userToBlock && (
+        <BlockUserModal
+          visible={showBlockModal}
+          userId={userToBlock.id}
+          userName={userToBlock.name}
+          isBlocked={isUserBlocked(userToBlock.id)}
+          onConfirm={handleConfirmBlock}
+          onCancel={handleCancelBlock}
+        />
+      )}
     </>
   );
 };

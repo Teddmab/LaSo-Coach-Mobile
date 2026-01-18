@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Keyboard, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
@@ -18,6 +18,7 @@ interface ChatViewProps {
   onMessageTextChange: (text: string) => void;
   onSendMessage: () => void;
   onBackPress: () => void;
+  onBlockUser?: (userId: string, userName: string) => void;
 }
 
 const ChatView: React.FC<ChatViewProps> = ({
@@ -30,6 +31,7 @@ const ChatView: React.FC<ChatViewProps> = ({
   onMessageTextChange,
   onSendMessage,
   onBackPress,
+  onBlockUser,
 }) => {
   const scrollViewRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
@@ -73,6 +75,36 @@ const ChatView: React.FC<ChatViewProps> = ({
   const title = getConversationTitle(conversation, currentUser);
   const avatar = getConversationAvatar(conversation, currentUser);
   const currentUserId = currentUser?.id || (currentUser as any)?.uid || (currentUser as any)?.userId;
+  
+  // Get other user ID from conversation
+  const otherUserId = conversation.participants?.find((p: any) => String(p.id || p.userId) !== String(currentUserId))?.id || 
+                      conversation.participants?.find((p: any) => String(p.id || p.userId) !== String(currentUserId))?.userId;
+  const otherUserName = conversation.participants?.find((p: any) => String(p.id || p.userId) !== String(currentUserId))?.name ||
+                        conversation.participants?.find((p: any) => String(p.id || p.userId) !== String(currentUserId))?.firstName ||
+                        title;
+  
+  const handleMorePress = () => {
+    if (onBlockUser && otherUserId) {
+      Alert.alert(
+        'Options',
+        '',
+        [
+          {
+            text: 'Bloquer l\'utilisateur',
+            style: 'destructive',
+            onPress: () => {
+              onBlockUser(String(otherUserId), otherUserName);
+            },
+          },
+          {
+            text: 'Annuler',
+            style: 'cancel',
+          },
+        ],
+        { cancelable: true }
+      );
+    }
+  };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isOwnMessage = String(item.senderId) === String(currentUserId);
@@ -188,6 +220,12 @@ const ChatView: React.FC<ChatViewProps> = ({
             </Text>
           </View>
         </View>
+        
+        {onBlockUser && otherUserId && (
+          <TouchableOpacity onPress={handleMorePress} style={styles.moreButton}>
+            <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Messages */}
@@ -305,6 +343,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.text.secondary,
     marginTop: 2,
+  },
+  moreButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   messagesContainer: {
     flex: 1,
