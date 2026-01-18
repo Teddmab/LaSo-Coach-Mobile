@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 import { DashboardOverlayStackParamList } from '../../../types/navigation';
 import FixedLayout from '../../../components/FixedLayout';
 import SettingsScreen from '../../SettingsScreen';
@@ -17,6 +18,8 @@ import ContactSupportScreen from '../../ContactSupportScreen';
 import AboutScreen from '../../AboutScreen';
 import TermsAndPoliciesScreen from '../../TermsAndPoliciesScreen';
 import MoreMenu from '../../../components/MoreMenu';
+// ✅ iOS COMPLIANCE: SubscriptionScreen only on Android
+import SubscriptionScreen from '../../SubscriptionScreen';
 
 interface DashboardOverlayStackProps {
   user: any;
@@ -220,7 +223,13 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
                 } else if (target === 'autre-infos') {
                   stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'other' });
                 } else if (target === 'subscription') {
-                  stackNavigation.navigate('Subscription');
+                  // ✅ iOS COMPLIANCE: Block subscription navigation on iOS
+                  if (Platform.OS === 'ios') {
+                    console.log('🎯 [DashboardOverlayStack] Subscription navigation blocked on iOS');
+                    stackNavigation.navigate('Home');
+                  } else {
+                    stackNavigation.navigate('Subscription');
+                  }
                 } else if (target === 'security-connection') {
                   stackNavigation.navigate('Security');
                 } else if (target === 'language') {
@@ -585,6 +594,29 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
               onClose={() => stackNavigation.goBack()}
             />
           </FixedLayout>
+        );
+
+      case 'Subscription':
+        // ✅ iOS COMPLIANCE: Block Subscription screen on iOS
+        if (Platform.OS === 'ios') {
+          console.log('🎯 [DashboardOverlayStack] Subscription screen blocked on iOS - redirecting to Home');
+          // Redirect to Home by navigating back or to Home
+          if (stackNavigation.canGoBack()) {
+            stackNavigation.goBack();
+          } else {
+            stackNavigation.navigate('Home');
+          }
+          return null; // Return null to prevent rendering
+        }
+        return (
+          <SubscriptionScreen
+            navigation={navigation}
+            onClose={() => stackNavigation.goBack()}
+            onTabPress={onTabPress}
+            activeTab={activeTab}
+            showBackButton={stackNavigation.canGoBack()}
+            onBackPress={stackNavigation.goBack}
+          />
         );
 
       default:

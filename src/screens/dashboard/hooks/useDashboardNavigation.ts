@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 
 export const useDashboardNavigation = (navigateOverlay?: (screenName: string, params?: any) => void) => {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -12,6 +13,11 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
       setShowMoreMenu(true);
       console.log('Tab pressed: more - showing menu');
     } else if (['settings', 'notifications', 'faq', 'chat', 'community', 'agenda', 'profile', 'subscription', 'language', 'notification-settings'].includes(tabId)) {
+      // ✅ iOS COMPLIANCE: Block subscription navigation on iOS
+      if (tabId === 'subscription' && Platform.OS === 'ios') {
+        console.log('🎯 [useDashboardNavigation] Subscription navigation blocked on iOS');
+        return;
+      }
       // Écrans spéciaux qui ne sont pas des onglets de navigation - utiliser Stack Navigator
       console.log('Screen navigation:', tabId);
       const routeMap: Record<string, string> = {

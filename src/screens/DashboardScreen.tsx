@@ -432,7 +432,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'agenda': 'Agenda',
       'community': 'Community',
       'chat': 'Chat',
-      'subscription': 'Subscription',
+      // ✅ iOS COMPLIANCE: Subscription removed from navigation on iOS
+      ...(Platform.OS !== 'ios' ? { 'subscription': 'Subscription' } : {}),
       'security': 'Security',
       'language': 'Language',
       'notification-settings': 'NotificationSettings',

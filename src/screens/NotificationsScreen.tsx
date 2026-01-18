@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import { NotificationsScreenProps, NotificationTab } from './notifications/types';
@@ -51,6 +51,11 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
         onTabPress('chat');
         break;
       case 'payment':
+        // ✅ iOS COMPLIANCE: Block subscription navigation on iOS
+        if (Platform.OS === 'ios') {
+          console.log('🎯 [NotificationsScreen] Subscription navigation blocked on iOS');
+          return;
+        }
         onTabPress('subscription');
         break;
       default:
