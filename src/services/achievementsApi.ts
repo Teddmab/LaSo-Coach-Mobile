@@ -117,7 +117,8 @@ class AchievementsApi {
         success: true,
         data: response.data
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error fetching user points:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -144,7 +145,8 @@ class AchievementsApi {
         success: true,
         data: response.data
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error fetching all badges:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
