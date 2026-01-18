@@ -139,6 +139,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'PlatformRules': 'platform-rules',
       'ContactSupport': 'contact-support',
       'About': 'about',
+      'TermsAndPolicies': 'terms-and-policies',
     };
     
     const screenValue = screenMap[screenName] || 'home';
@@ -439,6 +440,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'platform-rules': 'PlatformRules',
       'contact-support': 'ContactSupport',
       'about': 'About',
+      'terms-and-policies': 'TermsAndPolicies',
     };
     return routeMap[screen] || null;
   };
