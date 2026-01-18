@@ -15,7 +15,6 @@ import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
 import { useIOSSimulation } from '../../hooks/useIOSSimulation';
-import CheckStatusButton from '../subscription/CheckStatusButton';
 import { useAuth } from '../../context/FirebaseAuthContext';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
@@ -464,16 +463,7 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             <Text style={styles.lasocoachHighlight}>LaSoCoach</Text>. Vérifiez votre statut ou contactez-nous pour plus d'informations.
           </Text>
           
-          {/* iOS Check Status Button */}
-          <View style={styles.iosCheckStatusContainer}>
-            <CheckStatusButton
-              onStatusChecked={async (hasActiveSubscription) => {
-                if (hasActiveSubscription && refreshProfile) {
-                  await refreshProfile();
-                }
-              }}
-            />
-          </View>
+          {/* iOS: Subscription status managed on web portal */}
         </View>
       </View>
     );
