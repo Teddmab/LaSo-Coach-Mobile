@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../../../constants/theme';
+import { theme } from '../../../constants/theme';
 import { Invoice } from '../types';
 
 interface InvoiceModalProps {

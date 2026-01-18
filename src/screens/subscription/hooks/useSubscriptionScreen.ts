@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavigationProp } from '@react-navigation/native';
-import SubscriptionApi from '../../../../services/subscriptionApi';
-import SubscriptionService from '../../../../services/subscriptionService';
+import SubscriptionApi from '../../../services/subscriptionApi';
+import SubscriptionService from '../../../services/subscriptionService';
 import { Plan, SubscriptionData, Invoice } from '../types';
 import Toast from 'react-native-toast-message';
 

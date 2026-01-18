@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../../../../constants/theme';
+import { theme } from '../../../constants/theme';
 import { SubscriptionData, Invoice } from '../types';
 
 interface ManageSubscriptionCardProps {
