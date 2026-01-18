@@ -362,9 +362,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     // Subscription plans loading disabled - using backend entitlements only
     return;
   };
-      setLoadingPlans(false);
-    }
-  };
 
   const handleCompleteProfile = (): void => {
     setCurrentScreen('profile');
