@@ -106,7 +106,8 @@
       "./plugins/withPreserveIcons.js",
       "./plugins/withIOSCrashFix.js",
       "./plugins/withFixMacOSSupport.js",
-      "./plugins/withPermissionStrings.js"
+      "./plugins/withPermissionStrings.js",
+      "./plugins/withCocoaPodsGitSource.js"
     ]
   }
 }
