@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { useStripe, CardField } from '@stripe/stripe-react-native';
 import { WebView } from 'react-native-webview';
 import SubscriptionApi from '../services/subscriptionApi';
 import { theme } from '../constants/theme';
@@ -48,7 +47,7 @@ export default function SubscriptionPaymentFlow({
   isEmbedded = false, // Si true, ne pas afficher de Modal (intégré dans bottom sheet)
 }) {
   const styles = createStyles(theme);
-  const { confirmPayment } = useStripe();
+  // Stripe SDK removed - payments handled server-side via mobile money or web
   const paymentTracking = usePaymentTracking();
   const { isCompanionMode, companionMessage } = useCompanionMode();
 
@@ -565,29 +564,9 @@ export default function SubscriptionPaymentFlow({
         }
 
         
-        // Utiliser le SDK Stripe pour confirmer le paiement
-        const { error: stripeError, paymentIntent } = await confirmPayment(stripeClientSecret, {
-          paymentMethodType: 'Card',
-        });
-
-        if (stripeError) {
-          throw new Error(stripeError.message || 'Erreur lors de la confirmation du paiement Stripe');
-        }
-
-        if (!paymentIntent) {
-          throw new Error('Aucune information de paiement retournée par Stripe');
-        }
-
-        
-        // Envoyer les données au backend pour finaliser l'abonnement
-        const paymentData = {
-          sessionId: stripeSessionId,
-          clientSecret: stripeClientSecret,
-          paymentIntentId: paymentIntent.id,
-          paymentMethodId: paymentIntent.paymentMethodId,
-        };
-
-        subscriptionData = await SubscriptionApi.confirmStripePayment(paymentData);
+        // Stripe SDK removed - use web checkout or mobile money instead
+        // Payments with cards should be done via web checkout URL
+        throw new Error('Stripe card payments are not available in the app. Please use mobile money or visit the website for card payments.');
         
       } else if (selectedPaymentMethod === 'paypal') {
         // Confirmer le paiement PayPal
@@ -1147,22 +1126,12 @@ export default function SubscriptionPaymentFlow({
         <Text style={styles.stepSubtitle}>Entrez les détails de votre carte bancaire</Text>
 
         <View style={styles.cardInputContainer}>
-          <CardField
-            postalCodeEnabled={false}
-            placeholders={{
-              number: '4242 4242 4242 4242',
-            }}
-            cardStyle={{
-              backgroundColor: theme.colors.background.secondary,
-              borderColor: theme.colors.border,
-              borderWidth: 1,
-              borderRadius: 8,
-              textColor: theme.colors.text.primary,
-              fontSize: 16,
-              placeholderColor: theme.colors.text.secondary,
-            }}
-            style={styles.stripeCardField}
-          />
+          <Text style={styles.stepSubtitle}>
+            Stripe SDK removed - payments handled via mobile money or web checkout
+          </Text>
+          <Text style={styles.stepSubtitle}>
+            Please use mobile money payment method or visit the website for card payments.
+          </Text>
         </View>
 
         <TouchableOpacity

@@ -105,9 +105,7 @@ android {
         versionCode 5
         versionName "1.0.6"
         
-        // FIX: react-native-iap variant ambiguity (Amazon vs Play Store)
-        // Force Play Store variant instead of Amazon
-        missingDimensionStrategy 'store', 'play'
+        // react-native-iap removed - no longer needed
     }
     signingConfigs {
         debug {
