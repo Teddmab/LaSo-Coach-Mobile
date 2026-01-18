@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer, NavigationContainerRef, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-import { StripeProvider } from '@stripe/stripe-react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
@@ -221,8 +220,6 @@ export default function App() {
     return (screenHeight * 0.2) - (toastContentHeight / 2) - toastMarginTop;
   }, [screenHeight]);
   
-  const [stripeKey, setStripeKey] = React.useState<string>(Config.STRIPE_PUBLISHABLE_KEY || 'pk_test_placeholder');
-  
   // Initialize TokenManager at app startup
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
@@ -230,6 +227,7 @@ export default function App() {
       initializeTokenManager();
       
       // Stripe/payment infrastructure removed - using backend entitlements for feature gating
+      // All payment flows are handled via backend, no client-side payment SDKs
 
       // Profile components are now preloaded via static imports at the top of the file
       // This ensures they are bundled and ready immediately at app startup
@@ -239,14 +237,11 @@ export default function App() {
     }
   }, []);
   
-  // Stripe publishable key - from config or backend
-  const STRIPE_PUBLISHABLE_KEY = stripeKey;
-  
-  // TODO: PHASE 5 - Conditionally wrap with StripeProvider based on companion mode
-  // In companion mode, skip StripeProvider to avoid SDK initialization
-  const renderContent = () => {
-    const content = (
-      <>
+  // Payment infrastructure removed - using backend entitlements for feature gating
+  // No StripeProvider needed - all payments handled server-side
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider>
         <AuthProvider>
           <NotificationProvider>
             <ChatProvider>
@@ -264,33 +259,9 @@ export default function App() {
           topOffset={topOffset20Percent}
           config={toastConfig as any}
         />
-      </>
-    );
-
-    if (isIOSCompanionMode()) {
-      // In companion mode, skip StripeProvider to avoid SDK initialization
-      return (
-        <ErrorBoundary>
-          <SafeAreaProvider>
-            {content}
-          </SafeAreaProvider>
-        </ErrorBoundary>
-      );
-    }
-
-    // Normal mode: use StripeProvider
-    return (
-      <ErrorBoundary>
-        <SafeAreaProvider>
-          <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
-            {content}
-          </StripeProvider>
-        </SafeAreaProvider>
-      </ErrorBoundary>
-    );
-  };
-  
-  return renderContent();
+      </SafeAreaProvider>
+    </ErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({
