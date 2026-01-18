@@ -11,7 +11,7 @@
  * - Calendar (scheduling)
  */
 
-export default function withPermissionStrings(config) {
+module.exports = function withPermissionStrings(config) {
   // ========== iOS Configuration ==========
   // Add permission descriptions to iOS Info.plist
   config.ios = config.ios || {};
