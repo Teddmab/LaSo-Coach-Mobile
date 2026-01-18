@@ -50,7 +50,8 @@ class AchievementsApi {
         success: true,
         data: transformedData
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error fetching achievements summary:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
@@ -88,7 +89,8 @@ class AchievementsApi {
         success: true,
         data: response.data
       };
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error fetching badges progress:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data

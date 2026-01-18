@@ -53,13 +53,7 @@ const InvoicesBottomSheet: React.FC<InvoicesBottomSheetProps> = ({
   const fetchInvoices = async () => {
     // Invoice history disabled - subscription payment system removed
     setInvoices([]);
-  };
-    } catch (error) {
-      console.error('Error fetching invoices:', error);
-      setInvoices([]);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   const formatDate = (dateString?: string) => {

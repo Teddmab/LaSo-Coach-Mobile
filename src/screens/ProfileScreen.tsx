@@ -2753,10 +2753,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             </View>
             <View style={styles.planDetails}>
               <Text style={styles.planName}>Premium</Text>
-              <View style={styles.planPricing}>
-                <Text style={styles.planOldPrice}>85$</Text>
-                <Text style={styles.planCurrentPrice}>50$</Text>
               {/* Pricing removed for compliance */}
+              <Text style={styles.planBilling}>Facturé mensuellement</Text>
+              <Text style={styles.planStatus}>Disponible</Text>
+            </View>
+          </View>
           
           <TouchableOpacity style={styles.subscribeButton} onPress={() => handleSubscribe('premium')}>
             <Text style={styles.subscribeButtonText}>S'abonner</Text>
