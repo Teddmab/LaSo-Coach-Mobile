@@ -18,8 +18,16 @@ export const useSettings = () => {
   const fetchProfileData = async (): Promise<void> => {
     try {
       const data = await ProfileApi.getProfile();
+      // Handle case where profile might be null due to Prisma errors
+      if (data) {
       setProfileData(data);
+      } else {
+        console.warn('⚠️ [useSettings] Profile data is null - Prisma error or missing data');
+        setProfileData(null);
+      }
     } catch (error) {
+      console.error('❌ [useSettings] Error fetching profile:', error);
+      setProfileData(null);
     }
   };
 

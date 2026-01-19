@@ -11,6 +11,7 @@ import {
   Platform,
   Keyboard,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
@@ -80,10 +81,16 @@ const CommentBottomSheet: React.FC<CommentBottomSheetProps> = ({
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.backdropTouchable}
             activeOpacity={1}
             onPress={onClose}
-          />
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={styles.backdrop}
+            />
+          </TouchableOpacity>
           <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             {/* Handle */}
             <View style={styles.handleContainer}>
@@ -191,8 +198,10 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  backdropTouchable: {
+    ...StyleSheet.absoluteFillObject,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

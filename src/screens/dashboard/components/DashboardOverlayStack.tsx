@@ -429,17 +429,6 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
 
       case 'Security':
         return (
-          <AccountSettingsScreen
-            onClose={() => stackNavigation.goBack()}
-            activeTab={activeTab}
-            onTabPress={onTabPress}
-            avatarSource={avatarData.avatarSource}
-            avatarFallbackText={avatarData.avatarFallbackText}
-          />
-        );
-
-      case 'SecurityPolicies':
-        return (
           <SecurityScreen
             onClose={() => stackNavigation.goBack()}
             activeTab={activeTab}

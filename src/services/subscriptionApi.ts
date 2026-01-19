@@ -1,7 +1,4 @@
 import api from './api';
-import ReactNativeBlobUtil from 'react-native-blob-util';
-import Config from '../config/env';
-import { AxiosResponse } from 'axios';
 
 export class SubscriptionApi {
   /**
@@ -86,64 +83,12 @@ export class SubscriptionApi {
    */
   static async createPayPalOrder(orderData) {
     try {
+      // Use api instance - interceptor automatically adds Authorization header
+      const response = await api.post('/payments/create-paypal-order', orderData);
       
-      // Get Firebase ID token for authentication
-      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
-      const idToken = await firebaseAuthService.getIdToken();
-      
-      if (!idToken) {
-        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
-      }
-      
-      const endpoint = '/payments/create-paypal-order';
-      const fullUrl = `${Config.API_BASE_URL}${endpoint}`;
-      
-      
-      // Use react-native-blob-util for POST request with JSON body
-      // For JSON requests, we need to pass the stringified JSON as the body
-      // NOTE: This bypasses Axios interceptors completely
-      const response = await ReactNativeBlobUtil.fetch(
-        'POST',
-        fullUrl,
-        {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        JSON.stringify(orderData)
-      );
-      
-      
-      const statusCode = response.info().status;
-      
-      // Parse JSON response (react-native-blob-util provides .json() method)
-      const responseData = response.json();
-      
-      
-      if (statusCode >= 200 && statusCode < 300) {
         // Backend returns { success: true, data: {...} } or { data: {...} }
-        return responseData.data || responseData;
-      } else {
-        // Handle error response from backend
-        const errorMessage = responseData?.error?.message || 
-                           responseData?.message || 
-                           `Erreur ${statusCode}: Erreur lors de la création de la commande PayPal`;
-        const error = new Error(errorMessage);
-        error.response = {
-          status: statusCode,
-          statusText: response.info().statusText,
-          data: responseData
-        };
-        throw error;
-      }
+      return response.data?.data || response.data;
     } catch (error) {
-      // Handle react-native-blob-util errors differently from Axios errors
-      if (error.response) {
-        // Error response available
-      } else if (error.info) {
-        // react-native-blob-util error format
-      }
-      
       throw error;
     }
   }
@@ -155,77 +100,27 @@ export class SubscriptionApi {
    */
   static async createStripeCheckoutSession(sessionData) {
     try {
+      // Use api instance - interceptor automatically adds Authorization header
+      const response = await api.post('/payments/create-stripe-checkout-session', sessionData);
       
-      // Get Firebase ID token for authentication
-      const firebaseAuthService = require('./firebaseAuthServiceNew').default;
-      const idToken = await firebaseAuthService.getIdToken();
-      
-      if (!idToken) {
-        throw new Error('Token d\'authentification manquant. Veuillez vous reconnecter.');
-      }
-      
-      const endpoint = '/payments/create-stripe-checkout-session';
-      const fullUrl = `${Config.API_BASE_URL}${endpoint}`;
-      
-      
-      // Use react-native-blob-util for POST request with JSON body
-      // NOTE: This bypasses Axios interceptors completely
-      const response = await ReactNativeBlobUtil.fetch(
-        'POST',
-        fullUrl,
-        {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        JSON.stringify(sessionData)
-      );
-      
-      
-      const statusCode = response.info().status;
-      
-      // Parse JSON response
-      const responseData = response.json();
-      
-      
-      if (statusCode >= 200 && statusCode < 300) {
         // Backend returns { success: true, data: {...} } or { data: {...} }
-        const sessionData = responseData.data || responseData;
+      const sessionDataResult = response.data?.data || response.data;
         
         // Vérifier le format de la réponse
         // Le backend peut retourner soit une URL (webview) soit sessionId/clientSecret (SDK natif)
         // Les deux sont acceptables : URL sera utilisée dans une webview, sessionId/clientSecret pour le SDK natif
-        if (sessionData?.url || sessionData?.checkoutUrl) {
+      if (sessionDataResult?.url || sessionDataResult?.checkoutUrl) {
           // Retourner l'URL telle quelle, elle sera utilisée dans une webview
-          return sessionData;
+        return sessionDataResult;
         }
         
         // Si pas d'URL, vérifier qu'on a sessionId et clientSecret pour le SDK natif
-        if (!sessionData?.sessionId || !sessionData?.clientSecret) {
-        } else {
-        }
-        
-        return sessionData;
-      } else {
-        // Handle error response from backend
-        const errorMessage = responseData?.error?.message || 
-                           responseData?.message || 
-                           `Erreur ${statusCode}: Erreur lors de la création de la session Stripe`;
-        const error = new Error(errorMessage);
-        error.response = {
-          status: statusCode,
-          statusText: response.info().statusText,
-          data: responseData
-        };
-        throw error;
-      }
-    } catch (error) {
-      if (error.response) {
-        // Error response available
-      } else if (error.info) {
-        // react-native-blob-util error format
+      if (!sessionDataResult?.sessionId || !sessionDataResult?.clientSecret) {
+        // Log warning but don't throw - let the caller handle it
       }
       
+      return sessionDataResult;
+    } catch (error) {
       throw error;
     }
   }

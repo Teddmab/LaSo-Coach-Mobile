@@ -1,6 +1,5 @@
 import api from './api';
 import { API_CONFIG } from '../config/apiConfig';
-import { AxiosResponse } from 'axios';
 
 /**
  * Chat REST API Service

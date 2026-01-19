@@ -69,7 +69,7 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
-  } = useGoogleAuthHybrid(true); // Pass true for registration mode - iOS utilise WebView, Android SDK natif
+  } = useGoogleAuthHybrid(true); // Pass true for registration mode - SDK natif sur iOS et Android
   const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
 
   /**
@@ -545,8 +545,8 @@ export default function RegisterScreen({ navigation }: RegisterScreenProps): Rea
                     )}
                   </TouchableOpacity>
 
-                  {/* Google Signup Button - Only on Android (ou si simulation iOS désactivée) */}
-                  {Platform.OS === 'android' && !isIOSSimulationEnabled && (
+                  {/* Google Signup Button - Temporairement masqué sur iOS */}
+                  {Platform.OS !== 'ios' && (
                     <TouchableOpacity
                       style={[styles.googleButton, loading && styles.registerButtonDisabled]}
                       onPress={handleGoogleSignup}

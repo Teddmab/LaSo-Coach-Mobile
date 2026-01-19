@@ -13,6 +13,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import Toast from 'react-native-toast-message';
@@ -231,10 +232,16 @@ Cette demande a été envoyée depuis l'application mobile LaSo Coach.
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.backdropTouchable}
             activeOpacity={1}
             onPress={handleClose}
-          />
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={styles.backdrop}
+            />
+          </TouchableOpacity>
           <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? 0 : 20 }]}>
             {/* Handle */}
             <View style={styles.handleContainer}>
@@ -392,11 +399,13 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  backdropTouchable: {
+    ...StyleSheet.absoluteFillObject,
+  },
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   container: {
     backgroundColor: '#FFFFFF',

@@ -192,8 +192,14 @@ class ModerationApi {
       const blockedUsers = response.data?.data?.blockedUsers || [];
       console.log('✅ [ModerationApi] Blocked users retrieved:', blockedUsers.length);
       return blockedUsers;
-    } catch (error) {
-      console.error('❌ [ModerationApi] Error fetching blocked users:', error);
+    } catch (error: any) {
+      // Handle 404 gracefully - endpoint might not exist yet
+      if (error.response?.status === 404) {
+        console.warn('⚠️ [ModerationApi] Blocked users endpoint not found (404) - returning empty list');
+        return [];
+      }
+      // For other errors, log as warning since this is not critical
+      console.warn('⚠️ [ModerationApi] Error fetching blocked users (non-critical):', error.message || error);
       return [];
     }
   }
@@ -243,8 +249,14 @@ class ModerationApi {
       };
       console.log('✅ [ModerationApi] Moderation status:', status);
       return status;
-    } catch (error) {
-      console.error('❌ [ModerationApi] Error fetching moderation status:', error);
+    } catch (error: any) {
+      // Handle 404 gracefully - endpoint might not exist yet
+      if (error.response?.status === 404) {
+        console.warn('⚠️ [ModerationApi] Moderation status endpoint not found (404) - using defaults');
+      } else {
+        // For other errors, log as warning since this is not critical
+        console.warn('⚠️ [ModerationApi] Error fetching moderation status (non-critical):', error.message || error);
+      }
       // Default to allowing access if we can't check status
       return {
         canAccess: true,

@@ -106,7 +106,7 @@ export const calculateNutritionPlanDay = (
     return 1;
   }
 
-  const startDate = new Date(subscriptionData.subscription.startDate);
+  const startDate = new Date(subscriptionData.subscription?.startDate);
   startDate.setHours(0, 0, 0, 0);
   
   const currentDate = new Date(selectedDate);

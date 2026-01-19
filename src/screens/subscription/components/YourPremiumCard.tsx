@@ -13,9 +13,9 @@ const YourPremiumCard: React.FC<YourPremiumCardProps> = ({ subscription }) => {
     return null;
   }
 
-  const plan = subscription.subscription.plan;
+  const plan = subscription.subscription?.plan;
   const planName = plan?.name || 'Premium';
-  const daysRemaining = subscription.subscription.daysRemaining || 0;
+  const daysRemaining = subscription.subscription?.daysRemaining || 0;
 
   return (
     <View style={styles.container}>

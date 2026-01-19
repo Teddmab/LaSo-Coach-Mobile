@@ -1,6 +1,14 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import Config from '../config/env';
-import firebaseAuthService from './firebaseAuthServiceNew';
+// Import firebaseAuthService dynamically to avoid circular dependency
+// firebaseAuthServiceNew.ts uses require('./api'), so we must use require() here too
+let firebaseAuthService: any;
+try {
+  const firebaseAuthModule = require('./firebaseAuthServiceNew');
+  firebaseAuthService = firebaseAuthModule.default || firebaseAuthModule;
+} catch (error: any) {
+  console.error('❌ [api] Erreur lors de l\'import de firebaseAuthService:', error?.message);
+  firebaseAuthService = null;
+}
 import { NavigationContainerRef } from '@react-navigation/native';
 import type { 
   LoginResponse, 
@@ -13,16 +21,6 @@ import type {
   ProfileUpdateData, 
   User 
 } from '../types/auth';
-
-// Create axios instance with environment-based configuration
-const api: AxiosInstance = axios.create({
-  baseURL: Config.API_BASE_URL,
-  timeout: Config.API_TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
-});
 
 // Store reference to navigation for redirects
 let navigationRef: NavigationContainerRef<any> | null = null;
@@ -50,9 +48,16 @@ interface MockAPI {
  */
 const ensureFirebaseAuthInitialized = async (): Promise<void> => {
   try {
+    // Load firebaseAuthService dynamically if not already loaded
+    if (!firebaseAuthService) {
+      const firebaseAuthModule = require('./firebaseAuthServiceNew');
+      firebaseAuthService = firebaseAuthModule.default || firebaseAuthModule;
+    }
+    if (firebaseAuthService) {
     const token = await firebaseAuthService.getIdToken();
     if (token) {
     } else {
+      }
     }
   } catch (error: any) {
   }
@@ -77,13 +82,16 @@ export const setNavigationRef = (navigation: NavigationContainerRef<any>): void 
  */
 export const testConnection = async (): Promise<boolean> => {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
     
-    // Try a simple health check or login endpoint
-    const response = await axios.get(`${Config.API_BASE_URL}/health`, {
-      timeout: 10000, // 10 second timeout for connection test
+    const response = await fetch(`${Config.API_BASE_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal,
     });
     
-    return true;
+    clearTimeout(timeoutId);
+    return response.ok;
   } catch (error: any) {
     return false;
   }
@@ -133,83 +141,421 @@ const mockAPI: MockAPI = {
   },
 };
 
-interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+// Request interceptor type
+type RequestInterceptor = (config: RequestConfig) => Promise<RequestConfig> | RequestConfig;
+// Response interceptor types
+type ResponseInterceptor = (response: FetchResponse) => FetchResponse | Promise<FetchResponse>;
+type ResponseErrorInterceptor = (error: FetchError) => Promise<FetchResponse> | Promise<never>;
+
+interface RequestConfig {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body?: any;
+  timeout?: number;
   _retry?: boolean;
-  headers?: any;
 }
 
+interface FetchResponse {
+  data: any;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  config: RequestConfig;
+}
+
+interface FetchError extends Error {
+  response?: FetchResponse;
+  config?: RequestConfig;
+  code?: string;
+  message: string;
+}
+
+// Interceptors storage
+const requestInterceptors: RequestInterceptor[] = [];
+const responseInterceptors: ResponseInterceptor[] = [];
+const responseErrorInterceptors: ResponseErrorInterceptor[] = [];
+
 /**
- * Request interceptor to add Firebase ID tokens to every call (aligned with web app flow).
- * If the user is not authenticated yet, the request proceeds without Authorization header.
+ * Add request interceptor
  */
-api.interceptors.request.use(
-  async (config: any) => {
-    try {
-      if (__DEV__) {
-      }
+const addRequestInterceptor = (fulfilled: RequestInterceptor): void => {
+  requestInterceptors.push(fulfilled);
+};
 
-      // Handle FormData - remove Content-Type only if not explicitly set
-      // Some requests need explicit Content-Type header
-      if (config.data instanceof FormData) {
-        // Only remove Content-Type if it wasn't explicitly set in config
-        if (!config.headers || !config.headers['Content-Type']) {
-          delete config.headers?.['Content-Type'];
-          if (__DEV__) {
-          }
-        } else {
-          if (__DEV__) {
-          }
-        }
-        if (__DEV__) {
-          // FormData detected
-        }
-      }
-
-      // Log full URL before making request
-      const fullUrl = `${config.baseURL || Config.API_BASE_URL}${config.url || ''}`;
-      if (__DEV__) {
-      }
-
-      const idToken = await firebaseAuthService.getIdToken();
-      if (idToken) {
-        if (config.headers) {
-          config.headers.Authorization = `Bearer ${idToken}`;
-        }
-        if (__DEV__) {
-        }
-      } else if (__DEV__) {
-      }
-
-      return config;
-    } catch (error: any) {
-      if (__DEV__) {
-      }
-      return config;
-    }
-  },
-  (error: AxiosError) => {
-    return Promise.reject(error);
+/**
+ * Add response interceptor
+ */
+const addResponseInterceptor = (
+  fulfilled: ResponseInterceptor,
+  rejected?: ResponseErrorInterceptor
+): void => {
+  responseInterceptors.push(fulfilled);
+  if (rejected) {
+    responseErrorInterceptors.push(rejected);
   }
-);
+};
+
+/**
+ * Create timeout controller
+ */
+const createTimeoutController = (timeout: number): AbortController => {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeout);
+  return controller;
+};
+
+/**
+ * Build full URL
+ */
+const buildUrl = (url: string): string => {
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const baseURL = Config.API_BASE_URL.endsWith('/') 
+    ? Config.API_BASE_URL.slice(0, -1) 
+    : Config.API_BASE_URL;
+  const path = url.startsWith('/') ? url : `/${url}`;
+  return `${baseURL}${path}`;
+};
+
+/**
+ * Prepare request body
+ */
+const prepareBody = (data: any, isFormData: boolean): string | FormData => {
+  if (isFormData || data instanceof FormData) {
+    return data;
+  }
+  if (data && typeof data === 'object') {
+    return JSON.stringify(data);
+  }
+  return data;
+};
+
+/**
+ * Parse response
+ */
+const parseResponse = async (response: globalThis.Response): Promise<any> => {
+  const contentType = response.headers.get('content-type');
+  const text = await response.text();
+  
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+  
+  return text;
+};
+
+/**
+ * Create fetch error
+ */
+const createFetchError = (
+  message: string,
+  response?: globalThis.Response,
+  config?: RequestConfig,
+  data?: any
+): FetchError => {
+  const error = new Error(message) as FetchError;
+  if (response) {
+    error.response = {
+      data: data || null,
+      status: response.status,
+      statusText: response.statusText,
+      headers: {},
+      config: config || {} as RequestConfig,
+    };
+  }
+  error.config = config;
+  return error;
+};
+
+/**
+ * Execute request with interceptors
+ */
+const executeRequest = async (config: RequestConfig): Promise<FetchResponse> => {
+  // Apply request interceptors
+  let finalConfig = config;
+  for (const interceptor of requestInterceptors) {
+    finalConfig = await interceptor(finalConfig);
+  }
+
+  const url = buildUrl(finalConfig.url);
+  const isFormData = finalConfig.body instanceof FormData;
+  const body = prepareBody(finalConfig.body, isFormData);
+
+  // Prepare headers
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    ...finalConfig.headers,
+  };
+
+  // Don't set Content-Type for FormData (browser will set it with boundary)
+  if (!isFormData && body && typeof body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  // Create timeout controller
+  const timeout = finalConfig.timeout || Config.API_TIMEOUT || 30000;
+  const controller = createTimeoutController(timeout);
+
+  // Log request details before sending (especially for nutrition plans)
+  if (url.includes('/nutrition/plans')) {
+    const authHeader = headers.Authorization || '';
+    const tokenPreview = authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING';
+    console.log('🌐 [api.executeRequest] Envoi de la requête HTTP fetch()', {
+      method: finalConfig.method,
+      url: url,
+      fullUrl: url,
+      headers: Object.keys(headers),
+      hasAuthorization: !!headers.Authorization,
+      authorizationPreview: tokenPreview,
+      authorizationLength: authHeader.length,
+      hasBody: !!body,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: finalConfig.method,
+      headers,
+      body: body as any,
+      signal: controller.signal,
+    });
+    
+    if (url.includes('/nutrition/plans')) {
+      console.log('📡 [api.executeRequest] Réponse HTTP reçue', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        url: response.url,
+      });
+    }
+
+    const responseData = await parseResponse(response);
+
+    const fetchResponse: FetchResponse = {
+      data: responseData,
+      status: response.status,
+      statusText: response.statusText,
+      headers: {},
+      config: finalConfig,
+    };
+
+    // Copy headers
+    response.headers.forEach((value, key) => {
+      fetchResponse.headers[key] = value;
+    });
+
+    // Apply response interceptors
+    let finalResponse = fetchResponse;
+    for (const interceptor of responseInterceptors) {
+      finalResponse = await interceptor(finalResponse);
+    }
+
+    if (!response.ok) {
+      const error = createFetchError(
+        `Request failed with status ${response.status}`,
+        response,
+        finalConfig,
+        responseData
+      );
+      
+      // Apply error interceptors
+      for (const errorInterceptor of responseErrorInterceptors) {
+        try {
+          return await errorInterceptor(error);
+        } catch (interceptorError) {
+          // Continue to next interceptor or throw
+        }
+      }
+      
+      throw error;
+    }
+
+    return finalResponse;
+  } catch (error: any) {
+    // Handle abort (timeout)
+    if (error.name === 'AbortError') {
+      const timeoutError = createFetchError(
+        'Request timeout',
+        undefined,
+        finalConfig
+      );
+      timeoutError.code = 'ECONNABORTED';
+      
+      // Apply error interceptors
+      for (const errorInterceptor of responseErrorInterceptors) {
+        try {
+          return await errorInterceptor(timeoutError);
+        } catch {
+          // Continue
+        }
+      }
+      
+      throw timeoutError;
+    }
+
+    // Handle network errors
+    const networkError = createFetchError(
+      error.message || 'Network error',
+      undefined,
+      finalConfig
+    );
+    networkError.code = 'ERR_NETWORK';
+
+    // Apply error interceptors
+    for (const errorInterceptor of responseErrorInterceptors) {
+      try {
+        return await errorInterceptor(networkError);
+      } catch {
+        // Continue
+      }
+    }
+
+    throw networkError;
+  }
+};
+
+/**
+ * API client with Axios-like interface
+ */
+const api = {
+  get: async <T = any>(url: string, config?: { timeout?: number; headers?: Record<string, string> }): Promise<FetchResponse> => {
+    return executeRequest({
+      url,
+      method: 'GET',
+      headers: config?.headers || {},
+      timeout: config?.timeout,
+    });
+  },
+
+  post: async <T = any>(url: string, data?: any, config?: { timeout?: number; headers?: Record<string, string> }): Promise<FetchResponse> => {
+    return executeRequest({
+      url,
+      method: 'POST',
+      headers: config?.headers || {},
+      body: data,
+      timeout: config?.timeout,
+    });
+  },
+
+  put: async <T = any>(url: string, data?: any, config?: { timeout?: number; headers?: Record<string, string> }): Promise<FetchResponse> => {
+    return executeRequest({
+      url,
+      method: 'PUT',
+      headers: config?.headers || {},
+      body: data,
+      timeout: config?.timeout,
+    });
+  },
+
+  patch: async <T = any>(url: string, data?: any, config?: { timeout?: number; headers?: Record<string, string> }): Promise<FetchResponse> => {
+    return executeRequest({
+      url,
+      method: 'PATCH',
+      headers: config?.headers || {},
+      body: data,
+      timeout: config?.timeout,
+    });
+  },
+
+  delete: async <T = any>(url: string, config?: { timeout?: number; headers?: Record<string, string> }): Promise<FetchResponse> => {
+    return executeRequest({
+      url,
+      method: 'DELETE',
+      headers: config?.headers || {},
+      timeout: config?.timeout,
+    });
+  },
+};
+
+/**
+ * Request interceptor to add Firebase ID tokens to every call
+ */
+addRequestInterceptor(async (config: RequestConfig) => {
+  try {
+    if (__DEV__) {
+    }
+
+    // Handle FormData - remove Content-Type only if not explicitly set
+    if (config.body instanceof FormData) {
+      if (!config.headers['Content-Type']) {
+        delete config.headers['Content-Type'];
+      }
+      if (__DEV__) {
+        // FormData detected
+      }
+    }
+
+    // Log full URL before making request
+    const fullUrl = buildUrl(config.url);
+    if (__DEV__) {
+    }
+
+    // Load firebaseAuthService dynamically if not already loaded
+    if (!firebaseAuthService) {
+      const firebaseAuthModule = require('./firebaseAuthServiceNew');
+      firebaseAuthService = firebaseAuthModule.default || firebaseAuthModule;
+    }
+    
+    if (firebaseAuthService) {
+    const idToken = await firebaseAuthService.getIdToken();
+    if (idToken) {
+      config.headers.Authorization = `Bearer ${idToken}`;
+      // Log token info for nutrition plans requests
+      if (config.url?.includes('/nutrition/plans')) {
+        console.log('🔑 [api.interceptor] Token JWT ajouté à la requête', {
+          hasToken: !!idToken,
+          tokenLength: idToken.length,
+          tokenPreview: idToken.substring(0, 50) + '...',
+          url: config.url,
+        });
+      }
+      if (__DEV__) {
+      }
+    } else {
+      // Log missing token for nutrition plans requests
+      if (config.url?.includes('/nutrition/plans')) {
+        console.warn('⚠️ [api.interceptor] Token JWT manquant pour la requête', {
+          url: config.url,
+        });
+      }
+      if (__DEV__) {
+      }
+    }
+    }
+
+    return config;
+  } catch (error: any) {
+    if (__DEV__) {
+    }
+    return config;
+  }
+});
 
 /**
  * Response interceptor for token refresh and error handling
  */
-api.interceptors.response.use(
-  (response: AxiosResponse) => {
+addResponseInterceptor(
+  (response: FetchResponse) => {
     // Only log in development mode
     if (__DEV__) {
     }
     return response;
   },
-  async (error: AxiosError) => {
+  async (error: FetchError) => {
     // Log errors with appropriate detail level
     if (__DEV__) {
       if (error.response?.data) {
       }
     }
     
-    const originalRequest = error.config as ExtendedAxiosRequestConfig;
+    const originalRequest = error.config;
 
     // Handle 401 errors (unauthorized)
     if (error.response?.status === 401) {
@@ -222,27 +568,38 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      originalRequest._retry = true;
-
-      try {
-        const newIdToken = await firebaseAuthService.getIdToken(true);
-
-        if (newIdToken && originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
-          return api(originalRequest);
-        }
-      } catch (refreshError: any) {
+      if (originalRequest) {
+        originalRequest._retry = true;
 
         try {
-          await firebaseAuthService.logout();
-        } catch (logoutError: any) {
-        }
+          // Load firebaseAuthService dynamically if not already loaded
+          if (!firebaseAuthService) {
+            const firebaseAuthModule = require('./firebaseAuthServiceNew');
+            firebaseAuthService = firebaseAuthModule.default || firebaseAuthModule;
+          }
+          
+          if (firebaseAuthService) {
+          const newIdToken = await firebaseAuthService.getIdToken(true);
 
-        if (navigationRef) {
-          navigationRef.reset({
-            index: 0,
-            routes: [{ name: 'Login' as never }],
-          });
+          if (newIdToken && originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
+            return executeRequest(originalRequest);
+            }
+          }
+        } catch (refreshError: any) {
+          try {
+            if (firebaseAuthService) {
+            await firebaseAuthService.logout();
+            }
+          } catch (logoutError: any) {
+          }
+
+          if (navigationRef) {
+            navigationRef.reset({
+              index: 0,
+              routes: [{ name: 'Login' as never }],
+            });
+          }
         }
       }
     }
@@ -414,7 +771,7 @@ export const safeJsonParse = (text: string, context: string = 'Unknown'): any | 
 /**
  * Debug response with detailed logging
  */
-export const debugResponse = (response: AxiosResponse, context: string = 'API Response'): void => {
+export const debugResponse = (response: FetchResponse, context: string = 'API Response'): void => {
   if (response.data) {
     // Response data available
   }
@@ -426,7 +783,7 @@ interface FetchOptions {
   body?: string;
 }
 
-interface FetchResponse {
+interface FetchResponseDebug {
   data: any;
   status: number;
   ok: boolean;
@@ -439,9 +796,8 @@ export const debugFetch = async (
   url: string, 
   options: FetchOptions = {}, 
   context: string = 'API Request'
-): Promise<FetchResponse> => {
+): Promise<FetchResponseDebug> => {
   try {
-    
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -450,7 +806,6 @@ export const debugFetch = async (
         ...options.headers,
       },
     });
-    
     
     // Get response text first
     const responseText = await response.text();
@@ -481,9 +836,8 @@ export const createDebuggerVisibleRequest = async (
   url: string, 
   options: FetchOptions = {}, 
   context: string = 'API Request'
-): Promise<FetchResponse> => {
+): Promise<FetchResponseDebug> => {
   try {
-    
     // Use XMLHttpRequest to make it visible in debugger network tab
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -503,7 +857,6 @@ export const createDebuggerVisibleRequest = async (
       
       xhr.onload = function() {
         try {
-          
           const data = JSON.parse(xhr.responseText);
           
           // Make it visible to debugger
@@ -695,12 +1048,11 @@ export const authAPI = {
       // API_BASE_URL doesn't contain /api/v1, so use /api/v1/profile/avatar (same as web)
       endpoint = '/api/v1/profile/avatar';
     }
-    // Don't set Content-Type manually - axios will set it with boundary automatically
+    // Don't set Content-Type manually - fetch will set it with boundary automatically
     const response = await api.patch<{ success: boolean; message: string; data: { avatarUrl: string } }>(endpoint, formData, {
       timeout: 120000, // 120 seconds for image uploads (longer than default)
       headers: {
-        // Don't set Content-Type - axios will set it automatically with boundary for FormData
-        // Setting it manually prevents axios from adding the boundary parameter
+        // Don't set Content-Type - fetch will set it automatically with boundary for FormData
       },
     });
     return response.data;
@@ -819,4 +1171,3 @@ export const authAPI = {
 };
 
 export default api;
-

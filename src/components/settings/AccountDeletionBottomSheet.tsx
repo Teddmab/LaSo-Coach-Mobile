@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../../constants/theme';
@@ -81,10 +82,16 @@ const AccountDeletionBottomSheet: React.FC<AccountDeletionBottomSheetProps> = ({
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.backdropTouchable}
             activeOpacity={1}
             onPress={handleClose}
-          />
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={styles.backdrop}
+            />
+          </TouchableOpacity>
           <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <View style={styles.handle} />
             
@@ -173,7 +180,7 @@ const AccountDeletionBottomSheet: React.FC<AccountDeletionBottomSheetProps> = ({
                       onPress={() => setShowReasonPicker(true)}
                     >
                       <Text style={[styles.selectText, !reason && styles.selectPlaceholder]}>
-                        {reason ? DELETION_REASONS.find(r => r.value === reason)?.label : 'Sélectionnez une raison'}
+                        {reason ? (DELETION_REASONS.find(r => r.value === reason)?.label || 'Sélectionnez une raison') : 'Sélectionnez une raison'}
                       </Text>
                       <Ionicons name="chevron-down" size={20} color="#999" />
                     </TouchableOpacity>
@@ -232,6 +239,17 @@ const AccountDeletionBottomSheet: React.FC<AccountDeletionBottomSheetProps> = ({
         onRequestClose={() => setShowReasonPicker(false)}
       >
         <View style={styles.pickerModal}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setShowReasonPicker(false)}
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={StyleSheet.absoluteFillObject}
+            />
+          </TouchableOpacity>
           <View style={styles.pickerModalContent}>
             <View style={styles.pickerModalHeader}>
               <Text style={styles.pickerModalTitle}>Sélectionnez une raison</Text>
@@ -406,7 +424,6 @@ const styles = StyleSheet.create({
   },
   pickerModal: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   pickerModalContent: {

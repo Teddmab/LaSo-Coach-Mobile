@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { FixedLayout } from './shared';
+import FixedLayout from '../components/FixedLayout';
 import { SecurityForm, DangerZone } from './settings';
 import { useSecurity } from './settings/hooks/useSecurity';
 import { theme } from '../constants/theme';

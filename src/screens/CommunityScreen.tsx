@@ -49,12 +49,19 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     termsAccepted,
     termsLoading,
     showTermsModal,
+    setShowTermsModal,
     handleAcceptTerms,
     handleDeclineTerms,
   } = useUgcTerms();
   
   const handleViewTerms = () => {
     navigation.navigate('TermsAndPolicies' as never);
+  };
+  
+  // Callback to show UGC modal when 403 error indicates terms not accepted
+  const handleUgcTermsRequired = () => {
+    console.log('📋 [CommunityScreen] UGC terms required - showing modal');
+    setShowTermsModal(true);
   };
   
   const {
@@ -93,7 +100,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     modalImageIndex,
     handleImagePress,
     handleCloseImageModal,
-  } = useCommunityScreen(selectedPostId);
+  } = useCommunityScreen(selectedPostId, termsAccepted, handleUgcTermsRequired);
 
   // Gérer l'ouverture du bottom sheet de commentaires
   const handleCommentIconPress = (postId: string) => {
@@ -149,9 +156,9 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
       ) : !termsAccepted ? (
         // User has not accepted terms - show prompt
         <View style={styles.centerContainer}>
-          <Text style={styles.emptyTitle}>📋 Terms Required</Text>
+          <Text style={styles.emptyTitle}>📋 Acceptation requise</Text>
           <Text style={styles.emptyDescription}>
-            Please accept our community guidelines to access community features.
+            Veuillez accepter les règles de la communauté pour accéder aux fonctionnalités de l'Agora.
           </Text>
         </View>
       ) : (

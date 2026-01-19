@@ -35,6 +35,11 @@ import ProfileOtherInfosSection from '../components/profile/ProfileOtherInfosSec
 import OnboardingAccordion from '../components/profile/OnboardingAccordion';
 // Preload DashboardService at module level for instant availability
 import DashboardService from '../services/dashboardService';
+import SubscriptionBanner from '../components/SubscriptionBanner';
+import SubscriptionService from '../services/subscriptionService';
+import AvatarCropBottomSheet from '../components/profile/AvatarCropBottomSheet';
+import ProgressPhotosApi from '../services/progressPhotosApi';
+import api from '../services/api';
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress, onStepCompleted, activeProfileTab }) => {
   const { refreshProfile } = useAuth();
@@ -57,6 +62,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   // Old dropdown states removed - now using modals
   const [consentChecked, setConsentChecked] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showAvatarCropSheet, setShowAvatarCropSheet] = useState(false);
+  const [selectedAvatarImage, setSelectedAvatarImage] = useState<string | null>(null);
   const [rendezvousData, setRendezvousData] = useState(null);
   const [rendezvousLoading, setRendezvousLoading] = useState(true);
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
@@ -214,60 +221,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       
       // Fetch profile data
       const profile = await ProfileApi.getProfile();
-      setProfileData(profile);
       
-      // Parse address if it exists
-      if (profile.address) {
-        const parsedAddress = ProfileApi.parseAddress(profile.address);
-        console.log('👤 Parsed address:', parsedAddress);
-                     const newFormData = {
-               ...formData,
-               firstName: profile.firstName || '',
-               lastName: profile.lastName || '',
-               phone: profile.phoneNumber || '',
-               email: profile.email || '',
-               address1: parsedAddress.address1 || '',
-               address2: parsedAddress.address2 || '',
-               city: parsedAddress.city || '',
-               postalCode: parsedAddress.postalCode || '',
-               country: parsedAddress.country || '',
-               height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : '',
-               initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : '',
-               initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : '',
-               gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : 'Male',
-               occupation: profile.Profile?.occupation || 'Software Engineer',
-               // Target objectives
-               targetWeight: profile.Profile?.targetWeight?.toString() || '',
-               targetWaist: profile.Profile?.targetWaistSize?.toString() || '',
-               generalObjective: profile.Profile?.goal || '',
-               specificObjectives: profile.Profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
-               dietaryRestrictions: profile.Profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
-             };
-        console.log('👤 Setting form data with address:', newFormData);
-        setFormData(newFormData);
-      } else {
-        // Set basic profile data even if no address
-                 const newFormData = {
-           ...formData,
-           firstName: profile.firstName || '',
-           lastName: profile.lastName || '',
-           phone: profile.phoneNumber || '',
-           email: profile.email || '',
-           height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : '',
-           initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : '',
-           initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : '',
-           gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : 'Male',
-           occupation: profile.Profile?.occupation || 'Software Engineer',
-           // Target objectives
-           targetWeight: profile.Profile?.targetWeight?.toString() || '',
-           targetWaist: profile.Profile?.targetWaistSize?.toString() || '',
-           generalObjective: profile.Profile?.goal || '',
-           specificObjectives: profile.Profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
-                          dietaryRestrictions: profile.Profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
-         };
-        console.log('👤 Setting form data without address:', newFormData);
-        setFormData(newFormData);
+      // Handle case where profile might be null due to Prisma errors
+      if (!profile) {
+        console.warn('⚠️ [ProfileScreen] Profile data is null - Prisma error or missing data');
+        setProfileData(null);
+        if (showLoading) {
+          setLoading(false);
+        }
+        return;
       }
+      
+      setProfileData(profile);
       
       // Fetch measurements data
       try {
@@ -288,12 +253,89 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       }
       
       // Fetch dashboard data for onboarding (DashboardService is now preloaded at module level)
+      // IMPORTANT: Load dashboard data BEFORE updating formData so we can use it as a source
+      let dashboard = null;
       try {
-        const dashboard = await DashboardService.getDashboardData();
+        dashboard = await DashboardService.getDashboardData();
         setDashboardData(dashboard);
       } catch (error) {
         console.log('📊 Profile: No dashboard data available');
         setDashboardData(null);
+      }
+      
+      // Now update formData with all available sources (user, profile, dashboardData)
+      // This ensures phone and email are loaded from all possible sources
+      const phoneNumber = 
+        user?.phoneNumber || 
+        user?.phone || 
+        profile?.phoneNumber ||
+        profile?.phone ||
+        dashboard?.Profile?.phoneNumber ||
+        dashboard?.profile?.phoneNumber ||
+        dashboard?.phoneNumber ||
+        formData.phone ||
+        '';
+      
+      const email = 
+        user?.email ||
+        profile?.email ||
+        dashboard?.email ||
+        dashboard?.profile?.email ||
+        formData.email ||
+        '';
+      
+      // Parse address if it exists
+      const address = profile.address || dashboard?.Profile?.address || dashboard?.profile?.address || dashboard?.address || '';
+      if (address) {
+        const parsedAddress = ProfileApi.parseAddress(address);
+        console.log('👤 Parsed address:', parsedAddress);
+        const newFormData = {
+          ...formData,
+          firstName: profile.firstName || dashboard?.Profile?.firstName || dashboard?.profile?.firstName || user?.firstName || '',
+          lastName: profile.lastName || dashboard?.Profile?.lastName || dashboard?.profile?.lastName || user?.lastName || '',
+          phone: phoneNumber,
+          email: email,
+          address1: parsedAddress.address1 || '',
+          address2: parsedAddress.address2 || '',
+          city: parsedAddress.city || '',
+          postalCode: parsedAddress.postalCode || '',
+          country: parsedAddress.country || '',
+          height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : (dashboard?.Profile?.height?.toString().replace('.', ',') || dashboard?.profile?.height?.toString().replace('.', ',') || ''),
+          initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : (dashboard?.Profile?.initialWeight?.toString() || dashboard?.profile?.initialWeight?.toString() || ''),
+          initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : (dashboard?.Profile?.initialWaistSize?.toString() || dashboard?.profile?.initialWaistSize?.toString() || ''),
+          gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : (dashboard?.Profile?.gender === 'male' ? 'Male' : dashboard?.Profile?.gender === 'female' ? 'Female' : dashboard?.profile?.gender === 'male' ? 'Male' : dashboard?.profile?.gender === 'female' ? 'Female' : 'Male'),
+          occupation: profile.Profile?.occupation || dashboard?.Profile?.occupation || dashboard?.profile?.occupation || 'Software Engineer',
+          // Target objectives
+          targetWeight: profile.Profile?.targetWeight?.toString() || dashboard?.Profile?.targetWeight?.toString() || dashboard?.profile?.targetWeight?.toString() || '',
+          targetWaist: profile.Profile?.targetWaistSize?.toString() || dashboard?.Profile?.targetWaistSize?.toString() || dashboard?.profile?.targetWaistSize?.toString() || '',
+          generalObjective: profile.Profile?.goal || dashboard?.Profile?.goal || dashboard?.profile?.goal || '',
+          specificObjectives: profile.Profile?.goals || dashboard?.Profile?.goals || dashboard?.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+          dietaryRestrictions: profile.Profile?.dietaryRestrictions || dashboard?.Profile?.dietaryRestrictions || dashboard?.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+        };
+        console.log('👤 Setting form data with address:', newFormData);
+        setFormData(newFormData);
+      } else {
+        // Set basic profile data even if no address
+        const newFormData = {
+          ...formData,
+          firstName: profile.firstName || dashboard?.Profile?.firstName || dashboard?.profile?.firstName || user?.firstName || '',
+          lastName: profile.lastName || dashboard?.Profile?.lastName || dashboard?.profile?.lastName || user?.lastName || '',
+          phone: phoneNumber,
+          email: email,
+          height: profile.Profile?.height ? profile.Profile.height.toString().replace('.', ',') : (dashboard?.Profile?.height?.toString().replace('.', ',') || dashboard?.profile?.height?.toString().replace('.', ',') || ''),
+          initialWeight: profile.Profile?.initialWeight ? profile.Profile.initialWeight.toString() : (dashboard?.Profile?.initialWeight?.toString() || dashboard?.profile?.initialWeight?.toString() || ''),
+          initialWaist: profile.Profile?.initialWaistSize ? profile.Profile.initialWaistSize.toString() : (dashboard?.Profile?.initialWaistSize?.toString() || dashboard?.profile?.initialWaistSize?.toString() || ''),
+          gender: profile.Profile?.gender === 'male' ? 'Male' : profile.Profile?.gender === 'female' ? 'Female' : (dashboard?.Profile?.gender === 'male' ? 'Male' : dashboard?.Profile?.gender === 'female' ? 'Female' : dashboard?.profile?.gender === 'male' ? 'Male' : dashboard?.profile?.gender === 'female' ? 'Female' : 'Male'),
+          occupation: profile.Profile?.occupation || dashboard?.Profile?.occupation || dashboard?.profile?.occupation || 'Software Engineer',
+          // Target objectives
+          targetWeight: profile.Profile?.targetWeight?.toString() || dashboard?.Profile?.targetWeight?.toString() || dashboard?.profile?.targetWeight?.toString() || '',
+          targetWaist: profile.Profile?.targetWaistSize?.toString() || dashboard?.Profile?.targetWaistSize?.toString() || dashboard?.profile?.targetWaistSize?.toString() || '',
+          generalObjective: profile.Profile?.goal || dashboard?.Profile?.goal || dashboard?.profile?.goal || '',
+          specificObjectives: profile.Profile?.goals || dashboard?.Profile?.goals || dashboard?.profile?.goals || ['Obj spec 1', 'Obj spec 2', 'Obj spec 3', 'Obj spec 4'],
+          dietaryRestrictions: profile.Profile?.dietaryRestrictions || dashboard?.Profile?.dietaryRestrictions || dashboard?.profile?.dietaryRestrictions || ['Végétarien', 'Sans lactose', 'Sans gluten', 'Aucune']
+        };
+        console.log('👤 Setting form data without address:', newFormData);
+        setFormData(newFormData);
       }
 
       // Fetch subscription data
@@ -445,45 +487,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   // Handle avatar upload
-  const handleAvatarUpload = async () => {
-    console.log('📸 Starting avatar upload...');
-    
-    // Prevent multiple uploads
+  // Ouvrir le bottom sheet pour sélectionner et cadrer l'avatar
+  const handleAvatarUpload = () => {
     if (avatarUploading) {
-      console.log('📸 Upload already in progress, ignoring...');
       return;
     }
-    
+    setShowAvatarCropSheet(true);
+  };
+
+  // Upload de l'avatar avec la même méthode que les photos de progression
+  const handleAvatarSave = async (imageUri: string, asset: any) => {
     try {
-      // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Toast.show({
-          type: 'error',
-          text1: 'Permission refusée',
-          text2: 'Veuillez autoriser l\'accès à votre galerie pour changer votre avatar',
-        });
-        return;
-      }
-
-      // Launch image picker
-      // CRITICAL FIX: Disable allowsEditing completely to avoid URI access issues
-      // Without editing, ImagePicker may return more accessible URIs
-      // Users can crop the image manually if needed
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Disabled to avoid content:// URI issues on Android
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        const imageUri = asset.uri;
         setAvatarUploading(true);
         
-        // CRITICAL FIX: Use URI directly as returned by ImagePicker
-        // Do NOT modify the URI - ImagePicker already returns the correct format
-        // Modifying it can cause FileNotFoundException on Android
+      console.log('📸 Starting avatar upload with progress photo method...');
         console.log('📸 Image asset:', {
           uri: imageUri,
           type: asset.type,
@@ -493,26 +510,34 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           fileSize: asset.fileSize
         });
         
-        // CRITICAL: On Android, content:// URIs need special handling
-        // The URI format from ImagePicker should work, but we log it for debugging
-        console.log('📸 Image URI details:', {
-          uri: imageUri,
-          uriType: imageUri.startsWith('content://') ? 'content://' : 
-                   imageUri.startsWith('file://') ? 'file://' : 'unknown',
-          type: asset.type || 'image/jpeg',
-          fileName: asset.fileName || asset.name || `avatar_${Date.now()}.jpg`,
-          fileSize: asset.fileSize,
-          width: asset.width,
-          height: asset.height
-        });
+      // CRITICAL: Déterminer le type MIME correct (même méthode que progress)
+      let mimeType = asset.type || asset.mimeType || 'image/jpeg';
+      
+      // Si le type est juste "image" sans sous-type, déterminer depuis l'URI ou fileName
+      if (mimeType === 'image' || !mimeType.includes('/')) {
+        console.log('⚠️ Type MIME incomplet, détermination depuis URI/fileName...');
+        const uri = imageUri || '';
+        const fileName = asset.fileName || asset.name || '';
         
-        // CRITICAL FIX: Copy content:// URI to accessible location on Android
-        // This ensures the file is accessible for upload (fixes "Network request failed")
-        const mimeType = asset.type || 'image/jpeg';
-        console.log('📁 Preparing file for upload...');
+        if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) {
+          mimeType = 'image/png';
+          console.log('✅ Type déterminé: image/png');
+        } else if (uri.match(/\.(jpg|jpeg)$/i) || fileName.match(/\.(jpg|jpeg)$/i)) {
+          mimeType = 'image/jpeg';
+          console.log('✅ Type déterminé: image/jpeg');
+        } else {
+          mimeType = 'image/jpeg';
+          console.log('✅ Type par défaut: image/jpeg');
+        }
+      }
+      
+      console.log('📸 Type MIME final:', mimeType);
+      
+      // CRITICAL: Copier le fichier vers un emplacement accessible (même méthode que progress)
+      console.log('📁 Préparation du fichier pour upload...');
         const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
         
-        // Prepare file name with proper extension
+      // Préparer le nom de fichier avec la bonne extension
         const fileName = asset.fileName || asset.name || `avatar_${Date.now()}.jpg`;
         const extension = mimeType.includes('png') ? 'png' : 
                          mimeType.includes('gif') ? 'gif' : 
@@ -521,12 +546,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           ? fileName 
           : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
         
-        // Create FormData with accessible URI
-        // CRITICAL: Keep file:// prefix - axios needs it to access the file on React Native
-        // Removing it causes Network Error because axios can't find the file
+      // Créer un objet asset avec l'URI accessible (même structure que progress)
+      const accessibleAsset = {
+        ...asset,
+        uri: accessibleUri,
+        type: mimeType,
+        mimeType: mimeType,
+        fileName: finalFileName,
+        fileSize: asset.fileSize || asset.size,
+      };
+      
+      // Valider la photo (même méthode que progress)
+      const validation: any = ProgressPhotosApi.validatePhoto(accessibleAsset);
+      if (!validation.isValid) {
+        const errorMessage = (validation.errors || []).join(', ');
+        throw new Error(errorMessage);
+      }
+      
+      // Créer FormData pour avatar (utiliser 'avatar' au lieu de 'photo')
         const formData = new FormData();
         formData.append('avatar', {
-          uri: accessibleUri, // Keep file:// prefix - axios needs it
+        uri: accessibleUri,
           type: mimeType,
           name: finalFileName
         });
@@ -534,53 +574,32 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         console.log('📤 FormData prepared for upload:', {
           originalUri: imageUri.substring(0, 50) + '...',
           accessibleUri: accessibleUri.substring(0, 50) + '...',
-          uriType: accessibleUri.startsWith('file://') ? 'file://' : 'content://',
           type: mimeType,
           name: finalFileName
         });
+      
+      // Upload avec ProfileApi.uploadAvatar (utilise PATCH et gère correctement les headers)
         console.log('📤 Uploading avatar...');
         const response = await ProfileApi.uploadAvatar(formData);
+      
         console.log('✅ Avatar uploaded successfully');
         console.log('📥 Full response structure:', JSON.stringify(response, null, 2));
         
-        // Update profile data with new avatar
-        // Backend returns: { success: true, message: "Success", data: { message: "...", avatarUrl: "..." } }
-        // So we need to check response.data.data.avatarUrl first
-        let avatarUrl = response?.data?.data?.avatarUrl ||  // Format backend actuel (sendSuccess)
-                       response?.data?.avatarUrl ||          // Format alternatif
-                       response?.avatarUrl ||                // Format direct
-                       response?.data?.avatar ||             // Format alternatif
-                       response?.avatar;                     // Format direct
+      // Extraire l'URL de l'avatar depuis la réponse
+      // ProfileApi.uploadAvatar retourne directement responseData
+      let avatarUrl = response?.avatarUrl || 
+                     response?.data?.avatarUrl || 
+                     response?.avatar ||
+                     response?.data?.avatar;
         
         console.log('🔍 Extracted avatarUrl:', avatarUrl ? avatarUrl.substring(0, 50) + '...' : 'null');
         
-        // CRITICAL: Verify that the URL is a valid S3 URL (not a local path)
+      // Vérifier que l'URL est valide
         if (avatarUrl) {
-          // Check if URL is valid (must start with http:// or https://)
           const isValidUrl = avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://');
           
           if (!isValidUrl) {
-            console.error('❌ Invalid avatar URL format (not a valid S3 URL):', avatarUrl);
-            console.error('❌ URL appears to be a local path. This indicates S3 upload may have failed.');
-            Toast.show({
-              type: 'error',
-              text1: 'Erreur d\'upload',
-              text2: 'L\'URL de l\'avatar n\'est pas valide. L\'upload vers S3 a peut-être échoué.',
-            });
-            return;
-          }
-          
-          // Additional check: Verify it's an S3 URL (contains s3.amazonaws.com or similar)
-          const isS3Url = avatarUrl.includes('s3.') || 
-                         avatarUrl.includes('amazonaws.com') ||
-                         avatarUrl.includes('s3-') ||
-                         avatarUrl.match(/https?:\/\/.*\.s3\.[\w\-]+\.amazonaws\.com/);
-          
-          if (!isS3Url) {
-            console.warn('⚠️ Avatar URL does not appear to be an S3 URL:', avatarUrl.substring(0, 50));
-            console.warn('⚠️ This might be a CDN or other storage URL. Continuing anyway...');
-          } else {
-            console.log('✅ Valid S3 URL detected:', avatarUrl.substring(0, 50) + '...');
+          throw new Error('L\'URL de l\'avatar n\'est pas valide. L\'upload vers S3 a peut-être échoué.');
           }
           
           setProfileData(prev => ({
@@ -588,11 +607,33 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             avatar: avatarUrl
           }));
           
-          // Rafraîchir le profil dans le contexte pour mettre à jour l'avatar partout
-          try {
-            await refreshProfile();
+        // Rafraîchir le profil dans le contexte pour mettre à jour l'avatar dans l'appbar
+        // Attendre un peu pour laisser le temps au backend de propager l'avatar
+        try {
+          console.log('🔄 Refreshing profile context to update avatar in appbar...');
+          // Petit délai pour laisser le backend propager l'avatar
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          const updatedUser = await refreshProfile();
+          if (updatedUser) {
+            console.log('✅ Profile context updated successfully');
+            console.log('📸 Updated avatar URL in context:', updatedUser.avatar ? updatedUser.avatar.substring(0, 50) + '...' : 'No avatar');
+            
+            // Vérifier que l'avatar a bien été mis à jour
+            if (updatedUser.avatar && updatedUser.avatar === avatarUrl) {
+              console.log('✅ Avatar successfully updated in context - appbar should refresh');
+            } else if (updatedUser.avatar) {
+              console.log('⚠️ Avatar in context differs from uploaded URL - might need another refresh');
+            } else {
+              console.warn('⚠️ Avatar not found in updated user profile - might need another refresh');
+            }
+          } else {
+            console.warn('⚠️ refreshProfile returned null - profile might not be updated');
+          }
           } catch (error) {
-            console.warn('⚠️ Could not refresh profile context:', error);
+          console.error('❌ Error refreshing profile context:', error);
+          // Même si refreshProfile échoue, l'avatar local est mis à jour
+          // L'appbar devrait se mettre à jour au prochain refresh
           }
           
           Toast.show({
@@ -600,32 +641,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             text1: 'Avatar mis à jour',
             text2: 'Votre photo de profil a été mise à jour avec succès',
           });
+        
+        // Fermer le bottom sheet après succès
+        setShowAvatarCropSheet(false);
+        setSelectedAvatarImage(null);
         } else {
-          console.warn('⚠️ No avatar URL found in response');
-          console.warn('⚠️ Response structure:', {
-            hasResponse: !!response,
-            hasData: !!response?.data,
-            hasDataData: !!response?.data?.data,
-            keys: response ? Object.keys(response) : [],
-            dataKeys: response?.data ? Object.keys(response.data) : [],
-            dataDataKeys: response?.data?.data ? Object.keys(response.data.data) : [],
-          });
-          console.warn('⚠️ Full response:', JSON.stringify(response, null, 2));
-          Toast.show({
-            type: 'warning',
-            text1: 'Avatar téléchargé',
-            text2: 'L\'image a été téléchargée mais l\'URL n\'est pas disponible. Rafraîchissez la page.',
-          });
-        }
+        throw new Error('Aucune URL d\'avatar retournée par le serveur');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error uploading avatar:', error);
       
-      // Provide user-friendly error messages
       let errorMessage = 'Impossible de télécharger votre avatar. Veuillez réessayer.';
       
       if (error.message && typeof error.message === 'string') {
-        // Use the error message if it's user-friendly (from our API)
         if (error.message.includes('trop de temps') || 
             error.message.includes('connexion') ||
             error.message.includes('timeout')) {
@@ -641,6 +669,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           errorMessage = 'Session expirée. Veuillez vous reconnecter.';
         } else if (error.response?.data?.message) {
           errorMessage = error.response.data.message;
+        } else {
+          errorMessage = error.message;
         }
       }
       
@@ -649,6 +679,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
         text1: 'Erreur de téléchargement',
         text2: errorMessage,
       });
+      
+      // Ne pas fermer le bottom sheet en cas d'erreur pour permettre de réessayer
+      throw error;
     } finally {
       setAvatarUploading(false);
     }
@@ -1897,6 +1930,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
           keyboardType="email-address"
           editable={false}
         />
+        <Text style={styles.helperText}>
+          L'email est modifiable dans "Sécurité & Connexion"
+        </Text>
       </View>
 
       <View style={styles.fullWidthInput}>
@@ -3028,6 +3064,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
 
   return (
     <>
+      {/* Avatar Crop Bottom Sheet */}
+      <AvatarCropBottomSheet
+        visible={showAvatarCropSheet}
+        onClose={() => {
+          if (!avatarUploading) {
+            setShowAvatarCropSheet(false);
+            setSelectedAvatarImage(null);
+          }
+        }}
+        onSave={handleAvatarSave}
+        initialImageUri={selectedAvatarImage}
+      />
+
       {/* Subscription Banner */}
       {currentStep <= 4 && (
         <SubscriptionBanner 
@@ -3406,6 +3455,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
     color: '#000000', // Texte en noir pour meilleure visibilité
     borderColor: '#CCCCCC',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   textArea: {
     minHeight: 80,

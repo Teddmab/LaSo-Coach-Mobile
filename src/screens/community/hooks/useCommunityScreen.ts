@@ -5,8 +5,13 @@ import { ProfileApi } from '../../../services/profileApi';
 import CommunityApi from '../../../services/communityApi';
 import { useAuth } from '../../../context/FirebaseAuthContext';
 import { Post, Comment, SelectedImage } from '../types';
+import * as ugcTermsService from '../../../services/ugcTermsService';
 
-export const useCommunityScreen = (selectedPostId?: string | null) => {
+export const useCommunityScreen = (
+  selectedPostId?: string | null, 
+  termsAccepted: boolean = true,
+  onUgcTermsRequired?: () => void
+) => {
   const { user: currentUser } = useAuth();
   
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -35,8 +40,16 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
     const fetchProfile = async (): Promise<void> => {
       try {
         const data = await ProfileApi.getProfile();
+        // Handle case where profile might be null due to Prisma errors
+        if (data) {
         setProfileData(data);
+        } else {
+          console.warn('⚠️ [useCommunityScreen] Profile data is null - Prisma error or missing data');
+          setProfileData(null);
+        }
       } catch (error) {
+        console.error('❌ [useCommunityScreen] Error fetching profile:', error);
+        setProfileData(null);
       }
     };
     fetchProfile();
@@ -44,6 +57,14 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
 
   // Fetch community posts
   const fetchCommunityPosts = async (): Promise<void> => {
+    // Don't fetch if terms are not accepted
+    if (!termsAccepted) {
+      console.warn('⚠️ [useCommunityScreen] UGC terms not accepted - skipping posts fetch');
+      setCommunityPosts([]);
+      setCommunityLoading(false);
+      return;
+    }
+    
     try {
       setCommunityLoading(true);
       const response: any = await CommunityApi.getPosts();
@@ -130,8 +151,176 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       });
       
       setCommunityPosts(postsWithMedia);
-    } catch (error) {
-      console.error('❌ Erreur lors de la récupération des posts:', error);
+    } catch (error: any) {
+      // Handle different error types gracefully
+      if (error.response?.status === 401) {
+        console.warn('⚠️ [useCommunityScreen] Unauthorized (401) - token may be expired, posts will be empty');
+      } else if (error.response?.status === 403 || error.status === 403) {
+        // 403 Forbidden - likely UGC terms not accepted on backend
+        const errorMessage = error.response?.data?.message || error.message || error.userMessage || '';
+        const isUgcError = errorMessage.includes('UGC') || 
+                           errorMessage.includes('terms') || 
+                           errorMessage.includes('guidelines') ||
+                           errorMessage.includes('community') ||
+                           errorMessage.toLowerCase().includes('accept') ||
+                           errorMessage.toLowerCase().includes('règles');
+        
+        console.warn('⚠️ [useCommunityScreen] 403 Forbidden detected', {
+          errorMessage,
+          isUgcError,
+          hasCallback: !!onUgcTermsRequired,
+          termsAcceptedLocally: termsAccepted,
+        });
+        
+        // Always show modal for 403 errors related to UGC (even if terms are accepted locally)
+        // This handles cases where backend hasn't synced yet or there's a mismatch
+        if (onUgcTermsRequired && (isUgcError || !termsAccepted)) {
+          console.log('📋 [useCommunityScreen] Triggering UGC terms modal display (403 error)');
+          // Show modal immediately
+          onUgcTermsRequired();
+        }
+        
+        // Try to sync UGC terms with backend if they're accepted locally
+        let shouldRetry = false;
+        try {
+          const userId = currentUser?.id || currentUser?.uid || null;
+          const localStatus = await ugcTermsService.getUgcAcceptanceStatus(userId);
+          console.log('🔍 [useCommunityScreen] Local UGC status:', {
+            userId,
+            accepted: localStatus.accepted,
+            timestamp: localStatus.timestamp,
+            termsAcceptedProp: termsAccepted,
+          });
+          
+          if (localStatus.accepted && localStatus.timestamp) {
+            console.log('🔄 [useCommunityScreen] Re-syncing UGC terms with backend (force sync)...', { userId });
+            // Force re-acceptance to ensure backend is in sync
+            const syncSuccess = await ugcTermsService.acceptUgcTerms(userId);
+            
+            if (syncSuccess) {
+              // Wait a bit for backend to process
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Verify with backend
+              console.log('🔄 [useCommunityScreen] Verifying UGC acceptance with backend...', { userId });
+              const backendStatus = await ugcTermsService.getUgcAcceptanceFromBackend(userId);
+              
+              console.log('🔍 [useCommunityScreen] Backend verification result:', {
+                userId,
+                accepted: backendStatus.accepted,
+                timestamp: backendStatus.timestamp,
+                synced: backendStatus.synced,
+              });
+              
+              if (backendStatus.accepted) {
+                console.log('✅ [useCommunityScreen] UGC terms verified with backend, retrying fetch immediately...', { userId });
+                // Retry immediately - backend should be ready now
+                shouldRetry = true;
+              } else {
+                console.warn('⚠️ [useCommunityScreen] Backend still says UGC not accepted after sync', { userId });
+                // Try one more time after a longer delay
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                const secondCheck = await ugcTermsService.getUgcAcceptanceFromBackend(userId);
+                if (secondCheck.accepted) {
+                  console.log('✅ [useCommunityScreen] UGC terms verified on second check, retrying fetch...');
+                  shouldRetry = true;
+                } else {
+                  console.warn('⚠️ [useCommunityScreen] UGC terms still not verified after second check');
+                  // Still show modal if not already shown
+                  if (onUgcTermsRequired && !isUgcError) {
+                    onUgcTermsRequired();
+                  }
+                }
+              }
+            } else {
+              console.warn('⚠️ [useCommunityScreen] Failed to sync UGC terms to backend');
+              // Still show modal if not already shown
+              if (onUgcTermsRequired && !isUgcError) {
+                onUgcTermsRequired();
+              }
+            }
+          } else {
+            // No local acceptance - modal already shown above
+            console.log('📋 [useCommunityScreen] No local UGC acceptance - modal should be shown');
+            if (onUgcTermsRequired) {
+              onUgcTermsRequired();
+            }
+          }
+        } catch (syncError) {
+          console.warn('⚠️ [useCommunityScreen] Failed to sync UGC terms:', syncError);
+          // Show modal on sync error too
+          if (onUgcTermsRequired) {
+            onUgcTermsRequired();
+          }
+        }
+        
+        // If sync succeeded and backend verified, retry fetching posts
+        if (shouldRetry) {
+          console.log('🔄 [useCommunityScreen] Retrying posts fetch after successful UGC sync...');
+          // Retry immediately - don't set empty posts
+          try {
+            const response: any = await CommunityApi.getPosts();
+            const posts = response.data?.posts || response.posts || [];
+            
+            // Process posts the same way as in the main try block
+            const postsWithMedia = posts.map((post: any) => {
+              const mediaUrls = post.mediaUrls || [];
+              const userData = post.User || post.user || {};
+              const userId = post.userId || post.authorId || post.createdBy || userData.id;
+              
+              const normalizedUser = {
+                id: userId || userData.id || userData.userId || undefined,
+                firstName: userData.firstName || userData.first_name || post.userFirstName || undefined,
+                name: userData.name || userData.fullName || post.userName || userData.firstName || undefined,
+                avatar: userData.avatar || userData.profilePicture || userData.profile_picture || post.userAvatar || undefined,
+              };
+              
+              const likes = post.Like || post.likes || [];
+              const normalizedLikes = Array.isArray(likes) ? likes : [];
+              
+              const comments = post.Comment || post.comments || [];
+              const normalizedComments = Array.isArray(comments) ? comments : [];
+              
+              const preservedCount = {
+                likes: post._count?.likes !== undefined && post._count.likes !== null
+                  ? Number(post._count.likes)
+                  : normalizedLikes.length,
+                comments: post._count?.comments !== undefined && post._count.comments !== null
+                  ? Number(post._count.comments)
+                  : normalizedComments.length,
+              };
+              
+              return {
+                ...post,
+                mediaUrls: mediaUrls,
+                user: normalizedUser,
+                likes: normalizedLikes,
+                _count: preservedCount,
+              };
+            });
+            
+            setCommunityPosts(postsWithMedia);
+            console.log('✅ [useCommunityScreen] Posts successfully fetched after UGC sync');
+            return; // Success - exit without setting empty posts
+          } catch (retryError: any) {
+            console.error('❌ [useCommunityScreen] Retry failed after UGC sync:', retryError.message || retryError);
+            // If retry also fails with 403, there's a deeper issue
+            if (retryError.response?.status === 403) {
+              console.error('❌ [useCommunityScreen] Still getting 403 after UGC sync - backend may have a different issue');
+            }
+            // Fall through to set empty posts
+          }
+        }
+        
+        // Set empty posts only if sync failed or retry failed
+        setCommunityPosts([]);
+        return;
+      } else if (error.response?.status === 404) {
+        console.warn('⚠️ [useCommunityScreen] Posts endpoint not found (404) - returning empty list');
+      } else {
+        console.error('❌ [useCommunityScreen] Erreur lors de la récupération des posts:', error.message || error);
+      }
+      // Set empty array to prevent crashes
       setCommunityPosts([]);
     } finally {
       setCommunityLoading(false);
@@ -139,8 +328,26 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
   };
 
   useEffect(() => {
-    fetchCommunityPosts();
-  }, []);
+    // Only fetch posts if UGC terms are accepted
+    if (termsAccepted) {
+      // Add a longer delay to ensure backend has processed the acceptance
+      // The backend might need time to propagate the UGC acceptance status
+      const timer = setTimeout(() => {
+        console.log('🔄 [useCommunityScreen] Terms accepted, fetching posts after delay...', {
+          termsAccepted,
+          timestamp: new Date().toISOString(),
+        });
+        fetchCommunityPosts();
+      }, 5000); // Increased to 5 seconds to allow backend propagation
+      
+      return () => clearTimeout(timer);
+    } else {
+      // Clear posts if terms are not accepted
+      console.log('📋 [useCommunityScreen] Terms not accepted, clearing posts');
+      setCommunityPosts([]);
+      setCommunityLoading(false);
+    }
+  }, [termsAccepted]);
 
   // Scroll to selected post (uniquement quand selectedPostId change, pas quand communityPosts change)
   useEffect(() => {
@@ -418,6 +625,15 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       return;
     }
 
+    // Vérifier que les termes UGC sont acceptés avant de publier
+    if (!termsAccepted) {
+      Alert.alert(
+        'Acceptation requise',
+        'Vous devez accepter les règles de la communauté pour publier un post.'
+      );
+      return;
+    }
+
     try {
       setIsPublishing(true);
       
@@ -435,10 +651,65 @@ export const useCommunityScreen = (selectedPostId?: string | null) => {
       await fetchCommunityPosts();
       handleCloseCreatePost();
     } catch (error: any) {
+      // Handle 403 Forbidden - UGC terms not accepted on backend
+      if (error.response?.status === 403) {
+        const errorMessage = error.response?.data?.message || '';
+        if (errorMessage.includes('UGC') || errorMessage.includes('terms') || errorMessage.includes('guidelines')) {
+          console.warn('⚠️ [useCommunityScreen] 403 Forbidden - UGC terms not accepted on backend when creating post. Attempting to sync...');
+          
+          // Try to sync UGC terms with backend if they're accepted locally
+          try {
+            const userId = currentUser?.id || currentUser?.uid || null;
+            const localStatus = await ugcTermsService.getUgcAcceptanceStatus(userId);
+            if (localStatus.accepted && localStatus.timestamp) {
+              console.log('🔄 [useCommunityScreen] Re-syncing UGC terms with backend before retrying post creation...', { userId });
+              await ugcTermsService.acceptUgcTerms(userId);
+              console.log('✅ [useCommunityScreen] UGC terms re-synced, retrying post creation...', { userId });
+              
+              // Retry creating the post after a delay to ensure backend has processed
+              setTimeout(async () => {
+                try {
+                  const files: any = selectedImages.map((image, index) => ({
+                    uri: image.uri,
+                    type: image.type || 'image/jpeg',
+                    name: image.fileName || image.name || `post_${Date.now()}_${index}.jpg`,
+                  }));
+                  
+                  await CommunityApi.createPost(newPostText.trim() || '', files);
+                  Alert.alert('Succès', 'Votre post a été publié!');
+                  await fetchCommunityPosts();
+                  handleCloseCreatePost();
+                } catch (retryError: any) {
+                  const retryErrorMessage = retryError.userMessage || 
+                                          retryError.response?.data?.message || 
+                                          'Impossible de publier le post. Veuillez réessayer.';
+                  Alert.alert('Erreur', retryErrorMessage);
+                } finally {
+                  setIsPublishing(false);
+                }
+              }, 2000);
+              return; // Exit early to avoid showing error alert
+            }
+          } catch (syncError) {
+            console.warn('⚠️ [useCommunityScreen] Failed to sync UGC terms:', syncError);
+          }
+          
+          Alert.alert(
+            'Acceptation requise',
+            'Vous devez accepter les règles de la communauté pour publier. Veuillez accepter les termes UGC.'
+          );
+        } else {
+          const errorMessage = error.userMessage || 
+                              error.response?.data?.message || 
+                              'Vous n\'avez pas l\'autorisation de publier ce contenu.';
+          Alert.alert('Erreur', errorMessage);
+        }
+      } else {
       const errorMessage = error.userMessage || 
                           error.response?.data?.message || 
                           'Impossible de publier le post. Veuillez réessayer.';
       Alert.alert('Erreur', errorMessage);
+      }
     } finally {
       setIsPublishing(false);
     }

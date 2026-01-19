@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -100,6 +101,11 @@ const InvoicesBottomSheet: React.FC<InvoicesBottomSheetProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
+        <BlurView
+          intensity={20}
+          tint="dark"
+          style={StyleSheet.absoluteFillObject}
+        />
         <View style={styles.modalContainer}>
           <SafeAreaView style={styles.safeArea} edges={['top']}>
             <View style={styles.modalHeader}>
@@ -184,16 +190,15 @@ const InvoicesBottomSheet: React.FC<InvoicesBottomSheetProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: '90%',
+    height: '70%',
     minHeight: 400,
-    flex: 1,
+    maxHeight: 600,
   },
   safeArea: {
     flex: 0,

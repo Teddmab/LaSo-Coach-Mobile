@@ -7,6 +7,9 @@ import DashboardLayout from './dashboard/components/DashboardLayout';
 import { DashboardOverlayStack } from './dashboard/components/DashboardOverlayStack';
 import FixedLayout from '../components/FixedLayout';
 import MoreMenu from '../components/MoreMenu';
+import WelcomeBottomSheet from '../components/auth/WelcomeBottomSheet';
+import WelcomeBackBottomSheet from '../components/auth/WelcomeBackBottomSheet';
+import { useWelcomeFlow } from '../hooks/useWelcomeFlow';
 import { useDashboardData } from './dashboard/hooks/useDashboardData';
 import { useSubscription } from './dashboard/hooks/useSubscription';
 import { useDashboardNavigation } from './dashboard/hooks/useDashboardNavigation';
@@ -43,8 +46,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // TODO: PHASE 6 - Get user entitlements to determine feature access
   const { entitlements, loading: entitlementsLoading, canAccess, refresh: refreshEntitlements } = useEntitlements();
   
+  // Welcome flow hook
+  const {
+    showWelcomeBottomSheet,
+    showWelcomeBackBottomSheet,
+    isNewUser,
+    handleWelcomeStart,
+    handleWelcomeBackComplete,
+  } = useWelcomeFlow();
+  
   // Custom hooks for data management
-  const { dashboardData, fetchDashboardData, setDashboardData } = useDashboardData();
+  const { dashboardData, fetchDashboardData, setDashboardData, loading: dashboardLoading } = useDashboardData();
   const { 
     subscriptionData, 
     showSubscriptionAlert, 
@@ -347,6 +359,28 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }, [])
   );
 
+  // Handle welcome back bottom sheet - load data in background (user closes manually)
+  useEffect(() => {
+    if (showWelcomeBackBottomSheet) {
+      // Load all dashboard data in background
+      const loadData = async () => {
+        try {
+          await Promise.all([
+            fetchDashboardData(),
+            fetchAchievementsData(),
+            fetchAgendaData(),
+            fetchCommunityPosts(),
+            checkSubscriptionStatus(),
+          ]);
+        } catch (error) {
+          console.error('❌ [DashboardScreen] Error loading data:', error);
+        }
+      };
+      
+      loadData();
+    }
+  }, [showWelcomeBackBottomSheet, fetchDashboardData, fetchAchievementsData, fetchAgendaData, fetchCommunityPosts, checkSubscriptionStatus]);
+
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
     // Sur iOS, ne pas rediriger vers la page subscription (Reader App model)
@@ -450,10 +484,48 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     ? getOverlayRouteName(currentScreen) || 'Home' 
     : 'Home';
 
+  // Get user name for welcome bottom sheet - vérifier plusieurs sources
+  const userName = useMemo(() => {
+    // Priorité 1: firstName depuis user
+    if (user?.firstName) {
+      return user.firstName;
+    }
+    // Priorité 2: name depuis user (extraire le prénom si c'est "Prénom Nom")
+    if (user?.name) {
+      const nameParts = user.name.trim().split(' ');
+      return nameParts[0] || user.name;
+    }
+    // Priorité 3: firstName depuis dashboardData
+    if (dashboardData?.Profile?.firstName) {
+      return dashboardData.Profile.firstName;
+    }
+    if (dashboardData?.profile?.Profile?.firstName) {
+      return dashboardData.profile.Profile.firstName;
+    }
+    if (dashboardData?.profile?.firstName) {
+      return dashboardData.profile.firstName;
+    }
+    // Fallback
+    return 'Utilisateur';
+  }, [user?.firstName, user?.name, dashboardData?.Profile?.firstName, dashboardData?.profile?.Profile?.firstName, dashboardData?.profile?.firstName]);
+
   // Screen routing logic - Use Stack Navigator for overlay screens
   // Always render Stack Navigator, but only show it when currentScreen is an overlay screen
   if (currentScreen !== 'home' && getOverlayRouteName(currentScreen)) {
     return (
+      <>
+        {/* Welcome Bottom Sheet for new users */}
+        <WelcomeBottomSheet
+          visible={showWelcomeBottomSheet}
+          userName={userName}
+          onStart={handleWelcomeStart}
+        />
+
+        {/* Welcome Back Bottom Sheet for returning users */}
+        <WelcomeBackBottomSheet
+          visible={showWelcomeBackBottomSheet}
+          onClose={handleWelcomeBackComplete}
+        />
       <DashboardOverlayStack
         user={user}
         activeTab={activeTab}
@@ -481,6 +553,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         overlayNavigationRef={overlayNavigationRef}
         initialRouteName={overlayInitialRoute}
       />
+      </>
     );
   }
   
@@ -490,6 +563,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'progress') {
     return (
       <>
+        {/* Welcome Bottom Sheet for new users */}
+        <WelcomeBottomSheet
+          visible={showWelcomeBottomSheet}
+          userName={userName}
+          onStart={handleWelcomeStart}
+        />
+
+        {/* Welcome Back Bottom Sheet for returning users */}
+        <WelcomeBackBottomSheet
+          visible={showWelcomeBackBottomSheet}
+          onClose={handleWelcomeBackComplete}
+        />
         <FixedLayout
           headerTitle="Progression"
           activeTab={activeTab}
@@ -521,6 +606,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'nutrition') {
     return (
       <>
+        {/* Welcome Bottom Sheet for new users */}
+        <WelcomeBottomSheet
+          visible={showWelcomeBottomSheet}
+          userName={userName}
+          onStart={handleWelcomeStart}
+        />
+
+        {/* Welcome Back Bottom Sheet for returning users */}
+        <WelcomeBackBottomSheet
+          visible={showWelcomeBackBottomSheet}
+          onClose={handleWelcomeBackComplete}
+        />
         <FixedLayout
           headerTitle="Nutrition"
           activeTab={activeTab}
@@ -552,6 +649,18 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'achievements') {
     return (
       <>
+        {/* Welcome Bottom Sheet for new users */}
+        <WelcomeBottomSheet
+          visible={showWelcomeBottomSheet}
+          userName={userName}
+          onStart={handleWelcomeStart}
+        />
+
+        {/* Welcome Back Bottom Sheet for returning users */}
+        <WelcomeBackBottomSheet
+          visible={showWelcomeBackBottomSheet}
+          onClose={handleWelcomeBackComplete}
+        />
         <FixedLayout
           headerTitle="Réalisations"
           activeTab={activeTab}
@@ -582,6 +691,19 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // Default home screen
   return (
     <>
+      {/* Welcome Bottom Sheet for new users */}
+      <WelcomeBottomSheet
+        visible={showWelcomeBottomSheet}
+        userName={userName}
+        onStart={handleWelcomeStart}
+      />
+
+      {/* Welcome Back Bottom Sheet for returning users */}
+      <WelcomeBackBottomSheet
+        visible={showWelcomeBackBottomSheet}
+        onClose={handleWelcomeBackComplete}
+      />
+
       <DashboardLayout
         user={user}
         activeTab={activeTab}

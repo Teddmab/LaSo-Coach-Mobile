@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 // DateTimePicker will be implemented with a modal-based approach
@@ -194,10 +195,16 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.backdropTouchable}
             activeOpacity={1}
             onPress={onClose}
-          />
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={styles.backdrop}
+            />
+          </TouchableOpacity>
           <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             {/* Handle */}
             <View style={styles.handleContainer}>
@@ -316,6 +323,17 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
               onRequestClose={() => setShowDatePicker(false)}
             >
               <View style={styles.pickerModal}>
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFillObject}
+                  activeOpacity={1}
+                  onPress={() => setShowDatePicker(false)}
+                >
+                  <BlurView
+                    intensity={20}
+                    tint="dark"
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </TouchableOpacity>
                 <View style={styles.pickerModalContent}>
                   <View style={styles.pickerModalHeader}>
                     <Text style={styles.pickerModalTitle}>Sélectionner la date</Text>
@@ -446,6 +464,17 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
               onRequestClose={() => setShowTimePicker(false)}
             >
               <View style={styles.pickerModal}>
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFillObject}
+                  activeOpacity={1}
+                  onPress={() => setShowTimePicker(false)}
+                >
+                  <BlurView
+                    intensity={20}
+                    tint="dark"
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </TouchableOpacity>
                 <View style={styles.pickerModalContent}>
                   <View style={styles.pickerModalHeader}>
                     <Text style={styles.pickerModalTitle}>Sélectionner l'heure</Text>
@@ -571,9 +600,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  backdropTouchable: {
+    ...StyleSheet.absoluteFillObject,
+  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   container: {
     backgroundColor: '#FFFFFF',
@@ -714,7 +745,6 @@ const styles = StyleSheet.create({
   },
   pickerModal: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   pickerModalContent: {

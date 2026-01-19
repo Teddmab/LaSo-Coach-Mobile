@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -92,6 +93,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { completeProfileSetup, loading } = useOnboarding();
+  const { user: authUser } = useAuth(); // Récupérer l'utilisateur depuis le contexte Firebase
   const [currentSubStep, setCurrentSubStep] = useState(1);
   
   // Form data
@@ -128,14 +130,23 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         user?.phoneNumber || 
         user?.phone || 
         dashboardData?.Profile?.phoneNumber ||
+        dashboardData?.profile?.Profile?.phoneNumber ||
         dashboardData?.profile?.phoneNumber ||
         dashboardData?.phoneNumber ||
         '';
       
       // Récupérer les autres données
-      const firstName = user?.firstName || dashboardData?.Profile?.firstName || dashboardData?.profile?.firstName || '';
-      const lastName = user?.lastName || dashboardData?.Profile?.lastName || dashboardData?.profile?.lastName || user?.name?.split(' ')[1] || '';
-      const email = user?.email || dashboardData?.email || '';
+      const firstName = user?.firstName || dashboardData?.Profile?.firstName || dashboardData?.profile?.Profile?.firstName || dashboardData?.profile?.firstName || '';
+      const lastName = user?.lastName || dashboardData?.Profile?.lastName || dashboardData?.profile?.Profile?.lastName || dashboardData?.profile?.lastName || user?.name?.split(' ')[1] || '';
+      // Récupérer l'email depuis toutes les sources possibles (priorité au contexte Firebase)
+      const email = 
+        authUser?.email ||
+        user?.email || 
+        dashboardData?.email ||
+        dashboardData?.profile?.email ||
+        dashboardData?.Profile?.email ||
+        dashboardData?.profile?.Profile?.email ||
+        '';
       
       // Récupérer l'adresse depuis dashboardData si disponible
       const address = dashboardData?.Profile?.address || dashboardData?.profile?.address || dashboardData?.address || '';
@@ -180,7 +191,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         occupation,
       }));
     }
-  }, [user, dashboardData, visible]);
+  }, [user, dashboardData, visible, authUser]);
 
   // Reset form when modal closes
   useEffect(() => {
@@ -352,13 +363,17 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Email *</Text>
         <TextInput
-          style={[styles.input, errors.email && styles.inputError]}
+          style={[styles.input, styles.disabledInput, errors.email && styles.inputError]}
           placeholder="Entrez votre email"
           value={formData.email}
           onChangeText={(text) => updateFormData('email', text)}
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={false}
         />
+        <Text style={styles.helperText}>
+          L'email est modifiable dans "Sécurité & Connexion"
+        </Text>
         {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
       </View>
     </View>
@@ -620,10 +635,16 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.backdropTouchable}
             activeOpacity={1}
             onPress={onClose}
-          />
+          >
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={styles.backdrop}
+            />
+          </TouchableOpacity>
           <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             {/* Handle */}
             <View style={styles.handleContainer}>
@@ -713,9 +734,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
+  backdropTouchable: {
+    ...StyleSheet.absoluteFillObject,
+  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   container: {
     backgroundColor: '#FFFFFF',
@@ -818,6 +841,17 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: theme.colors.error,
+  },
+  disabledInput: {
+    backgroundColor: '#F5F5F5',
+    color: '#000000',
+    borderColor: '#CCCCCC',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   errorText: {
     color: theme.colors.error,

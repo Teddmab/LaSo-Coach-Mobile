@@ -21,8 +21,16 @@ export const useAgenda = () => {
     const fetchProfile = async (): Promise<void> => {
       try {
         const data = await ProfileApi.getProfile();
+        // Handle case where profile might be null due to Prisma errors
+        if (data) {
         setProfileData(data);
+        } else {
+          console.warn('⚠️ [useAgenda] Profile data is null - Prisma error or missing data');
+          setProfileData(null);
+        }
       } catch (error) {
+        console.error('❌ [useAgenda] Error fetching profile:', error);
+        setProfileData(null);
       }
     };
     fetchProfile();

@@ -97,7 +97,35 @@ export class DashboardService {
       }
       
       return profileData;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle Prisma database schema errors gracefully
+      const errorMessage = error.response?.data?.message || error.message || '';
+      const isPrismaError = errorMessage.includes('Prisma') || 
+                           errorMessage.includes('prisma') ||
+                           errorMessage.includes('does not exist in the current database') ||
+                           (errorMessage.includes('column') && errorMessage.includes('does not exist'));
+      
+      if (error.response?.status === 400 && isPrismaError) {
+        console.warn('⚠️ [DashboardService] Prisma database schema error - returning partial profile data');
+        // Return minimal profile data to allow dashboard to continue
+        return {
+          id: null,
+          name: null,
+          email: null,
+          firstName: null,
+          lastName: null,
+          avatar: null,
+          initialWeight: null,
+          goalWeight: null,
+          targetWeight: null,
+          initialWaistSize: null,
+          targetWaistSize: null,
+          currentPhase: null,
+          hasActiveSubscription: false,
+          profile: null
+        };
+      }
+      
       throw error;
     }
   }

@@ -62,12 +62,29 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                                  subscriptionData?.hasActiveSubscription === true ||
                                  (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
   
+  // Log pour debug
+  if (__DEV__) {
+    console.log('🔍 [NutritionScreen] Subscription check:', {
+      subscriptionData: subscriptionData ? {
+        status: subscriptionData.status,
+        hasActiveSubscription: subscriptionData.hasActiveSubscription,
+        isExpired: subscriptionData.isExpired,
+        subscriptionStatus: subscriptionData.subscription?.status,
+      } : null,
+      hasActiveSubscription,
+      currentPlan: currentPlan ? { id: currentPlan.id, name: currentPlan.name } : null,
+      plansResponseStatus,
+      willShowLockCard: (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200,
+    });
+  }
+  
   // Sur Android : Si pas d'abonnement, on utilise showBlurOverlay (carte "Menus verrouillés" dans NutritionCard)
   // Sur iOS : Si pas d'abonnement, on floute au lieu d'afficher la carte "Menus verrouillés"
   const shouldShowBlur = (isIOS && !hasActiveSubscription) || (showBlurOverlay && !isIOS);
   const [profileData, setProfileData] = useState<any>(null);
   const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
   const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
+  const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
   const [dayMeals, setDayMeals] = useState<Meal[]>([]);
   const [tomorrowMeals, setTomorrowMeals] = useState<Meal[]>([]);
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus | null>(null);
@@ -149,6 +166,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const lastFetchAttemptRef = React.useRef<{ planId: string | null; subscriptionId: string | null } | null>(null);
 
   useEffect(() => {
+    console.log('🔄 [NutritionScreen] useEffect - Démarrage du chargement initial');
     fetchAllData();
     hasInitialLoadRef.current = true;
   }, []);
@@ -196,9 +214,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       logger.group('📥 FETCH ALL DATA - Initial Load');
       logger.info('Starting data fetch for NutritionScreen');
       
-      // ✅ COMPLIANCE: In iOS companion mode, skip all premium content fetching
+      // ✅ COMPLIANCE: In iOS companion mode, still send request but handle response differently
       if (isCompanionMode) {
-        logger.info('🍎 iOS COMPANION MODE: Skipping premium content fetch');
+        logger.info('🍎 iOS COMPANION MODE: Will still send request to backend');
+        // Set companion mode subscription data but still fetch plans
         setSubscriptionData({
           status: 'COMPANION_MODE',
           accessLevel: 'FREE',
@@ -210,15 +229,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           isExpiringSoon: false,
           requiresRenewal: false,
         } as any);
-        setNutritionPlans([]);
-        setCurrentPlan(null);
-        setDayMeals([]);
-        setTomorrowMeals([]);
-        setCompletionStatus(null);
-        setLoading(false);
-        setIsFetchingAllData(false);
-        logger.groupEnd();
-        return;
+        // Continue to fetch plans - don't return early
       }
       
       // Step 1: Fetch subscription status FIRST to determine if we should fetch plans
@@ -251,10 +262,15 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       
       // Always fetch plans (even if expired) to get fresh data, but log expected behavior
       logger.debug('API Request: Fetching profile and nutrition plans');
+      console.log('🔄 [NutritionScreen] Envoi des requêtes API (profile + nutrition plans)');
       const [profileRes, plansRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
         nutritionAPI.getPlans()
       ]);
+      console.log('✅ [NutritionScreen] Requêtes API terminées', {
+        profileStatus: profileRes.status,
+        plansStatus: plansRes.status,
+      });
 
       // Handle profile data
       logger.group('👤 PROFILE DATA');
@@ -339,19 +355,24 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // Handle nutrition plans
       logger.group('🍽️ NUTRITION PLANS DATA');
       if (plansRes.status === 'fulfilled') {
-        const plansData = plansRes.value;
-        const plansCount = plansData?.data?.plans?.length || 0;
+        const plansResponse = plansRes.value;
+        const plansData = plansResponse?.data || plansResponse; // Support both old and new format
+        const httpStatus = plansResponse?.status || 200; // Default to 200 if not provided
+        const plansCount = plansData?.data?.plans?.length || plansData?.plans?.length || 0;
+        
+        // Store HTTP status for lock card logic
+        setPlansResponseStatus(httpStatus);
         
         logger.debug('API Response: Nutrition plans received', {
           status: 'success',
-          httpStatus: '200 OK',
+          httpStatus: `${httpStatus} ${httpStatus === 200 ? 'OK' : ''}`,
           requestType: 'GET /nutrition/plans',
-          hasData: !!plansData?.data,
+          hasData: !!plansData?.data || !!plansData,
           plansCount,
           responseStructure: {
-            hasData: !!plansData?.data,
-            hasPlansArray: Array.isArray(plansData?.data?.plans),
-            plansArrayLength: plansData?.data?.plans?.length || 0,
+            hasData: !!plansData?.data || !!plansData,
+            hasPlansArray: Array.isArray(plansData?.data?.plans) || Array.isArray(plansData?.plans),
+            plansArrayLength: plansData?.data?.plans?.length || plansData?.plans?.length || 0,
           }
         });
         
@@ -393,7 +414,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           })) || [],
         });
         
-        const allPlans = plansData?.data?.plans || [];
+        const allPlans = plansData?.data?.plans || plansData?.plans || [];
         setNutritionPlans(allPlans);
         
         // Logic: Set current plan (first active plan or first available)
@@ -411,7 +432,30 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           result: activePlan ? 'Plan selected' : 'No plan available'
         });
         
-        if (activePlan) {
+        // If status is 200, always load and display the plan (even in iOS companion mode)
+        if (httpStatus === 200 && activePlan) {
+          setCurrentPlan(activePlan);
+          loadedPlan = activePlan; // Sauvegarder pour la référence
+          logger.info('Current plan set (status 200)', { planName: activePlan.name, planId: activePlan.id, isCompanionMode });
+          
+          // If in companion mode but status is 200, update subscription data to allow plan display
+          if (isCompanionMode) {
+            logger.info('🍎 iOS COMPANION MODE: Status 200 received, allowing plan display');
+            setSubscriptionData({
+              status: 'ACTIVE',
+              accessLevel: 'ACTIVE',
+              daysRemaining: 999,
+              hasActiveSubscription: true,
+              subscription: {
+                status: 'ACTIVE',
+                isExpired: false,
+              },
+              isExpired: false,
+              isExpiringSoon: false,
+              requiresRenewal: false,
+            } as any);
+          }
+        } else if (activePlan) {
           setCurrentPlan(activePlan);
           loadedPlan = activePlan; // Sauvegarder pour la référence
           logger.info('Current plan set', { planName: activePlan.name, planId: activePlan.id });
@@ -427,8 +471,28 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           });
         }
       } else {
+        // Handle error case - set status from error response if available
+        const errorReason = plansRes.reason as any;
+        const errorStatus = errorReason?.response?.status || errorReason?.status || null;
+        const errorMessage = errorReason?.response?.data?.message || errorReason?.message || '';
+        const errorMessageLower = errorMessage.toLowerCase();
+        
+        setPlansResponseStatus(errorStatus);
+        
+        // Log error status for debugging
+        if (errorStatus === 403) {
+          logger.warn('⚠️ [NutritionScreen] 403 Forbidden - Access denied', {
+            errorMessage,
+            subscriptionStatus: subscription?.status,
+            isExpired: subscription?.isExpired,
+            action: 'Will show locked menu card'
+          });
+        }
+        
         logger.error('API Response: Nutrition plans fetch failed', {
           error: plansRes.reason,
+          httpStatus: errorStatus,
+          errorMessage,
           subscriptionStatus: subscription?.status,
           isExpired: subscription?.isExpired,
           note: 'This is an actual API error, not an empty response'
@@ -1330,6 +1394,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // Check if a date is outside subscription coverage
   const isDateOutsideSubscription = (date: Date) => {
+    // If status is 200, no restrictions on calendar
+    if (plansResponseStatus === 200) {
+      return false;
+    }
+    
     // Réduire les logs pour éviter la répétition excessive
     if (!subscriptionData) {
       return false;
@@ -1383,8 +1452,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     return weekDays;
   };
 
-  // Recalculate weekDays whenever subscriptionData changes
-  const weekDays = useMemo(() => generateWeekDays(), [subscriptionData]);
+  // Recalculate weekDays whenever subscriptionData or plansResponseStatus changes
+  const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus]);
 
   const formatDate = (date: Date) => {
     const months = [
@@ -1644,7 +1713,18 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                   day.isOutsideSubscription && styles.outsideSubscriptionDay
                 ]}
                 onPress={() => {
-                  if (day.isOutsideSubscription) {
+                  // If status is 200, allow all dates (no restrictions)
+                  if (plansResponseStatus === 200) {
+                    logger.info('User Action: Date selected (status 200 - no restrictions)', {
+                      selectedDate: day.number,
+                      selectedDayOfWeek: day.dayOfWeek,
+                      isToday: day.isToday,
+                    });
+                    setSelectedDate(day.number);
+                    setSelectedDay(day.dayOfWeek);
+                    // Clear selected meal when date changes
+                    setSelectedMeal(null);
+                  } else if (day.isOutsideSubscription) {
                     // Sur iOS, afficher une notification Toast au lieu d'une Alert
                     if (isIOS) {
                       Toast.show({
@@ -1716,8 +1796,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </ScrollView>
         </View>
 
-        {/* Locked Menu Card - Show when no active plan or subscription expired */}
-        {(!currentPlan || !hasActiveSubscription) && (
+        {/* Locked Menu Card - Show when no active plan or subscription expired, but NOT if HTTP status is 200 */}
+        {(!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200 && (
           <View style={styles.lockedMenuCard}>
             <View style={styles.lockedMenuHeader}>
               <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
@@ -1761,7 +1841,26 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         )}
 
         {/* Meals List - Only show when there's an active plan AND active subscription */}
-        {currentPlan && hasActiveSubscription && (
+        {(() => {
+          if (__DEV__) {
+            console.log('🍽️ [NutritionScreen] Meals List Display Check:', {
+              hasCurrentPlan: !!currentPlan,
+              currentPlanId: currentPlan?.id,
+              currentPlanName: currentPlan?.name,
+              hasActiveSubscription,
+              subscriptionStatus: subscriptionData?.status,
+              subscriptionDataKeys: subscriptionData ? Object.keys(subscriptionData) : [],
+              plansResponseStatus,
+              willShowMeals: plansResponseStatus === 200 || (currentPlan && hasActiveSubscription),
+              willShowLockCard: (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200,
+              dayMealsCount: dayMeals.length,
+              tomorrowMealsCount: tomorrowMeals.length,
+            });
+          }
+          return null;
+        })()}
+        {/* Meals List - Show when status is 200 OR when there's an active plan AND active subscription */}
+        {(plansResponseStatus === 200 || (currentPlan && hasActiveSubscription)) && (
           <View style={styles.mealsContainer}>
             {/* Today's Meals */}
             {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (

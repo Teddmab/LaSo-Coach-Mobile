@@ -1,8 +1,30 @@
 import { useCallback, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/FirebaseAuthContext';
+
+// Import dynamique du module natif pour éviter les erreurs si le module n'est pas lié
+// IMPORTANT: Sur iOS, on n'essaie PAS de charger le module pour éviter les erreurs TurboModuleRegistry
+let GoogleSignin: any = null;
+let statusCodes: any = null;
+
+// Fonction pour charger le module de manière lazy (appelée seulement quand nécessaire)
+const loadGoogleSignInModule = () => {
+  // Ne pas charger le module sur iOS
+  if (Platform.OS === 'ios') {
+    return;
+  }
+
+try {
+  const googleSignInModule = require('@react-native-google-signin/google-signin');
+  GoogleSignin = googleSignInModule.GoogleSignin;
+  statusCodes = googleSignInModule.statusCodes;
+} catch (error) {
+    // Ne pas logger l'erreur pour éviter le spam dans les logs
+    GoogleSignin = null;
+    statusCodes = null;
+}
+};
 
 interface GoogleAuthResult {
   user: any | null;
@@ -24,6 +46,11 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
   const [isPrompting, setIsPrompting] = useState<boolean>(false);
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   
+  // Charger le module de manière lazy (seulement si pas déjà chargé)
+  if (!GoogleSignin && Platform.OS !== 'ios') {
+    loadGoogleSignInModule();
+  }
+  
   // Sélectionner la bonne fonction selon le mode
   // Pour l'inscription, utiliser registerWithGoogle, sinon loginWithGoogle
   const googleAuthFunction = isRegistration ? registerWithGoogle : loginWithGoogle;
@@ -33,6 +60,15 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
   useEffect(() => {
     const configureGoogleSignIn = async (): Promise<void> => {
       try {
+        // Vérifier que le module natif est disponible
+        if (!GoogleSignin) {
+          console.error('❌ Module @react-native-google-signin/google-signin non disponible');
+          console.error('❌ Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios');
+          console.error('❌ Ou utilisez un dev build (expo-dev-client) au lieu d\'Expo Go');
+          setIsConfigured(false);
+          return;
+        }
+
         // Vérifier que le Web Client ID est disponible
         if (!firebaseOAuthClientIds.web) {
           console.error('❌ FIREBASE_WEB_CLIENT_ID manquant !');
@@ -80,6 +116,11 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
         // CRITIQUE iOS: Configuration synchrone pour éviter les crashes
         // Le SDK doit être configuré AVANT que signIn() soit appelé
         try {
+          // Vérifier une dernière fois que GoogleSignin est disponible
+          if (!GoogleSignin || typeof GoogleSignin.configure !== 'function') {
+            throw new Error('GoogleSignin.configure n\'est pas disponible. Le module natif n\'est pas correctement lié.');
+          }
+
           // CRITIQUE iOS: Vérifier que le SDK peut être configuré sans crash
           // Si la configuration échoue, cela peut indiquer un problème avec REVERSED_CLIENT_ID
           GoogleSignin.configure(config);
@@ -156,8 +197,20 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
     try {
       setIsPrompting(true);
 
+      // Vérifier que le module natif est disponible
+      if (!GoogleSignin) {
+        const errorMsg = 'Module Google Sign-In non disponible. Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios';
+        console.error('❌', errorMsg);
+        result = {
+          user: null,
+          error: errorMsg,
+        };
+        setIsPrompting(false);
+        return result;
+      }
+
       // Vérifier que les Google Play Services sont disponibles (Android uniquement)
-      if (Platform.OS === 'android') {
+      if (Platform.OS === 'android' && GoogleSignin.hasPlayServices) {
         await GoogleSignin.hasPlayServices({
           showPlayServicesUpdateDialog: true,
         });
@@ -227,6 +280,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
         await new Promise(resolve => setTimeout(resolve, 100));
       } else {
         // Sur Android, garder la logique de révocation pour éviter la reconnexion automatique
+        if (GoogleSignin && GoogleSignin.revokeAccess && GoogleSignin.signOut) {
         console.log('🤖 [Android] Révocation de l\'accès précédent...');
         try {
           await GoogleSignin.revokeAccess();
@@ -234,6 +288,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (e) {
           console.log('ℹ️ Pas de session précédente');
+          }
         }
       }
       
@@ -245,6 +300,11 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
         // Le SDK Google peut crash si la configuration n'est pas correcte ou si REVERSED_CLIENT_ID est manquant
         if (Platform.OS === 'ios') {
           console.log('🍎 [iOS] Tentative de signIn() avec gestion d\'erreurs robuste...');
+            
+            // Vérifier que GoogleSignin.signIn est disponible
+            if (!GoogleSignin || typeof GoogleSignin.signIn !== 'function') {
+              throw new Error('GoogleSignin.signIn n\'est pas disponible. Le module natif n\'est pas correctement lié.');
+            }
           
           // Vérifier une dernière fois que le SDK est configuré
           try {
@@ -260,7 +320,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           // Erreur commune iOS : Connexion annulée
             if (iosSignInError.code === 'SIGN_IN_CANCELLED' || 
                 iosSignInError.code === '10' || 
-                iosSignInError.code === statusCodes.SIGN_IN_CANCELLED ||
+                (statusCodes && iosSignInError.code === statusCodes.SIGN_IN_CANCELLED) ||
                 iosSignInError.message?.toLowerCase().includes('cancel')) {
             console.log('ℹ️ [iOS] Connexion Google annulée par l\'utilisateur');
             result = {
@@ -316,6 +376,9 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
         }
         } else {
           // Pour Android, utiliser signIn() normalement
+          if (!GoogleSignin || typeof GoogleSignin.signIn !== 'function') {
+            throw new Error('GoogleSignin.signIn n\'est pas disponible. Le module natif n\'est pas correctement lié.');
+          }
           userInfo = await GoogleSignin.signIn();
         }
       } catch (signInError: any) {
@@ -362,6 +425,9 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       if (!idToken) {
         console.log('⚠️ idToken absent, récupération via getTokens()...');
         try {
+          if (!GoogleSignin || typeof GoogleSignin.getTokens !== 'function') {
+            throw new Error('GoogleSignin.getTokens n\'est pas disponible. Le module natif n\'est pas correctement lié.');
+          }
           const tokens: any = await GoogleSignin.getTokens();
           idToken = (tokens as any)?.idToken || null;
           
@@ -370,7 +436,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
           }
         } catch (tokenError: any) {
           // Only treat as cancellation if explicitly cancelled
-          if (tokenError?.code === statusCodes.SIGN_IN_CANCELLED || 
+          if ((statusCodes && tokenError?.code === statusCodes.SIGN_IN_CANCELLED) || 
               tokenError?.code === 'SIGN_IN_CANCELLED' ||
               tokenError?.message?.toLowerCase().includes('cancel')) {
             console.log('ℹ️ Connexion annulée');
@@ -438,7 +504,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
       // CRITICAL: Check for cancellation FIRST - multiple ways user can cancel
       const isCancelled = 
-        error.code === statusCodes.SIGN_IN_CANCELLED ||
+        (statusCodes && error.code === statusCodes.SIGN_IN_CANCELLED) ||
         error.code === 'SIGN_IN_CANCELLED' ||
         error.message?.toLowerCase().includes('cancel') ||
         error.message?.toLowerCase().includes('annulé') ||
@@ -461,9 +527,9 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       // Gestion des erreurs spécifiques du SDK Google Sign-In
       let userMessage = 'Impossible de se connecter avec Google.';
 
-      if (error.code === statusCodes.IN_PROGRESS) {
+      if (statusCodes && error.code === statusCodes.IN_PROGRESS) {
         userMessage = 'Une connexion est déjà en cours.';
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+      } else if (statusCodes && error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         userMessage = 'Google Play Services n\'est pas disponible. Mettez à jour Google Play Services.';
       } else if (
         error.code === 10 || 
@@ -498,7 +564,7 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
 
   return {
     signInWithGoogle,
-    isAvailable: isConfigured,
+    isAvailable: isConfigured && !!GoogleSignin, // Le module doit être disponible ET configuré
     isPrompting,
   };
 };

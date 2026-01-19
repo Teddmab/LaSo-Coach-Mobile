@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import FixedLayout from '../components/FixedLayout';
@@ -172,7 +172,6 @@ const SecurityScreen: React.FC<SecurityScreenProps> = ({
       console.error('❌ [SecurityScreen] Error message:', error.message);
       console.error('❌ [SecurityScreen] Error stack:', error.stack);
       
-      const { Alert } = require('react-native');
       Alert.alert(
         'Erreur',
         error.message || 'Une erreur est survenue lors de la suppression du compte. Veuillez réessayer.',

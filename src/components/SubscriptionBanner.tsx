@@ -3,7 +3,8 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  TouchableOpacity
+  TouchableOpacity,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -79,7 +80,7 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
   }
 
   // Sur iOS, ne pas afficher le banner - on affichera juste un message dans le header
-  if (isIOS) {
+  if (Platform.OS === 'ios') {
     return null;
   }
 

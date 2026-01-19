@@ -47,8 +47,9 @@ export const useModeration = (): UseModerationReturn => {
         const blocked = await moderationApi.getBlockedUsers();
         setBlockedUsers(blocked);
         console.log('✅ [useModeration] Blocked users loaded:', blocked.length);
-      } catch (error) {
-        console.error('❌ [useModeration] Error loading blocked users:', error);
+      } catch (error: any) {
+        // Errors are already handled in moderationApi.getBlockedUsers() which returns []
+        // Just ensure we have an empty array
         setBlockedUsers([]);
       } finally {
         setBlocksLoading(false);
@@ -67,8 +68,14 @@ export const useModeration = (): UseModerationReturn => {
         const status = await moderationApi.getModerationStatus();
         setModerationStatus(status);
         console.log('✅ [useModeration] Moderation status loaded');
-      } catch (error) {
-        console.error('❌ [useModeration] Error loading moderation status:', error);
+      } catch (error: any) {
+        // Errors are already handled in moderationApi.getModerationStatus() which returns defaults
+        // Set default status to ensure app continues
+        setModerationStatus({
+          canAccess: true,
+          blockedUsers: [],
+          reportedCount: 0,
+        });
       } finally {
         setStatusLoading(false);
       }

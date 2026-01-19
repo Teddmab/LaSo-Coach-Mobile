@@ -65,15 +65,40 @@ export class SubscriptionService {
 
       const response = await api.get('/profile');
       
-      // Debug response
-      debugResponse(response, 'Subscription Status');
-      
-      
       // Parse the profile data structure
       const rawData = response.data.data || response.data;
       
+      // Ignore invalid properties from backend (e.g., subscriptionBanner, subscriptionbanner)
+      // This property doesn't exist in our data model and should be ignored
+      if (rawData && typeof rawData === 'object') {
+        // Remove any invalid properties that might cause errors
+        if ('subscriptionBanner' in rawData) {
+          delete (rawData as any).subscriptionBanner;
+        }
+        if ('subscriptionbanner' in rawData) {
+          delete (rawData as any).subscriptionbanner;
+        }
+      }
+      
       // Extract subscription information
+      // Check if subscription exists and is not null/empty
       const subscription = rawData.subscription;
+      const hasSubscriptionData = subscription && typeof subscription === 'object' && Object.keys(subscription).length > 0;
+      
+      // Handle case where subscription data might be missing due to backend errors
+      if (!rawData || (!hasSubscriptionData && !rawData.hasActiveSubscription)) {
+        // Return default expired status if no subscription data
+        return {
+          status: SUBSCRIPTION_STATUS.EXPIRED,
+          accessLevel: ACCESS_LEVEL.EXPIRED,
+          daysRemaining: 0,
+          hasActiveSubscription: false,
+          isExpired: true,
+          isExpiringSoon: false,
+          requiresRenewal: true,
+          message: 'Impossible de récupérer les informations d\'abonnement',
+        };
+      }
       const hasActiveSubscription = rawData.hasActiveSubscription || false;
       const daysRemaining = subscription?.daysRemaining || 0;
       const planName = subscription?.plan?.name || subscription?.planName || '';
@@ -91,22 +116,6 @@ export class SubscriptionService {
       // CRITICAL: Read status from subscription.status field (this is what backend returns)
       const apiStatus = subscription?.status?.toUpperCase();
       
-      // Log for debugging - CRITICAL to see what backend returns
-      if (__DEV__) {
-        console.log('🔍 [SubscriptionService] Raw API response check:', {
-          rawDataKeys: Object.keys(rawData),
-          subscriptionExists: !!subscription,
-          subscriptionKeys: subscription ? Object.keys(subscription) : [],
-          subscriptionStatus: subscription?.status,
-          subscriptionStatusType: typeof subscription?.status,
-          apiStatus,
-          hasActiveSubscription,
-          daysRemaining,
-          planName,
-          isFreePlan,
-          fullSubscription: subscription, // Log full subscription object to see structure
-        });
-      }
       
       // Check if API explicitly says ACTIVE (even for FREE plan, if status is ACTIVE, it's active)
       if (apiStatus === 'ACTIVE') {
@@ -175,13 +184,6 @@ export class SubscriptionService {
       
       // Log final status for debugging
       if (__DEV__) {
-        console.log('✅ [SubscriptionService] Final subscription status:', {
-          status,
-          accessLevel,
-          isExpired,
-          isExpiringSoon,
-          daysRemaining,
-        });
       }
       
       const subscriptionData = {
@@ -199,15 +201,26 @@ export class SubscriptionService {
       
       return subscriptionData;
       
-    } catch (error) {
+    } catch (error: any) {
+      // Log error details for debugging
+      const errorMessage = error.response?.data?.message || error.message || '';
+      const isPrismaError = errorMessage.includes('Prisma') || 
+                           errorMessage.includes('prisma') ||
+                           errorMessage.includes('does not exist in the current database') ||
+                           (errorMessage.includes('column') && errorMessage.includes('does not exist'));
+      
+      
       // Return default expired status on error
+      // This allows the app to continue functioning even if subscription data cannot be retrieved
       return {
         status: SUBSCRIPTION_STATUS.EXPIRED,
         accessLevel: ACCESS_LEVEL.EXPIRED,
         daysRemaining: 0,
         hasActiveSubscription: false,
         subscription: null,
-        message: 'Erreur lors de la vérification de l\'abonnement',
+        message: isPrismaError 
+          ? 'Erreur de configuration serveur. Veuillez contacter le support.'
+          : 'Erreur lors de la vérification de l\'abonnement',
         isExpired: true,
         isExpiringSoon: false,
         requiresRenewal: true

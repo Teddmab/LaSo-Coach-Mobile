@@ -1,7 +1,18 @@
 // IMPORTANT: Import firebaseApp FIRST to ensure proper initialization order
 import { getFirebaseAuth, isCompatAuth } from '../config/firebaseApp';
 import { API_CONFIG } from '../config/apiConfig';
-import axios from 'axios';
+// Import api - utiliser require pour éviter les dépendances circulaires
+// api.ts importe firebaseAuthServiceNew, donc on doit utiliser require() pour l'import dynamique
+let api: any;
+try {
+  // Utiliser require() pour éviter les dépendances circulaires
+  const apiModule = require('./api');
+  api = apiModule.default || apiModule;
+} catch (error: any) {
+  console.error('❌ [FirebaseAuthService] Erreur lors de l\'import de api:', error?.message);
+  // En cas d'échec, api sera null et sera vérifié dans le constructeur
+  api = null;
+}
 // Import Firebase auth functions AFTER our config is initialized
 // Use compat fallback to avoid component registration issues in Expo Go; require modular funcs only when available.
 import firebaseCompat from 'firebase/compat/app';
@@ -25,14 +36,26 @@ class FirebaseAuthService {
     
     // Log which API endpoint is being used
     
-    // Create a backend API instance that automatically includes Firebase ID tokens
-    this.backendApi = axios.create({
-      baseURL: API_CONFIG.BASE_URL,
-      timeout: API_CONFIG.TIMEOUT,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // Use the shared API instance that automatically includes Firebase ID tokens
+    // Vérifier que api est bien défini avant de l'assigner
+    // Note: api peut être null si l'import a échoué (dépendance circulaire)
+    // On initialise backendApi de manière lazy pour éviter les problèmes de dépendance circulaire
+    try {
+      if (api && typeof api.post === 'function') {
+    this.backendApi = api;
+      } else {
+        // Si api n'est pas disponible, on essaie de le charger dynamiquement
+        const apiModule = require('./api');
+        this.backendApi = apiModule.default || apiModule;
+        if (!this.backendApi || typeof this.backendApi.post !== 'function') {
+          console.error('❌ [FirebaseAuthService] API instance non disponible après chargement dynamique');
+          this.backendApi = null;
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ [FirebaseAuthService] Erreur lors de l\'initialisation de backendApi:', error?.message);
+      this.backendApi = null;
+    }
 
     // Initialize Firebase Auth asynchronously
     // With simplified getAuth init, we attempt to capture the instance immediately.
@@ -103,84 +126,9 @@ class FirebaseAuthService {
    * Initialize request/response interceptors
    */
   initializeInterceptors() {
-    // Setup request interceptor to include Firebase ID token
-    this.backendApi.interceptors.request.use(
-      async (config) => {
-        // Get Firebase ID token for authentication
-        const idToken = await this.getIdToken();
-        if (idToken) {
-          config.headers.Authorization = `Bearer ${idToken}`;
-        }
-
-        // Don't set Content-Type for FormData requests
-        if (config.data instanceof FormData) {
-          delete config.headers['Content-Type'];
-        }
-
-        // Add cache-busting for GET requests (except auth endpoints)
-        if (config.method === 'get' && !config.url?.includes('/auth/')) {
-          const separator = config.url?.includes('?') ? '&' : '?';
-          const timestamp = Date.now();
-          config.url = `${config.url}${separator}t=${timestamp}`;
-          
-          // Add cache-control headers
-          config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-          config.headers['Pragma'] = 'no-cache';
-          config.headers['Expires'] = '0';
-        }
-
-        return config;
-      },
-      (error) => Promise.reject(error)
-    );
-
-    // Setup response interceptor for error handling
-    this.backendApi.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-
-
-        // Handle 401 Unauthorized errors
-        if (error.response?.status === 401) {
-          
-          // Don't retry for auth endpoints
-          if (originalRequest?.url?.includes('/auth/login') || 
-              originalRequest?.url?.includes('/auth/verify-reset-token') ||
-              originalRequest?.url?.includes('/auth/complete-reset-password') ||
-              originalRequest?.url?.includes('/auth/forgot-password')) {
-            return Promise.reject(new Error('Invalid credentials or token'));
-          }
-
-          // For other 401 errors, try to refresh Firebase token
-          if (!originalRequest._retry) {
-            originalRequest._retry = true;
-
-            try {
-              
-              // Force refresh Firebase ID token
-              const newIdToken = await this.getIdToken(true);
-              if (newIdToken && originalRequest?.headers) {
-                originalRequest.headers.Authorization = `Bearer ${newIdToken}`;
-                return this.backendApi(originalRequest);
-              }
-            } catch (refreshError) {
-              await this.logout();
-              return Promise.reject(new Error('Session expired. Please login again.'));
-            }
-          }
-        }
-
-        // Handle 403 Forbidden errors
-        if (error.response?.status === 403) {
-          return Promise.reject(new Error('You do not have permission to perform this action.'));
-        }
-
-        // Handle other errors
-        const errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred';
-        return Promise.reject(new Error(errorMessage));
-      }
-    );
+    // Note: Request and response interceptors are already set up in api.ts
+    // The api instance handles Firebase token injection and 401 retry automatically
+    // No need to configure interceptors here
   }
 
   /**
@@ -247,11 +195,38 @@ class FirebaseAuthService {
   }
 
   /**
+   * Vérifier que backendApi est disponible, sinon essayer de le charger
+   */
+  _ensureBackendApi() {
+    if (this.backendApi && typeof this.backendApi.post === 'function') {
+      return true;
+    }
+    
+    // Essayer de charger l'API dynamiquement
+    try {
+      const apiModule = require('./api');
+      this.backendApi = apiModule.default || apiModule;
+      if (this.backendApi && typeof this.backendApi.post === 'function') {
+        return true;
+      }
+    } catch (error: any) {
+      console.error('❌ [FirebaseAuthService] Impossible de charger backendApi:', error?.message);
+    }
+    
+    return false;
+  }
+
+  /**
    * Get user profile from backend API
    */
   async getUserProfile() {
     try {
-      const response = await this.backendApi.get(API_CONFIG.endpoints.profile.get);
+      if (!this._ensureBackendApi()) {
+        console.error('❌ [getUserProfile] backendApi non disponible');
+        return null;
+      }
+      const endpoint = API_CONFIG.endpoints.profile.get.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      const response = await this.backendApi.get(`/${endpoint}`);
       // Backend retourne { success: true, data: {...} } avec tous les détails (firstName, lastName, subscription, etc.)
       return response.data.data || response.data.user || response.data;
     } catch (error) {
@@ -268,8 +243,13 @@ class FirebaseAuthService {
         throw new Error('No user logged in');
       }
 
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
+
       // Update profile via backend API
-      const response = await this.backendApi.put(API_CONFIG.endpoints.profile.update, {
+      const endpoint = API_CONFIG.endpoints.profile.update.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      const response = await this.backendApi.put(`/${endpoint}`, {
         ...data,
         updatedAt: new Date().toISOString()
       });
@@ -314,8 +294,13 @@ class FirebaseAuthService {
       // Get Firebase ID token and verify with backend
       const idToken = await userCredential.user.getIdToken();
 
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
+
       // Send Firebase ID token to backend for verification and user sync
-      await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
+      const endpoint = API_CONFIG.endpoints.auth.login.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      await this.backendApi.post(`/${endpoint}`, {
         idToken: idToken,
       });
 
@@ -346,14 +331,35 @@ class FirebaseAuthService {
       // Ensure Firebase Auth is initialized before registration
       const auth = await this.ensureAuth();
       
+      // Vérifier que backendApi est disponible
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
+      
       // 1. Register user via backend (backend handles Firebase user creation)
-      const response = await this.backendApi.post(API_CONFIG.endpoints.auth.register, {
+      const endpoint = API_CONFIG.endpoints.auth.register.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      
+      let response;
+      try {
+        response = await this.backendApi.post(`/${endpoint}`, {
         email: credentials.email.toLowerCase().trim(),
         password: credentials.password,
         name: `${credentials.firstName} ${credentials.lastName || ''}`.trim(),
         role: 'USER',
         phone: credentials.phone,
       });
+      } catch (postError: any) {
+        // Améliorer la gestion d'erreur pour les erreurs réseau
+        if (postError.code === 'ERR_NETWORK' || postError.message?.includes('Network')) {
+          throw new Error('Erreur de connexion. Vérifiez votre connexion internet et réessayez.');
+        }
+        if (postError.code === 'ECONNABORTED' || postError.message?.includes('timeout')) {
+          throw new Error('Délai de connexion dépassé. Vérifiez votre connexion internet et réessayez.');
+        }
+        // Propager l'erreur avec un message plus clair
+        const errorMessage = postError.response?.data?.message || postError.message || 'Erreur lors de la création du compte';
+        throw new Error(errorMessage);
+      }
 
       const responseData = response.data || response;
       const firebaseCustomToken =
@@ -429,14 +435,19 @@ class FirebaseAuthService {
 
       const firebaseUser = userCredential.user;
       
+      // 3.5. Détecter si c'est un nouvel utilisateur (Firebase fournit cette info)
+      const isNewUser = userCredential.additionalUserInfo?.isNewUser === true;
+      
       // 4. NOUVEAU: Obtenir le Firebase ID Token et appeler POST /auth/login
       const firebaseIdToken = await firebaseUser.getIdToken();
       
-      // ✅ DEBUG: Afficher infos pour debug
-      
-      
       // 5. Appeler le backend pour créer/récupérer le profil
-      const response = await this.backendApi.post(API_CONFIG.endpoints.auth.login, {
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
+      
+      const endpoint = API_CONFIG.endpoints.auth.login.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      const response = await this.backendApi.post(`/${endpoint}`, {
         idToken: firebaseIdToken,
         provider: 'google',  // Optionnel, backend l'ignore
       });
@@ -459,8 +470,21 @@ class FirebaseAuthService {
         ...userData,
         uid: firebaseUser.uid,  // S'assurer que le UID Firebase est présent
         emailVerified: firebaseUser.emailVerified,
+        // Ajouter l'info si c'est un nouvel utilisateur (pour le welcome flow)
+        _isNewUser: isNewUser,
       };
       
+      // 7.5. Si c'est un nouvel utilisateur, marquer dans AsyncStorage pour le welcome flow
+      if (isNewUser) {
+        try {
+          const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+          const userId = userData.id || firebaseUser.uid;
+          await AsyncStorage.setItem(`@laso_is_new_user_${userId}`, 'true');
+          console.log('✅ [firebaseAuthService] Nouvel utilisateur Google détecté - marqué pour welcome flow:', { userId });
+        } catch (storageError) {
+          console.warn('⚠️ [firebaseAuthService] Could not mark new Google user:', storageError);
+        }
+      }
       
       return this.currentUser;
       
@@ -503,7 +527,29 @@ class FirebaseAuthService {
    */
   async _forceBrutalGoogleSignOut() {
     try {
-      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      // IMPORTANT: Sur iOS, ne pas charger le module pour éviter les erreurs TurboModuleRegistry
+      if (Platform.OS === 'ios') {
+        console.log('ℹ️ [Google Sign-Out] iOS détecté, déconnexion Google ignorée (module natif non utilisé sur iOS)');
+        return;
+      }
+      
+      // Vérifier si le module natif est disponible avant de l'utiliser (Android uniquement)
+      let GoogleSignin: any = null;
+      try {
+        const googleSignInModule = require('@react-native-google-signin/google-signin');
+        GoogleSignin = googleSignInModule?.GoogleSignin;
+      } catch (requireError: any) {
+        // Module non disponible (Expo Go ou module non lié) - c'est normal, on skip
+        console.log('ℹ️ [Google Sign-Out] Module natif non disponible, déconnexion Google ignorée');
+        return;
+      }
+      
+      // Si le module n'est pas disponible, on skip la déconnexion Google
+      if (!GoogleSignin || typeof GoogleSignin.configure !== 'function') {
+        console.log('ℹ️ [Google Sign-Out] GoogleSignin non disponible, déconnexion Google ignorée');
+        return;
+      }
+      
       const { firebaseOAuthClientIds } = require('../config/firebaseApp');
       
       console.log('💀 Déconnexion Google Sign-In...');
@@ -518,6 +564,7 @@ class FirebaseAuthService {
       // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
       if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
         config.iosClientId = firebaseOAuthClientIds.ios;
+        console.log('🍎 [iOS] Ajout de iosClientId à la configuration Google Sign-In');
       }
       
       // 1. Configurer le SDK
@@ -581,10 +628,24 @@ class FirebaseAuthService {
       
       console.log('💀 Déconnexion Google terminée');
     } catch (error: any) {
+      // Ne pas logger l'erreur si c'est juste que le module n'est pas disponible
+      if (error?.message?.includes('Cannot read property') || 
+          error?.message?.includes('GoogleSignin') ||
+          error?.message?.includes('undefined') ||
+          error?.message?.includes('TurboModuleRegistry')) {
+        console.log('ℹ️ [Google Sign-Out] Module natif non disponible, déconnexion Google ignorée');
+        return;
+      }
+      
       console.error('❌ Erreur déconnexion Google:', error?.message);
-      // Reconfigurer quand même
+      // Essayer de reconfigurer seulement si le module est disponible (Android uniquement)
+      // Sur iOS, ne pas charger le module pour éviter les erreurs TurboModuleRegistry
+      if (Platform.OS !== 'ios') {
       try {
-        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+          const googleSignInModule = require('@react-native-google-signin/google-signin');
+          const GoogleSignin = googleSignInModule?.GoogleSignin;
+          
+          if (GoogleSignin && typeof GoogleSignin.configure === 'function') {
         const { firebaseOAuthClientIds } = require('../config/firebaseApp');
         const config: any = {
           webClientId: firebaseOAuthClientIds.web,
@@ -593,13 +654,12 @@ class FirebaseAuthService {
           scopes: ['email', 'profile'],
         };
         
-        // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
-        if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
-          config.iosClientId = firebaseOAuthClientIds.ios;
-        }
-        
         GoogleSignin.configure(config);
-      } catch (configError) { /* ignore */ }
+          }
+        } catch (configError) { 
+          // Ignorer silencieusement si le module n'est pas disponible
+        }
+      }
     }
   }
 
@@ -611,6 +671,21 @@ class FirebaseAuthService {
   async logout() {
     try {
       console.log('🚪🚪🚪 DÉCONNEXION COMPLÈTE - Suppression de TOUT...');
+      
+      // 0. Récupérer l'ID utilisateur AVANT le nettoyage pour supprimer les clés de welcome flow et UGC
+      const userId = this.currentUser?.id || this.currentUser?.uid;
+      const welcomeKeysToRemove: string[] = [];
+      const ugcKeysToRemove: string[] = [];
+      if (userId) {
+        welcomeKeysToRemove.push(
+          `@laso_welcome_shown_${userId}`,
+          `@laso_is_new_user_${userId}`
+        );
+        ugcKeysToRemove.push(
+          `@laso_ugc_terms_accepted_${userId}`,
+          `@laso_ugc_terms_timestamp_${userId}`
+        );
+      }
       
       // 1. CRITICAL: Nettoyer AsyncStorage EN PREMIER pour supprimer tous les tokens et données
       // Cela supprime la session de l'app immédiatement
@@ -636,12 +711,37 @@ class FirebaseAuthService {
           // Autres clés possibles
           'firebase:authUser',
           'firebase:token',
+          // Clés de welcome flow
+          ...welcomeKeysToRemove,
+          // Clés UGC (user-specific)
+          ...ugcKeysToRemove,
         ]);
         console.log('✅ AsyncStorage complètement nettoyé - tous les tokens et données supprimés');
         
-        // Vérification : s'assurer qu'il ne reste rien
+        // Supprimer aussi toutes les clés de welcome flow et UGC restantes (au cas où l'ID utilisateur n'était pas disponible)
         const allKeys = await AsyncStorage.getAllKeys();
-        const authRelatedKeys = allKeys.filter(key => 
+        const welcomeFlowKeys = allKeys.filter(key => 
+          key.startsWith('@laso_welcome_shown_') || 
+          key.startsWith('@laso_is_new_user_')
+        );
+        const ugcFlowKeys = allKeys.filter(key => 
+          key.startsWith('@laso_ugc_terms_accepted_') || 
+          key.startsWith('@laso_ugc_terms_timestamp_')
+        );
+        if (welcomeFlowKeys.length > 0) {
+          console.log('🗑️ Suppression des clés de welcome flow restantes:', welcomeFlowKeys);
+          await AsyncStorage.multiRemove(welcomeFlowKeys);
+          console.log('✅ Clés de welcome flow supprimées');
+        }
+        if (ugcFlowKeys.length > 0) {
+          console.log('🗑️ Suppression des clés UGC restantes:', ugcFlowKeys);
+          await AsyncStorage.multiRemove(ugcFlowKeys);
+          console.log('✅ Clés UGC supprimées');
+        }
+        
+        // Vérification : s'assurer qu'il ne reste rien
+        const remainingKeys = await AsyncStorage.getAllKeys();
+        const authRelatedKeys = remainingKeys.filter(key => 
           key.includes('token') || 
           key.includes('auth') || 
           key.includes('user') || 
@@ -736,7 +836,8 @@ class FirebaseAuthService {
    */
   async sendPasswordResetEmail(email) {
     try {
-      await this.backendApi.post(API_CONFIG.endpoints.auth.forgotPassword, {
+      const endpoint = API_CONFIG.endpoints.auth.forgotPassword.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      await this.backendApi.post(`/${endpoint}`, {
         email: email.toLowerCase().trim(),
       });
     } catch (error) {
@@ -749,7 +850,8 @@ class FirebaseAuthService {
    */
   async verifyPasswordResetToken(token) {
     try {
-      const response = await this.backendApi.post(API_CONFIG.endpoints.auth.verifyResetToken, { token });
+      const endpoint = API_CONFIG.endpoints.auth.verifyResetToken.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      const response = await this.backendApi.post(`/${endpoint}`, { token });
       return response.data;
     } catch (error) {
       throw new Error(this.getErrorMessage(error));
@@ -761,7 +863,8 @@ class FirebaseAuthService {
    */
   async completePasswordReset(token, newPassword) {
     try {
-      const response = await this.backendApi.post(API_CONFIG.endpoints.auth.completeResetPassword, {
+      const endpoint = API_CONFIG.endpoints.auth.completeResetPassword.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+      const response = await this.backendApi.post(`/${endpoint}`, {
         token,
         newPassword,
       });
@@ -808,7 +911,8 @@ class FirebaseAuthService {
       // 1. Delete account on backend first (atomic operation)
       console.log('📡 Deleting user account from backend...');
       try {
-        await this.backendApi.delete(API_CONFIG.endpoints.profile.delete);
+        const endpoint = API_CONFIG.endpoints.profile.delete.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
+        await this.backendApi.delete(`/${endpoint}`);
         console.log('✅ Backend account deleted');
       } catch (backendError: any) {
         // If backend deletion fails, don't proceed with Firebase deletion

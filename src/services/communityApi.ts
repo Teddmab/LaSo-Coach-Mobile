@@ -1,8 +1,23 @@
 import api from './api';
-import ReactNativeBlobUtil from 'react-native-blob-util';
-import { Platform } from 'react-native';
-import Config from '../config/env';
-import firebaseAuthService from './firebaseAuthServiceNew';
+import * as ugcTermsService from './ugcTermsService';
+import { firebaseAuthService } from './firebaseAuthServiceNew';
+
+// Types pour les fichiers
+interface FileData {
+  uri: string;
+  type?: string;
+  name?: string;
+}
+
+// Type pour les erreurs API
+interface ApiError extends Error {
+  response?: {
+    status?: number;
+    statusText?: string;
+    data?: any;
+  };
+  userMessage?: string;
+}
 
 class CommunityApi {
   /**
@@ -33,14 +48,64 @@ class CommunityApi {
       }
       
       return response.data;
-    } catch (error) {
+    } catch (error: unknown) {
       // Si le paramètre include=user n'est pas supporté, essayer sans
       // Certains backends peuvent utiliser d'autres paramètres comme populate=user
-      if (error.response?.status === 400 || error.response?.status === 404) {
-        console.warn('⚠️ Paramètre include non supporté, tentative sans paramètre');
+      const apiError = error as ApiError;
+      
+      // Handle 401 (unauthorized) - token might be expired, will be retried by interceptor
+      if (apiError.response?.status === 401) {
+        console.warn('⚠️ [CommunityApi] Unauthorized (401) - token may be expired, will retry');
+        // Re-throw to let the interceptor handle token refresh
+        throw error;
+      }
+      
+      // Handle 403 (Forbidden) - user may not have accepted UGC terms
+      if (apiError.response?.status === 403) {
+        const errorMessage = apiError.response?.data?.message || '';
+        const errorData = apiError.response?.data || {};
+        
+        // Log full error details for debugging
+        console.warn('⚠️ [CommunityApi] 403 Forbidden detected:', {
+          message: errorMessage,
+          fullErrorData: JSON.stringify(errorData, null, 2),
+          status: apiError.response?.status,
+          statusText: apiError.response?.statusText,
+        });
+        
+        const isUgcError = errorMessage.includes('UGC') || 
+                          errorMessage.includes('terms') || 
+                          errorMessage.includes('guidelines') ||
+                          errorMessage.toLowerCase().includes('accept') ||
+                          errorMessage.toLowerCase().includes('community');
+        
+        if (isUgcError) {
+          console.warn('⚠️ [CommunityApi] 403 Forbidden - UGC terms not accepted on backend');
+          // Throw error so caller can handle it (e.g., show UGC modal)
+          // Don't return empty result - let the caller decide what to do
+          apiError.userMessage = 'Vous devez accepter les règles de la communauté pour accéder aux posts.';
+        } else {
+          console.warn('⚠️ [CommunityApi] 403 Forbidden - access denied (not UGC related)');
+          apiError.userMessage = apiError.response?.data?.message || 'Accès refusé.';
+        }
+        // Re-throw the error so caller can handle it
+        throw apiError;
+      }
+      
+      // Handle 400 or 404 - try without include parameter
+      if (apiError.response?.status === 400 || apiError.response?.status === 404) {
+        console.warn('⚠️ [CommunityApi] Paramètre include non supporté, tentative sans paramètre');
+        try {
         const fallbackResponse = await api.get(`/community/posts?page=${page}&limit=${limit}`);
         return fallbackResponse.data;
+        } catch (fallbackError) {
+          // If fallback also fails, return empty result instead of crashing
+          console.warn('⚠️ [CommunityApi] Fallback request also failed, returning empty posts');
+          return { data: { posts: [], pagination: {} } };
+        }
       }
+      
+      // For other errors, throw to let caller handle
       throw error;
     }
   }
@@ -50,7 +115,7 @@ class CommunityApi {
    * @param {string} postId - Post UUID
    * @returns {Promise<Object>} Post data
    */
-  async getPost(postId) {
+  async getPost(postId: string) {
     try {
       // Inclure les données utilisateur et les likes dans la réponse
       const response = await api.get(`/community/posts/${postId}?include=user,likes`);
@@ -59,9 +124,10 @@ class CommunityApi {
       // Le post devrait maintenant inclure les données utilisateur et les likes
       
       return response.data;
-    } catch (error) {
+    } catch (error: unknown) {
       // Si le paramètre include n'est pas supporté, essayer sans
-      if (error.response?.status === 400 || error.response?.status === 404) {
+      const apiError = error as ApiError;
+      if (apiError.response?.status === 400 || apiError.response?.status === 404) {
         const fallbackResponse = await api.get(`/community/posts/${postId}`);
         return fallbackResponse.data;
       }
@@ -72,46 +138,48 @@ class CommunityApi {
   /**
    * Create a new post
    * @param {string} content - Post content (Markdown supported)
-   * @param {Array<File>} files - Optional media files
+   * @param {Array<FileData>} files - Optional media files
    * @returns {Promise<Object>} Created post data
    */
-  async createPost(content, files = []) {
+  async createPost(content: string, files: FileData[] = []) {
     try {
-      // Get authentication token
-      const idToken = await firebaseAuthService.getIdToken();
-      if (!idToken) {
-        throw new Error('Authentication required');
+      // Pre-check UGC acceptance with backend to avoid 403 errors (as per API contract)
+      try {
+        const currentUser = firebaseAuthService.getCurrentUser();
+        const userId = currentUser?.id || currentUser?.uid || null;
+        const ugcStatus = await ugcTermsService.getUgcAcceptanceFromBackend(userId);
+        if (!ugcStatus.accepted) {
+          const error = new Error('UGC terms not accepted') as ApiError;
+          error.response = { status: 403, data: { message: 'UGC terms must be accepted before creating posts' } };
+          error.userMessage = 'Vous devez accepter les règles de la communauté pour publier.';
+          throw error;
+        }
+      } catch (preCheckError: any) {
+        // If pre-check fails with 403, re-throw it
+        if (preCheckError.response?.status === 403 || preCheckError.userMessage) {
+          throw preCheckError;
+        }
+        // If pre-check fails for other reasons (network, etc.), continue anyway
+        // The backend will still enforce the check and return 403 if needed
+        console.warn('⚠️ [CommunityApi] Pre-check UGC status failed, continuing anyway:', preCheckError.message);
       }
-
       // Backend accepts either text, image, or both
       // Field name must be 'media' (not 'files', 'image', or 'photo')
-      // Use react-native-blob-util for file uploads (like progress photos)
+      // Use FormData with fetch for file uploads (standard React Native approach)
+      // Note: The api instance automatically adds Authorization header via interceptor
       
       if (files.length > 0) {
-        // Use react-native-blob-util for multipart/form-data uploads
-        // Config.API_BASE_URL already contains /api/v1, so just append the endpoint
-        const fullUrl = `${Config.API_BASE_URL}/community/posts`;
-        
-        // Prepare form data array for react-native-blob-util
-        const formDataArray = [];
+        // Use FormData for multipart/form-data uploads
+        // CRITICAL: Keep file:// prefix - fetch needs it to access the file on React Native
+        const formData = new FormData();
         
         // Add content if provided
         if (content && content.trim()) {
-          formDataArray.push({
-            name: 'content',
-            data: content.trim(),
-          });
+          formData.append('content', content.trim());
         }
         
         // Add images with field name 'media' (backend expects this exact name with multer.array('media', 5))
         files.forEach((file, index) => {
-          // CRITICAL: ReactNativeBlobUtil.wrap() requires file path without file:// prefix on both iOS and Android
-          // Remove file:// prefix for ReactNativeBlobUtil to work correctly
-          let filePath = file.uri;
-          if (filePath.startsWith('file://')) {
-            filePath = filePath.replace('file://', '');
-          }
-          
           // Normalize MIME type
           let fileType = file.type || 'image/jpeg';
           if (fileType === 'image/jpg' || fileType === 'jpg' || fileType === 'jpeg') {
@@ -128,43 +196,24 @@ class CommunityApi {
           
           const fileName = file.name || `post_${Date.now()}_${index}.jpg`;
           
-          formDataArray.push({
-            name: 'media', // Field name must match multer.array('media', 5)
-            filename: fileName,
+          // CRITICAL: Keep file:// prefix - fetch needs it to access the file on React Native
+          // Removing it causes Network Error because fetch can't find the file
+          formData.append('media', {
+            uri: file.uri, // Keep file:// prefix
             type: fileType,
-            contentType: fileType,
-            data: ReactNativeBlobUtil.wrap(filePath),
-          });
+            name: fileName,
+          } as any);
         });
         
-        // Use react-native-blob-util for upload
-        const response = await ReactNativeBlobUtil.fetch(
-          'POST',
-          fullUrl,
-          {
-            'Authorization': `Bearer ${idToken}`,
-            'Accept': 'application/json',
-            // Do NOT set Content-Type - react-native-blob-util will set it with boundary
-          },
-          formDataArray
-        );
+        // Use fetch with FormData for upload (via api instance)
+        // The api instance interceptor automatically:
+        // - Adds Authorization header with Firebase ID token
+        // - Removes Content-Type header for FormData (fetch/browser sets it with boundary)
+        const response = await api.post('/community/posts', formData);
         
-        const status = response.info().status;
-        const responseData = response.json();
-        
-        if (status >= 200 && status < 300) {
           // Backend returns: { status: "success", data: { id, content, mediaUrls, user, ... } }
-          const postData = responseData?.data || responseData;
+        const postData = response.data?.data || response.data;
           return postData;
-        } else {
-          const error = new Error(responseData?.message || 'Failed to create post');
-          error.response = {
-            status,
-            statusText: response.info().statusText || '',
-            data: responseData
-          };
-          throw error;
-        }
       } else {
         // JSON request for text-only posts
         // Content is required for text-only posts
@@ -178,15 +227,27 @@ class CommunityApi {
         const postData = response.data?.data || response.data;
         return postData;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Extract user-friendly error message from backend response
-      if (error.response?.data?.message) {
-        error.userMessage = error.response.data.message;
-      } else if (error.message) {
-        error.userMessage = error.message;
+      const apiError = error as ApiError;
+      
+      // Handle 403 (Forbidden) - user may not have accepted UGC terms
+      if (apiError.response?.status === 403) {
+        const errorMessage = apiError.response?.data?.message || '';
+        if (errorMessage.includes('UGC') || errorMessage.includes('terms') || errorMessage.includes('guidelines')) {
+          console.warn('⚠️ [CommunityApi] 403 Forbidden - UGC terms not accepted on backend when creating post');
+          apiError.userMessage = 'Vous devez accepter les règles de la communauté pour publier. Veuillez accepter les termes UGC.';
+        } else {
+          console.warn('⚠️ [CommunityApi] 403 Forbidden - access denied when creating post');
+          apiError.userMessage = apiError.response?.data?.message || 'Vous n\'avez pas l\'autorisation de publier ce contenu.';
+        }
+      } else if (apiError.response?.data?.message) {
+        apiError.userMessage = apiError.response.data.message;
+      } else if (apiError.message) {
+        apiError.userMessage = apiError.message;
       }
       
-      throw error;
+      throw apiError;
     }
   }
 
@@ -195,7 +256,7 @@ class CommunityApi {
    * @param {string} postId - Post UUID
    * @returns {Promise<Object>} Response with success message
    */
-  async toggleLikePost(postId) {
+  async toggleLikePost(postId: string) {
     try {
       
       const response = await api.post(`/community/posts/${postId}/like`);
@@ -212,7 +273,7 @@ class CommunityApi {
    * @deprecated Use toggleLikePost instead - API uses toggle endpoint
    * Alias for toggleLikePost for backward compatibility
    */
-  async likePost(postId) {
+  async likePost(postId: string) {
     return this.toggleLikePost(postId);
   }
 
@@ -222,8 +283,28 @@ class CommunityApi {
    * @param {string} content - Comment content (Markdown supported)
    * @returns {Promise<Object>} Created comment data
    */
-  async addComment(postId, content) {
+  async addComment(postId: string, content: string) {
     try {
+      // Pre-check UGC acceptance with backend to avoid 403 errors (as per API contract)
+      try {
+        const currentUser = firebaseAuthService.getCurrentUser();
+        const userId = currentUser?.id || currentUser?.uid || null;
+        const ugcStatus = await ugcTermsService.getUgcAcceptanceFromBackend(userId);
+        if (!ugcStatus.accepted) {
+          const error = new Error('UGC terms not accepted') as ApiError;
+          error.response = { status: 403, data: { message: 'UGC terms must be accepted before creating comments' } };
+          error.userMessage = 'Vous devez accepter les règles de la communauté pour commenter.';
+          throw error;
+        }
+      } catch (preCheckError: any) {
+        // If pre-check fails with 403, re-throw it
+        if (preCheckError.response?.status === 403 || preCheckError.userMessage) {
+          throw preCheckError;
+        }
+        // If pre-check fails for other reasons (network, etc.), continue anyway
+        // The backend will still enforce the check and return 403 if needed
+        console.warn('⚠️ [CommunityApi] Pre-check UGC status failed for comment, continuing anyway:', preCheckError.message);
+      }
       
       const response = await api.post(`/community/posts/${postId}/comments`, {
         content
@@ -244,7 +325,7 @@ class CommunityApi {
    * @param {number} limit - Items per page (default: 10)
    * @returns {Promise<Object>} Response with comments and pagination
    */
-  async getComments(postId, page = 1, limit = 10) {
+  async getComments(postId: string, page = 1, limit = 10) {
     try {
       // Inclure les données utilisateur dans la réponse
       const response = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}&include=user`);
@@ -265,9 +346,10 @@ class CommunityApi {
       }
       
       return response.data;
-    } catch (error) {
+    } catch (error: unknown) {
       // Si le paramètre include=user n'est pas supporté, essayer sans
-      if (error.response?.status === 400 || error.response?.status === 404) {
+      const apiError = error as ApiError;
+      if (apiError.response?.status === 400 || apiError.response?.status === 404) {
         console.warn('⚠️ Paramètre include=user non supporté pour les commentaires, tentative sans paramètre');
         const fallbackResponse = await api.get(`/community/posts/${postId}/comments?page=${page}&limit=${limit}`);
         return fallbackResponse.data;
@@ -281,7 +363,7 @@ class CommunityApi {
    * @param {string} commentId - Comment UUID
    * @returns {Promise<Object>} Success response
    */
-  async deleteComment(commentId) {
+  async deleteComment(commentId: string) {
     try {
       
       const response = await api.delete(`/community/comments/${commentId}`);
@@ -298,7 +380,7 @@ class CommunityApi {
    * @param {string} commentId - Comment UUID
    * @returns {Promise<Object>} Response with success message
    */
-  async toggleLikeComment(commentId) {
+  async toggleLikeComment(commentId: string) {
     try {
       
       const response = await api.post(`/community/comments/${commentId}/like`);
@@ -317,10 +399,10 @@ class CommunityApi {
    * @param {Array<string>} mediaUrls - Optional media URLs
    * @returns {Promise<Object>} Updated post data
    */
-  async updatePost(postId, content, mediaUrls = null) {
+  async updatePost(postId: string, content: string, mediaUrls: string[] | null = null) {
     try {
       
-      const body = { content };
+      const body: { content: string; mediaUrls?: string[] } = { content };
       if (mediaUrls) {
         body.mediaUrls = mediaUrls;
       }
@@ -339,7 +421,7 @@ class CommunityApi {
    * @param {string} postId - Post UUID
    * @returns {Promise<Object>} Success response
    */
-  async deletePost(postId) {
+  async deletePost(postId: string) {
     try {
       
       const response = await api.delete(`/community/posts/${postId}`);
@@ -357,7 +439,7 @@ class CommunityApi {
    * @param {string} reason - Reason for reporting the post
    * @returns {Promise<Object>} Success response
    */
-  async reportPost(postId, reason) {
+  async reportPost(postId: string, reason: string) {
     try {
       
       const response = await api.post(`/community/posts/${postId}/report`, {

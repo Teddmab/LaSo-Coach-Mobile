@@ -105,7 +105,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
-  } = useGoogleAuthHybrid(); // iOS utilise WebView, Android SDK natif
+  } = useGoogleAuthHybrid(); // SDK natif sur iOS et Android
   const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
   
   /**
@@ -417,7 +417,23 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
       // Note: No automatic plan activation - user must manually subscribe to a plan
     } catch (error: any) {
-      setErrors({ general: 'Une erreur est survenue lors de l\'inscription' });
+      // Améliorer la gestion d'erreur pour mieux afficher les erreurs réseau
+      let errorMessage = 'Une erreur est survenue lors de l\'inscription';
+      
+      // Vérifier les erreurs réseau spécifiques
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network')) {
+        errorMessage = 'Erreur de connexion. Vérifiez votre connexion internet et réessayez.';
+      } else if (error?.code === 'ECONNABORTED' || error?.message?.includes('timeout')) {
+        errorMessage = 'Délai de connexion dépassé. Vérifiez votre connexion internet et réessayez.';
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      setErrors({ general: errorMessage });
     }
   };
 
@@ -1194,8 +1210,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     )}
                   </TouchableOpacity>
 
-                  {/* Google Login Button - Only on Android (ou si simulation iOS désactivée) */}
-                  {Platform.OS === 'android' && !isIOSSimulationEnabled && (
+                  {/* Google Login Button - Temporairement masqué sur iOS */}
+                  {Platform.OS !== 'ios' && (
                     <TouchableOpacity
                       style={[styles.googleButton, loading && styles.loginButtonDisabled]}
                       onPress={handleGoogleLogin}
@@ -1389,8 +1405,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     </TouchableOpacity>
                   )}
 
-                  {/* Google Sign Up Button - Only show on steps 1-3 and Android (ou si simulation iOS désactivée) */}
-                  {currentStep < 4 && Platform.OS === 'android' && !isIOSSimulationEnabled && (
+                  {/* Google Sign Up Button - Temporairement masqué sur iOS */}
+                  {currentStep < 4 && Platform.OS !== 'ios' && (
                     <>
                       {/* Divider */}
                       <View style={styles.dividerContainer}>

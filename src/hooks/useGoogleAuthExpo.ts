@@ -22,16 +22,15 @@ interface UseGoogleAuthReturn {
 }
 
 /**
- * Hook pour l'authentification Google utilisant expo-auth-session avec WebView et proxy Expo
- * Alternative plus stable au SDK natif pour iOS
+ * Hook pour l'authentification Google utilisant expo-auth-session avec WebView
+ * Utilise un redirect URI direct (comme sur la version web) au lieu du proxy Expo
  * 
  * Avantages :
  * - Pas de crash natif
- * - Proxy Expo génère une URL HTTPS valide (requis par Google OAuth Web Client)
+ * - Redirect URI direct (pas de proxy)
  * - Configuration simple
  * - Fonctionne avec Firebase Auth
- * 
- * Note: Garder l'app au premier plan pendant l'authentification pour éviter "Something went wrong"
+ * - Même approche que la version web
  */
 export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAuthReturn => {
   const { loginWithGoogle, registerWithGoogle } = useAuth();
@@ -54,7 +53,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         console.log('🔧 Configuration Google Auth avec expo-auth-session');
         console.log('🌐 Web Client ID:', firebaseOAuthClientIds.web?.substring(0, 30) + '...');
         console.log('📱 Plateforme:', Platform.OS);
-        console.log('🌐 Utilisation de WebView avec proxy Expo (URL HTTPS valide pour Google OAuth)');
+        console.log('🌐 Utilisation de WebView avec redirect URI direct (comme version web)');
         
         setIsConfigured(true);
       } catch (error: any) {
@@ -68,8 +67,8 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
   /**
    * Fonction pour se connecter avec Google via expo-auth-session
-   * Utilise une WebView avec proxy Expo (URL HTTPS valide requise par Google OAuth Web Client)
-   * IMPORTANT: Garder l'app au premier plan pendant l'authentification
+   * Utilise une WebView avec redirect URI direct (comme version web)
+   * Pas de proxy Expo - utilise le custom scheme de l'app
    */
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     // Vérifier que la configuration est prête
@@ -92,8 +91,7 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
     try {
       setIsPrompting(true);
 
-      console.log('🚀 Lancement de l\'authentification Google via WebView avec proxy Expo...');
-      console.log('⚠️ IMPORTANT: Gardez l\'app au premier plan pendant l\'authentification');
+      console.log('🚀 Lancement de l\'authentification Google via WebView (redirect URI direct)...');
 
       // Configuration OAuth Google
       const discovery = {
@@ -102,25 +100,28 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
       };
 
-      // CRITIQUE: Utiliser le proxy Expo avec useProxy: true
-      // Google OAuth Web Client n'accepte que les URLs HTTPS (pas les deep links)
-      // Le proxy Expo génère une URL HTTPS valide: https://auth.expo.io/@owner/slug
+      // Utiliser le custom scheme directement pour éviter le problème de sessionStorage
+      // Le handler Firebase nécessite sessionStorage qui n'est pas accessible dans WebView
+      // On utilise donc le custom scheme et on gère l'échange du code nous-mêmes
       const redirectUri = AuthSession.makeRedirectUri({
-        useProxy: true, // CRITIQUE: Utiliser le proxy Expo pour obtenir une URL HTTPS
+        useProxy: false, // Pas de proxy
+        scheme: 'lasocoach', // Custom scheme de l'app
+        path: 'oauth', // Path pour le redirect
       });
-      console.log(`🌐 [${Platform.OS}] Redirect URI (proxy Expo):`, redirectUri);
+      
+      console.log(`🌐 [${Platform.OS}] Redirect URI (custom scheme, sans Firebase handler):`, redirectUri);
+      console.log('⚠️ IMPORTANT: Ce redirect URI doit être configuré dans Google Cloud Console');
 
-      // CRITIQUE: Générer un nonce aléatoire pour responseType: IdToken
-      // Google exige un nonce pour des raisons de sécurité (prévention des attaques de rejeu)
+      // Utiliser responseType: 'id_token' directement avec un nonce
+      // Cela évite complètement le handler Firebase qui nécessite sessionStorage
+      // Le nonce garantit la sécurité sans avoir besoin de sessionStorage
       const nonce = await Crypto.randomUUID();
       console.log('🔐 Nonce généré pour sécurité OAuth:', nonce.substring(0, 20) + '...');
 
-      // CRITIQUE: Utiliser responseType: IdToken pour obtenir directement l'id_token
-      // Le proxy Expo gère parfaitement le flow IdToken avec WebView
       const request = new AuthSession.AuthRequest({
         clientId: firebaseOAuthClientIds.web,
         scopes: ['openid', 'profile', 'email'],
-        responseType: AuthSession.ResponseType.IdToken,
+        responseType: AuthSession.ResponseType.IdToken, // Obtenir directement l'id_token
         redirectUri: redirectUri,
         usePKCE: false, // PKCE non compatible avec IdToken
         extraParams: {
@@ -129,14 +130,12 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         },
       });
 
-      console.log('📱 Ouverture de la WebView Google avec proxy Expo...');
+      console.log('📱 Ouverture de la WebView Google avec redirect URI direct...');
       console.log('🔗 Redirect URI:', request.redirectUri);
 
-      // CRITIQUE: Utiliser promptAsync() avec useProxy: true pour utiliser le proxy Expo
-      // Le proxy Expo génère une URL HTTPS valide que Google accepte
-      // IMPORTANT: Garder l'app au premier plan pendant l'authentification pour éviter "Something went wrong"
+      // Utiliser promptAsync() sans proxy - redirect URI direct (comme version web)
       const authResult = await request.promptAsync(discovery, {
-        useProxy: true, // CRITIQUE: Utiliser le proxy Expo pour obtenir une URL HTTPS valide
+        useProxy: false, // Pas de proxy - redirect URI direct
       });
 
       console.log('📬 Résultat authentification:', authResult.type);
@@ -153,15 +152,12 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         return result;
       }
 
-      // CRITIQUE: Gérer le cas "dismiss" qui arrive quand le proxy Expo ne peut pas rediriger
+      // Gérer le cas "dismiss" qui arrive quand l'authentification est annulée
       if (authResult.type === 'dismiss') {
-        console.warn('⚠️ Authentification Google dismissée - Le proxy Expo n\'a pas pu rediriger');
-        console.warn('⚠️ Cela peut arriver si l\'app est passée en arrière-plan pendant l\'authentification');
-        console.warn('⚠️ Solution: Gardez l\'app au premier plan pendant toute l\'authentification');
-        
+        console.log('ℹ️ Authentification Google dismissée par l\'utilisateur');
         result = {
           user: null,
-          error: 'L\'authentification a été interrompue. Veuillez réessayer en gardant l\'application au premier plan pendant toute la durée de l\'authentification.',
+          error: null, // Pas d'erreur pour une annulation utilisateur
         };
         setIsPrompting(false);
         return result;
@@ -177,13 +173,13 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         return result;
       }
 
-      // Vérifier le résultat et extraire l'id_token
+      // Vérifier le résultat et extraire l'id_token directement
       if (authResult.type === 'success') {
-        // Avec promptAsync(), l'id_token est directement dans authResult.params
+        // Avec responseType: 'id_token', l'id_token est directement dans authResult.params
         const idToken = authResult.params?.id_token;
         
         if (idToken) {
-          console.log('✅ idToken reçu depuis proxy Expo:', idToken.substring(0, 50) + '...');
+          console.log('✅ idToken reçu directement (sans handler Firebase):', idToken.substring(0, 50) + '...');
           console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
 
           // Utiliser la fonction appropriée (login ou register) avec Firebase

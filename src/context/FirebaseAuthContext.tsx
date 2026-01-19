@@ -370,6 +370,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Use registerWithGoogle from service (which internally uses loginWithGoogle but with different messaging)
       const user = await firebaseAuthService.registerWithGoogle(googleIdToken);
+      
+      // Mark user as new for welcome flow (si ce n'est pas déjà fait par le service)
+      // Le service le fait déjà, mais on le fait aussi ici pour être sûr
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const userId = user.id || user.uid;
+        // Vérifier si c'est un nouvel utilisateur via le flag du service
+        const isNewUser = (user as any)._isNewUser === true;
+        if (isNewUser) {
+          await AsyncStorage.setItem(`@laso_is_new_user_${userId}`, 'true');
+          console.log('✅ [FirebaseAuthContext] Nouvel utilisateur Google marqué pour welcome flow:', { userId });
+        }
+      } catch (storageError) {
+        console.warn('⚠️ Could not mark Google user as new:', storageError);
+      }
 
       Toast.show({
         type: 'success',
@@ -412,13 +427,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const user = await firebaseAuthService.register(userData);
       
+      // Mark user as new for welcome flow
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        await AsyncStorage.setItem(`@laso_is_new_user_${user.id || user.uid}`, 'true');
+      } catch (storageError) {
+        console.warn('⚠️ Could not mark user as new:', storageError);
+      }
+      
       // User state will be updated via Firebase auth state listener
-      Toast.show({ 
-        type: 'success', 
-        text1: 'Inscription réussie', 
-        text2: 'Votre compte a été créé avec succès',
-        visibilityTime: 2000 // Réduire à 2 secondes au lieu de 4 par défaut
-      });
+      // Don't show Toast here - welcome bottom sheet will handle it
       
     } catch (error: any) {
       const errorMessage = error.message || 'Erreur d\'inscription inconnue';

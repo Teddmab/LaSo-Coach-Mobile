@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
-import axios from 'axios';
 import Config from '../config/env';
 import firebaseAuthService from './firebaseAuthServiceNew';
+import api from './api';
 
 /**
  * Chat WebSocket Service
@@ -90,9 +90,7 @@ class ChatSocketService {
       // Backend requirement: Instance must be warm before Socket.IO connection
       // This prevents "x-render-routing: no-server" 404 errors from cold starts
       try {
-        const healthResponse = await axios.get(`${Config.API_BASE_URL}/health`, {
-          timeout: 10000,
-        });
+        const response = await api.get('/health', { timeout: 10000 });
         
         // Backend recommendation: Brief delay after warmup to ensure instance is ready
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -690,7 +688,9 @@ class ChatSocketService {
       }
       healthUrl = `${healthUrl}/ws-health`;
       
-      const response = await axios.get(healthUrl, { timeout: 10000 });
+      // Extract endpoint path from full URL
+      const endpoint = healthUrl.replace(Config.API_BASE_URL, '').replace(/^\/+/, '');
+      const response = await api.get(`/${endpoint}`, { timeout: 10000 });
       
       return response.data;
     } catch (error) {

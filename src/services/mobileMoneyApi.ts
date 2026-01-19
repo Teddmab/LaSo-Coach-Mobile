@@ -1,6 +1,5 @@
-import axios from 'axios';
+import api from './api';
 import { API_BASE_URL } from '@env';
-import { getFirebaseIdToken } from './firebaseAuthServiceNew';
 
 interface InitiatePaymentRequest {
   phoneNumber: string;
@@ -42,7 +41,7 @@ interface PaymentVerificationResponse {
   subscriptionActivated: boolean;
 }
 
-const API_ENDPOINT = `${API_BASE_URL}/api/payments/mobile-money`;
+const API_ENDPOINT = API_BASE_URL ? `${API_BASE_URL}/api/payments/mobile-money` : '/api/payments/mobile-money';
 
 /**
  * Initiate a mobile money payment
@@ -51,25 +50,15 @@ export const initiateMobileMoneyPayment = async (
   request: InitiatePaymentRequest
 ): Promise<InitiatePaymentResponse> => {
   try {
-    const idToken = await getFirebaseIdToken();
-
-    const response = await axios.post<InitiatePaymentResponse>(
-      `${API_ENDPOINT}/initiate`,
-      {
+    const endpoint = `${API_ENDPOINT}/initiate`.replace(API_BASE_URL || '', '').replace(/^\/+/, '');
+    const response = await api.post<InitiatePaymentResponse>(`/${endpoint}`, {
         phoneNumber: request.phoneNumber,
         provider: request.provider,
         amount: request.amount,
         currency: request.currency,
         subscriptionPlanId: request.subscriptionPlanId,
         callbackUrl: request.callbackUrl,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    });
 
     return response.data;
   } catch (error) {
@@ -85,16 +74,8 @@ export const checkPaymentStatus = async (
   transactionId: string
 ): Promise<PaymentStatusResponse> => {
   try {
-    const idToken = await getFirebaseIdToken();
-
-    const response = await axios.get<PaymentStatusResponse>(
-      `${API_ENDPOINT}/${transactionId}/status`,
-      {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      }
-    );
+    const endpoint = `${API_ENDPOINT}/${transactionId}/status`.replace(API_BASE_URL || '', '').replace(/^\/+/, '');
+    const response = await api.get<PaymentStatusResponse>(`/${endpoint}`);
 
     return response.data;
   } catch (error) {
@@ -110,21 +91,11 @@ export const verifyMobileMoneyPayment = async (
   request: PaymentVerificationRequest
 ): Promise<PaymentVerificationResponse> => {
   try {
-    const idToken = await getFirebaseIdToken();
-
-    const response = await axios.post<PaymentVerificationResponse>(
-      `${API_ENDPOINT}/verify`,
-      {
+    const endpoint = `${API_ENDPOINT}/verify`.replace(API_BASE_URL || '', '').replace(/^\/+/, '');
+    const response = await api.post<PaymentVerificationResponse>(`/${endpoint}`, {
         transactionId: request.transactionId,
         provider: request.provider,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    });
 
     return response.data;
   } catch (error) {
@@ -178,18 +149,8 @@ export const pollPaymentStatus = async (
  */
 export const cancelMobileMoneyPayment = async (transactionId: string): Promise<void> => {
   try {
-    const idToken = await getFirebaseIdToken();
-
-    await axios.post(
-      `${API_ENDPOINT}/${transactionId}/cancel`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const endpoint = `${API_ENDPOINT}/${transactionId}/cancel`.replace(API_BASE_URL || '', '').replace(/^\/+/, '');
+    await api.post(`/${endpoint}`, {});
   } catch (error) {
     console.error('Payment cancellation failed:', error);
     throw new Error('Failed to cancel payment');
@@ -204,17 +165,8 @@ export const getMobileMoneyTransactionHistory = async (
   offset: number = 0
 ): Promise<PaymentStatusResponse[]> => {
   try {
-    const idToken = await getFirebaseIdToken();
-
-    const response = await axios.get<{ transactions: PaymentStatusResponse[] }>(
-      `${API_ENDPOINT}/transactions`,
-      {
-        params: { limit, offset },
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
-      }
-    );
+    const endpoint = `${API_ENDPOINT}/transactions?limit=${limit}&offset=${offset}`.replace(API_BASE_URL || '', '').replace(/^\/+/, '');
+    const response = await api.get<{ transactions: PaymentStatusResponse[] }>(`/${endpoint}`);
 
     return response.data.transactions || [];
   } catch (error) {

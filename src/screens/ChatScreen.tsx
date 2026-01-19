@@ -101,9 +101,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
       ) : !termsAccepted ? (
         // User has not accepted terms - show prompt
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>📋 Terms Required</Text>
+          <Text style={styles.emptyTitle}>📋 Acceptation requise</Text>
           <Text style={styles.emptyText}>
-            Please accept our community guidelines to access chat features.
+            Veuillez accepter les règles de la communauté pour accéder aux fonctionnalités de chat.
           </Text>
         </View>
       ) : activeChatId && currentChat ? (

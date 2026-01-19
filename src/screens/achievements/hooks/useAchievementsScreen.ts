@@ -203,8 +203,16 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
   const fetchProfileData = async (): Promise<void> => {
     try {
       const data = await ProfileApi.getProfile();
+      // Handle case where profile might be null due to Prisma errors
+      if (data) {
       setProfileData(data);
+      } else {
+        console.warn('⚠️ [useAchievementsScreen] Profile data is null - Prisma error or missing data');
+        setProfileData(null);
+      }
     } catch (error) {
+      console.error('❌ [useAchievementsScreen] Error fetching profile:', error);
+      setProfileData(null);
     }
   };
 
@@ -328,34 +336,27 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
 
   const assignChallenge = async (challengeId: string): Promise<void> => {
     // Vérifier l'état de l'abonnement avant d'accepter le défi
-    try {
-      const subscriptionStatus = await SubscriptionService.getSubscriptionStatus();
-      const hasActiveSubscription = subscriptionStatus?.status === 'ACTIVE' || 
-                                   subscriptionStatus?.hasActiveSubscription === true ||
-                                   (subscriptionStatus?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionStatus?.isExpired);
-      
-      if (!hasActiveSubscription) {
-        // Sur iOS, afficher une notification Toast (comme sur Nutrition)
-        if (isIOS) {
-          Toast.show({
-            type: 'info',
-            text1: 'Statut non vérifié',
-            text2: 'L\'accès à ce contenu dépend de votre statut actuel. Veuillez vérifier votre accès pour continuer.',
-            visibilityTime: 5000,
-          });
-        } else {
+    // Sur iOS, on laisse passer sans vérification
+    if (!isIOS) {
+      try {
+        const subscriptionStatus = await SubscriptionService.getSubscriptionStatus();
+        const hasActiveSubscription = subscriptionStatus?.status === 'ACTIVE' || 
+                                     subscriptionStatus?.hasActiveSubscription === true ||
+                                     (subscriptionStatus?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionStatus?.isExpired);
+        
+        if (!hasActiveSubscription) {
           // Sur Android, afficher un message d'erreur
           Toast.show({
             type: 'error',
             text1: 'Abonnement requis',
             text2: 'Vous devez avoir un abonnement actif pour accepter des défis.',
           });
+          return;
         }
-        return;
+      } catch (error) {
+        // En cas d'erreur de vérification, continuer quand même (ne pas bloquer)
+        console.warn('Erreur lors de la vérification de l\'abonnement:', error);
       }
-    } catch (error) {
-      // En cas d'erreur de vérification, continuer quand même (ne pas bloquer)
-      console.warn('Erreur lors de la vérification de l\'abonnement:', error);
     }
     
     // Si l'abonnement est actif, procéder à l'acceptation du défi

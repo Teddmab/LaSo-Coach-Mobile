@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { WebView } from 'react-native-webview';
@@ -1367,7 +1368,6 @@ const createStyles = (theme) => StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
