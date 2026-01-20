@@ -13,6 +13,12 @@ interface PlanCardProps {
 const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
   const backgroundColor = getPlanBackgroundColor(plan.name);
   const features = plan.features || [];
+  
+  // Check if current plan is iOS default plan (contains "ios" in name, case-insensitive)
+  const isCurrentIOSPlan = isCurrent && plan.name?.toLowerCase().includes('ios');
+  // Allow upgrade from iOS plan to paid plans
+  const isClickable = !isCurrent || isCurrentIOSPlan;
+  const buttonText = isCurrentIOSPlan ? "Passer à ce plan" : (isCurrent ? 'Plan actuel' : "S'abonner");
 
   return (
     <View style={styles.planCardWithImage}>
@@ -45,10 +51,10 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
         <TouchableOpacity 
           style={styles.planSubscribeButton}
           onPress={() => onSelect(plan)}
-          disabled={isCurrent}
+          disabled={!isClickable}
         >
           <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
-            {isCurrent ? 'Plan actuel' : "S'abonner"}
+            {buttonText}
           </Text>
         </TouchableOpacity>
       </View>

@@ -71,10 +71,20 @@ export const useCommunityScreen = (
       // Le backend retourne: { status: "success", data: { posts: [...], pagination: {...} } }
       const posts = response.data?.posts || response.posts || [];
       
-      // S'assurer que les posts ont bien mediaUrls et données utilisateur (le backend retourne mediaUrls)
+      // S'assurer que les posts ont bien mediaUrls et données utilisateur
+      // Le backend peut retourner soit mediaUrls (tableau de strings) soit media (tableau d'objets avec url)
       const postsWithMedia = posts.map((post: any) => {
-        // Le backend retourne mediaUrls qui est un tableau de strings
-        const mediaUrls = post.mediaUrls || [];
+        // Extraire mediaUrls : soit directement, soit depuis media[].url
+        let mediaUrls: string[] = [];
+        if (post.mediaUrls && Array.isArray(post.mediaUrls)) {
+          // Format direct : tableau de strings
+          mediaUrls = post.mediaUrls;
+        } else if (post.media && Array.isArray(post.media)) {
+          // Format avec objets : extraire les URLs
+          mediaUrls = post.media
+            .map((item: any) => item.url || item.mediaUrl || item)
+            .filter((url: any) => url && typeof url === 'string');
+        }
         
         // Log complet de la structure du post pour debug
         if (posts.indexOf(post) === 0) {
@@ -90,6 +100,11 @@ export const useCommunityScreen = (
             createdBy: post.createdBy,
             user: post.user,
             User: post.User,
+            hasMediaUrls: !!post.mediaUrls,
+            hasMedia: !!post.media,
+            mediaUrls: post.mediaUrls,
+            media: post.media,
+            extractedMediaUrls: mediaUrls,
           });
         }
         

@@ -221,11 +221,42 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
     try {
       setLoading(true);
       
-      // Fetch nutrition plans
+      // Fetch nutrition plans - même logique que NutritionScreen
       const plansResponse = await nutritionAPI.getPlans();
       
-      if (plansResponse.success && plansResponse.data.plans && plansResponse.data.plans.length > 0) {
-        const currentPlan = plansResponse.data.plans[0]; // Get the first plan for now
+      // Support both old and new format (comme dans NutritionScreen)
+      const plansData = plansResponse?.data || plansResponse;
+      const httpStatus = plansResponse?.status || 200;
+      
+      // Vérifier si on a des plans (même logique que NutritionScreen)
+      const plansCount = plansData?.data?.plans?.length || plansData?.plans?.length || 0;
+      const allPlans = plansData?.data?.plans || plansData?.plans || [];
+      
+      if (__DEV__) {
+        console.log('🍽️ [NutritionCard] Plans chargés:', {
+          httpStatus,
+          plansCount,
+          hasPlansData: !!plansData,
+          plansStructure: {
+            hasDataField: !!plansData?.data,
+            hasPlansArray: Array.isArray(plansData?.data?.plans) || Array.isArray(plansData?.plans),
+            plansArrayLength: allPlans.length,
+          },
+        });
+      }
+      
+      // Si on a des plans, utiliser le premier plan actif ou le premier disponible
+      if (plansCount > 0 && allPlans.length > 0) {
+        const currentPlan = allPlans.find((plan: any) => plan.isActive) || allPlans[0];
+        
+        if (__DEV__) {
+          console.log('✅ [NutritionCard] Plan sélectionné:', {
+            planId: currentPlan?.id,
+            planName: currentPlan?.name,
+            isActive: currentPlan?.isActive,
+            menusCount: currentPlan?.menus?.length || 0,
+          });
+        }
         
         // Fetch completion status for the current plan
         try {
@@ -289,13 +320,26 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             }
           };
           setNutritionData(nutritionData);
+          
+          if (__DEV__) {
+            console.log('✅ [NutritionCard] NutritionData défini avec succès');
+          }
         }
       } else {
+        // Pas de plans disponibles
+        if (__DEV__) {
+          console.log('⚠️ [NutritionCard] Aucun plan disponible:', {
+            httpStatus,
+            plansCount,
+            hasPlansData: !!plansData,
+          });
+        }
         setNutritionData(null);
       }
     } catch (error) {
-      // Fallback to mock data for development
-      setNutritionData(mockNutritionData);
+      console.error('❌ [NutritionCard] Erreur lors du chargement des plans:', error);
+      // Ne pas utiliser mock data en production - retourner null
+      setNutritionData(null);
     } finally {
       setLoading(false);
     }
@@ -425,49 +469,14 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
                                  subscriptionData?.hasActiveSubscription === true ||
                                  (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
   
-  // Sur iOS, si pas d'abonnement, afficher une carte iOS spéciale (sans blur)
+  // Sur iOS : Ne jamais afficher de carte "Menus verrouillés"
+  // Sur iOS, soit on a le plan (et on l'affiche), soit on n'affiche rien
   // Sur Android, afficher la carte "Menus verrouillés" classique
   const shouldShowLockedMenuAndroid = (isSubscriptionExpired || (!subscriptionData && !nutritionData)) && !isIOS;
-  const shouldShowIOSLockedCard = isIOS && !hasActiveSubscription;
   
-  // Carte iOS spéciale pour menu verrouillé (sans blur, remplace complètement la carte Android)
-  if (shouldShowIOSLockedCard) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-          <Text style={styles.title}>Menu du jour</Text>
-        </View>
-        
-        {/* iOS Locked Menu Card - Remplace la carte Android */}
-        <View style={styles.iosLockedContainer}>
-          {/* Plate Icon */}
-          <View style={styles.plateIconContainer}>
-            <View style={styles.plateIcon}>
-              <Ionicons name="restaurant" size={40} color="#9C27B0" />
-              <View style={styles.forkIcon}>
-                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
-              </View>
-              <View style={styles.knifeIcon}>
-                <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
-              </View>
-            </View>
-          </View>
-          
-          {/* Title */}
-          <Text style={styles.lockedTitle}>Menus verrouillés</Text>
-          
-          {/* Description */}
-          <Text style={styles.lockedDescription}>
-            L'accès aux menus et défis nécessite un suivi actif avec{' '}
-            <Text style={styles.lasocoachHighlight}>LaSoCoach</Text>. Vérifiez votre statut ou contactez-nous pour plus d'informations.
-          </Text>
-          
-          {/* iOS: Subscription status managed on web portal */}
-        </View>
-      </View>
-    );
-  }
+  // Sur iOS : Si on a nutritionData (plan chargé), on l'affiche toujours, peu importe l'abonnement
+  // Si on n'a pas nutritionData, on n'affiche rien (pas de carte "Menus verrouillés")
+  // Sur Android : On affiche la carte "Menus verrouillés" si pas d'abonnement
   
   // Carte Android classique "Menus verrouillés"
   if (shouldShowLockedMenuAndroid) {
@@ -542,8 +551,16 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
     );
   }
 
-  // Safety check: if nutritionData is null or doesn't have a plan, show locked menu
+  // Safety check: if nutritionData is null or doesn't have a plan
+  // Sur iOS : Ne rien afficher si pas de plan
+  // Sur Android : Afficher la carte "Menus verrouillés"
   if (!nutritionData || !nutritionData.plan || !nutritionData.plan.menus || nutritionData.plan.menus.length === 0) {
+    // Sur iOS, ne rien afficher si pas de plan
+    if (isIOS) {
+      return null;
+    }
+    
+    // Sur Android, afficher la carte "Menus verrouillés"
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -727,31 +744,6 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
               </TouchableOpacity>
             );
           })}
-      </View>
-
-      {/* Summary */}
-      <View style={styles.summaryContainer}>
-        <View style={styles.summaryItem}>
-          <Ionicons name="information-circle-outline" size={16} color={theme.colors.text.secondary} />
-          <Text style={styles.summaryLabel}>Description</Text>
-          <Text style={styles.summaryValue}>{nutritionData.plan.description}</Text>
-        </View>
-        
-        <View style={styles.summaryItem}>
-          <Ionicons name="checkmark-circle-outline" size={16} color={theme.colors.text.secondary} />
-          <Text style={styles.summaryLabel}>Progression</Text>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${completionStatus.completionPercentage}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressText}>{completionStatus.completionPercentage}%</Text>
-          </View>
-        </View>
       </View>
 
     </View>

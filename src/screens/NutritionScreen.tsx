@@ -1666,33 +1666,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             <Text style={styles.menuTitle}>Menu du jour</Text>
             <Text style={styles.menuDate}>{formatDate(currentDate)}</Text>
           </View>
-          {/* Plan name with video button */}
-          {currentPlan && (
-            <TouchableOpacity 
-              style={styles.planNameRow}
-              onPress={() => {
-                if (!isIOS && currentPlan.youtubeUrl) {
-                  const videoId = getYouTubeVideoId(currentPlan.youtubeUrl);
-                  if (videoId) {
-                    setPlanVideoId(videoId);
-                    setPlanVideoPlaying(true);
-                    setShowPlanVideoModal(true);
-                    logger.info('User Action: Opening plan video modal', {
-                      planId: currentPlan.id,
-                      planName: currentPlan.name,
-                      videoId
-                    });
-                  }
-                }
-              }}
-              disabled={isIOS || !currentPlan.youtubeUrl}
-              activeOpacity={currentPlan.youtubeUrl ? 0.7 : 1}
-            >
-              <Text style={styles.planNameText}>{currentPlan.name}</Text>
-              {!isIOS && currentPlan.youtubeUrl && (
-                <Ionicons name="play-circle" size={24} color={theme.colors.primary} />
-              )}
-            </TouchableOpacity>
+          {/* Phase actuel - Only on Android */}
+          {!isIOS && profileData?.currentPhase && (
+            <View style={styles.phaseBanner}>
+              <Text style={styles.phaseText}>Phase actuel : {profileData.currentPhase}</Text>
+            </View>
           )}
         </View>
 
@@ -1797,7 +1775,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         </View>
 
         {/* Locked Menu Card - Show when no active plan or subscription expired, but NOT if HTTP status is 200 */}
-        {(!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200 && (
+        {/* Sur iOS : Ne jamais afficher la carte "Menus verrouillés" */}
+        {/* Sur iOS, soit on a le plan (et on l'affiche), soit on n'affiche rien */}
+        {!isIOS && (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200 && (
           <View style={styles.lockedMenuCard}>
             <View style={styles.lockedMenuHeader}>
               <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
@@ -1806,7 +1786,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             
             {/* Locked Menu Message */}
             <View style={styles.lockedMenuContainer}>
-              {/* Plate Icon - Afficher sur iOS aussi */}
+              {/* Plate Icon */}
               <View style={styles.lockedPlateIconContainer}>
                 <View style={styles.lockedPlateIcon}>
                   <Ionicons name="restaurant" size={40} color="#9C27B0" />
@@ -1824,18 +1804,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
               
               {/* Description */}
               <Text style={styles.lockedMenuDescription}>
-                {isIOS 
-                  ? (
-                    <>
-                      L'accès aux menus et défis nécessite un suivi actif avec{' '}
-                      <Text style={styles.lasocoachHighlight}>LaSoCoach</Text>. Vérifiez votre statut ou contactez-nous pour plus d'informations.
-                    </>
-                  )
-                  : "Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel."
-                }
+                Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
               </Text>
-              
-              {/* iOS: Subscription status managed on web portal */}
             </View>
           </View>
         )}
@@ -2581,6 +2551,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.text.secondary,
     flex: 1,
+  },
+  phaseBanner: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  phaseText: {
+    fontSize: 14,
+    color: '#1976D2',
+    fontWeight: '500',
   },
   phasePathContainer: {
     flexDirection: 'row',

@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "29",
+      "buildNumber": "30",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
