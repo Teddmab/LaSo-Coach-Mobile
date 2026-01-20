@@ -345,17 +345,14 @@ export const useCommunityScreen = (
   useEffect(() => {
     // Only fetch posts if UGC terms are accepted
     if (termsAccepted) {
-      // Add a longer delay to ensure backend has processed the acceptance
-      // The backend might need time to propagate the UGC acceptance status
-      const timer = setTimeout(() => {
-        console.log('🔄 [useCommunityScreen] Terms accepted, fetching posts after delay...', {
-          termsAccepted,
-          timestamp: new Date().toISOString(),
-        });
-        fetchCommunityPosts();
-      }, 5000); // Increased to 5 seconds to allow backend propagation
-      
-      return () => clearTimeout(timer);
+      // Charger immédiatement les posts (plus de délai artificiel)
+      // Le spinner sera affiché pendant le chargement
+      console.log('🔄 [useCommunityScreen] Terms accepted, fetching posts immediately...', {
+        termsAccepted,
+        timestamp: new Date().toISOString(),
+      });
+      setCommunityLoading(true); // Afficher le spinner immédiatement
+      fetchCommunityPosts();
     } else {
       // Clear posts if terms are not accepted
       console.log('📋 [useCommunityScreen] Terms not accepted, clearing posts');

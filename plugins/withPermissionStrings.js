@@ -38,8 +38,7 @@ module.exports = function withPermissionStrings(config) {
     // Camera - Camera access for video
     // Required for: Video calls, fitness video recording, form checks
     NSCameraUsageDescription:
-      'Camera access enables video calls with trainers, fitness video recording for form analysis, ' +
-      'and video messages with the community.',
+      'Nous avons besoin d\'accéder à votre appareil photo pour vous permettre de prendre des photos pour compléter vos défis.',
     
     // Microphone - Audio recording
     // Required for: Video calls, audio messages, voice notes

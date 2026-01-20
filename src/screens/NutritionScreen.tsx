@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
 import BlurOverlay from '../components/BlurOverlay';
@@ -51,25 +52,31 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // State management
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const [currentDate] = useState(today); // Keep current date constant
-  const [selectedDate, setSelectedDate] = useState(today.getDate());
+  const [selectedDate, setSelectedDate] = useState<Date>(today); // Store full date object instead of just day number
   const [selectedDay, setSelectedDay] = useState(today.getDay() || 7); // Use current day of week
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [showBlurOverlay, setShowBlurOverlay] = useState(false);
   
+  const [profileData, setProfileData] = useState<any>(null);
+  const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
+  const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
+  const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
+  
   // Vérifier si l'utilisateur a un abonnement actif
-  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' || 
-                                 subscriptionData?.hasActiveSubscription === true ||
-                                 (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+  const hasActiveSubscription = (subscriptionData as any)?.status === 'ACTIVE' || 
+                                 (subscriptionData as any)?.hasActiveSubscription === true ||
+                                 ((subscriptionData as any)?.subscription?.status?.toUpperCase() === 'ACTIVE' && !(subscriptionData as any)?.isExpired);
   
   // Log pour debug
   if (__DEV__) {
     console.log('🔍 [NutritionScreen] Subscription check:', {
       subscriptionData: subscriptionData ? {
-        status: subscriptionData.status,
-        hasActiveSubscription: subscriptionData.hasActiveSubscription,
-        isExpired: subscriptionData.isExpired,
-        subscriptionStatus: subscriptionData.subscription?.status,
+        status: (subscriptionData as any).status,
+        hasActiveSubscription: (subscriptionData as any).hasActiveSubscription,
+        isExpired: (subscriptionData as any).isExpired,
+        subscriptionStatus: (subscriptionData as any).subscription?.status,
       } : null,
       hasActiveSubscription,
       currentPlan: currentPlan ? { id: currentPlan.id, name: currentPlan.name } : null,
@@ -81,10 +88,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   // Sur Android : Si pas d'abonnement, on utilise showBlurOverlay (carte "Menus verrouillés" dans NutritionCard)
   // Sur iOS : Si pas d'abonnement, on floute au lieu d'afficher la carte "Menus verrouillés"
   const shouldShowBlur = (isIOS && !hasActiveSubscription) || (showBlurOverlay && !isIOS);
-  const [profileData, setProfileData] = useState<any>(null);
-  const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
-  const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
-  const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
   const [dayMeals, setDayMeals] = useState<Meal[]>([]);
   const [tomorrowMeals, setTomorrowMeals] = useState<Meal[]>([]);
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus | null>(null);
@@ -194,12 +197,100 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }, [currentPlan?.id, subscriptionData])
   );
 
+  // Use selectedDate timestamp for dependency to ensure React detects changes
+  const selectedDateKey = selectedDate instanceof Date ? selectedDate.getTime() : selectedDate;
+  
+  // Check if a date is outside subscription coverage
+  const isDateOutsideSubscription = (date: Date) => {
+    // If status is 200, no restrictions on calendar
+    if (plansResponseStatus === 200) {
+      return false;
+    }
+    
+    // Réduire les logs pour éviter la répétition excessive
+    if (!subscriptionData) {
+      return false;
+    }
+    
+    // Logic: If subscription is EXPIRED or INACTIVE, all dates are outside
+    if ((subscriptionData as any).status === 'EXPIRED' || (subscriptionData as any).status === 'INACTIVE') {
+      return true;
+    }
+    
+    // Check if date is after subscription end date
+    // endDate might be in subscriptionData.endDate or subscriptionData.subscription.endDate
+    const endDateString = (subscriptionData as any).endDate || subscriptionData.subscription?.endDate;
+    
+    if (endDateString) {
+      const endDate = new Date(endDateString);
+      endDate.setHours(23, 59, 59, 999); // End of day
+      
+      const dateToCheck = new Date(date);
+      dateToCheck.setHours(0, 0, 0, 0); // Start of day
+      
+      const isOutside = dateToCheck > endDate;
+      
+      if (isOutside) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
+  // Generate week days starting from plan start date (or today if start date is in the past)
+  const generateWeekDays = () => {
+    const weekDays = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Determine start date: use plan start date if available, otherwise use today
+    let startDate = today;
+    if (subscriptionData?.subscription?.startDate && currentPlan) {
+      const planStartDate = new Date(subscriptionData.subscription.startDate);
+      planStartDate.setHours(0, 0, 0, 0);
+      // Use plan start date if it's today or in the future, otherwise use today
+      if (planStartDate >= today) {
+        startDate = planStartDate;
+      }
+    }
+    
+    // Generate 7 days starting from start date (no past dates)
+    for (let i = 0; i <= 6; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      const isPast = date < today;
+      
+      weekDays.push({
+        number: date.getDate(),
+        day: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][date.getDay()],
+        dayOfWeek: date.getDay() || 7, // Convert Sunday (0) to 7
+        date: date,
+        isToday: date.toDateString() === today.toDateString(),
+        isOutsideSubscription: isDateOutsideSubscription(date),
+        isPast: isPast
+      });
+    }
+    return weekDays;
+  };
+
+  // Recalculate weekDays whenever subscriptionData, plansResponseStatus, or currentPlan changes
+  const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus, currentPlan]);
+  
   useEffect(() => {
-    if (currentPlan && subscriptionData && !isLoadingDayData && !isFetchingAllData) {
+    // Wait for all required data to be available
+    if (currentPlan && subscriptionData && weekDays && weekDays.length > 0 && !isLoadingDayData && !isFetchingAllData) {
+      console.log('🔄 [NutritionScreen] useEffect triggered - loading day data', {
+        selectedDate: selectedDate instanceof Date ? selectedDate.toDateString() : selectedDate,
+        selectedDateKey,
+        currentPlanId: currentPlan.id,
+        weekDaysCount: weekDays.length,
+      });
       loadDayData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPlan?.id, selectedDate, subscriptionData]);
+  }, [currentPlan?.id, selectedDateKey, subscriptionData?.subscription?.startDate, weekDays?.length]);
 
   const fetchAllData = async () => {
     // Éviter les appels multiples simultanés
@@ -587,26 +678,58 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       return;
     }
     
+    // Wait for weekDays to be available
+    if (!weekDays || weekDays.length === 0) {
+      logger.debug('weekDays not yet available, skipping loadDayData');
+      return;
+    }
+    
     try {
       setIsLoadingDayData(true);
       logger.group('🍽️ LOAD DAY DATA');
-      logger.info('Loading meals for selected day and tomorrow');
+      logger.info('Loading meals for selected day only');
       
-      // Calculate which day in the nutrition plan cycle for today
-      const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
-      const planDay = calculateNutritionPlanDay(selectedDateObj);
+      // Use the same logic as NutritionCard: find the index of selected date in weekDays
+      // This gives us a 1-based index (1, 2, 3, 4, 5, 6, 7) that corresponds to menu.day
+      const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+      selectedDateObj.setHours(0, 0, 0, 0);
       
-      // Calculate tomorrow's date and plan day
-      const tomorrow = new Date(selectedDateObj);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowPlanDay = calculateNutritionPlanDay(tomorrow);
+      // Find the index of selected date in weekDays (1-based, like NutritionCard)
+      // weekDays is generated from today + 0 to 6 days, so index 0 = today, index 1 = tomorrow, etc.
+      let menuDay = 1; // Default to day 1
+      
+      const dayIndex = weekDays.findIndex(day => {
+        const dayDate = new Date(day.date);
+        dayDate.setHours(0, 0, 0, 0);
+        return dayDate.getTime() === selectedDateObj.getTime();
+      });
+      
+      // Convert to 1-based index (like NutritionCard's selectedDay: 1, 2, 3, 4, 5, 6, 7)
+      if (dayIndex >= 0) {
+        menuDay = dayIndex + 1;
+      } else {
+        // If date not found in weekDays, calculate days since start of weekDays
+        const firstWeekDay = new Date(weekDays[0].date);
+        firstWeekDay.setHours(0, 0, 0, 0);
+        const daysDiff = Math.floor((selectedDateObj.getTime() - firstWeekDay.getTime()) / (1000 * 60 * 60 * 24));
+        menuDay = daysDiff >= 0 && daysDiff < 7 ? daysDiff + 1 : 1;
+      }
+      
+      console.log('🔄 [NutritionScreen] loadDayData called', {
+        selectedDate: selectedDateObj.toDateString(),
+        menuDay,
+        currentPlanId: currentPlan.id,
+        planNumDays: currentPlan.numDays,
+        menusCount: currentPlan.menus?.length || 0,
+        menusAvailable: currentPlan.menus?.map((m: any) => ({ day: m.day, mealsCount: m.meals?.length || 0 })) || [],
+        weekDaysCount: weekDays?.length || 0,
+        weekDaysDates: weekDays?.map(d => d.date.toDateString()) || [],
+      });
       
       logger.debug('Input: Day selection parameters', {
-        calendarDate: selectedDate,
-        selectedDateObj: selectedDateObj.toDateString(),
-        tomorrowDate: tomorrow.toDateString(),
-        calculatedPlanDay: planDay,
-        tomorrowPlanDay: tomorrowPlanDay,
+        selectedDate: selectedDateObj.toDateString(),
+        dayIndex,
+        menuDay,
         currentPlan: {
           id: currentPlan.id,
           name: currentPlan.name,
@@ -615,14 +738,36 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         }
       });
       
-      // Logic: Get meals for today (calculated plan day)
-      logger.debug('Logic: Finding menu for plan day', {
-        planDay,
+      // Logic: Get meals for selected day (using direct menu.day match like NutritionCard)
+      logger.debug('Logic: Finding menu for menu day', {
+        menuDay,
         availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
-        searchCriteria: `menu.day === ${planDay}`
+        searchCriteria: `menu.day === ${menuDay}`
       });
       
-      const dayMenu = currentPlan.menus?.find((menu: any) => menu.day === planDay);
+      // Try to find menu with menuDay, if not found, use modulo to cycle through plan days
+      // This handles cases where plan has fewer days than 7 (e.g., 3-day plan)
+      let dayMenu = currentPlan.menus?.find((menu: any) => menu.day === menuDay);
+      
+      // If not found and plan has numDays, use modulo to find the correct day in the cycle
+      if (!dayMenu && currentPlan.numDays && currentPlan.menus && currentPlan.menus.length > 0) {
+        const cycleDay = ((menuDay - 1) % currentPlan.numDays) + 1;
+        dayMenu = currentPlan.menus.find((menu: any) => menu.day === cycleDay);
+        console.log('🔄 [NutritionScreen] Menu not found for menuDay, trying cycleDay', {
+          menuDay,
+          cycleDay,
+          numDays: currentPlan.numDays,
+          found: !!dayMenu,
+        });
+      }
+      
+      // Final fallback: use first menu (like NutritionCard does)
+      if (!dayMenu && currentPlan.menus && currentPlan.menus.length > 0) {
+        dayMenu = currentPlan.menus[0];
+        console.log('🔄 [NutritionScreen] Using fallback: first menu', {
+          fallbackMenuDay: dayMenu.day,
+        });
+      }
       
       if (dayMenu) {
         logger.debug('API Response: Day menu found', {
@@ -641,6 +786,11 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         });
         
         const meals = dayMenu.meals || [];
+        console.log('✅ [NutritionScreen] Setting dayMeals', {
+          menuDay: dayMenu.day,
+          mealsCount: meals.length,
+          mealNames: meals.map((m: Meal) => m.name),
+        });
         setDayMeals(meals);
         
         // Load interaction status for each meal
@@ -691,101 +841,34 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         
         logger.info('Day meals loaded', { 
           mealsCount: meals.length,
-          planDay: `${planDay}/${currentPlan.numDays}`,
+          menuDay: `${menuDay}`,
           interactionsLoaded: Object.keys(newInteractions).length
         });
       } else {
-        logger.warn('No menu found for plan day', {
-          planDay,
+        logger.warn('No menu found for menu day', {
+          menuDay,
           availableDays: currentPlan.menus?.map(m => m.day) || [],
           action: 'Setting empty meals array'
         });
-        setDayMeals([]);
+        // Fallback: try to use the first menu if available
+        if (currentPlan.menus && currentPlan.menus.length > 0) {
+          logger.info('Using fallback: first menu available', {
+            fallbackMenuDay: currentPlan.menus[0].day,
+            mealsCount: currentPlan.menus[0].meals?.length || 0,
+          });
+          setDayMeals(currentPlan.menus[0].meals || []);
+        } else {
+          setDayMeals([]);
+        }
       }
 
-      // Logic: Get meals for tomorrow
-      logger.debug('Logic: Finding menu for tomorrow plan day', {
-        tomorrowPlanDay,
-        availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
-        searchCriteria: `menu.day === ${tomorrowPlanDay}`
-      });
-      
-      const tomorrowMenu = currentPlan.menus?.find((menu: any) => menu.day === tomorrowPlanDay);
-      
-      if (tomorrowMenu) {
-        logger.debug('API Response: Tomorrow menu found', {
-          menuDay: tomorrowMenu.day,
-          mealsCount: tomorrowMenu.meals?.length || 0,
-          mealIds: tomorrowMenu.meals?.map((m: Meal) => ({ id: m.id, name: m.name, type: m.type })) || [],
-        });
-        
-        const tomorrowMealsList = tomorrowMenu.meals || [];
-        setTomorrowMeals(tomorrowMealsList);
-        
-        // Load interaction status for tomorrow's meals
-        const tomorrowInteractionPromises = tomorrowMealsList.map(async (meal: Meal) => {
-          try {
-            const interactionRes = await nutritionAPI.getMealInteraction(meal.id);
-            logger.debug('Tomorrow meal interaction response', { 
-              mealId: meal.id, 
-              response: interactionRes,
-              data: interactionRes?.data,
-              userInteraction: interactionRes?.data?.userInteraction || interactionRes?.userInteraction
-            });
-            
-            // Handle different response structures
-            const userInteraction = interactionRes?.data?.userInteraction || 
-                                   interactionRes?.data?.data?.userInteraction ||
-                                   interactionRes?.userInteraction || 
-                                   null;
-            
-            if (userInteraction) {
-              // Normalize to 'like' or 'dislike' (case-insensitive)
-              const normalizedInteraction = userInteraction.toLowerCase() === 'like' ? 'like' : 
-                                          userInteraction.toLowerCase() === 'dislike' ? 'dislike' : 
-                                          null;
-              return { mealId: meal.id, interaction: normalizedInteraction };
-            }
-          } catch (error) {
-            logger.debug('Error loading meal interaction', { mealId: meal.id, error });
-          }
-          return null;
-        });
-        
-        const tomorrowInteractionResults = await Promise.allSettled(tomorrowInteractionPromises);
-        const tomorrowNewInteractions: MealInteraction = {};
-        tomorrowInteractionResults.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            const interaction = result.value.interaction;
-            if (interaction === 'like' || interaction === 'dislike' || interaction === null) {
-              tomorrowNewInteractions[result.value.mealId] = interaction;
-            }
-          }
-        });
-        
-        if (Object.keys(tomorrowNewInteractions).length > 0) {
-          setMealInteractions(prev => ({ ...prev, ...tomorrowNewInteractions }));
-          logger.debug('Updated tomorrow meal interactions state', { tomorrowNewInteractions });
-        }
-        
-        logger.info('Tomorrow meals loaded', { 
-          mealsCount: tomorrowMealsList.length,
-          planDay: `${tomorrowPlanDay}/${currentPlan.numDays}`,
-          interactionsLoaded: Object.keys(tomorrowNewInteractions).length
-        });
-      } else {
-        logger.warn('No menu found for tomorrow plan day', {
-          tomorrowPlanDay,
-          availableDays: currentPlan.menus?.map(m => m.day) || [],
-          action: 'Setting empty meals array'
-        });
-        setTomorrowMeals([]);
-      }
+      // Clear tomorrow meals - we only show selected day meals
+      setTomorrowMeals([]);
 
       // Get completion status for the plan (global, puis filtrer pour le jour spécifique)
       logger.debug('API Request: Fetching completion status', {
         planId: currentPlan.id,
-        planDay,
+        menuDay,
         endpoint: 'nutritionAPI.getCompletionStatus'
       });
       
@@ -803,8 +886,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         let completionData = globalCompletionData;
         
         // Si les données sont structurées par jour, extraire le jour spécifique
-        if (globalCompletionData?.days && globalCompletionData.days[planDay]) {
-          completionData = globalCompletionData.days[planDay];
+        if (globalCompletionData?.days && globalCompletionData.days[menuDay]) {
+          completionData = globalCompletionData.days[menuDay];
         } else if (globalCompletionData?.dayProgress) {
           // Si c'est déjà au format attendu, utiliser directement
           completionData = globalCompletionData;
@@ -813,7 +896,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         // Log détaillé pour voir la structure des données reçues
         console.log('📊 [LOAD DAY DATA] Statut de complétion reçu de l\'API', {
           planId: currentPlan.id,
-          planDay,
+          menuDay,
           hasData: !!completionData,
           completedMealIds: completionData?.dayProgress?.completedMealIds || [],
           mealStatus: completionData?.mealStatus || {},
@@ -826,7 +909,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         logger.error('API Response: Completion status fetch failed', error?.message || error);
         console.error('❌ [LOAD DAY DATA] Erreur lors du chargement du statut de complétion', {
           planId: currentPlan.id,
-          planDay,
+          menuDay,
           error: error?.message || error,
           errorResponse: error?.response?.data,
         });
@@ -872,7 +955,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     
     try {
       // Find meal name from current meals
-      const meal = [...dayMeals, ...tomorrowMeals].find(m => m.id === mealId) || selectedMeal;
+      const meal = dayMeals.find(m => m.id === mealId) || selectedMeal;
       const mealName = meal?.name || 'ce repas';
       
       const currentInteraction = mealInteractions[mealId];
@@ -954,7 +1037,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     
     try {
       // Find meal name from current meals
-      const meal = [...dayMeals, ...tomorrowMeals].find(m => m.id === mealId) || selectedMeal;
+      const meal = dayMeals.find(m => m.id === mealId) || selectedMeal;
       const mealName = meal?.name || 'ce repas';
       
       const currentInteraction = mealInteractions[mealId];
@@ -1045,7 +1128,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     let freshCompletionStatus = completionStatus;
     if (currentPlan?.id) {
       try {
-        const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+        const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+        selectedDateObj.setHours(0, 0, 0, 0);
         const planDay = calculateNutritionPlanDay(selectedDateObj);
         // Utiliser getCompletionStatus au lieu de getDayCompletionStatus
         const globalCompletionData = await nutritionAPI.getCompletionStatus(currentPlan.id);
@@ -1132,9 +1216,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         throw new Error('Plan nutritionnel non disponible. Veuillez réessayer.');
       }
 
-      // selectedDate est un nombre (jour du mois), convertir en Date complète
-      // Utiliser la même logique que dans loadDayData (ligne 431)
-      const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
+      // selectedDate est maintenant une Date complète, utiliser directement
+      const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+      selectedDateObj.setHours(0, 0, 0, 0);
 
       // Calculer le planDay pour la date sélectionnée
       const planDay = calculateNutritionPlanDay(selectedDateObj);
@@ -1279,8 +1363,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         // Message informatif discret (ne pas retry)
         Toast.show({
           type: 'info',
-          text1: 'Repas déjà complété',
-          text2: 'Ce repas a déjà été marqué comme complété pour ce plan et cette date',
+                          text1: isIOS ? 'Plat déjà complété' : 'Repas déjà complété',
+                          text2: isIOS ? 'Ce plat a déjà été marqué comme complété pour ce plan et cette date' : 'Ce repas a déjà été marqué comme complété pour ce plan et cette date',
           visibilityTime: 2000,
         });
         logger.groupEnd();
@@ -1328,7 +1412,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       Toast.show({
         type: 'error',
         text1: 'Erreur',
-        text2: `Impossible de marquer le repas comme complété: ${errorMessage}`
+        text2: isIOS 
+          ? `Impossible de marquer le plat comme complété: ${errorMessage}`
+          : `Impossible de marquer le repas comme complété: ${errorMessage}`
       });
       
       logger.groupEnd();
@@ -1392,69 +1478,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }
   };
 
-  // Check if a date is outside subscription coverage
-  const isDateOutsideSubscription = (date: Date) => {
-    // If status is 200, no restrictions on calendar
-    if (plansResponseStatus === 200) {
-      return false;
-    }
-    
-    // Réduire les logs pour éviter la répétition excessive
-    if (!subscriptionData) {
-      return false;
-    }
-    
-    // Logic: If subscription is EXPIRED or INACTIVE, all dates are outside
-    if (subscriptionData.status === 'EXPIRED' || subscriptionData.status === 'INACTIVE') {
-      return true;
-    }
-    
-    // Check if date is after subscription end date
-    // endDate might be in subscriptionData.endDate or subscriptionData.subscription.endDate
-    const endDateString = subscriptionData.endDate || subscriptionData.subscription?.endDate;
-    
-    if (endDateString) {
-      const endDate = new Date(endDateString);
-      endDate.setHours(23, 59, 59, 999); // End of day
-      
-      const dateToCheck = new Date(date);
-      dateToCheck.setHours(0, 0, 0, 0); // Start of day
-      
-      const isOutside = dateToCheck > endDate;
-      
-      if (isOutside) {
-        return true;
-      }
-    }
-    
-    return false;
-  };
-
-  // Generate week days centered around current date
-  const generateWeekDays = () => {
-    const weekDays = [];
-    const today = new Date();
-    
-    // Generate 7 days starting from 3 days before today
-    for (let i = -3; i <= 3; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      
-      weekDays.push({
-        number: date.getDate(),
-        day: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][date.getDay()],
-        dayOfWeek: date.getDay() || 7, // Convert Sunday (0) to 7
-        date: date,
-        isToday: date.toDateString() === today.toDateString(),
-        isOutsideSubscription: isDateOutsideSubscription(date)
-      });
-    }
-    return weekDays;
-  };
-
-  // Recalculate weekDays whenever subscriptionData or plansResponseStatus changes
-  const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus]);
-
   const formatDate = (date: Date) => {
     const months = [
       'Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
@@ -1464,6 +1487,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     
     return `${days[date.getDay()]}, ${date.getDate()}-${months[date.getMonth()]}-${date.getFullYear()}`;
+  };
+
+  // Helper function to compare dates (ignoring time)
+  const isSameDate = (date1: Date, date2: Date): boolean => {
+    if (!date1 || !date2) return false;
+    return date1.getDate() === date2.getDate() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getFullYear() === date2.getFullYear();
   };
 
   // Function to sort meals by type in correct order
@@ -1664,7 +1695,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           <View style={styles.menuTitleRow}>
             <Text style={styles.menuIcon}>🍽️</Text>
             <Text style={styles.menuTitle}>Menu du jour</Text>
-            <Text style={styles.menuDate}>{formatDate(currentDate)}</Text>
+            <Text style={styles.menuDate}>{formatDate(selectedDate)}</Text>
           </View>
           {/* Phase actuel - Only on Android */}
           {!isIOS && profileData?.currentPhase && (
@@ -1687,21 +1718,35 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                 style={[
                   styles.calendarDay,
                   day.isToday && styles.todayDay,
-                  selectedDate === day.number && styles.selectedDay,
-                  day.isOutsideSubscription && styles.outsideSubscriptionDay
+                  isSameDate(selectedDate, day.date) && styles.selectedDay,
+                  day.isOutsideSubscription && styles.outsideSubscriptionDay,
+                  day.isPast && styles.pastDay // Style pour dates passées
                 ]}
+                disabled={day.isPast} // Désactiver les dates passées
                 onPress={() => {
+                  // Ne pas permettre de sélectionner les dates passées
+                  if (day.isPast) {
+                    return;
+                  }
+                  
                   // If status is 200, allow all dates (no restrictions)
                   if (plansResponseStatus === 200) {
                     logger.info('User Action: Date selected (status 200 - no restrictions)', {
-                      selectedDate: day.number,
+                      selectedDate: day.date.toDateString(),
                       selectedDayOfWeek: day.dayOfWeek,
                       isToday: day.isToday,
                     });
-                    setSelectedDate(day.number);
+                    // Create a new Date object to ensure React detects the change
+                    const newDate = new Date(day.date);
+                    setSelectedDate(newDate);
                     setSelectedDay(day.dayOfWeek);
                     // Clear selected meal when date changes
                     setSelectedMeal(null);
+                    console.log('📅 [NutritionScreen] Date changed', {
+                      newDate: newDate.toDateString(),
+                      dayNumber: day.number,
+                      dayOfWeek: day.dayOfWeek,
+                    });
                   } else if (day.isOutsideSubscription) {
                     // Sur iOS, afficher une notification Toast au lieu d'une Alert
                     if (isIOS) {
@@ -1731,33 +1776,38 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     }
                   } else {
                     logger.info('User Action: Date selected', {
-                      selectedDate: day.number,
+                      selectedDate: day.date.toDateString(),
                       selectedDayOfWeek: day.dayOfWeek,
                       isToday: day.isToday,
                       isOutsideSubscription: day.isOutsideSubscription,
                     });
-                    setSelectedDate(day.number);
+                    // Create a new Date object to ensure React detects the change
+                    const newDate = new Date(day.date);
+                    setSelectedDate(newDate);
                     setSelectedDay(day.dayOfWeek);
                     // Clear selected meal when date changes
                     setSelectedMeal(null);
+                    console.log('📅 [NutritionScreen] Date changed', {
+                      newDate: newDate.toDateString(),
+                      dayNumber: day.number,
+                      dayOfWeek: day.dayOfWeek,
+                    });
                   }
                 }}
               >
                 <Text style={[
                   styles.dayNumber,
                   day.isToday && styles.todayDayNumber,
-                  selectedDate === day.number && styles.selectedDayNumber,
+                  isSameDate(selectedDate, day.date) && styles.selectedDayNumber,
                   day.isOutsideSubscription && styles.outsideSubscriptionText,
-                  (day.dayOfWeek === 0 || day.dayOfWeek === 6) && !day.isToday && selectedDate !== day.number && styles.weekendDayNumber
                 ]}>
                   {day.number}
                 </Text>
                 <Text style={[
                   styles.dayName,
                   day.isToday && styles.todayDayName,
-                  selectedDate === day.number && styles.selectedDayName,
+                  isSameDate(selectedDate, day.date) && styles.selectedDayName,
                   day.isOutsideSubscription && styles.outsideSubscriptionText,
-                  (day.dayOfWeek === 0 || day.dayOfWeek === 6) && !day.isToday && selectedDate !== day.number && styles.weekendDayName
                 ]}>
                   {day.day}
                 </Text>
@@ -1766,7 +1816,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     name="warning" 
                     size={12} 
                     color="#F44336" 
-                    style={styles.warningIcon}
+                    style={{ marginTop: 2 }}
                   />
                 )}
               </TouchableOpacity>
@@ -1824,7 +1874,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
               willShowMeals: plansResponseStatus === 200 || (currentPlan && hasActiveSubscription),
               willShowLockCard: (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200,
               dayMealsCount: dayMeals.length,
-              tomorrowMealsCount: tomorrowMeals.length,
             });
           }
           return null;
@@ -1832,60 +1881,27 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         {/* Meals List - Show when status is 200 OR when there's an active plan AND active subscription */}
         {(plansResponseStatus === 200 || (currentPlan && hasActiveSubscription)) && (
           <View style={styles.mealsContainer}>
-            {/* Today's Meals */}
-            {(dayMeals.length > 0 || tomorrowMeals.length > 0) ? (
-            <>
-              {dayMeals.length > 0 && (() => {
-                // Check if selected date is today
-                const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
-                const isToday = selectedDateObj.toDateString() === today.toDateString();
-                const dayLabel = isToday ? 'Aujourd\'hui' : formatDate(selectedDateObj);
-                
-                return (
-                  <>
-                    <View style={styles.mealsSectionHeader}>
-                      <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
-                    </View>
-                    {sortMealsByType(dayMeals).map((meal: Meal) => renderMealCard(meal))}
-                    
-                    {/* Complete All Button - only for today's meals */}
-                    {isToday && (
-                      <TouchableOpacity
-                        style={styles.completeAllMealsButton}
-                        onPress={() => {
-                          setMealsToComplete(sortMealsByType([...dayMeals]));
-                          setShowCompletionModal(true);
-                          logger.info('User Action: Open completion modal', { mealsCount: dayMeals.length });
-                        }}
-                      >
-                        <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.primary} />
-                        <Text style={styles.completeAllMealsButtonText}>Marquer comme complétés</Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
-                );
-              })()}
-              
-              {/* Tomorrow's Meals */}
-              {tomorrowMeals.length > 0 && (() => {
-                // Calculate tomorrow's date
-                const selectedDateObj = selectedDate ? new Date(today.getFullYear(), today.getMonth(), selectedDate) : today;
-                const tomorrow = new Date(selectedDateObj);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const isToday = selectedDateObj.toDateString() === today.toDateString();
-                const dayLabel = isToday ? 'Demain' : formatDate(tomorrow);
-                
-                return (
-                  <>
-                    <View style={[styles.mealsSectionHeader, { marginTop: dayMeals.length > 0 ? 24 : 0 }]}>
-                      <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
-                    </View>
-                    {sortMealsByType(tomorrowMeals).map((meal: Meal) => renderMealCard(meal))}
-                  </>
-                );
-              })()}
-            </>
-          ) : null}
+            {/* Selected Day's Meals */}
+            {dayMeals.length > 0 ? (
+              <>
+                {(() => {
+                  // Check if selected date is today
+                  const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+                  selectedDateObj.setHours(0, 0, 0, 0);
+                  const isToday = isSameDate(selectedDateObj, today);
+                  const dayLabel = isToday ? 'Aujourd\'hui' : formatDate(selectedDateObj);
+                  
+                  return (
+                    <>
+                      <View style={styles.mealsSectionHeader}>
+                        <Text style={styles.mealsSectionTitle}>{dayLabel}</Text>
+                      </View>
+                      {sortMealsByType(dayMeals).map((meal: Meal) => renderMealCard(meal))}
+                    </>
+                  );
+                })()}
+              </>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -1962,8 +1978,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           setYoutubePlaying(false);
         }}
       >
-        <View style={styles.youtubeModalOverlay}>
-          <View style={styles.youtubeModalContent}>
+        <BlurView
+          intensity={20}
+          tint="dark"
+          style={StyleSheet.absoluteFillObject}
+        >
+          <View style={styles.youtubeModalOverlay}>
+            <View style={styles.youtubeModalContent}>
             <View style={styles.youtubeModalHeader}>
               {/* Meal Image - Left */}
               {selectedMeal?.imageUrl && (
@@ -2068,50 +2089,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       webViewStyle={{ opacity: 0.99 }}
                     />
                   </View>
-                );
-              })()}
-              
-              {/* Completion Button - Only for today's meals */}
-              {selectedMeal && (() => {
-                // Check if meal is from today (in dayMeals) or tomorrow (in tomorrowMeals)
-                const isTodayMeal = dayMeals.some(meal => meal.id === selectedMeal.id);
-                // Vérifier le statut de complétion de deux façons pour être sûr
-                const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(selectedMeal.id);
-                const isCompletedByStatus = completionStatus?.mealStatus?.[selectedMeal.id]?.completed;
-                const isCompleted = isCompletedByIds || isCompletedByStatus;
-                
-                // Only show completion button for today's meals
-                if (!isTodayMeal) {
-                  return null;
-                }
-                
-                // Si le repas est déjà complété, afficher un badge au lieu du bouton
-                if (isCompleted) {
-                  return (
-                    <View style={styles.youtubeModalCompletedBadge}>
-                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                      <Text style={styles.youtubeModalCompletedBadgeText}>
-                        Repas complété
-                      </Text>
-                    </View>
-                  );
-                }
-                
-                // Sinon, afficher le bouton actif
-                return (
-                  <TouchableOpacity 
-                    style={styles.youtubeModalCompleteButton}
-                    onPress={() => {
-                      handleMealComplete(selectedMeal.id);
-                      setShowYoutubeModal(false);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                    <Text style={styles.youtubeModalCompleteButtonText}>
-                      Marquer comme complété
-                    </Text>
-                  </TouchableOpacity>
                 );
               })()}
               
@@ -2241,6 +2218,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             </View>
           </View>
         </View>
+        </BlurView>
       </Modal>
 
       {/* Full-Screen Image Modal */}
@@ -2285,7 +2263,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         <View style={styles.completionModalOverlay}>
           <View style={styles.completionModalContent}>
             <View style={styles.completionModalHeader}>
-              <Text style={styles.completionModalTitle}>Marquer des repas comme complétés</Text>
+              <Text style={styles.completionModalTitle}>
+                {isIOS ? 'Marquer des plats comme complétés' : 'Marquer des repas comme complétés'}
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowCompletionModal(false)}
                 style={styles.completionModalCloseButton}
@@ -2354,8 +2334,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                             logger.info('User Action: Meal already completed', { mealId: meal.id });
                             Toast.show({
                               type: 'info',
-                              text1: 'Repas déjà complété',
-                              text2: 'Ce repas a déjà été marqué comme complété',
+                              text1: isIOS ? 'Plat déjà complété' : 'Repas déjà complété',
+                              text2: isIOS ? 'Ce plat a déjà été marqué comme complété' : 'Ce repas a déjà été marqué comme complété',
                               visibilityTime: 2000,
                             });
                           } else {
@@ -2397,7 +2377,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     Toast.show({
                       type: 'info',
                       text1: 'Information',
-                      text2: 'Tous les repas sont déjà complétés'
+                      text2: isIOS ? 'Tous les plats sont déjà complétés' : 'Tous les repas sont déjà complétés'
                     });
                     setShowCompletionModal(false);
                     return;
@@ -2417,7 +2397,9 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                   Toast.show({
                     type: 'success',
                     text1: 'Succès',
-                    text2: `${incompleteMeals.length} repas marqués comme complétés`
+                    text2: isIOS 
+                      ? `${incompleteMeals.length} ${incompleteMeals.length === 1 ? 'plat' : 'plats'} marqué${incompleteMeals.length === 1 ? '' : 's'} comme complété${incompleteMeals.length === 1 ? '' : 's'}`
+                      : `${incompleteMeals.length} repas marqués comme complétés`
                   });
                 }}
               >
@@ -2713,6 +2695,10 @@ const styles = StyleSheet.create({
     borderColor: '#F44336',
     opacity: 0.7,
   },
+  pastDay: {
+    opacity: 0.4,
+    backgroundColor: '#F5F5F5',
+  },
   outsideSubscriptionText: {
     display: 'none',
     color: '#FF6B6B',
@@ -2740,6 +2726,7 @@ const styles = StyleSheet.create({
   },
   mealsContainer: {
     paddingHorizontal: 20,
+    paddingBottom: 24,
   },
   mealsSectionTitle: {
     fontSize: 18,
@@ -3306,6 +3293,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 16,
+    marginBottom: 24,
     marginHorizontal: 20,
     borderRadius: 8,
     backgroundColor: '#F0F0F0',
@@ -3319,7 +3307,6 @@ const styles = StyleSheet.create({
   // YouTube Modal Styles
   youtubeModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'flex-end',
   },
   youtubeModalContent: {
@@ -3327,7 +3314,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
-    height: '90%',
+    height: '75%', // Réduire la hauteur pour ne pas soulever trop
     flexDirection: 'column',
   },
   youtubeModalHeader: {

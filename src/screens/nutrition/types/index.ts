@@ -81,6 +81,7 @@ export interface WeekDay {
   date: Date;
   isToday: boolean;
   isOutsideSubscription: boolean;
+  isPast?: boolean; // Dates passées (non cliquables)
 }
 
 export interface MealInteraction {

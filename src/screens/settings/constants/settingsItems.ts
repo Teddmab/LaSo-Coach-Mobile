@@ -11,7 +11,6 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
       { id: 'mon-profile', title: 'Mon profil' },
       { id: 'informations', title: 'Informations' },
       { id: 'rendez-vous', title: 'Rendez-vous' },
-      { id: 'autre-infos', title: 'Autre infos' },
     ],
   },
   {

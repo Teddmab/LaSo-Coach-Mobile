@@ -79,10 +79,14 @@ export const isDateOutsideSubscription = (date: Date, subscriptionData?: Subscri
 export const generateWeekDays = (subscriptionData?: SubscriptionData | null): WeekDay[] => {
   const weekDays: WeekDay[] = [];
   const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normaliser à minuit
   
-  for (let i = -3; i <= 3; i++) {
+  // Générer les dates à partir d'aujourd'hui jusqu'à 7 jours devant (pas de dates passées)
+  for (let i = 0; i <= 6; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
+    
+    const isPast = date < today;
     
     weekDays.push({
       number: date.getDate(),
@@ -90,7 +94,8 @@ export const generateWeekDays = (subscriptionData?: SubscriptionData | null): We
       dayOfWeek: date.getDay() || 7,
       date: date,
       isToday: date.toDateString() === today.toDateString(),
-      isOutsideSubscription: isDateOutsideSubscription(date, subscriptionData)
+      isOutsideSubscription: isDateOutsideSubscription(date, subscriptionData),
+      isPast: isPast // Ajouter un flag pour les dates passées
     });
   }
   

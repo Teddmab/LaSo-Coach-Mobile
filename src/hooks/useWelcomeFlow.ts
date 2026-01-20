@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/FirebaseAuthContext';
 
 const WELCOME_SHOWN_KEY = '@laso_welcome_shown';
+const WELCOME_BOTTOMSHEET_SHOWN_KEY_PREFIX = '@laso_welcome_bottomsheet_shown'; // Préfixe pour la clé spécifique à l'utilisateur
 const IS_NEW_USER_KEY = '@laso_is_new_user';
 
 export interface UseWelcomeFlowReturn {
@@ -29,9 +30,17 @@ export const useWelcomeFlow = (): UseWelcomeFlowReturn => {
       if (!user) return;
 
       try {
-        // Check if we've already shown welcome for this user
-        const welcomeShown = await AsyncStorage.getItem(`${WELCOME_SHOWN_KEY}_${user.id || user.uid}`);
-        const isNewUserFlag = await AsyncStorage.getItem(`${IS_NEW_USER_KEY}_${user.id || user.uid}`);
+        const userId = user.id || user.uid;
+        if (!userId) {
+          console.warn('⚠️ [useWelcomeFlow] No user ID available');
+          return;
+        }
+
+        // Vérifier si le bottomsheet de bienvenue a déjà été vu pour CET UTILISATEUR SPÉCIFIQUE
+        const welcomeBottomsheetShownKey = `${WELCOME_BOTTOMSHEET_SHOWN_KEY_PREFIX}_${userId}`;
+        const welcomeBottomsheetShown = await AsyncStorage.getItem(welcomeBottomsheetShownKey);
+        const welcomeShown = await AsyncStorage.getItem(`${WELCOME_SHOWN_KEY}_${userId}`);
+        const isNewUserFlag = await AsyncStorage.getItem(`${IS_NEW_USER_KEY}_${userId}`);
 
         // Check if account was just created (createdAt is recent - within last 10 minutes)
         const accountCreatedAt = (user as any).createdAt || (user as any).created_at;
@@ -39,39 +48,30 @@ export const useWelcomeFlow = (): UseWelcomeFlowReturn => {
           ? (Date.now() - new Date(accountCreatedAt).getTime()) < 10 * 60 * 1000 // 10 minutes
           : false;
 
-        // PRIORITÉ 1: Nouvel utilisateur - vérifier d'abord si c'est un nouvel utilisateur
-        // Si isNewUserFlag est 'true' OU si le compte a été créé récemment (dans les 10 dernières minutes)
-        // OU si l'utilisateur a le flag _isNewUser dans l'objet user (venant de Firebase)
-        const userIsNewFlag = (user as any)._isNewUser === true;
-        const isNewUser = isNewUserFlag === 'true' || isRecentlyCreated || userIsNewFlag;
-        
-        if (!welcomeShown && isNewUser) {
-          console.log('🎉 [useWelcomeFlow] New user detected - showing welcome bottom sheet', {
-            isNewUserFlag,
-            isRecentlyCreated,
-            userIsNewFlag,
-            accountCreatedAt,
-            userId: user.id || user.uid
+        // PRIORITÉ 1: Bottomsheet de bienvenue - afficher UNE SEULE FOIS par utilisateur
+        // Si ce compte utilisateur n'a jamais vu le bottomsheet de bienvenue, on l'affiche
+        if (!welcomeBottomsheetShown) {
+          console.log('🎉 [useWelcomeFlow] Welcome bottomsheet never shown for this user - showing welcome bottom sheet', {
+            userId,
+            welcomeBottomsheetShown,
+            welcomeBottomsheetShownKey
           });
           setIsNewUser(true);
           setShowWelcomeBottomSheet(true);
           return; // Important: ne pas continuer pour éviter d'afficher le bottom sheet de retour
         }
 
-        // PRIORITÉ 2: Utilisateur de retour - seulement si on est CERTAIN que ce n'est PAS un nouvel utilisateur
-        // Conditions:
-        // 1. On n'a pas encore montré le welcome
-        // 2. isNewUserFlag est explicitement 'false' (utilisateur existant marqué)
-        // 3. OU (isNewUserFlag est null ET le compte n'a PAS été créé récemment) - dans ce cas, c'est probablement un utilisateur de retour
-        const isDefinitelyReturningUser = !welcomeShown && 
-          (isNewUserFlag === 'false' || (isNewUserFlag === null && !isRecentlyCreated));
+        // PRIORITÉ 2: Utilisateur de retour - seulement si le bottomsheet de bienvenue a déjà été vu pour cet utilisateur
+        // ET si on n'a pas encore montré le welcome back pour cet utilisateur spécifique
+        const isDefinitelyReturningUser = !welcomeShown && welcomeBottomsheetShown;
         
         if (isDefinitelyReturningUser) {
           console.log('👋 [useWelcomeFlow] Returning user - showing welcome back bottom sheet', {
+            userId,
             isNewUserFlag,
             isRecentlyCreated,
             accountCreatedAt,
-            userId: user.id || user.uid
+            welcomeBottomsheetShown
           });
           setShowWelcomeBackBottomSheet(true);
         }
@@ -85,13 +85,25 @@ export const useWelcomeFlow = (): UseWelcomeFlowReturn => {
 
   const handleWelcomeStart = useCallback(async () => {
     try {
-      // Mark welcome as shown for this user
-      if (user?.id || user?.uid) {
-        await AsyncStorage.setItem(`${WELCOME_SHOWN_KEY}_${user.id || user.uid}`, 'true');
-        // Marquer aussi comme utilisateur existant pour éviter de montrer le welcome à nouveau
-        await AsyncStorage.setItem(`${IS_NEW_USER_KEY}_${user.id || user.uid}`, 'false');
-        console.log('✅ [useWelcomeFlow] Welcome shown - user marked as existing:', { userId: user.id || user.uid });
+      const userId = user?.id || user?.uid;
+      if (!userId) {
+        console.warn('⚠️ [useWelcomeFlow] No user ID available when saving welcome status');
+        return;
       }
+
+      // Marquer le bottomsheet de bienvenue comme vu pour CET UTILISATEUR SPÉCIFIQUE
+      const welcomeBottomsheetShownKey = `${WELCOME_BOTTOMSHEET_SHOWN_KEY_PREFIX}_${userId}`;
+      await AsyncStorage.setItem(welcomeBottomsheetShownKey, 'true');
+      
+      // Mark welcome as shown for this user
+      await AsyncStorage.setItem(`${WELCOME_SHOWN_KEY}_${userId}`, 'true');
+      // Marquer aussi comme utilisateur existant pour éviter de montrer le welcome à nouveau
+      await AsyncStorage.setItem(`${IS_NEW_USER_KEY}_${userId}`, 'false');
+      console.log('✅ [useWelcomeFlow] Welcome bottomsheet shown - marked for user:', { 
+        userId,
+        welcomeBottomsheetShownKey
+      });
+      
       setShowWelcomeBottomSheet(false);
       setIsNewUser(false);
     } catch (error) {

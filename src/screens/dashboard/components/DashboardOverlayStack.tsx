@@ -220,8 +220,6 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
                   stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'informations' });
                 } else if (target === 'rendez-vous') {
                   stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'rendezvous' });
-                } else if (target === 'autre-infos') {
-                  stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'other' });
                 } else if (target === 'subscription') {
                   // ✅ iOS COMPLIANCE: Block subscription navigation on iOS
                   if (Platform.OS === 'ios') {

@@ -679,6 +679,7 @@ class FirebaseAuthService {
       if (userId) {
         welcomeKeysToRemove.push(
           `@laso_welcome_shown_${userId}`,
+          `@laso_welcome_bottomsheet_shown_${userId}`, // Clé spécifique au compte pour le bottomsheet de bienvenue
           `@laso_is_new_user_${userId}`
         );
         ugcKeysToRemove.push(
