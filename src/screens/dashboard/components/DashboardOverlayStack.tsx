@@ -498,7 +498,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
       case 'PrivacyPolicy':
         return (
           <WebViewScreen
-            url="https://lasocoach.com/privacy-policy"
+            url="https://lasocoach.com/politique-de-confidentialite"
             title="Politique de Confidentialité"
             onClose={() => stackNavigation.goBack()}
             activeTab={activeTab}
@@ -513,7 +513,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
       case 'TermsOfService':
         return (
           <WebViewScreen
-            url="https://lasocoach.com/terms-of-service"
+            url="https://lasocoach.com/termes-de-service"
             title="Conditions d'Utilisation"
             onClose={() => stackNavigation.goBack()}
             activeTab={activeTab}
@@ -528,7 +528,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
       case 'PlatformRules':
         return (
           <WebViewScreen
-            url="https://lasocoach.com/platform-rules"
+            url="https://lasocoach.com/regles-de-plateforme"
             title="Règles de la Plateforme"
             onClose={() => stackNavigation.goBack()}
             activeTab={activeTab}

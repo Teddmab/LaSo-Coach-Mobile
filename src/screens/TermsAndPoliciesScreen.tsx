@@ -124,7 +124,7 @@ export const TermsAndPoliciesScreen = () => {
 
             <View style={styles.externalLink}>
               <TouchableOpacity
-                onPress={() => handleExternalLink('https://lasocoach.com/regles-de-la-communaute/')}
+                onPress={() => handleExternalLink('https://lasocoach.com/regles-de-plateforme')}
               >
                 <Text style={styles.linkText}>
                   📖 Voir la version complète en ligne
@@ -164,7 +164,7 @@ export const TermsAndPoliciesScreen = () => {
 
             <View style={styles.externalLink}>
               <TouchableOpacity
-                onPress={() => handleExternalLink('https://lasocoach.com/conditions-utilisation/')}
+                onPress={() => handleExternalLink('https://lasocoach.com/termes-de-service')}
               >
                 <Text style={styles.linkText}>
                   📖 Voir la version complète en ligne
@@ -210,7 +210,7 @@ export const TermsAndPoliciesScreen = () => {
 
             <View style={styles.externalLink}>
               <TouchableOpacity
-                onPress={() => handleExternalLink('https://lasocoach.com/politique-confidentialite/')}
+                onPress={() => handleExternalLink('https://lasocoach.com/politique-de-confidentialite')}
               >
                 <Text style={styles.linkText}>
                   📖 Voir la version complète en ligne
