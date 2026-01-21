@@ -16,7 +16,6 @@ export enum PermissionType {
   MICROPHONE = 'MICROPHONE',
   PHOTO_LIBRARY = 'PHOTO_LIBRARY',
   CALENDAR = 'CALENDAR',
-  BODY_SENSORS = 'BODY_SENSORS', // Steps, fitness data
 }
 
 /**
@@ -124,8 +123,6 @@ function mapPermissionTypeToExpoPermission(permission: PermissionType): Permissi
       return Permissions.MEDIA_LIBRARY;
     case PermissionType.CALENDAR:
       return Permissions.CALENDAR;
-    case PermissionType.BODY_SENSORS:
-      return Permissions.MOTION;
     default:
       throw new Error(`Unknown permission type: ${permission}`);
   }
@@ -191,10 +188,5 @@ export const PermissionDescriptions: Record<PermissionType, { title: string; des
   [PermissionType.CALENDAR]: {
     title: 'Calendar',
     description: 'Allow calendar access to schedule workouts and sync with your calendar app.',
-  },
-  [PermissionType.BODY_SENSORS]: {
-    title: 'Motion & Fitness',
-    description:
-      'Allow access to motion data for step counting and activity tracking recommendations.',
   },
 };

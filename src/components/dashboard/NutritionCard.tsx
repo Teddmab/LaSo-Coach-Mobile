@@ -16,6 +16,8 @@ import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
 import { useIOSSimulation } from '../../hooks/useIOSSimulation';
 import { useAuth } from '../../context/FirebaseAuthContext';
+import ImagePersistent from '../ImagePersistent';
+import imageCache from '../../utils/imageCache';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
@@ -704,6 +706,13 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             const icon = getMealTypeIcon(meal.type);
             const backgroundColor = getMealTypeColor(meal.type);
             
+            // Précharger l'image du repas si elle existe
+            if (meal.imageUrl) {
+              imageCache.preloadRemoteImage(meal.imageUrl).catch(() => {
+                // Ignore les erreurs de préchargement
+              });
+            }
+            
             return (
               <TouchableOpacity 
                 key={meal.id} 
@@ -718,13 +727,13 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
                 {/* Content area with image and text */}
                 <View style={styles.mealContent}>
                   {/* Image on the left - flush with edges */}
-                  <Image 
+                  <ImagePersistent
                     source={{ uri: meal.imageUrl }} 
                     style={styles.mealImage}
                     resizeMode="cover"
                     onError={(error) => {
                     }}
-                    defaultSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
+                    fallbackSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
                   />
                   
                   {/* Text content on the right */}

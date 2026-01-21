@@ -4,6 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from './Avatar';
 import NotificationBadge from './NotificationBadge';
+import imageCache from '../utils/imageCache';
+import ImagePersistent from './ImagePersistent';
+
+// Précharger le logo au chargement du module
+const LOGO_SOURCE = require('../../assets/logo.png');
+imageCache.preloadLocalImage('logo', LOGO_SOURCE);
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
 
 interface AppHeaderProps {
@@ -62,10 +68,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         )}
         <View style={styles.titleContainer}>
           {showLogo ? (
-            <Image 
-              source={require('../../assets/logo.png')} 
+            <ImagePersistent
+              source={imageCache.getLocalImage('logo') || LOGO_SOURCE} 
               style={[styles.headerLogo, styles.headerLogoAdjusted]}
               resizeMode="contain"
+              fallbackSource={LOGO_SOURCE}
             />
           ) : (
             <Text 

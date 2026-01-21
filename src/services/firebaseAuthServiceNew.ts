@@ -672,16 +672,20 @@ class FirebaseAuthService {
     try {
       console.log('🚪🚪🚪 DÉCONNEXION COMPLÈTE - Suppression de TOUT...');
       
-      // 0. Récupérer l'ID utilisateur AVANT le nettoyage pour supprimer les clés de welcome flow et UGC
+      // 0. Récupérer l'ID utilisateur AVANT le nettoyage pour supprimer les clés de session
+      // NOTE: On NE supprime PAS @laso_welcome_bottomsheet_shown_${userId} car c'est une information
+      // permanente liée au compte utilisateur (l'utilisateur a déjà vu le welcome une fois)
       const userId = this.currentUser?.id || this.currentUser?.uid;
       const welcomeKeysToRemove: string[] = [];
       const ugcKeysToRemove: string[] = [];
       if (userId) {
+        // Supprimer seulement les clés de session, pas les clés permanentes
         welcomeKeysToRemove.push(
-          `@laso_welcome_shown_${userId}`,
-          `@laso_welcome_bottomsheet_shown_${userId}`, // Clé spécifique au compte pour le bottomsheet de bienvenue
-          `@laso_is_new_user_${userId}`
+          `@laso_welcome_shown_${userId}`, // Clé de session pour welcome back
+          `@laso_last_login_session_${userId}`, // Clé de session pour tracker la dernière connexion
+          `@laso_is_new_user_${userId}` // Clé de session
         );
+        // NE PAS supprimer @laso_welcome_bottomsheet_shown_${userId} - c'est permanent
         ugcKeysToRemove.push(
           `@laso_ugc_terms_accepted_${userId}`,
           `@laso_ugc_terms_timestamp_${userId}`

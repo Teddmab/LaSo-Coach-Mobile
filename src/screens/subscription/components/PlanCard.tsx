@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Plan } from '../types';
 import { getPlanBackgroundColor } from '../utils/subscriptionUtils';
+import imageCache from '../../../utils/imageCache';
+import ImagePersistent from '../../../components/ImagePersistent';
 
 interface PlanCardProps {
   plan: Plan;
@@ -20,10 +22,19 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
   const isClickable = !isCurrent || isCurrentIOSPlan;
   const buttonText = isCurrentIOSPlan ? "Passer à ce plan" : (isCurrent ? 'Plan actuel' : "S'abonner");
 
+  // Précharger l'image du plan si elle existe
+  useEffect(() => {
+    if (plan.imageUrl) {
+      imageCache.preloadRemoteImage(plan.imageUrl).catch(() => {
+        // Ignore les erreurs de préchargement
+      });
+    }
+  }, [plan.imageUrl]);
+
   return (
     <View style={styles.planCardWithImage}>
       {plan.imageUrl ? (
-        <Image 
+        <ImagePersistent
           source={{ uri: plan.imageUrl }} 
           style={styles.planCardImage}
           resizeMode="cover"

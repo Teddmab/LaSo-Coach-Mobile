@@ -7,7 +7,6 @@
  * - Photo/media access
  * - Camera (video calls)
  * - Microphone (audio)
- * - HealthKit (fitness data)
  * - Calendar (scheduling)
  */
 
@@ -50,19 +49,6 @@ module.exports = function withPermissionStrings(config) {
     // Required for: Schedule workouts, create calendar events, sync with calendar
     NSCalendarsUsageDescription:
       'Access your calendar to schedule workouts, create events, and sync your fitness schedule.',
-    
-    // HealthKit - Health data access
-    // Required for: Sync fitness data, track workouts, health monitoring
-    NSHealthShareUsageDescription:
-      'Read your health and fitness data (workouts, steps, calories) to provide personalized coaching.',
-    
-    NSHealthUpdateUsageDescription:
-      'Write your workout data to the Health app to keep your fitness records synchronized.',
-    
-    // Motion & Fitness - Step counter and activity data
-    // Required for: Step counting, activity tracking
-    NSMotionUsageDescription:
-      'Access your motion data for step counting, activity tracking, and personalized recommendations.',
   };
 
   // ========== Android Configuration ==========
@@ -91,12 +77,6 @@ module.exports = function withPermissionStrings(config) {
     
     // Calendar - Write calendar
     'android.permission.WRITE_CALENDAR',
-    
-    // Fitness - Body Sensors (pedometer/step counter)
-    'android.permission.BODY_SENSORS',
-    
-    // Fitness - Health Connect (if using Google Health Connect)
-    'android.permission.HEALTH_CONNECT',
   ];
 
   return config;

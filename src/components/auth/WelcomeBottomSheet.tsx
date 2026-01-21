@@ -61,16 +61,14 @@ const WelcomeBottomSheet: React.FC<WelcomeBottomSheetProps> = ({
 
           {/* Content */}
           <View style={styles.content}>
-            <Text style={styles.title}>Bienvenue !</Text>
-            <Text style={styles.greeting}>
-              Bonjour <Text style={styles.userName}>{userName}</Text> 👋
-            </Text>
-            <Text style={styles.description}>
-              Nous sommes ravis de vous accueillir dans la communauté LaSo Coach. 
-              Votre parcours vers une meilleure santé commence maintenant !
-            </Text>
             <Text style={styles.quoteText}>
               We are what we eat
+            </Text>
+            <Text style={styles.greeting}>
+              Hi <Text style={styles.userName}>{userName}</Text> 👋
+            </Text>
+            <Text style={styles.description}>
+              Prenez soin de votre santé
             </Text>
 
             {/* Start Button */}
@@ -138,18 +136,19 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     alignItems: 'center',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-    marginBottom: 12,
+  quoteText: {
+    fontSize: 24,
+    fontStyle: 'italic',
+    color: theme.colors.primary,
     textAlign: 'center',
+    marginBottom: 24,
+    fontWeight: '600',
   },
   greeting: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
     color: theme.colors.text.primary,
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   userName: {
@@ -157,19 +156,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 26,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 8,
-  },
-  quoteText: {
-    fontSize: 18,
-    fontStyle: 'italic',
-    color: theme.colors.primary,
-    textAlign: 'center',
     marginBottom: 32,
+    paddingHorizontal: 8,
     fontWeight: '500',
   },
   startButton: {

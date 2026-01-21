@@ -9,7 +9,6 @@ import { DashboardOverlayStack } from './dashboard/components/DashboardOverlaySt
 import FixedLayout from '../components/FixedLayout';
 import MoreMenu from '../components/MoreMenu';
 import WelcomeBottomSheet from '../components/auth/WelcomeBottomSheet';
-import WelcomeBackBottomSheet from '../components/auth/WelcomeBackBottomSheet';
 import { useWelcomeFlow } from '../hooks/useWelcomeFlow';
 import { useDashboardData } from './dashboard/hooks/useDashboardData';
 import { useSubscription } from './dashboard/hooks/useSubscription';
@@ -50,10 +49,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // Welcome flow hook
   const {
     showWelcomeBottomSheet,
-    showWelcomeBackBottomSheet,
     isNewUser,
     handleWelcomeStart,
-    handleWelcomeBackComplete,
   } = useWelcomeFlow();
   
   // Custom hooks for data management
@@ -360,27 +357,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }, [])
   );
 
-  // Handle welcome back bottom sheet - load data in background (user closes manually)
-  useEffect(() => {
-    if (showWelcomeBackBottomSheet) {
-      // Load all dashboard data in background
-      const loadData = async () => {
-        try {
-          await Promise.all([
-            fetchDashboardData(),
-            fetchAchievementsData(),
-            fetchAgendaData(),
-            fetchCommunityPosts(),
-            checkSubscriptionStatus(),
-          ]);
-        } catch (error) {
-          console.error('❌ [DashboardScreen] Error loading data:', error);
-        }
-      };
-      
-      loadData();
-    }
-  }, [showWelcomeBackBottomSheet, fetchDashboardData, fetchAchievementsData, fetchAgendaData, fetchCommunityPosts, checkSubscriptionStatus]);
 
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
@@ -522,11 +498,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onStart={handleWelcomeStart}
         />
 
-        {/* Welcome Back Bottom Sheet for returning users */}
-        <WelcomeBackBottomSheet
-          visible={showWelcomeBackBottomSheet}
-          onClose={handleWelcomeBackComplete}
-        />
       <DashboardOverlayStack
         user={user}
         activeTab={activeTab}
@@ -571,11 +542,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onStart={handleWelcomeStart}
         />
 
-        {/* Welcome Back Bottom Sheet for returning users */}
-        <WelcomeBackBottomSheet
-          visible={showWelcomeBackBottomSheet}
-          onClose={handleWelcomeBackComplete}
-        />
         <FixedLayout
           headerTitle="Progression"
           activeTab={activeTab}
@@ -614,11 +580,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onStart={handleWelcomeStart}
         />
 
-        {/* Welcome Back Bottom Sheet for returning users */}
-        <WelcomeBackBottomSheet
-          visible={showWelcomeBackBottomSheet}
-          onClose={handleWelcomeBackComplete}
-        />
         <FixedLayout
           headerTitle="Nutrition"
           activeTab={activeTab}
@@ -657,11 +618,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onStart={handleWelcomeStart}
         />
 
-        {/* Welcome Back Bottom Sheet for returning users */}
-        <WelcomeBackBottomSheet
-          visible={showWelcomeBackBottomSheet}
-          onClose={handleWelcomeBackComplete}
-        />
         <FixedLayout
           headerTitle="Réalisations"
           activeTab={activeTab}
@@ -699,11 +655,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         onStart={handleWelcomeStart}
       />
 
-      {/* Welcome Back Bottom Sheet for returning users */}
-      <WelcomeBackBottomSheet
-        visible={showWelcomeBackBottomSheet}
-        onClose={handleWelcomeBackComplete}
-      />
 
       <DashboardLayout
         user={user}

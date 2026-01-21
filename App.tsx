@@ -23,6 +23,7 @@ import NetworkStatus from './src/components/NetworkStatus';
 import IOSSimulationButton from './src/components/IOSSimulationButton';
 import { RootStackParamList } from './src/types/navigation';
 import './src/utils/consoleFilter';
+import imageCache from './src/utils/imageCache';
 
 // Preload profile components at app startup to avoid delay when navigating
 // These imports force immediate loading instead of lazy loading
@@ -53,6 +54,31 @@ function AppContent() {
     lastBackPress: 0,
     isOnHome: false,
   });
+  
+  // Track previous authentication state to detect transitions
+  const prevIsAuthenticatedRef = useRef(isAuthenticated);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // Précharger les images critiques au démarrage
+  useEffect(() => {
+    imageCache.preloadCriticalImages().catch(() => {
+      // Ignore les erreurs de préchargement
+    });
+  }, []);
+  
+  // Detect authentication state change and show white screen during transition
+  useEffect(() => {
+    if (prevIsAuthenticatedRef.current !== isAuthenticated && isAuthenticated) {
+      // User just logged in - show white transition screen
+      setIsTransitioning(true);
+      // Hide transition screen after a short delay to allow Dashboard to render
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    prevIsAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   // Global deep link handler
   const handleDeepLink = (url: string | null) => {
@@ -169,8 +195,9 @@ function AppContent() {
     };
   }, []);
 
-  // Show loading screen while auth is initializing
-  if (!authReady || loading) {
+  // Show loading screen while auth is initializing or during transition
+  // Use white background to avoid green flash during transition
+  if (!authReady || loading || isTransitioning) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8BC34A" />
@@ -185,7 +212,23 @@ function AppContent() {
           initialRouteName={isAuthenticated ? "Dashboard" : "Login"}
           screenOptions={{ 
             headerShown: false,
-            gestureEnabled: false
+            gestureEnabled: false,
+            // Add transition animation to avoid green flash
+            animationTypeForReplace: 'push',
+            transitionSpec: {
+              open: {
+                animation: 'timing',
+                config: {
+                  duration: 0, // Instant transition to avoid showing green background
+                },
+              },
+              close: {
+                animation: 'timing',
+                config: {
+                  duration: 0,
+                },
+              },
+            },
           }}
         >
           {isAuthenticated ? (
@@ -269,6 +312,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#8BC34A',
+    backgroundColor: '#FFFFFF', // White background instead of green to avoid flash
   },
 });

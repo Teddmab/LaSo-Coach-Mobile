@@ -286,11 +286,25 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         selectedDateKey,
         currentPlanId: currentPlan.id,
         weekDaysCount: weekDays.length,
+        subscriptionStatus: (subscriptionData as any)?.status,
       });
+      // ✅ FIX: Appeler loadDayData() immédiatement quand toutes les conditions sont remplies
       loadDayData();
+    } else {
+      // Log pour debug si les conditions ne sont pas remplies
+      if (__DEV__) {
+        console.log('⚠️ [NutritionScreen] useEffect - conditions not met for loadDayData', {
+          hasCurrentPlan: !!currentPlan,
+          hasSubscriptionData: !!subscriptionData,
+          hasWeekDays: !!weekDays,
+          weekDaysLength: weekDays?.length || 0,
+          isLoadingDayData,
+          isFetchingAllData,
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPlan?.id, selectedDateKey, subscriptionData?.subscription?.startDate, weekDays?.length]);
+  }, [currentPlan?.id, selectedDateKey, subscriptionData?.subscription?.startDate, weekDays?.length, subscriptionData?.status]);
 
   const fetchAllData = async () => {
     // Éviter les appels multiples simultanés
@@ -606,12 +620,31 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // Mettre à jour la référence du dernier état chargé pour éviter les boucles
       // Utiliser les valeurs locales chargées plutôt que l'état qui peut ne pas être à jour
       // Note: loadedPlan et subscription sont des variables locales dans le scope try
-      const finalPlanId = currentPlan?.id || null;
-      const finalSubscriptionId = (subscriptionData as any)?.subscription?.id || (subscriptionData as any)?.id || null;
+      const finalPlanId = loadedPlan?.id || currentPlan?.id || null;
+      const finalSubscriptionId = subscription?.subscription?.id || subscription?.id || (subscriptionData as any)?.subscription?.id || (subscriptionData as any)?.id || null;
       lastFetchAttemptRef.current = {
         planId: finalPlanId,
         subscriptionId: finalSubscriptionId,
       };
+      
+      // ✅ FIX: Charger les données du jour après que fetchAllData soit terminé
+      // Utiliser les variables locales loadedPlan et subscription qui sont déjà disponibles
+      // setTimeout pour s'assurer que les setState sont appliqués et que weekDays est recalculé
+      if (loadedPlan && subscription) {
+        setTimeout(() => {
+          logger.debug('🔄 [NutritionScreen] fetchAllData completed - triggering loadDayData', {
+            planId: loadedPlan.id,
+            subscriptionStatus: subscription.status,
+            hasWeekDays: weekDays && weekDays.length > 0,
+          });
+          // Vérifier que weekDays est disponible avant d'appeler loadDayData
+          if (weekDays && weekDays.length > 0) {
+            loadDayData();
+          } else {
+            logger.warn('⚠️ [NutritionScreen] weekDays not yet available, will retry via useEffect');
+          }
+        }, 200);
+      }
     }
   };
 

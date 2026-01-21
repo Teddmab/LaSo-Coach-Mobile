@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,8 +29,14 @@ import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
 import HelpBottomSheet from '../components/auth/HelpBottomSheet';
+import imageCache from '../utils/imageCache';
+import ImagePersistent from '../components/ImagePersistent';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+// Précharger le logo au chargement du module
+const LOGO_SOURCE = require('../../assets/logo.png');
+imageCache.preloadLocalImage('logo', LOGO_SOURCE);
 
 interface WelcomeSlide {
   id: number;
@@ -1066,198 +1072,202 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
   /**
    * Render login form (multi-step)
+   * Garde les deux formulaires montés pour éviter la disparition des images
    */
   const renderLoginForm = (): React.JSX.Element => {
-    // If not in register mode, show simple login form
-    if (!isRegisterMode) {
-      return (
-    <View style={styles.loginContainer}>
-      <LinearGradient
-        colors={['#8BC34A', '#9CCC65']}
-        style={styles.container}
-      >
-        <SafeAreaView style={styles.container}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    // Rendre les deux formulaires mais n'afficher que celui qui est actif
+    // Cela garde les images en mémoire
+    return (
+      <View style={styles.loginContainer}>
+        {/* Formulaire de connexion - toujours monté */}
+        <View style={[styles.formContainer, !isRegisterMode && styles.formContainerActive]}>
+          <LinearGradient
+            colors={['#8BC34A', '#9CCC65']}
             style={styles.container}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Main Content Card */}
-              <View style={styles.mainCard}>
-                {/* Logo Section */}
-                <View style={styles.logoSection}>
-                  <Image
-                    source={require('../../assets/logo.png')}
-                    style={styles.logo}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                {/* Title */}
-                <Text style={styles.title}>Connexion à votre compte</Text>
-
-                {/* Form */}
-                <View style={styles.form}>
-                  {/* Email Input */}
-                  <View style={styles.inputContainer}>
-                    <View style={styles.inputWrapper}>
-                      <View style={styles.inputIconLeft}>
-                        <Ionicons name="mail-outline" size={20} color="#000" />
-                      </View>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          styles.inputWithIcon,
-                          errors.email && styles.inputError,
-                              { color: '#424242' }
-                        ]}
-                        placeholder="E-mail *"
-                        placeholderTextColor="#999"
-                        value={email}
-                        onChangeText={(text) => {
-                          setEmail(text);
-                          clearError('email');
-                        }}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!loading}
-                        {...(Platform.OS === 'android' && {
-                          selectionColor: '#424242',
-                          underlineColorAndroid: 'transparent',
-                        })}
+            <SafeAreaView style={styles.container}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.container}
+              >
+                <ScrollView
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Main Content Card */}
+                  <View style={styles.mainCard}>
+                    {/* Logo Section */}
+                    <View style={styles.logoSection}>
+                      <ImagePersistent
+                        source={imageCache.getLocalImage('logo') || LOGO_SOURCE}
+                        style={styles.logo}
+                        resizeMode="contain"
+                        fallbackSource={LOGO_SOURCE}
                       />
                     </View>
-                    {errors.email && (
-                      <Text style={styles.errorText}>{errors.email}</Text>
-                    )}
-                  </View>
 
-                  {/* Password Input */}
-                  <View style={styles.inputContainer}>
-                    <View style={styles.inputWrapper}>
-                      <View style={styles.inputIconLeft}>
-                        <Ionicons name="lock-closed-outline" size={20} color="#000" />
-                      </View>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          styles.inputWithIcon,
-                          styles.passwordInput,
-                          errors.password && styles.inputError,
+                    {/* Title */}
+                    <Text style={styles.title}>Connexion à votre compte</Text>
+
+                    {/* Form */}
+                    <View style={styles.form}>
+                      {/* Email Input */}
+                      <View style={styles.inputContainer}>
+                        <View style={styles.inputWrapper}>
+                          <View style={styles.inputIconLeft}>
+                            <Ionicons name="mail-outline" size={20} color="#000" />
+                          </View>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              styles.inputWithIcon,
+                              errors.email && styles.inputError,
                               { color: '#424242' }
-                        ]}
-                        placeholder="Mot de passe *"
-                        placeholderTextColor="#999"
-                        value={password}
-                        onChangeText={(text) => {
-                          setPassword(text);
-                          if (hasUserTyped.current) {
-                            clearError('password');
-                          }
-                          hasUserTyped.current = true;
-                        }}
-                        secureTextEntry={!showPassword}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        editable={!loading}
-                        textContentType="password"
-                        autoComplete="password"
-                        {...(Platform.OS === 'android' && {
-                          selectionColor: '#424242',
-                          underlineColorAndroid: 'transparent',
-                        })}
-                      />
+                            ]}
+                            placeholder="E-mail *"
+                            placeholderTextColor="#999"
+                            value={email}
+                            onChangeText={(text) => {
+                              setEmail(text);
+                              clearError('email');
+                            }}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            editable={!loading}
+                            {...(Platform.OS === 'android' && {
+                              selectionColor: '#424242',
+                              underlineColorAndroid: 'transparent',
+                            })}
+                          />
+                        </View>
+                        {errors.email && (
+                          <Text style={styles.errorText}>{errors.email}</Text>
+                        )}
+                      </View>
+
+                      {/* Password Input */}
+                      <View style={styles.inputContainer}>
+                        <View style={styles.inputWrapper}>
+                          <View style={styles.inputIconLeft}>
+                            <Ionicons name="lock-closed-outline" size={20} color="#000" />
+                          </View>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              styles.inputWithIcon,
+                              styles.passwordInput,
+                              errors.password && styles.inputError,
+                              { color: '#424242' }
+                            ]}
+                            placeholder="Mot de passe *"
+                            placeholderTextColor="#999"
+                            value={password}
+                            onChangeText={(text) => {
+                              setPassword(text);
+                              if (hasUserTyped.current) {
+                                clearError('password');
+                              }
+                              hasUserTyped.current = true;
+                            }}
+                            secureTextEntry={!showPassword}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            editable={!loading}
+                            textContentType="password"
+                            autoComplete="password"
+                            {...(Platform.OS === 'android' && {
+                              selectionColor: '#424242',
+                              underlineColorAndroid: 'transparent',
+                            })}
+                          />
+                          <TouchableOpacity
+                            style={styles.inputIconRight}
+                            onPress={() => setShowPassword(!showPassword)}
+                            disabled={loading}
+                          >
+                            <Ionicons
+                              name={showPassword ? "eye-off" : "eye"}
+                              size={20}
+                              color="#000"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        {errors.password && (
+                          <Text style={styles.errorText}>{errors.password}</Text>
+                        )}
+                      </View>
+
+                      {/* Login Button */}
                       <TouchableOpacity
-                        style={styles.inputIconRight}
-                        onPress={() => setShowPassword(!showPassword)}
+                        style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                        onPress={handleLogin}
+                        disabled={loading}
+                        activeOpacity={0.8}
+                      >
+                        {loading ? (
+                          <View style={styles.buttonContent}>
+                            <ActivityIndicator
+                              size="small"
+                              color={COLORS.white}
+                              style={styles.spinner}
+                            />
+                            <Text style={styles.loginButtonText}>Connexion...</Text>
+                          </View>
+                        ) : (
+                          <Text style={styles.loginButtonText}>Se connecter</Text>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Google Login Button - Temporairement masqué sur iOS */}
+                      {Platform.OS !== 'ios' && (
+                        <TouchableOpacity
+                          style={[styles.googleButton, loading && styles.loginButtonDisabled]}
+                          onPress={handleGoogleLogin}
+                          disabled={loading || isGooglePrompting || !isGoogleAvailable}
+                          activeOpacity={0.8}
+                        >
+                          {loading || isGooglePrompting ? (
+                            <View style={styles.buttonContent}>
+                              <ActivityIndicator
+                                size="small"
+                                color="#000"
+                                style={styles.spinner}
+                              />
+                              <Text style={styles.googleButtonText}>Connexion...</Text>
+                            </View>
+                          ) : (
+                            <View style={styles.buttonContent}>
+                              <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
+                              <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      )}
+
+                      {errors.general && (
+                        <Text style={styles.generalErrorText}>{errors.general}</Text>
+                      )}
+
+                      {/* Forgot Password */}
+                      <TouchableOpacity
+                        style={styles.forgotPasswordButton}
+                        onPress={handleForgotPassword}
                         disabled={loading}
                       >
-                        <Ionicons
-                          name={showPassword ? "eye-off" : "eye"}
-                          size={20}
-                          color="#000"
-                        />
+                        <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
                       </TouchableOpacity>
-                    </View>
-                    {errors.password && (
-                      <Text style={styles.errorText}>{errors.password}</Text>
-                    )}
-                  </View>
 
-                  {/* Login Button */}
-                  <TouchableOpacity
-                    style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-                    onPress={handleLogin}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    {loading ? (
-                      <View style={styles.buttonContent}>
-                        <ActivityIndicator
-                          size="small"
-                          color={COLORS.white}
-                          style={styles.spinner}
-                        />
-                        <Text style={styles.loginButtonText}>Connexion...</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.loginButtonText}>Se connecter</Text>
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Google Login Button - Temporairement masqué sur iOS */}
-                  {Platform.OS !== 'ios' && (
-                    <TouchableOpacity
-                      style={[styles.googleButton, loading && styles.loginButtonDisabled]}
-                      onPress={handleGoogleLogin}
-                      disabled={loading || isGooglePrompting || !isGoogleAvailable}
-                      activeOpacity={0.8}
-                    >
-                      {loading || isGooglePrompting ? (
-                        <View style={styles.buttonContent}>
-                          <ActivityIndicator
-                            size="small"
-                            color="#000"
-                            style={styles.spinner}
-                          />
-                          <Text style={styles.googleButtonText}>Connexion...</Text>
-                        </View>
-                      ) : (
-                        <View style={styles.buttonContent}>
-                          <AntDesign name="google" size={18} color="#000" style={styles.googleIcon} />
-                          <Text style={styles.googleButtonText}>Continuer avec Google</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  )}
-
-                  {errors.general && (
-                    <Text style={styles.generalErrorText}>{errors.general}</Text>
-                  )}
-
-                  {/* Forgot Password */}
-                  <TouchableOpacity
-                    style={styles.forgotPasswordButton}
-                    onPress={handleForgotPassword}
-                    disabled={loading}
-                  >
-                    <Text style={styles.forgotPasswordText}>Mot de passe oublié ?</Text>
-                  </TouchableOpacity>
-
-                  {/* Register Link */}
-                  <View style={styles.registerContainer}>
-                    <Text style={styles.registerText}>Vous n'avez pas de compte ? </Text>
-                    <TouchableOpacity
+                      {/* Register Link */}
+                      <View style={styles.registerContainer}>
+                        <Text style={styles.registerText}>Vous n'avez pas de compte ? </Text>
+                        <TouchableOpacity
                           onPress={() => setIsRegisterMode(true)}
-                      disabled={loading}
-                    >
-                      <Text style={styles.registerLink}>Inscrivez-vous</Text>
-                    </TouchableOpacity>
+                          disabled={loading}
+                        >
+                          <Text style={styles.registerLink}>Inscrivez-vous</Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
@@ -1273,32 +1283,29 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                         Lire nos Termes de services
                       </Text>
                     </Text>
-                </View>
+                  </View>
                 </ScrollView>
               </KeyboardAvoidingView>
             </SafeAreaView>
           </LinearGradient>
         </View>
-      );
-    }
 
-    // Register mode - multi-step form
-    return (
-      <View style={styles.loginContainer}>
-        <LinearGradient
-          colors={['#8BC34A', '#9CCC65']}
-          style={styles.container}
-        >
-          <SafeAreaView style={styles.container}>
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.container}
-            >
-              <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
+        {/* Formulaire d'inscription - toujours monté */}
+        <View style={[styles.formContainer, isRegisterMode && styles.formContainerActive]}>
+          <LinearGradient
+            colors={['#8BC34A', '#9CCC65']}
+            style={styles.container}
+          >
+            <SafeAreaView style={styles.container}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.container}
               >
+                <ScrollView
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
                 {/* Main Content Card */}
                 <View style={styles.mainCard}>
                   {/* Back Button */}
@@ -1321,10 +1328,11 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
                   {/* Logo Section */}
                   <View style={styles.logoSection}>
-                    <Image
-                      source={require('../../assets/logo.png')}
+                    <ImagePersistent
+                      source={imageCache.getLocalImage('logo') || LOGO_SOURCE}
                       style={styles.logo}
                       resizeMode="contain"
+                      fallbackSource={LOGO_SOURCE}
                     />
                   </View>
 
@@ -1469,12 +1477,13 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                   </Text>
                 </Text>
               </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </LinearGradient>
-    </View>
-  );
+                </ScrollView>
+              </KeyboardAvoidingView>
+            </SafeAreaView>
+          </LinearGradient>
+        </View>
+      </View>
+    );
   };
 
   
@@ -1567,6 +1576,21 @@ const styles = StyleSheet.create({
   // Login Form Styles
   loginContainer: {
     flex: 1,
+    position: 'relative',
+  },
+  formContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    pointerEvents: 'none',
+  },
+  formContainerActive: {
+    opacity: 1,
+    pointerEvents: 'auto',
+    zIndex: 1,
   },
   container: {
     flex: 1,
