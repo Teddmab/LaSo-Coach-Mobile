@@ -176,6 +176,7 @@ android {
 
 // Fix pour l'erreur std::format dans React Native prefabs
 // Les prefabs sont téléchargés pendant configureCMake, donc on corrige après configureCMake mais avant buildCMake
+// Le fichier se trouve dans: .gradle/caches/*/transforms/*/transformed/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h
 def fixReactNativePrefabInCache = {
     def gradleCacheDirs = [
         new File(System.getProperty("user.home"), ".gradle/caches"),
@@ -250,21 +251,36 @@ def fixReactNativePrefabInCache = {
     // Dédupliquer
     foundFiles = foundFiles.unique()
     
+    // Si on ne trouve rien avec find, essayer de chercher directement dans les dossiers transforms
     if (foundFiles.isEmpty()) {
-        println "⚠️ [fix-prefab] No graphicsConversions.h files found"
-        println "🔍 [fix-prefab] Debug: Cache dir exists: ${gradleCacheDir.exists()}, Path: ${gradleCacheDir.absolutePath}"
-        // Essayer de lister quelques fichiers pour debug
+        println "⚠️ [fix-prefab] No files found with find, trying direct path search..."
         try {
-            def listCmd = ["sh", "-c", "ls -la '${gradleCacheDir.absolutePath}/transforms' 2>/dev/null | head -5"]
-            def listProcess = listCmd.execute()
-            listProcess.waitFor()
-            def listing = listProcess.text.trim()
-            if (listing) {
-                println "🔍 [fix-prefab] Debug: Transforms dir listing: ${listing}"
+            // Chercher dans les dossiers transforms
+            def transformsDir = new File(gradleCacheDir, "transforms")
+            if (transformsDir.exists()) {
+                transformsDir.eachDir { transformDir ->
+                    def transformedDir = new File(transformDir, "transformed")
+                    if (transformedDir.exists()) {
+                        transformedDir.eachDir { reactAndroidDir ->
+                            if (reactAndroidDir.name.startsWith("react-android-")) {
+                                def graphicsFile = new File(reactAndroidDir, "prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h")
+                                if (graphicsFile.exists()) {
+                                    foundFiles.add(graphicsFile.absolutePath)
+                                    println "✅ [fix-prefab] Found file via direct search: ${graphicsFile.absolutePath}"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         } catch (Exception e) {
-            // Ignore
+            println "⚠️ [fix-prefab] Error in direct search: ${e.message}"
         }
+    }
+    
+    if (foundFiles.isEmpty()) {
+        println "⚠️ [fix-prefab] No graphicsConversions.h files found after all search attempts"
+        println "🔍 [fix-prefab] Debug: Cache dir exists: ${gradleCacheDir.exists()}, Path: ${gradleCacheDir.absolutePath}"
         return
     }
     
