@@ -43,7 +43,6 @@
       "package": "com.afrotouch.lasocoach",
       "versionCode": 5,
       "icon": "./assets/icon.png",
-      "minSdkVersion": 24,
       "intentFilters": [
         {
           "action": "VIEW",
