@@ -318,9 +318,10 @@ def fixReactNativePrefabInCache = {
 }
 
 // Corriger les fichiers après configureCMake mais avant buildCMake
+// S'applique à tous les types de builds (Debug, Release, RelWithDebInfo, etc.)
 afterEvaluate {
     tasks.matching { task ->
-        task.name.startsWith("configureCMake") && task.name.contains("Debug")
+        task.name.startsWith("configureCMake")
     }.configureEach { configureTask ->
         configureTask.doLast {
             println "🔧 [fix-prefab] Running after ${configureTask.name}"
@@ -330,7 +331,7 @@ afterEvaluate {
     
     // Aussi corriger juste avant buildCMake au cas où
     tasks.matching { task ->
-        task.name.startsWith("buildCMake") && task.name.contains("Debug")
+        task.name.startsWith("buildCMake")
     }.configureEach { buildTask ->
         buildTask.doFirst {
             println "🔧 [fix-prefab] Running before ${buildTask.name}"
