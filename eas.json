@@ -23,7 +23,6 @@
       "node": "20.19.4",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleDebug",
         "env": {
           "ANDROID_NDK_VERSION": "25.2.9519653"
         }
