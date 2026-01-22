@@ -521,6 +521,34 @@ class FirebaseAuthService {
   }
 
   /**
+   * Fonction helper pour charger le module Google Sign-In de manière sécurisée
+   * Ne génère pas d'erreur visible si le module n'est pas disponible
+   */
+  private _loadGoogleSignInModuleSafely(): any | null {
+    // Ne pas charger le module sur iOS
+    if (Platform.OS === 'ios') {
+      return null;
+    }
+
+    try {
+      // Utiliser une fonction interne pour charger le module de manière sécurisée
+      const loadModule = () => {
+        try {
+          return require('@react-native-google-signin/google-signin');
+        } catch (e) {
+          return null;
+        }
+      };
+      
+      const googleSignInModule = loadModule();
+      return googleSignInModule?.GoogleSignin || null;
+    } catch (error) {
+      // Ne pas logger l'erreur pour éviter le spam dans les logs
+      return null;
+    }
+  }
+
+  /**
    * Fonction pour forcer la déconnexion COMPLÈTE de Google Sign-In
    * IMPORTANT: Ne PAS utiliser signInSilently() car ça RECONNECTE le compte !
    * On utilise uniquement revokeAccess() + signOut() + reconfigure
@@ -533,22 +561,15 @@ class FirebaseAuthService {
         return;
       }
       
-      // Vérifier si le module natif est disponible avant de l'utiliser (Android uniquement)
-      let GoogleSignin: any = null;
-      try {
-        const googleSignInModule = require('@react-native-google-signin/google-signin');
-        GoogleSignin = googleSignInModule?.GoogleSignin;
-      } catch (requireError: any) {
-        // Module non disponible (Expo Go ou module non lié) - c'est normal, on skip
-        console.log('ℹ️ [Google Sign-Out] Module natif non disponible, déconnexion Google ignorée');
-        return;
-      }
+      // Charger le module natif de manière sécurisée (Android uniquement)
+      const GoogleSignin = this._loadGoogleSignInModuleSafely();
       
       // Si le module n'est pas disponible, on skip la déconnexion Google
       if (!GoogleSignin || typeof GoogleSignin.configure !== 'function') {
-        console.log('ℹ️ [Google Sign-Out] GoogleSignin non disponible, déconnexion Google ignorée');
+        // Module non disponible (Expo Go ou module non lié) - c'est normal, on skip silencieusement
         return;
       }
+      
       
       const { firebaseOAuthClientIds } = require('../config/firebaseApp');
       
@@ -641,20 +662,19 @@ class FirebaseAuthService {
       // Essayer de reconfigurer seulement si le module est disponible (Android uniquement)
       // Sur iOS, ne pas charger le module pour éviter les erreurs TurboModuleRegistry
       if (Platform.OS !== 'ios') {
-      try {
-          const googleSignInModule = require('@react-native-google-signin/google-signin');
-          const GoogleSignin = googleSignInModule?.GoogleSignin;
+        try {
+          const GoogleSignin = this._loadGoogleSignInModuleSafely();
           
           if (GoogleSignin && typeof GoogleSignin.configure === 'function') {
-        const { firebaseOAuthClientIds } = require('../config/firebaseApp');
-        const config: any = {
-          webClientId: firebaseOAuthClientIds.web,
-          offlineAccess: true,
-          forceCodeForRefreshToken: true,
-          scopes: ['email', 'profile'],
-        };
-        
-        GoogleSignin.configure(config);
+            const { firebaseOAuthClientIds } = require('../config/firebaseApp');
+            const config: any = {
+              webClientId: firebaseOAuthClientIds.web,
+              offlineAccess: true,
+              forceCodeForRefreshToken: true,
+              scopes: ['email', 'profile'],
+            };
+            
+            GoogleSignin.configure(config);
           }
         } catch (configError) { 
           // Ignorer silencieusement si le module n'est pas disponible

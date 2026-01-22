@@ -8,22 +8,59 @@ import { useAuth } from '../context/FirebaseAuthContext';
 let GoogleSignin: any = null;
 let statusCodes: any = null;
 
+// Fonction helper pour charger le module de manière sécurisée (ne génère pas d'erreur visible)
+const loadGoogleSignInModuleSafely = (): any | null => {
+  // Ne pas charger le module sur iOS
+  if (Platform.OS === 'ios') {
+    return null;
+  }
+
+  try {
+    // Utiliser une fonction interne pour charger le module de manière sécurisée
+    const loadModule = () => {
+      try {
+        return require('@react-native-google-signin/google-signin');
+      } catch (e) {
+        return null;
+      }
+    };
+    
+    const googleSignInModule = loadModule();
+    return googleSignInModule || null;
+  } catch (error) {
+    // Ne pas logger l'erreur pour éviter le spam dans les logs
+    return null;
+  }
+};
+
 // Fonction pour charger le module de manière lazy (appelée seulement quand nécessaire)
+// IMPORTANT: Sur Android, on charge TOUJOURS le module pour utiliser le SDK natif
 const loadGoogleSignInModule = () => {
   // Ne pas charger le module sur iOS
   if (Platform.OS === 'ios') {
     return;
   }
 
-try {
-  const googleSignInModule = require('@react-native-google-signin/google-signin');
-  GoogleSignin = googleSignInModule.GoogleSignin;
-  statusCodes = googleSignInModule.statusCodes;
-} catch (error) {
-    // Ne pas logger l'erreur pour éviter le spam dans les logs
+  // Sur Android, charger le module de manière agressive
+  // Essayer plusieurs fois si nécessaire car le module peut ne pas être immédiatement disponible
+  const googleSignInModule = loadGoogleSignInModuleSafely();
+  if (googleSignInModule) {
+    GoogleSignin = googleSignInModule.GoogleSignin;
+    statusCodes = googleSignInModule.statusCodes;
+    
+    // Vérifier que GoogleSignin est bien disponible avec ses méthodes
+    if (GoogleSignin && typeof GoogleSignin.configure === 'function') {
+      console.log('✅ [Android] Module Google Sign-In natif chargé et vérifié avec succès');
+    } else {
+      console.warn('⚠️ [Android] Module chargé mais GoogleSignin.configure n\'est pas disponible');
+      GoogleSignin = null;
+      statusCodes = null;
+    }
+  } else {
+    console.warn('⚠️ [Android] Impossible de charger le module Google Sign-In natif');
     GoogleSignin = null;
     statusCodes = null;
-}
+  }
 };
 
 interface GoogleAuthResult {
@@ -47,9 +84,25 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
   
   // Charger le module de manière lazy (seulement si pas déjà chargé)
+  // IMPORTANT: Sur Android, on charge TOUJOURS le module pour utiliser le SDK natif
   if (!GoogleSignin && Platform.OS !== 'ios') {
     loadGoogleSignInModule();
   }
+  
+  // Sur Android, essayer aussi de charger le module dans useEffect au cas où il n'était pas disponible au premier chargement
+  useEffect(() => {
+    if (Platform.OS === 'android' && !GoogleSignin) {
+      // Essayer de charger le module une deuxième fois après un court délai
+      const timeoutId = setTimeout(() => {
+        loadGoogleSignInModule();
+        if (GoogleSignin) {
+          console.log('✅ [Android] Module Google Sign-In natif chargé avec succès (retry)');
+        }
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, []);
   
   // Sélectionner la bonne fonction selon le mode
   // Pour l'inscription, utiliser registerWithGoogle, sinon loginWithGoogle
@@ -62,9 +115,15 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       try {
         // Vérifier que le module natif est disponible
         if (!GoogleSignin) {
-          console.error('❌ Module @react-native-google-signin/google-signin non disponible');
-          console.error('❌ Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios');
-          console.error('❌ Ou utilisez un dev build (expo-dev-client) au lieu d\'Expo Go');
+          // Sur Android, si le module n'est pas disponible, on ne configure pas
+          // mais on ne génère pas d'erreur visible (le fallback vers WebView sera géré par useGoogleAuthHybrid si nécessaire)
+          if (Platform.OS === 'android') {
+            console.log('ℹ️ [Android] Module Google Sign-In natif non disponible - utilisation du SDK natif impossible');
+          } else {
+            console.error('❌ Module @react-native-google-signin/google-signin non disponible');
+            console.error('❌ Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios');
+            console.error('❌ Ou utilisez un dev build (expo-dev-client) au lieu d\'Expo Go');
+          }
           setIsConfigured(false);
           return;
         }
@@ -198,15 +257,26 @@ export const useGoogleAuth = (isRegistration: boolean = false): UseGoogleAuthRet
       setIsPrompting(true);
 
       // Vérifier que le module natif est disponible
+      // Sur Android, le module DOIT être disponible dans un dev build ou build de production
       if (!GoogleSignin) {
-        const errorMsg = 'Module Google Sign-In non disponible. Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios';
-        console.error('❌', errorMsg);
-        result = {
-          user: null,
-          error: errorMsg,
-        };
-        setIsPrompting(false);
-        return result;
+        // Essayer de recharger le module une dernière fois
+        if (Platform.OS === 'android') {
+          loadGoogleSignInModule();
+        }
+        
+        // Si toujours pas disponible, retourner une erreur claire
+        if (!GoogleSignin) {
+          const errorMsg = Platform.OS === 'android' 
+            ? 'Module Google Sign-In natif non disponible. Assurez-vous d\'utiliser un dev build (expo-dev-client) ou un build de production. Le module natif est requis sur Android - aucune WebView ne sera utilisée.'
+            : 'Module Google Sign-In non disponible. Le module natif n\'est pas lié. Exécutez: npx expo prebuild --platform ios';
+          console.error('❌ [Android]', errorMsg);
+          result = {
+            user: null,
+            error: errorMsg,
+          };
+          setIsPrompting(false);
+          return result;
+        }
       }
 
       // Vérifier que les Google Play Services sont disponibles (Android uniquement)

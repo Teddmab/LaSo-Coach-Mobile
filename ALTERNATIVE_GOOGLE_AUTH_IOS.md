@@ -66,8 +66,12 @@ const {
 
 **Avantages** :
 - ✅ iOS utilise WebView (stable, pas de crash)
-- ✅ Android utilise SDK natif (UI native, performance)
+- ✅ Android utilise TOUJOURS le SDK natif (UI native, performance, pas de WebView)
 - ✅ Même interface que `useGoogleAuth`, pas besoin de changer le reste du code
+
+**Comportement sur Android** :
+- **Build natif** : Utilise TOUJOURS le SDK natif (pas de fallback vers WebView)
+- **Expo Go** : Utilise WebView (fallback nécessaire car le module natif ne fonctionne pas dans Expo Go)
 
 ### Option Alternative : Utiliser expo-auth-session partout
 
@@ -164,6 +168,7 @@ Pour iOS, **utiliser `expo-auth-session`** car :
 
 Pour Android, **garder le SDK natif** car :
 - Fonctionne bien
-- UI native
+- UI native (pas de WebView)
 - Performance optimale
+- **IMPORTANT** : Sur Android, la connexion Google est en natif et non une webview (sauf dans Expo Go où le module natif n'est pas disponible)
 

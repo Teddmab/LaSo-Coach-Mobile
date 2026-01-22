@@ -44,33 +44,30 @@ const checkNativeModuleAvailability = (): boolean => {
   }
 };
 
-// Vérifier si on est dans Expo Go (le module natif ne fonctionne pas dans Expo Go)
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
-
 /**
- * Hook pour l'authentification Google avec fallback automatique
+ * Hook pour l'authentification Google
  * 
- * - Si le module natif est disponible ET qu'on n'est pas dans Expo Go : Utilise le SDK natif (UI native, meilleure performance)
- * - Sinon (Expo Go ou module non lié) : Utilise WebView avec Expo AuthSession (fallback)
+ * - iOS : Utilise WebView avec Expo AuthSession (le module natif cause des erreurs TurboModuleRegistry)
+ * - Android : TOUJOURS utiliser le SDK natif (PAS de WebView, PAS de fallback)
  * 
- * Cela permet de fonctionner à la fois dans Expo Go et dans les dev builds.
+ * IMPORTANT: Sur Android, la connexion Google est UNIQUEMENT en natif, jamais de webview.
+ * Le module natif DOIT être disponible dans un dev build ou build de production.
  */
 export const useGoogleAuthHybrid = (isRegistration: boolean = false) => {
   // Sur iOS, toujours utiliser WebView (le module natif cause des erreurs TurboModuleRegistry)
-  if (Platform.OS === 'ios' || isExpoGo) {
+  if (Platform.OS === 'ios') {
     return useGoogleAuthExpo(isRegistration);
   }
   
-  // Sur Android, vérifier si le module natif est disponible (vérification lazy)
-  const isNativeModuleAvailable = checkNativeModuleAvailability();
-  
-  if (isNativeModuleAvailable) {
-    // Module natif disponible - utiliser le SDK natif
+  // Sur Android, TOUJOURS utiliser le SDK natif (pas de WebView, pas de fallback)
+  // Le module natif DOIT être disponible dans un dev build ou build de production
+  if (Platform.OS === 'android') {
+    console.log('📱 [Android] Utilisation du SDK natif Google Sign-In (pas de WebView)');
     return useGoogleAuth(isRegistration);
-  } else {
-    // Module natif non disponible - utiliser WebView avec Expo AuthSession
-    return useGoogleAuthExpo(isRegistration);
   }
+  
+  // Fallback par défaut (ne devrait jamais arriver)
+  return useGoogleAuthExpo(isRegistration);
 };
 
 export default useGoogleAuthHybrid;
