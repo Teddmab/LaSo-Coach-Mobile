@@ -197,49 +197,54 @@ def fixReactNativePrefabInCache = {
     
     println "🔍 [fix-prefab] Searching for graphicsConversions.h in: ${gradleCacheDir.absolutePath}"
     
-    // Chercher dans plusieurs emplacements possibles
-    def searchPaths = [
-        "${gradleCacheDir.absolutePath}/**/graphicsConversions.h",
-        "${gradleCacheDir.absolutePath}/transforms/**/graphicsConversions.h",
-        "${gradleCacheDir.absolutePath}/**/react-android-*/**/graphicsConversions.h"
-    ]
-    
     def foundFiles = []
     
     // Utiliser find avec plusieurs tentatives et patterns
     try {
-        // Pattern 1: Chercher dans transforms
-        def cmd1 = ["sh", "-c", "find ${gradleCacheDir.absolutePath}/transforms -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+        // Pattern 1: Chercher dans transforms (le plus probable)
+        def cmd1 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}/transforms' -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
         def process1 = cmd1.execute()
         process1.waitFor()
         def result1 = process1.text.trim()
         if (result1) {
-            foundFiles.addAll(result1.split('\n').findAll { it })
+            foundFiles.addAll(result1.split('\n').findAll { it && it.length() > 0 })
         }
         
         // Pattern 2: Chercher partout dans le cache
         if (foundFiles.isEmpty()) {
-            def cmd2 = ["sh", "-c", "find ${gradleCacheDir.absolutePath} -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def cmd2 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
             def process2 = cmd2.execute()
             process2.waitFor()
             def result2 = process2.text.trim()
             if (result2) {
-                foundFiles.addAll(result2.split('\n').findAll { it })
+                foundFiles.addAll(result2.split('\n').findAll { it && it.length() > 0 })
             }
         }
         
-        // Pattern 3: Chercher spécifiquement dans react-android
+        // Pattern 3: Chercher spécifiquement dans react-android avec path exact
         if (foundFiles.isEmpty()) {
-            def cmd3 = ["sh", "-c", "find ${gradleCacheDir.absolutePath} -path '*/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def cmd3 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -path '*/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h' -type f 2>/dev/null | head -10"]
             def process3 = cmd3.execute()
             process3.waitFor()
             def result3 = process3.text.trim()
             if (result3) {
-                foundFiles.addAll(result3.split('\n').findAll { it })
+                foundFiles.addAll(result3.split('\n').findAll { it && it.length() > 0 })
+            }
+        }
+        
+        // Pattern 4: Chercher dans les sous-dossiers transforms avec wildcard
+        if (foundFiles.isEmpty()) {
+            def cmd4 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -type d -name 'transforms' 2>/dev/null | head -1 | xargs -I {} find {} -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process4 = cmd4.execute()
+            process4.waitFor()
+            def result4 = process4.text.trim()
+            if (result4) {
+                foundFiles.addAll(result4.split('\n').findAll { it && it.length() > 0 })
             }
         }
     } catch (Exception e) {
         println "⚠️ [fix-prefab] Error during search: ${e.message}"
+        e.printStackTrace()
     }
     
     // Dédupliquer
@@ -250,17 +255,20 @@ def fixReactNativePrefabInCache = {
         println "🔍 [fix-prefab] Debug: Cache dir exists: ${gradleCacheDir.exists()}, Path: ${gradleCacheDir.absolutePath}"
         // Essayer de lister quelques fichiers pour debug
         try {
-            def listCmd = ["sh", "-c", "ls -la ${gradleCacheDir.absolutePath}/transforms 2>/dev/null | head -5"]
+            def listCmd = ["sh", "-c", "ls -la '${gradleCacheDir.absolutePath}/transforms' 2>/dev/null | head -5"]
             def listProcess = listCmd.execute()
             listProcess.waitFor()
-            println "🔍 [fix-prefab] Debug: Transforms dir listing: ${listProcess.text.trim()}"
+            def listing = listProcess.text.trim()
+            if (listing) {
+                println "🔍 [fix-prefab] Debug: Transforms dir listing: ${listing}"
+            }
         } catch (Exception e) {
             // Ignore
         }
         return
     }
     
-    println "✅ [fix-prefab] Found ${foundFiles.size()} file(s)"
+    println "✅ [fix-prefab] Found ${foundFiles.size()} file(s): ${foundFiles.join(', ')}"
     
     def fixedCount = 0
     foundFiles.each { filePath ->
