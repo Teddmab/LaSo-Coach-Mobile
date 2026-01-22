@@ -11,6 +11,11 @@
         "env": {
           "RCT_USE_RN_DEP": "0"
         }
+      },
+      "android": {
+        "env": {
+          "ANDROID_NDK_VERSION": "25.2.9519653"
+        }
       }
     },
     "test": {
@@ -18,7 +23,10 @@
       "node": "20.19.4",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleDebug"
+        "gradleCommand": ":app:assembleDebug",
+        "env": {
+          "ANDROID_NDK_VERSION": "25.2.9519653"
+        }
       }
     },
     "preview": {
@@ -26,7 +34,10 @@
       "node": "20.19.4",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "ANDROID_NDK_VERSION": "25.2.9519653"
+        }
       },
       "ios": {
         "simulator": false,
@@ -50,7 +61,10 @@
         }
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "env": {
+          "ANDROID_NDK_VERSION": "25.2.9519653"
+        }
       }
     }
   },
