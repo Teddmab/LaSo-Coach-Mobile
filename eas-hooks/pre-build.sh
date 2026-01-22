@@ -77,6 +77,53 @@ fi
 # et ajoutera CFBundleIconName dans Info.plist
 # Le hook pre-build ne fait que sauvegarder les icônes et forcer le prebuild
 
+# Fix pour l'erreur std::format dans React Native prefabs (Android)
+# Le build utilise les prefabs précompilés depuis le cache Gradle, pas les sources
+# Il faut corriger les fichiers dans le cache après qu'ils soient téléchargés
+if [ -d "$HOME/.gradle" ] || [ -d "/home/expo/.gradle" ]; then
+  echo "🔧 [pre-build] Fixing std::format error in React Native prefabs..."
+  
+  # Chercher le fichier graphicsConversions.h dans le cache Gradle
+  GRADLE_CACHE_DIR="${HOME}/.gradle/caches"
+  if [ ! -d "$GRADLE_CACHE_DIR" ]; then
+    GRADLE_CACHE_DIR="/home/expo/.gradle/caches"
+  fi
+  
+  if [ -d "$GRADLE_CACHE_DIR" ]; then
+    echo "🔍 [pre-build] Searching for graphicsConversions.h in Gradle cache..."
+    GRAPHICS_FILE=$(find "$GRADLE_CACHE_DIR" -name "graphicsConversions.h" -type f 2>/dev/null | head -1)
+    
+    if [ -n "$GRAPHICS_FILE" ] && [ -f "$GRAPHICS_FILE" ]; then
+      echo "✅ [pre-build] Found graphicsConversions.h: $GRAPHICS_FILE"
+      
+      # Vérifier si le fichier contient std::format
+      if grep -q 'std::format("{}%", dimension.value)' "$GRAPHICS_FILE" 2>/dev/null; then
+        echo "🔧 [pre-build] Applying fix: replacing std::format with std::to_string..."
+        
+        # Créer une sauvegarde
+        cp "$GRAPHICS_FILE" "${GRAPHICS_FILE}.backup" 2>/dev/null || true
+        
+        # Remplacer std::format par std::to_string + concaténation
+        sed -i 's/return std::format("{}%", dimension.value);/return std::to_string(dimension.value) + "%";/g' "$GRAPHICS_FILE" 2>/dev/null || \
+        sed -i.bak 's/return std::format("{}%", dimension.value);/return std::to_string(dimension.value) + "%";/g' "$GRAPHICS_FILE" 2>/dev/null || true
+        
+        # Vérifier que le remplacement a fonctionné
+        if grep -q 'std::to_string(dimension.value) + "%"' "$GRAPHICS_FILE" 2>/dev/null; then
+          echo "✅ [pre-build] Fix applied successfully!"
+        else
+          echo "⚠️ [pre-build] Fix may not have been applied, but continuing..."
+        fi
+      else
+        echo "ℹ️ [pre-build] File doesn't contain std::format, may already be fixed"
+      fi
+    else
+      echo "⚠️ [pre-build] graphicsConversions.h not found in cache (will be fixed during build if needed)"
+    fi
+  else
+    echo "⚠️ [pre-build] Gradle cache directory not found, will try during build"
+  fi
+fi
+
 echo "✅ [pre-build] Pre-build hook completed"
 echo "🔧 [pre-build] ========================================"
 
