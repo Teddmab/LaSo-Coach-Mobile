@@ -197,15 +197,70 @@ def fixReactNativePrefabInCache = {
     
     println "🔍 [fix-prefab] Searching for graphicsConversions.h in: ${gradleCacheDir.absolutePath}"
     
-    // Utiliser find pour localiser les fichiers
-    def process = "find ${gradleCacheDir.absolutePath} -name 'graphicsConversions.h' -type f 2>/dev/null".execute()
-    process.waitFor()
-    def foundFiles = process.text.trim().split('\n').findAll { it }
+    // Chercher dans plusieurs emplacements possibles
+    def searchPaths = [
+        "${gradleCacheDir.absolutePath}/**/graphicsConversions.h",
+        "${gradleCacheDir.absolutePath}/transforms/**/graphicsConversions.h",
+        "${gradleCacheDir.absolutePath}/**/react-android-*/**/graphicsConversions.h"
+    ]
+    
+    def foundFiles = []
+    
+    // Utiliser find avec plusieurs tentatives et patterns
+    try {
+        // Pattern 1: Chercher dans transforms
+        def cmd1 = ["sh", "-c", "find ${gradleCacheDir.absolutePath}/transforms -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+        def process1 = cmd1.execute()
+        process1.waitFor()
+        def result1 = process1.text.trim()
+        if (result1) {
+            foundFiles.addAll(result1.split('\n').findAll { it })
+        }
+        
+        // Pattern 2: Chercher partout dans le cache
+        if (foundFiles.isEmpty()) {
+            def cmd2 = ["sh", "-c", "find ${gradleCacheDir.absolutePath} -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process2 = cmd2.execute()
+            process2.waitFor()
+            def result2 = process2.text.trim()
+            if (result2) {
+                foundFiles.addAll(result2.split('\n').findAll { it })
+            }
+        }
+        
+        // Pattern 3: Chercher spécifiquement dans react-android
+        if (foundFiles.isEmpty()) {
+            def cmd3 = ["sh", "-c", "find ${gradleCacheDir.absolutePath} -path '*/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process3 = cmd3.execute()
+            process3.waitFor()
+            def result3 = process3.text.trim()
+            if (result3) {
+                foundFiles.addAll(result3.split('\n').findAll { it })
+            }
+        }
+    } catch (Exception e) {
+        println "⚠️ [fix-prefab] Error during search: ${e.message}"
+    }
+    
+    // Dédupliquer
+    foundFiles = foundFiles.unique()
     
     if (foundFiles.isEmpty()) {
         println "⚠️ [fix-prefab] No graphicsConversions.h files found"
+        println "🔍 [fix-prefab] Debug: Cache dir exists: ${gradleCacheDir.exists()}, Path: ${gradleCacheDir.absolutePath}"
+        // Essayer de lister quelques fichiers pour debug
+        try {
+            def listCmd = ["sh", "-c", "ls -la ${gradleCacheDir.absolutePath}/transforms 2>/dev/null | head -5"]
+            def listProcess = listCmd.execute()
+            listProcess.waitFor()
+            println "🔍 [fix-prefab] Debug: Transforms dir listing: ${listProcess.text.trim()}"
+        } catch (Exception e) {
+            // Ignore
+        }
         return
     }
+    
+    println "✅ [fix-prefab] Found ${foundFiles.size()} file(s)"
     
     def fixedCount = 0
     foundFiles.each { filePath ->
@@ -222,6 +277,8 @@ def fixReactNativePrefabInCache = {
                     file.text = fixedContent
                     fixedCount++
                     println "✅ [fix-prefab] Fixed: ${file.absolutePath}"
+                } else if (content.contains('std::to_string(dimension.value) + "%"')) {
+                    println "ℹ️ [fix-prefab] Already fixed: ${file.absolutePath}"
                 }
             } catch (Exception e) {
                 println "⚠️ [fix-prefab] Error fixing ${file.absolutePath}: ${e.message}"
@@ -232,7 +289,7 @@ def fixReactNativePrefabInCache = {
     if (fixedCount > 0) {
         println "✅ [fix-prefab] Fixed ${fixedCount} file(s)"
     } else {
-        println "ℹ️ [fix-prefab] No files needed fixing"
+        println "ℹ️ [fix-prefab] No files needed fixing (${foundFiles.size()} checked)"
     }
 }
 
