@@ -177,42 +177,78 @@ android {
 // Fix pour l'erreur std::format dans React Native prefabs
 // Cette tâche corrige les fichiers dans le cache Gradle avant la compilation C++
 task fixReactNativePrefab {
-    doLast {
-        def gradleCacheDir = new File(System.getProperty("user.home"), ".gradle/caches")
-        if (!gradleCacheDir.exists()) {
-            gradleCacheDir = new File("/home/expo/.gradle/caches")
+    doFirst {
+        def gradleCacheDirs = [
+            new File(System.getProperty("user.home"), ".gradle/caches"),
+            new File("/home/expo/.gradle/caches"),
+            new File(System.getenv("HOME") ?: "", ".gradle/caches")
+        ]
+        
+        def gradleCacheDir = gradleCacheDirs.find { it.exists() }
+        
+        if (!gradleCacheDir || !gradleCacheDir.exists()) {
+            println "⚠️ [fix-prefab] Gradle cache directory not found, trying to find files..."
+            // Essayer de trouver le cache via les variables d'environnement
+            def userHome = System.getProperty("user.home") ?: System.getenv("HOME") ?: "/home/expo"
+            gradleCacheDir = new File(userHome, ".gradle/caches")
         }
         
-        if (!gradleCacheDir.exists()) {
-            println "⚠️ [fix-prefab] Gradle cache directory not found"
+        if (!gradleCacheDir || !gradleCacheDir.exists()) {
+            println "⚠️ [fix-prefab] Gradle cache directory not found: ${gradleCacheDir}"
             return
         }
         
-        println "🔍 [fix-prefab] Searching for graphicsConversions.h in: ${gradleCacheDir}"
+        println "🔍 [fix-prefab] Searching for graphicsConversions.h in: ${gradleCacheDir.absolutePath}"
         
-        def graphicsFiles = fileTree(gradleCacheDir) {
-            include "**/graphicsConversions.h"
+        // Utiliser une approche plus robuste pour trouver les fichiers
+        def process = "find ${gradleCacheDir.absolutePath} -name 'graphicsConversions.h' -type f 2>/dev/null".execute()
+        process.waitFor()
+        def foundFiles = process.text.trim().split('\n').findAll { it }
+        
+        if (foundFiles.isEmpty()) {
+            println "⚠️ [fix-prefab] No graphicsConversions.h files found (may not be downloaded yet)"
+            return
         }
         
-        graphicsFiles.each { file ->
-            def content = file.text
-            if (content.contains('std::format("{}%", dimension.value)')) {
-                println "🔧 [fix-prefab] Fixing: ${file}"
-                def fixedContent = content.replace(
-                    'return std::format("{}%", dimension.value);',
-                    'return std::to_string(dimension.value) + "%";'
-                )
-                file.text = fixedContent
-                println "✅ [fix-prefab] Fixed: ${file}"
+        foundFiles.each { filePath ->
+            def file = new File(filePath)
+            if (file.exists() && file.isFile()) {
+                try {
+                    def content = file.text
+                    if (content.contains('std::format("{}%", dimension.value)')) {
+                        println "🔧 [fix-prefab] Fixing: ${file.absolutePath}"
+                        def fixedContent = content.replace(
+                            'return std::format("{}%", dimension.value);',
+                            'return std::to_string(dimension.value) + "%";'
+                        )
+                        file.text = fixedContent
+                        println "✅ [fix-prefab] Fixed: ${file.absolutePath}"
+                    } else {
+                        println "ℹ️ [fix-prefab] Already fixed or doesn't contain std::format: ${file.absolutePath}"
+                    }
+                } catch (Exception e) {
+                    println "⚠️ [fix-prefab] Error fixing ${file.absolutePath}: ${e.message}"
+                }
             }
         }
     }
 }
 
-// Exécuter la correction avant les tâches de compilation C++
-tasks.whenTaskAdded { task ->
-    if (task.name.contains("buildCMake") || task.name.contains("configureCMake")) {
+// Exécuter la correction très tôt, avant même la configuration
+afterEvaluate {
+    // S'assurer que la correction s'exécute avant toutes les tâches de compilation
+    tasks.matching { task ->
+        task.name.contains("buildCMake") || 
+        task.name.contains("configureCMake") ||
+        task.name.contains("compile") ||
+        task.name.contains("assemble")
+    }.configureEach { task ->
         task.dependsOn fixReactNativePrefab
+    }
+    
+    // Aussi s'exécuter avant preBuild
+    if (tasks.findByName("preBuild")) {
+        tasks.preBuild.dependsOn fixReactNativePrefab
     }
 }
 
