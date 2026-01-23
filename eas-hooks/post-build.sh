@@ -63,5 +63,42 @@ else
   echo "⚠️ [post-build] App bundle not found: $APP_BUNDLE"
 fi
 
+# Vérification Android : Vérifier si l'APK/AAB est généré
+echo "🔍 [post-build] Checking for Android build artifacts..."
+ANDROID_OUTPUT_DIR="${EXPO_BUILD_DIR}/android/app/build/outputs"
+if [ -d "$ANDROID_OUTPUT_DIR" ]; then
+  echo "✅ [post-build] Android output directory exists: $ANDROID_OUTPUT_DIR"
+  
+  # Chercher les APK
+  APK_FILES=$(find "$ANDROID_OUTPUT_DIR" -name "*.apk" -type f 2>/dev/null)
+  if [ -n "$APK_FILES" ]; then
+    echo "✅ [post-build] Found APK files:"
+    echo "$APK_FILES" | while read -r apk; do
+      echo "   - $apk ($(du -h "$apk" | cut -f1))"
+    done
+  else
+    echo "⚠️ [post-build] No APK files found in $ANDROID_OUTPUT_DIR"
+    echo "🔍 [post-build] Searching in subdirectories..."
+    find "$ANDROID_OUTPUT_DIR" -type d | head -10
+  fi
+  
+  # Chercher les AAB
+  AAB_FILES=$(find "$ANDROID_OUTPUT_DIR" -name "*.aab" -type f 2>/dev/null)
+  if [ -n "$AAB_FILES" ]; then
+    echo "✅ [post-build] Found AAB files:"
+    echo "$AAB_FILES" | while read -r aab; do
+      echo "   - $aab ($(du -h "$aab" | cut -f1))"
+    done
+  else
+    echo "ℹ️ [post-build] No AAB files found (this is OK if building APK)"
+  fi
+else
+  echo "⚠️ [post-build] Android output directory not found: $ANDROID_OUTPUT_DIR"
+  echo "🔍 [post-build] Checking alternative paths..."
+  if [ -d "${EXPO_BUILD_DIR}/android" ]; then
+    find "${EXPO_BUILD_DIR}/android" -name "*.apk" -o -name "*.aab" 2>/dev/null | head -5
+  fi
+fi
+
 echo "✅ [post-build] Post-build hook completed"
 
