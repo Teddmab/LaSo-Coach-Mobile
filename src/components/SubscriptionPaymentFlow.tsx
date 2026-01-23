@@ -162,7 +162,7 @@ export default function SubscriptionPaymentFlow({
       setLoadingExchangeRate(true);
       // Essayer de récupérer le taux depuis l'API
       // Si l'API n'existe pas encore, utiliser le taux fixe comme fallback
-      const response = await api.get('/api/v1/payments/exchange-rate');
+      const response = await api.get('/payments/exchange-rate');
       if (response?.data?.success && response?.data?.data?.rate) {
         const rate = parseFloat(response.data.data.rate);
         if (!isNaN(rate) && rate > 0) {
@@ -438,7 +438,7 @@ export default function SubscriptionPaymentFlow({
       console.log('🔵 [PawaPay] Phone Number (cleaned):', rawPhone);
       console.log('🔵 [PawaPay] Phone Number (formatted):', phoneWithCountry);
       console.log('🔵 [PawaPay] Payload complet:', JSON.stringify(payload, null, 2));
-      console.log('🔵 [PawaPay] URL API:', '/api/v1/payments/pawapay/create-deposit');
+      console.log('🔵 [PawaPay] URL API:', '/payments/pawapay/create-deposit');
       console.log('🔵 [PawaPay] Base URL:', api.defaults?.baseURL || 'N/A');
 
       // Appeler l'API PawaPay
@@ -446,7 +446,7 @@ export default function SubscriptionPaymentFlow({
       let data;
       try {
         console.log('🔵 [PawaPay] Envoi de la requête POST...');
-        response = await api.post('/api/v1/payments/pawapay/create-deposit', payload);
+        response = await api.post('/payments/pawapay/create-deposit', payload);
         data = response?.data;
         console.log('✅ [PawaPay] Réponse reçue avec succès');
         console.log('🔵 [PawaPay] Status Code:', response?.status);
@@ -526,7 +526,7 @@ export default function SubscriptionPaymentFlow({
         console.log(`[PawaPay] Polling attempt ${pollAttempts}/${maxAttempts} for deposit: ${depositId}`);
 
         // Vérifier le statut de l'abonnement via le profil
-        const profileRes = await api.get('/api/v1/auth/profile');
+        const profileRes = await api.get('/auth/profile');
         const profileData = profileRes.data;
 
         if (profileData?.success && profileData?.data?.subscription?.status === 'ACTIVE') {
