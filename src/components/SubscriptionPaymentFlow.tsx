@@ -415,7 +415,8 @@ export default function SubscriptionPaymentFlow({
       }
 
       // Créer le payload pour PawaPay
-      // Note: requireConfirmation permet d'avoir d'abord une demande de confirmation, puis le mot de passe
+      // Note: Le backend doit configurer le flux en deux étapes (confirmation puis mot de passe)
+      // Le payload est identique à la version web, le backend doit gérer le flux correctement
       const payload = {
         subscriptionPlanId: plan.id,
         phoneNumber: phoneWithCountry,
@@ -424,7 +425,7 @@ export default function SubscriptionPaymentFlow({
         country: paymentData.country,
         amount: finalAmount,
         currency: paymentData.currency,
-        requireConfirmation: true, // Force le flux en deux étapes : confirmation d'abord, puis mot de passe
+        clientType: 'mobile', // Indique au backend que la requête vient de l'app mobile
       };
 
       // Logs détaillés pour le debug
