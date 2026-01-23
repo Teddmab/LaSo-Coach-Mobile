@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
-import SubscriptionPaymentFlow from '../../../components/SubscriptionPaymentFlow';
+import SubscriptionPaymentFlowImproved from '../../../components/SubscriptionPaymentFlowImproved';
 import SubscriptionApi from '../../../services/subscriptionApi';
 import { ShimmerCard } from '../../../components/Shimmer';
 
@@ -32,46 +32,37 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
   onClosePaymentFlow,
 }) => {
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View style={styles.container}>
-          {/* Handle */}
-          <View style={styles.handleContainer}>
-            <View style={styles.handle} />
-          </View>
-          
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Choisissez votre abonnement</Text>
-            <TouchableOpacity 
-              onPress={onClose} 
-              style={styles.closeButton}
-            >
-              <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-          
-          {/* Content */}
-          {showPaymentFlow && selectedPlan ? (
-            <SubscriptionPaymentFlow
-              visible={true}
-              plan={selectedPlan}
-              onClose={onClosePaymentFlow}
-              onSuccess={onPaymentSuccess}
-              onError={onPaymentError}
-              isEmbedded={true}
-            />
-          ) : (
+    <>
+      <Modal
+        visible={visible && !showPaymentFlow}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={onClose}
+      >
+        <View style={styles.overlay}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={onClose}
+          />
+          <View style={styles.container}>
+            {/* Handle */}
+            <View style={styles.handleContainer}>
+              <View style={styles.handle} />
+            </View>
+
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Choisissez votre abonnement</Text>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Content */}
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
               {loading ? (
                 <View style={styles.loadingContainer}>
@@ -84,7 +75,7 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                   if (!plan?.id || typeof plan.id !== 'string' || plan.id.trim() === '') {
                     return null;
                   }
-                  
+
                   let backgroundColor = '#4CAF50';
                   if (plan.name?.toLowerCase().includes('premium')) {
                     backgroundColor = '#8B5CF6';
@@ -93,7 +84,7 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                   } else if (plan.name?.toLowerCase().includes('basic')) {
                     backgroundColor = '#2196F3';
                   }
-                  
+
                   return (
                     <TouchableOpacity
                       key={plan.id}
@@ -140,10 +131,19 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                 </View>
               )}
             </ScrollView>
-          )}
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      {/* Payment Flow - Rendered independently */}
+      <SubscriptionPaymentFlowImproved
+        visible={showPaymentFlow && !!selectedPlan}
+        plan={selectedPlan}
+        onClose={onClosePaymentFlow}
+        onSuccess={onPaymentSuccess}
+        onError={onPaymentError}
+      />
+    </>
   );
 };
 

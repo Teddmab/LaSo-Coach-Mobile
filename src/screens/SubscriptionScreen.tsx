@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { theme } from '../constants/theme';
 import FixedLayout from '../components/FixedLayout';
-import SubscriptionPaymentFlow from '../components/SubscriptionPaymentFlow';
+import SubscriptionPaymentFlowImproved from '../components/SubscriptionPaymentFlowImproved';
 import { useAuth } from '../context/FirebaseAuthContext';
 import { SubscriptionScreenProps, PaymentData } from './subscription/types';
 import { useSubscriptionScreen } from './subscription/hooks/useSubscriptionScreen';
@@ -79,8 +79,8 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         showBackButton={showBackButton}
         onBackPress={onBackPress}
       >
-        <ScrollView 
-          style={styles.content} 
+        <ScrollView
+          style={styles.content}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
@@ -95,28 +95,28 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   }
 
   return (
-      <FixedLayout
-        headerTitle="Abonnement"
-        onHelpPress={handleFAQPress}
-        onNotificationPress={() => {
-          if (onTabPress) {
-            onTabPress('notifications');
-          }
-        }}
-        onProfilePress={() => {
-          if (onTabPress) {
-            onTabPress('settings');
-          }
-        }}
-        avatarSource={profileData?.avatar || user?.avatar}
-        avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
-        activeTab={activeTab || 'home'}
-        onTabPress={onTabPress}
-        showBackButton={showBackButton}
-        onBackPress={onBackPress}
-      >
-      <ScrollView 
-        style={styles.content} 
+    <FixedLayout
+      headerTitle="Abonnement"
+      onHelpPress={handleFAQPress}
+      onNotificationPress={() => {
+        if (onTabPress) {
+          onTabPress('notifications');
+        }
+      }}
+      onProfilePress={() => {
+        if (onTabPress) {
+          onTabPress('settings');
+        }
+      }}
+      avatarSource={profileData?.avatar || user?.avatar}
+      avatarFallbackText={user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U'}
+      activeTab={activeTab || 'home'}
+      onTabPress={onTabPress}
+      showBackButton={showBackButton}
+      onBackPress={onBackPress}
+    >
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -129,15 +129,15 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         </View>
 
         <YourPremiumCard subscription={currentSubscription} />
-        
+
         <ManageSubscriptionCard
           subscription={currentSubscription}
           invoices={invoices}
           onViewInvoices={handleViewInvoices}
         />
-        
+
         <View style={styles.sectionContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.faqLink}
             onPress={handleFAQPress}
           >
@@ -174,47 +174,16 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         onClose={() => setShowInvoiceModal(false)}
       />
 
-      {showPaymentFlow && selectedPlan && (
-        <Modal
-          visible={showPaymentFlow}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => {
-            setShowPaymentFlow(false);
-            setSelectedPlan(null);
-          }}
-        >
-          <View style={styles.bottomSheetOverlay}>
-            <TouchableOpacity
-              style={styles.bottomSheetBackdrop}
-              activeOpacity={1}
-              onPress={() => {
-                setShowPaymentFlow(false);
-                setSelectedPlan(null);
-              }}
-            />
-            <View style={styles.bottomSheetContainer}>
-              <View style={styles.bottomSheetHandleContainer}>
-                <View style={styles.bottomSheetHandle} />
-              </View>
-              
-              <View style={styles.bottomSheetContent}>
-                <SubscriptionPaymentFlow
-                  visible={true}
-                  isEmbedded={true}
-                  plan={selectedPlan}
-                  onClose={() => {
-                    setShowPaymentFlow(false);
-                    setSelectedPlan(null);
-                  }}
-                  onSuccess={handlePaymentSuccess}
-                  onError={handlePaymentError}
-                />
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      <SubscriptionPaymentFlowImproved
+        visible={showPaymentFlow && !!selectedPlan}
+        plan={selectedPlan}
+        onClose={() => {
+          setShowPaymentFlow(false);
+          setSelectedPlan(null);
+        }}
+        onSuccess={handlePaymentSuccess}
+        onError={handlePaymentError}
+      />
     </FixedLayout>
   );
 };

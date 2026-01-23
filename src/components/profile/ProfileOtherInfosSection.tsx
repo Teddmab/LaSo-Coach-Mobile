@@ -45,7 +45,7 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
 
   const subscription = subscriptionData?.subscription || subscriptionData;
   const plan = subscription?.plan || {};
-  const daysRemaining = subscription?.endDate 
+  const daysRemaining = subscription?.endDate
     ? getDaysRemaining(subscription.endDate)
     : null;
 
@@ -53,8 +53,8 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
     {
       icon: 'card-outline',
       label: 'Plan d\'abonnement',
-      value: plan.name || 'Aucun abonnement actif',
-      color: plan.name ? theme.colors.primary : theme.colors.text.secondary,
+      value: (subscription?.status === 'expired' || subscription?.status === 'inactive') ? 'Plan Test' : (plan.name || 'Aucun abonnement actif'),
+      color: (plan.name || subscription?.status === 'expired' || subscription?.status === 'inactive') ? theme.colors.primary : theme.colors.text.secondary,
     },
     {
       icon: 'calendar-outline',
@@ -69,7 +69,7 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
     {
       icon: 'time-outline',
       label: 'Jours restants',
-      value: daysRemaining !== null 
+      value: daysRemaining !== null
         ? `${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}`
         : 'Non renseigné',
       color: daysRemaining !== null && daysRemaining < 7 ? '#FF6B35' : undefined,
@@ -82,11 +82,10 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
     {
       icon: 'checkmark-circle-outline',
       label: 'Statut',
-      value: subscription?.status === 'active' ? 'Actif' : 
-             subscription?.status === 'expired' ? 'Expiré' :
-             subscription?.status === 'cancelled' ? 'Annulé' : 'Non renseigné',
-      color: subscription?.status === 'active' ? '#4CAF50' :
-             subscription?.status === 'expired' ? '#FF6B35' : undefined,
+      value: subscription?.status === 'active' ? 'Actif' :
+        (subscription?.status === 'expired' || subscription?.status === 'inactive') ? 'Actif' : // Plan Test par défaut
+          subscription?.status === 'cancelled' ? 'Annulé' : 'Non renseigné',
+      color: (subscription?.status === 'active' || subscription?.status === 'expired' || subscription?.status === 'inactive') ? '#4CAF50' : undefined,
     },
   ];
 
@@ -100,51 +99,39 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
       </View>
 
       <View style={styles.content}>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {infoItems.map((item, index) => (
-              <View key={index} style={styles.infoItem}>
-                <View style={styles.infoItemLeft}>
-                  <Ionicons 
-                    name={item.icon as any} 
-                    size={20} 
-                    color={item.color || theme.colors.text.secondary} 
-                  />
-                  <Text style={styles.infoLabel}>{item.label}</Text>
-                </View>
-                <Text 
-                  style={[
-                    styles.infoValue,
-                    item.color && { color: item.color, fontWeight: '600' }
-                  ]} 
-                  numberOfLines={2}
-                >
-                  {item.value}
-                </Text>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {infoItems.map((item, index) => (
+            <View key={index} style={styles.infoItem}>
+              <View style={styles.infoItemLeft}>
+                <Ionicons
+                  name={item.icon as any}
+                  size={20}
+                  color={item.color || theme.colors.text.secondary}
+                />
+                <Text style={styles.infoLabel}>{item.label}</Text>
               </View>
-            ))}
-
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => setShowInvoicesSheet(true)}
-            >
-              <Ionicons name="document-text-outline" size={20} color={theme.colors.primary} />
-              <Text style={styles.actionButtonText}>Voir les factures</Text>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
-            </TouchableOpacity>
-
-            {subscription?.status === 'expired' && onRenewSubscription && (
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.renewButton]}
-                onPress={onRenewSubscription}
+              <Text
+                style={[
+                  styles.infoValue,
+                  item.color && { color: item.color, fontWeight: '600' }
+                ]}
+                numberOfLines={2}
               >
-                <Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-                <Text style={[styles.actionButtonText, styles.renewButtonText]}>
-                  Renouveler l'abonnement
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </ScrollView>
+                {item.value}
+              </Text>
+            </View>
+          ))}
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => setShowInvoicesSheet(true)}
+          >
+            <Ionicons name="document-text-outline" size={20} color={theme.colors.primary} />
+            <Text style={styles.actionButtonText}>Voir les factures</Text>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+
+        </ScrollView>
       </View>
 
       <InvoicesBottomSheet

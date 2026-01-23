@@ -20,8 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
-import BlurOverlay from '../components/BlurOverlay';
-import SubscriptionBanner from '../components/SubscriptionBanner';
 import SubscriptionService from '../services/subscriptionService';
 import { ProfileApi } from '../services/profileApi';
 import nutritionAPI from '../services/nutritionApi';
@@ -57,7 +55,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [selectedDate, setSelectedDate] = useState<Date>(today); // Store full date object instead of just day number
   const [selectedDay, setSelectedDay] = useState(today.getDay() || 7); // Use current day of week
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
-  const [showBlurOverlay, setShowBlurOverlay] = useState(false);
   
   const [profileData, setProfileData] = useState<any>(null);
   const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
@@ -65,9 +62,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
   
   // Vérifier si l'utilisateur a un abonnement actif
+  // Vérifier si l'utilisateur a un plan actif (même FREE par défaut)
+  // On a toujours un plan par défaut avec accessLevel ACTIVE, donc on ne doit jamais afficher la carte "Menus verrouillés"
   const hasActiveSubscription = (subscriptionData as any)?.status === 'ACTIVE' || 
                                  (subscriptionData as any)?.hasActiveSubscription === true ||
-                                 ((subscriptionData as any)?.subscription?.status?.toUpperCase() === 'ACTIVE' && !(subscriptionData as any)?.isExpired);
+                                 ((subscriptionData as any)?.subscription?.status?.toUpperCase() === 'ACTIVE' && !(subscriptionData as any)?.isExpired) ||
+                                 (subscriptionData as any)?.accessLevel === 'ACTIVE' ||
+                                 (subscriptionData as any)?.accessLevel === 'FREE';
   
   // Log pour debug
   if (__DEV__) {
@@ -85,9 +86,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     });
   }
   
-  // Sur Android : Si pas d'abonnement, on utilise showBlurOverlay (carte "Menus verrouillés" dans NutritionCard)
-  // Sur iOS : Si pas d'abonnement, on floute au lieu d'afficher la carte "Menus verrouillés"
-  const shouldShowBlur = (isIOS && !hasActiveSubscription) || (showBlurOverlay && !isIOS);
+  // BlurOverlay supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE
   const [dayMeals, setDayMeals] = useState<Meal[]>([]);
   const [tomorrowMeals, setTomorrowMeals] = useState<Meal[]>([]);
   const [completionStatus, setCompletionStatus] = useState<CompletionStatus | null>(null);
@@ -440,17 +439,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           willShowBanner: statusRequiresBanner ? 'YES - Banner will be displayed' : 'NO - Banner will not be displayed',
         });
         
-        // Logic: Only blur when status is EXPIRED or INACTIVE
-        const shouldBlur = subscription?.status === 'EXPIRED' || subscription?.status === 'INACTIVE';
-        logger.debug('Logic: Blur overlay decision', {
-          subscriptionStatus: subscription?.status,
-          shouldBlur,
-          action: shouldBlur ? 'Setting blur overlay to true' : 'No blur needed'
-        });
-        
-        if (shouldBlur) {
-          setShowBlurOverlay(true);
-        }
+        // BlurOverlay supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE
         logger.info('Subscription data loaded and processed');
       } else {
         logger.error('API Response: Subscription fetch failed', subscriptionRes.reason);
@@ -969,11 +958,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   const handleSubscriptionRenew = () => {
     logger.info('User Action: Subscription renewal requested');
-    logger.debug('Action: Closing blur overlay and navigating to subscription page');
-    setShowBlurOverlay(false);
     // Sur iOS, ne pas rediriger vers la page subscription (Reader App model)
     if (isIOS) {
-      // Juste fermer le blur overlay, les cartes verrouillées afficheront le message de vérifier le statut
       return;
     }
     if (onSubscriptionRenew) {
@@ -1709,12 +1695,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   return (
     <>
-      {/* Subscription Banner */}
-      <SubscriptionBanner 
-        subscriptionData={subscriptionData}
-        onRenew={handleSubscriptionRenew}
-      />
-
+      {/* Subscription Banner supprimé - on a toujours un plan FREE par défaut */}
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
@@ -1857,41 +1838,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           </ScrollView>
         </View>
 
-        {/* Locked Menu Card - Show when no active plan or subscription expired, but NOT if HTTP status is 200 */}
-        {/* Sur iOS : Ne jamais afficher la carte "Menus verrouillés" */}
-        {/* Sur iOS, soit on a le plan (et on l'affiche), soit on n'affiche rien */}
-        {!isIOS && (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200 && (
-          <View style={styles.lockedMenuCard}>
-            <View style={styles.lockedMenuHeader}>
-              <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-              <Text style={styles.lockedMenuTitle}>Menu du jour</Text>
-            </View>
-            
-            {/* Locked Menu Message */}
-            <View style={styles.lockedMenuContainer}>
-              {/* Plate Icon */}
-              <View style={styles.lockedPlateIconContainer}>
-                <View style={styles.lockedPlateIcon}>
-                  <Ionicons name="restaurant" size={40} color="#9C27B0" />
-                  <View style={styles.lockedForkIcon}>
-                    <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
-                  </View>
-                  <View style={styles.lockedKnifeIcon}>
-                    <Ionicons name="restaurant-outline" size={16} color="#9C27B0" />
-                  </View>
-                </View>
-              </View>
-              
-              {/* Title */}
-              <Text style={styles.lockedMenuTitleText}>Menus verrouillés</Text>
-              
-              {/* Description */}
-              <Text style={styles.lockedMenuDescription}>
-                Abonnez-vous à un plan pour accéder à vos menus personnalisés et commencer votre parcours nutritionnel.
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* Carte "Menus verrouillés" supprimée - on a toujours un plan FREE par défaut avec accessLevel ACTIVE */}
 
         {/* Meals List - Only show when there's an active plan AND active subscription */}
         {(() => {
@@ -2451,16 +2398,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         </View>
       </Modal>
 
-      {/* Blur Overlay for Expired Subscription */}
-      <BlurOverlay
-        visible={shouldShowBlur && !isIOS}
-        onRenew={isIOS ? undefined : handleSubscriptionRenew}
-        customButton={undefined}
-        message={isIOS 
-          ? "Accès réservé aux comptes autorisés. Vérifiez votre statut auprès du support si nécessaire."
-          : "Cette fonctionnalité nécessite un compte autorisé par le support."
-        }
-      />
+      {/* BlurOverlay supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE */}
       
       {/* Plan Video Modal */}
       <Modal

@@ -14,9 +14,9 @@ export const useSubscription = () => {
     try {
       setLoading(true);
       const data = await SubscriptionService.getSubscriptionStatus();
-      
+
       const subscriptionData: any = data;
-      
+
       // Debug log
       if (__DEV__) {
         console.log('🔍 [useSubscription] Subscription status check:', {
@@ -26,43 +26,56 @@ export const useSubscription = () => {
           hasActiveSubscription: subscriptionData.hasActiveSubscription,
         });
       }
-      
+
       // Show modal ONLY if status is EXPIRED, INACTIVE, or CANCELLED
       // Also check isExpired flag as additional safeguard
       // IMPORTANT: Do NOT show modal if status is ACTIVE (even for FREE plan)
-      const statusRequiresModal = 
-        (subscriptionData.status === 'EXPIRED' || 
-         subscriptionData.status === 'CANCELLED' || 
-         subscriptionData.status === 'INACTIVE') &&
+      const statusRequiresModal =
+        (subscriptionData.status === 'EXPIRED' ||
+          subscriptionData.status === 'CANCELLED' ||
+          subscriptionData.status === 'INACTIVE') &&
         subscriptionData.status !== 'ACTIVE' &&
         subscriptionData.status !== SUBSCRIPTION_STATUS.ACTIVE;
-      
+
       // CRITICAL: If status is ACTIVE (even FREE plan with ACTIVE status), NEVER show the modal
-      if (subscriptionData.status === 'ACTIVE' || 
-          subscriptionData.status === SUBSCRIPTION_STATUS.ACTIVE ||
-          (subscriptionData.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData.isExpired)) {
+      // On a toujours un plan par défaut avec access level ACTIVE, donc on ne doit jamais afficher l'alerte
+      const hasActivePlan = subscriptionData.status === 'ACTIVE' ||
+        subscriptionData.status === SUBSCRIPTION_STATUS.ACTIVE ||
+        subscriptionData.subscription?.status?.toUpperCase() === 'ACTIVE' ||
+        subscriptionData.accessLevel === 'ACTIVE' ||
+        subscriptionData.accessLevel === 'FREE';
+
+      if (hasActivePlan) {
         setShowSubscriptionAlert(false);
         setSubscriptionAlertType(null);
         if (__DEV__) {
-          console.log('✅ [useSubscription] Subscription is ACTIVE - hiding alert', {
+          console.log('✅ [useSubscription] Plan actif (même FREE) - pas d\'alerte', {
             status: subscriptionData.status,
             subscriptionStatus: subscriptionData.subscription?.status,
+            accessLevel: subscriptionData.accessLevel,
             isExpired: subscriptionData.isExpired,
           });
         }
       } else if (statusRequiresModal) {
-        // Sur iOS, ne pas afficher l'alerte (Reader App model)
-        // Sur Android, afficher l'alerte normalement
-        if (!isIOS) {
-          setSubscriptionAlertType('expired');
-          setShowSubscriptionAlert(true);
-          if (__DEV__) {
-            console.log('⚠️ [useSubscription] Subscription expired/inactive - showing alert');
-          }
-        } else {
-          // Sur iOS, ne pas afficher l'alerte même si l'abonnement est expiré
+        // Ne pas afficher l'alerte si le statut est ACTIVE (même pour plan FREE par défaut)
+        // Cela s'applique à iOS et Android - on a toujours un plan par défaut en cas de non-abonnement
+        // Si le backend retourne ACTIVE, c'est qu'il y a un plan actif (même FREE)
+        if (subscriptionData.subscription?.status?.toUpperCase() === 'ACTIVE' ||
+          subscriptionData.status === 'ACTIVE') {
+          // Plan actif (même FREE) - ne pas afficher l'alerte
           setShowSubscriptionAlert(false);
           setSubscriptionAlertType(null);
+          if (__DEV__) {
+            console.log('✅ [useSubscription] Plan actif (même FREE) - pas d\'alerte d\'expiration');
+          }
+        } else {
+          // Vraiment expiré sans plan par défaut - MAIS on ne veut plus afficher l'alerte
+          // L'utilisateur reste sur le plan test/free
+          setShowSubscriptionAlert(false);
+          setSubscriptionAlertType(null);
+          if (__DEV__) {
+            console.log('ℹ️ [useSubscription] Subscription expired but alert disabled by user request');
+          }
         }
       } else {
         setShowSubscriptionAlert(false);
@@ -71,7 +84,7 @@ export const useSubscription = () => {
           console.log('ℹ️ [useSubscription] Subscription status does not require alert');
         }
       }
-      
+
       setSubscriptionData(subscriptionData);
     } catch (error: any) {
       // Default to expired status on error
@@ -83,14 +96,10 @@ export const useSubscription = () => {
         daysRemaining: 0,
         requiresRenewal: true
       });
-      // Sur iOS, ne pas afficher l'alerte même en cas d'erreur
-      if (!isIOS) {
-        setSubscriptionAlertType('expired');
-        setShowSubscriptionAlert(true);
-      } else {
-        setShowSubscriptionAlert(false);
-        setSubscriptionAlertType(null);
-      }
+      // Ne pas afficher l'alerte en cas d'erreur - on assume qu'il y a un plan par défaut
+      // Comme sur iOS, on ne veut pas perturber l'utilisateur avec des alertes d'expiration
+      setShowSubscriptionAlert(false);
+      setSubscriptionAlertType(null);
     } finally {
       setLoading(false);
     }

@@ -69,9 +69,8 @@ export default function SubscriptionPaymentFlow({
   const { isCompanionMode, companionMessage } = useCompanionMode();
 
   // États du flux
-  const [currentStep, setCurrentStep] = useState(0); // 0: informations paiement, 1: formulaire mobile money, 2: traitement, 3: résultat
+  const [currentStep, setCurrentStep] = useState(0); // 0: informations paiement, 1: formulaire mobile money, 2: confirmation, 3: traitement, 4: résultat
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('mobile'); // Toujours 'mobile' pour Android
-  const [autoRenewal, setAutoRenewal] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -100,12 +99,14 @@ export default function SubscriptionPaymentFlow({
   const [mobileMoneyPhoneNumber, setMobileMoneyPhoneNumber] = useState<string>('');
   const [mobileMoneyCurrency, setMobileMoneyCurrency] = useState<string>('USD');
   const [mobileMoneyDepositId, setMobileMoneyDepositId] = useState<string | null>(null);
+  const [mobileMoneyFormattedPhone, setMobileMoneyFormattedPhone] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'completed' | 'failed' | null>(null);
   const [paymentDetails, setPaymentDetails] = useState<any>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [loadingExchangeRate, setLoadingExchangeRate] = useState<boolean>(false);
   const [showCountryPicker, setShowCountryPicker] = useState<boolean>(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState<boolean>(false);
+  const [showProviderPicker, setShowProviderPicker] = useState<boolean>(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Détecter si on est sur Android
@@ -120,13 +121,25 @@ export default function SubscriptionPaymentFlow({
       const startDate = new Date();
       setSubscriptionStartDate(startDate);
     } else if (visible && !plan) {
+    } else if (!visible) {
+      // Quand le modal se ferme, nettoyer le polling
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setProcessing(false);
     }
   }, [visible, plan]);
 
   const resetFlow = () => {
+    // Nettoyer le polling si actif
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    
     setCurrentStep(0); // Commencer à l'étape 0 (informations paiement)
     setSelectedPaymentMethod('mobile'); // Toujours mobile money
-    setAutoRenewal(true);
     setProcessing(false);
     setError(null);
     setSuccess(false);
@@ -238,7 +251,7 @@ export default function SubscriptionPaymentFlow({
       const subscriptionData = await SubscriptionApi.activateFreeTrial(plan.id);
       
       setSuccess(true);
-      setCurrentStep(3); // Étape 3 = résultat (au lieu de 4)
+      setCurrentStep(4); // Étape 4 = résultat (au lieu de 3)
       
       if (onSuccess) {
         onSuccess({
@@ -356,23 +369,180 @@ export default function SubscriptionPaymentFlow({
         setProcessing(false);
       }
     } else if (selectedPaymentMethod === 'mobile') {
-      // Pour Mobile Money, passer directement à l'étape 2 (formulaire de paiement mobile)
-      setCurrentStep(2);
+      // Pour Mobile Money, passer à l'étape 1 (formulaire de paiement mobile)
+      setCurrentStep(1);
     } else {
-      // Par défaut, passer à l'étape 2
-      setCurrentStep(2);
+      // Par défaut, passer à l'étape 1
+      setCurrentStep(1);
     }
   };
 
   /**
    * Gestionnaire de paiement Mobile Money (PawaPay)
+   * Étape 1 : Saisie des informations
    */
-  const handleMobileMoneySubmit = async (paymentData: {
+  const handleMobileMoneyInfoSubmit = (paymentData: {
     country: string;
     provider: string;
     phoneNumber: string;
     currency: string;
   }) => {
+    setMobileMoneyCountry(paymentData.country);
+    setMobileMoneyProvider(paymentData.provider);
+    setMobileMoneyPhoneNumber(paymentData.phoneNumber);
+    setMobileMoneyCurrency(paymentData.currency);
+    
+    // Nettoyer et formater le numéro pour l'affichage dans la confirmation
+    const country = PAWAPAY_COUNTRIES.find(c => c.code === paymentData.country);
+    let rawPhone = paymentData.phoneNumber.replace(/\D/g, '');
+    const countryPrefixDigits = country?.prefix.replace(/\D/g, '') || '';
+    if (rawPhone.startsWith(countryPrefixDigits)) {
+      rawPhone = rawPhone.substring(countryPrefixDigits.length);
+    }
+    setMobileMoneyFormattedPhone(`${country?.prefix || ''} ${rawPhone}`);
+    
+    setCurrentStep(2); // Passer à l'étape de confirmation
+  };
+
+  /**
+   * Étape 2 : Confirmation et initiation réelle du paiement
+   */
+  const handleMobileMoneyConfirm = async () => {
+    // Guard: éviter les appels multiples
+    if (processing) {
+      console.log('⚠️ [PawaPay] Paiement déjà en cours, ignore la demande');
+      return;
+    }
+    
+    try {
+      setProcessing(true);
+      setError(null);
+      setPaymentStatus('pending');
+
+      const country = PAWAPAY_COUNTRIES.find(c => c.code === mobileMoneyCountry);
+      if (!country) {
+        throw new Error('Pays non supporté');
+      }
+
+      // Le numéro de téléphone arrive déjà avec le préfixe (format: +243XXXXXXXXX)
+      // Nettoyer le numéro de téléphone (garder seulement les chiffres)
+      let rawPhone = mobileMoneyPhoneNumber.replace(/\D/g, '');
+      
+      // Extraire le préfixe du pays (ex: 243 pour +243)
+      const countryPrefixDigits = country.prefix.replace(/\D/g, '');
+      
+      // Si le numéro commence par le préfixe du pays, le retirer
+      if (rawPhone.startsWith(countryPrefixDigits)) {
+        rawPhone = rawPhone.substring(countryPrefixDigits.length);
+      }
+      
+      // Pour RDC (COD), retirer le 0 initial si présent
+      if (mobileMoneyCountry === 'COD' && rawPhone.startsWith('0')) {
+        rawPhone = rawPhone.substring(1);
+      }
+      
+      if (!rawPhone || rawPhone.length < 9) {
+        throw new Error('Numéro de téléphone invalide (minimum 9 chiffres)');
+      }
+
+      // Formater avec le préfixe du pays
+      const phoneWithCountry = `${country.prefix}${rawPhone}`;
+
+      // Calculer le montant final (conversion si CDF)
+      let finalAmount = plan?.price || 0;
+      if (mobileMoneyCurrency === 'CDF') {
+        const rate = exchangeRate || 2300; // Utiliser le taux de l'API ou fallback
+        finalAmount = finalAmount * rate;
+      }
+
+      // Créer le payload pour PawaPay
+      const payload = {
+        subscriptionPlanId: plan.id,
+        phoneNumber: phoneWithCountry,
+        rawPhoneNumber: rawPhone,
+        provider: mobileMoneyProvider,
+        country: mobileMoneyCountry,
+        amount: finalAmount,
+        currency: mobileMoneyCurrency,
+      };
+
+      // Logs détaillés pour le debug
+      console.log('🔵 [PawaPay] ========== DÉBUT PAIEMENT ==========');
+      console.log('🔵 [PawaPay] Plan ID:', plan?.id);
+      console.log('🔵 [PawaPay] Payload complet:', JSON.stringify(payload, null, 2));
+
+      // Appeler l'API PawaPay
+      let response;
+      let data;
+      try {
+        console.log('🔵 [PawaPay] Envoi de la requête POST...');
+        response = await api.post('/payments/pawapay/create-deposit', payload);
+        data = response?.data;
+        console.log('✅ [PawaPay] Réponse reçue avec succès');
+      } catch (apiError: any) {
+        console.error('❌ [PawaPay] ========== ERREUR API ==========');
+        throw apiError;
+      }
+
+      if (data?.success) {
+        const depositId = data.data?.depositId || data.data?.id;
+        
+        setMobileMoneyDepositId(depositId);
+        setPaymentStatus('pending');
+        
+        // Passer à l'étape de polling (étape 3)
+        setCurrentStep(3);
+        
+        // Afficher notification
+        Toast.show({
+          type: 'success',
+          text1: 'Paiement initié',
+          text2: 'Confirmez le paiement sur votre téléphone',
+        });
+
+        // Commencer à sonder le statut du paiement
+        // Nettoyer tout polling précédent avant de démarrer un nouveau
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        startPollingPaymentStatus(depositId);
+      } else {
+        const errorMessage = data?.message || data?.error?.message || 'Échec du paiement mobile';
+        throw new Error(errorMessage);
+      }
+    } catch (error: any) {
+      console.error('[PawaPay] Mobile payment error:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors de l\'initiation du paiement mobile';
+      setError(errorMessage);
+      setPaymentStatus('failed');
+      setCurrentStep(4); // Étape 4 = résultat
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: errorMessage,
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  /**
+   * Gestionnaire de paiement Mobile Money (ANCIEN - Supprimé car remplacé par flow en 2 étapes)
+   */
+  const handleMobileMoneySubmit_OLD = async (paymentData: {
+    country: string;
+    provider: string;
+    phoneNumber: string;
+    currency: string;
+  }) => {
+    // Guard: éviter les appels multiples
+    if (processing) {
+      console.log('⚠️ [PawaPay] Paiement déjà en cours, ignore la demande');
+      return;
+    }
+    
     try {
       setProcessing(true);
       setError(null);
@@ -415,8 +585,7 @@ export default function SubscriptionPaymentFlow({
       }
 
       // Créer le payload pour PawaPay
-      // Note: Le backend doit configurer le flux en deux étapes (confirmation puis mot de passe)
-      // Le payload est identique à la version web, le backend doit gérer le flux correctement
+      // Identique à la version web - le flux de confirmation est géré par PawaPay selon la config du provider
       const payload = {
         subscriptionPlanId: plan.id,
         phoneNumber: phoneWithCountry,
@@ -425,7 +594,6 @@ export default function SubscriptionPaymentFlow({
         country: paymentData.country,
         amount: finalAmount,
         currency: paymentData.currency,
-        clientType: 'mobile', // Indique au backend que la requête vient de l'app mobile
       };
 
       // Logs détaillés pour le debug
@@ -488,6 +656,11 @@ export default function SubscriptionPaymentFlow({
 
         // Commencer à sonder le statut du paiement
         setCurrentStep(2); // Étape 2 = traitement
+        // Nettoyer tout polling précédent avant de démarrer un nouveau
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
         startPollingPaymentStatus(depositId);
       } else {
         const errorMessage = data?.message || data?.error?.message || 'Échec du paiement mobile';
@@ -528,7 +701,53 @@ export default function SubscriptionPaymentFlow({
         pollAttempts++;
         console.log(`[PawaPay] Polling attempt ${pollAttempts}/${maxAttempts} for deposit: ${depositId}`);
 
-        // Vérifier le statut de l'abonnement via le profil
+        // 1. Vérifier d'abord le statut du dépôt via l'API PawaPay
+        try {
+          const depositStatusRes = await api.get(`/payments/pawapay/deposit/${depositId}/status`);
+          const depositStatusData = depositStatusRes?.data;
+          
+          if (depositStatusData?.success && depositStatusData?.data?.status) {
+            const depositStatus = depositStatusData.data.status.toUpperCase();
+            console.log(`[PawaPay] Deposit status: ${depositStatus}`);
+            
+            // Si le paiement est annulé ou échoué, arrêter le polling immédiatement
+            if (depositStatus === 'CANCELLED' || depositStatus === 'FAILED') {
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+              }
+
+              setPaymentStatus('cancelled');
+              setError(depositStatus === 'CANCELLED' 
+                ? 'Paiement annulé. Vous pouvez réessayer quand vous êtes prêt.'
+                : 'Le paiement a échoué. Veuillez réessayer ou contacter le support.'
+              );
+              setCurrentStep(3); // Étape 3 = résultat
+              
+              Toast.show({
+                type: 'error',
+                text1: depositStatus === 'CANCELLED' ? 'Paiement annulé' : 'Paiement échoué',
+                text2: depositStatus === 'CANCELLED' 
+                  ? 'Vous pouvez réessayer quand vous êtes prêt.'
+                  : 'Veuillez réessayer ou contacter le support.',
+              });
+              return;
+            }
+            
+            // Si le paiement est complété, vérifier l'abonnement
+            if (depositStatus === 'COMPLETED') {
+              // Continuer pour vérifier l'abonnement
+            } else if (depositStatus === 'ACCEPTED' || depositStatus === 'SUBMITTED') {
+              // Paiement en cours, continuer le polling
+              // Ne pas retourner, continuer pour vérifier l'abonnement aussi
+            }
+          }
+        } catch (depositStatusError: any) {
+          // Si l'endpoint de statut n'existe pas ou échoue, continuer avec la vérification du profil
+          console.log('[PawaPay] Deposit status endpoint not available, using profile check:', depositStatusError?.message);
+        }
+
+        // 2. Vérifier le statut de l'abonnement via le profil
         const profileRes = await api.get('/auth/profile');
         const profileData = profileRes.data;
 
@@ -615,6 +834,89 @@ export default function SubscriptionPaymentFlow({
   /**
    * Étape 2 : Affichage du formulaire Mobile Money (PawaPay)
    */
+  /**
+   * Étape 2 : Confirmation du paiement Mobile Money
+   */
+  const renderStep2_MobileMoneyConfirmation = () => {
+    const country = PAWAPAY_COUNTRIES.find(c => c.code === mobileMoneyCountry);
+    const provider = country?.providers.find(p => p.code === mobileMoneyProvider);
+    
+    // Calculer le montant final pour l'affichage
+    let finalAmount = plan?.price || 0;
+    let currencyDisplay = 'EUR';
+    if (mobileMoneyCurrency === 'CDF') {
+      const rate = exchangeRate || 2300;
+      finalAmount = finalAmount * rate;
+      currencyDisplay = 'CDF';
+    }
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Confirmation</Text>
+        <Text style={styles.stepSubtitle}>Vérifiez les informations avant de confirmer</Text>
+
+        <View style={styles.confirmationCard}>
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Abonnement</Text>
+            <Text style={styles.confirmationValue}>{plan?.name}</Text>
+          </View>
+          
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Montant</Text>
+            <Text style={styles.confirmationValue}>
+              {mobileMoneyCurrency === 'USD' ? `${plan?.price} $` : `${finalAmount.toLocaleString()} ${currencyDisplay}`}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Pays</Text>
+            <Text style={styles.confirmationValue}>{country?.name}</Text>
+          </View>
+
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Opérateur</Text>
+            <Text style={styles.confirmationValue}>{provider?.name}</Text>
+          </View>
+
+          <View style={styles.confirmationRow}>
+            <Text style={styles.confirmationLabel}>Numéro</Text>
+            <Text style={styles.confirmationValue}>{mobileMoneyFormattedPhone}</Text>
+          </View>
+        </View>
+
+        <View style={styles.infoMessage}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.primary} />
+          <Text style={styles.infoMessageText}>
+            En cliquant sur confirmer, vous recevrez une demande de validation sur votre téléphone.
+          </Text>
+        </View>
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton]}
+            onPress={() => setCurrentStep(1)}
+            disabled={processing}
+          >
+            <Text style={styles.cancelButtonText}>Modifier</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, styles.nextButton, processing && styles.buttonDisabled]}
+            onPress={handleMobileMoneyConfirm}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.nextButtonText}>Confirmer</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   const renderStep2_MobileMoneyForm = () => {
     const selectedCountry = PAWAPAY_COUNTRIES.find(c => c.code === mobileMoneyCountry);
     const providers = selectedCountry?.providers || [];
@@ -633,67 +935,9 @@ export default function SubscriptionPaymentFlow({
       >
         <View style={styles.stepHeader}>
           <Text style={styles.stepTitle}>Paiement mobile</Text>
-          <Text style={styles.stepSubtitle}>Remplissez les informations pour procéder au paiement</Text>
         </View>
 
-        {/* Résumé du plan */}
-        {plan && (
-          <View style={styles.planSummary}>
-            <Text style={styles.planSummaryName}>{plan.name}</Text>
-            <Text style={styles.planSummaryPrice}>
-              {mobileMoneyCurrency === 'CDF' ? (
-                <>
-                  <Text style={styles.planPriceDiscount}>
-                    {loadingExchangeRate ? '...' : Math.round(displayAmount).toLocaleString()} CDF
-                  </Text>
-                  <Text style={styles.planPriceOriginal}> ({plan.price} USD)</Text>
-                  {exchangeRate && (
-                    <Text style={styles.exchangeRateText}>
-                      {' '}Taux: 1 USD = {exchangeRate.toLocaleString()} CDF
-                    </Text>
-                  )}
-                </>
-              ) : (
-                `${plan.price} USD`
-              )}
-            </Text>
-          </View>
-        )}
-
-        {/* Dropdown Pays */}
-        <View style={styles.section}>
-          <Text style={styles.inputLabel}>Pays *</Text>
-          <TouchableOpacity
-            style={[styles.dropdownButton, processing && styles.dropdownButtonDisabled]}
-            onPress={() => !processing && setShowCountryPicker(true)}
-            disabled={processing}
-          >
-            <Text style={[
-              styles.dropdownButtonText,
-              !selectedCountry && styles.dropdownButtonTextPlaceholder
-            ]}>
-              {selectedCountry?.label || 'Sélectionnez un pays'}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Dropdown Devise */}
-        <View style={styles.section}>
-          <Text style={styles.inputLabel}>Devise *</Text>
-          <TouchableOpacity
-            style={[styles.dropdownButton, processing && styles.dropdownButtonDisabled]}
-            onPress={() => !processing && setShowCurrencyPicker(true)}
-            disabled={processing}
-          >
-            <Text style={styles.dropdownButtonText}>
-              {mobileMoneyCurrency === 'USD' ? 'USD (Dollar américain)' : `CDF (Franc congolais${exchangeRate ? ` - Taux: ${exchangeRate.toLocaleString()}` : ''})`}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={theme.colors.text.secondary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Numéro de téléphone en deux parties */}
+        {/* Numéro de téléphone en premier */}
         <View style={styles.section}>
           <Text style={styles.inputLabel}>Numéro de téléphone *</Text>
           <View style={styles.phoneInputContainer}>
@@ -701,6 +945,8 @@ export default function SubscriptionPaymentFlow({
             <View style={styles.phonePrefixContainer}>
               <Text style={styles.phonePrefixText}>{mobileMoneyPhonePrefix}</Text>
             </View>
+            {/* Espace entre préfixe et numéro */}
+            <View style={{ width: 8 }} />
             {/* Numéro de téléphone */}
             <TextInput
               style={[styles.phoneInput, error && styles.inputError]}
@@ -724,7 +970,65 @@ export default function SubscriptionPaymentFlow({
           </Text>
         </View>
 
-        {/* Info */}
+        {/* Devise en deuxième */}
+        <View style={styles.section}>
+          <Text style={styles.inputLabel}>Devise *</Text>
+          <TouchableOpacity
+            style={[styles.dropdownButton, processing && styles.dropdownButtonDisabled]}
+            onPress={() => !processing && setShowCurrencyPicker(true)}
+            disabled={processing}
+          >
+            <View style={styles.dropdownButtonContent}>
+              <Text style={styles.dropdownButtonText}>
+                {mobileMoneyCurrency === 'USD' ? 'USD (Dollar américain)' : `CDF (Franc congolais)`}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={theme.colors.text.secondary} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Pays et Opérateur sur la même ligne en dernier */}
+        <View style={styles.row}>
+          <View style={[styles.section, { flex: 1, marginRight: 8 }]}>
+            <Text style={styles.inputLabel}>Pays *</Text>
+            <TouchableOpacity
+              style={[styles.dropdownButton, processing && styles.dropdownButtonDisabled]}
+              onPress={() => !processing && setShowCountryPicker(true)}
+              disabled={processing}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <Text style={[
+                  styles.dropdownButtonText,
+                  !selectedCountry && styles.dropdownButtonTextPlaceholder
+                ]} numberOfLines={1}>
+                  {selectedCountry?.label || 'Pays'}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={theme.colors.text.secondary} />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.section, { flex: 1, marginLeft: 8 }]}>
+            <Text style={styles.inputLabel}>Opérateur *</Text>
+            <TouchableOpacity
+              style={[styles.dropdownButton, processing && styles.dropdownButtonDisabled]}
+              onPress={() => !processing && setShowProviderPicker(true)}
+              disabled={processing}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <Text style={[
+                  styles.dropdownButtonText,
+                  !mobileMoneyProvider && styles.dropdownButtonTextPlaceholder
+                ]} numberOfLines={1}>
+                  {providers.find(p => p.code === mobileMoneyProvider)?.label || 'Opérateur'}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={theme.colors.text.secondary} />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Info Box avec affordance */}
         <View style={styles.infoBox}>
           <Ionicons name="information-circle" size={20} color={theme.colors.info} />
           <Text style={styles.infoText}>
@@ -746,7 +1050,7 @@ export default function SubscriptionPaymentFlow({
             }
             // Combiner le préfixe et le numéro
             const fullPhoneNumber = `${mobileMoneyPhonePrefix}${mobileMoneyPhoneNumber}`;
-            handleMobileMoneySubmit({
+            handleMobileMoneyInfoSubmit({
               country: mobileMoneyCountry,
               provider: mobileMoneyProvider,
               phoneNumber: fullPhoneNumber,
@@ -1113,28 +1417,17 @@ export default function SubscriptionPaymentFlow({
       );
     }
 
-    const formattedDate = subscriptionStartDate 
-      ? subscriptionStartDate.toLocaleDateString('fr-FR', { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
-      : new Date().toLocaleDateString('fr-FR');
-
     // Pour les plans gratuits, afficher une interface simplifiée
     if (isFreePlan) {
       return (
         <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Informations</Text>
           <Text style={styles.stepSubtitle}>Activez votre abonnement gratuit</Text>
 
           <View style={styles.confirmationCard}>
             <View style={styles.planHeader}>
               <View style={styles.planHeaderLeft}>
                 <Text style={styles.planNameLarge}>{plan?.name || 'Abonnement gratuit'}</Text>
-                <Text style={styles.planId}>ID: {plan?.id ? plan.id.substring(0, 8) + '...' : 'N/A'}</Text>
               </View>
               <View style={styles.planHeaderRight}>
                 <Text style={styles.priceStandard}>Gratuit</Text>
@@ -1146,23 +1439,14 @@ export default function SubscriptionPaymentFlow({
               <View style={styles.startDateTextContainer}>
                 <Text style={styles.startDateLabel}>Date de début</Text>
                 <Text style={styles.startDateValue}>
-                  {subscriptionStartDate 
-                    ? subscriptionStartDate.toLocaleDateString('fr-FR', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })
-                    : new Date().toLocaleDateString('fr-FR')}
+                  {new Date().toLocaleDateString('fr-FR', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.infoMessage}>
-              <Ionicons name="information-circle" size={20} color={theme.colors.info} />
-              <Text style={styles.infoMessageText}>
-                Votre abonnement gratuit sera activé immédiatement.
-              </Text>
             </View>
           </View>
 
@@ -1193,6 +1477,7 @@ export default function SubscriptionPaymentFlow({
     if (isCompanionMode) {
       return (
         <View style={styles.stepContainer}>
+          <Text style={styles.stepTitle}>Informations</Text>
           <View style={styles.companionModeContainer}>
             <Ionicons name="information-circle-outline" size={48} color={theme.colors.text.secondary} />
             <Text style={styles.companionModeTitle}>Gestion des abonnements</Text>
@@ -1200,53 +1485,49 @@ export default function SubscriptionPaymentFlow({
               {companionMessage || 'Gérez votre abonnement sur le site web à lasocoach.com'}
             </Text>
             <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
+              style={[styles.button, styles.nextButton]}
               onPress={onClose}
             >
-              <Text style={styles.cancelButtonText}>Fermer</Text>
+              <Text style={styles.nextButtonText}>Compris</Text>
             </TouchableOpacity>
           </View>
         </View>
       );
     }
 
-    // Pour les plans payants, afficher l'interface normale avec "Suivant"
+    // Rendu normal pour les plans payants
     return (
       <View style={styles.stepContainer}>
-        <Text style={styles.stepSubtitle}>Vérifiez les détails de votre abonnement</Text>
-
-        <View style={styles.confirmationCard}>
-          <View style={styles.planHeader}>
-            <View style={styles.planHeaderLeft}>
-              <Text style={styles.planNameLarge}>{plan?.name || 'Abonnement'}</Text>
-              <Text style={styles.planId}>ID: {plan?.id ? plan.id.substring(0, 8) + '...' : 'N/A'}</Text>
-            </View>
-            <View style={styles.planHeaderRight}>
-              {plan?.discountPrice && plan.discountPrice < plan.price ? (
-                <View style={styles.priceContainer}>
-                  <Text style={styles.priceOriginal}>€{plan.price}</Text>
-                  <Text style={styles.priceDiscount}>€{plan.discountPrice}</Text>
-                </View>
-              ) : (
-                <Text style={styles.priceStandard}>€{plan?.price || 0}</Text>
-              )}
-              <Text style={styles.pricePeriod}>/ {SubscriptionApi.getBillingPeriod(plan?.duration || 30)}</Text>
-            </View>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepTitle}>Informations</Text>
+        </View>
+        
+        <View style={styles.planSummaryCard}>
+          <View style={styles.planIconContainer}>
+            <Ionicons name="flash-outline" size={32} color={theme.colors.primary} />
           </View>
-
-          <View style={styles.startDateInfo}>
-            <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
-            <View style={styles.startDateTextContainer}>
-              <Text style={styles.startDateLabel}>Date de début</Text>
-              <Text style={styles.startDateValue}>{formattedDate}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoMessage}>
-            <Ionicons name="information-circle" size={20} color={theme.colors.info} />
-            <Text style={styles.infoMessageText}>
-              Votre abonnement commencera immédiatement après le paiement.
+          <View style={styles.planInfo}>
+            <Text style={styles.planNameLabel}>{plan.name}</Text>
+            <Text style={styles.planPriceLabel}>
+              {plan.price}€<Text style={styles.planPeriodLabel}> / mois</Text>
             </Text>
+          </View>
+        </View>
+
+        <View style={styles.featuresList}>
+          {plan.description && (
+            <View style={styles.featureItem}>
+              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Text style={styles.featureText}>{plan.description}</Text>
+            </View>
+          )}
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+            <Text style={styles.featureText}>Accès complet à tous les programmes</Text>
+          </View>
+          <View style={styles.featureItem}>
+            <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+            <Text style={styles.featureText}>Suivi personnalisé de votre progression</Text>
           </View>
         </View>
 
@@ -1749,19 +2030,164 @@ export default function SubscriptionPaymentFlow({
     );
   };
 
+  /**
+   * Picker pour le pays
+   */
+  const renderCountryPicker = () => (
+    <Modal
+      visible={showCountryPicker}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowCountryPicker(false)}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay} 
+        activeOpacity={1} 
+        onPress={() => setShowCountryPicker(false)}
+      >
+        <View style={styles.pickerContainer}>
+          <Text style={styles.pickerTitle}>Choisir un pays</Text>
+          <ScrollView>
+            {PAWAPAY_COUNTRIES.map((c) => (
+              <TouchableOpacity
+                key={c.code}
+                style={styles.pickerItem}
+                onPress={() => {
+                  setMobileMoneyCountry(c.code);
+                  setMobileMoneyPhonePrefix(c.prefix);
+                  // Sélectionner automatiquement le premier provider du pays
+                  if (c.providers.length > 0) {
+                    setMobileMoneyProvider(c.providers[0].code);
+                  }
+                  setShowCountryPicker(false);
+                }}
+              >
+                <Text style={styles.pickerItemText}>{c.label}</Text>
+                {mobileMoneyCountry === c.code && (
+                  <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  /**
+   * Picker pour l'opérateur
+   */
+  const renderProviderPicker = () => {
+    const selectedCountry = PAWAPAY_COUNTRIES.find(c => c.code === mobileMoneyCountry);
+    const providers = selectedCountry?.providers || [];
+
+    return (
+      <Modal
+        visible={showProviderPicker}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowProviderPicker(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowProviderPicker(false)}
+        >
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerTitle}>Choisir un opérateur</Text>
+            <ScrollView>
+              {providers.map((p) => (
+                <TouchableOpacity
+                  key={p.code}
+                  style={styles.pickerItem}
+                  onPress={() => {
+                    setMobileMoneyProvider(p.code);
+                    setShowProviderPicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerItemText}>{p.name}</Text>
+                  {mobileMoneyProvider === p.code && (
+                    <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
+  /**
+   * Picker pour la devise
+   */
+  const renderCurrencyPicker = () => (
+    <Modal
+      visible={showCurrencyPicker}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setShowCurrencyPicker(false)}
+    >
+      <TouchableOpacity 
+        style={styles.modalOverlay} 
+        activeOpacity={1} 
+        onPress={() => setShowCurrencyPicker(false)}
+      >
+        <View style={styles.pickerContainer}>
+          <Text style={styles.pickerTitle}>Choisir une devise</Text>
+          <TouchableOpacity
+            style={styles.pickerItem}
+            onPress={() => {
+              setMobileMoneyCurrency('USD');
+              setShowCurrencyPicker(false);
+            }}
+          >
+            <Text style={styles.pickerItemText}>USD (Dollar américain)</Text>
+            {mobileMoneyCurrency === 'USD' && (
+              <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.pickerItem}
+            onPress={() => {
+              setMobileMoneyCurrency('CDF');
+              setShowCurrencyPicker(false);
+            }}
+          >
+            <Text style={styles.pickerItemText}>CDF (Franc congolais)</Text>
+            {mobileMoneyCurrency === 'CDF' && (
+              <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
   const renderCurrentStep = () => {
-    switch (currentStep) {
-      case 0:
-        return renderStep0_SubscriptionConfirmation();
-      case 1:
-        return renderStep2_MobileMoneyForm(); // Étape 1 = formulaire mobile money
-      case 2:
-        return renderStep3_MobileMoneyWaiting(); // Étape 2 = traitement
-      case 3:
-        return renderStep4_Result(); // Étape 3 = résultat
-      default:
-        return renderStep0_SubscriptionConfirmation();
-    }
+    return (
+      <>
+        {(() => {
+          switch (currentStep) {
+            case 0:
+              return renderStep0_SubscriptionConfirmation();
+            case 1:
+              return renderStep2_MobileMoneyForm(); 
+            case 2:
+              return renderStep2_MobileMoneyConfirmation();
+            case 3:
+              return renderStep3_MobileMoneyWaiting();
+            case 4:
+              return renderStep4_Result();
+            default:
+              return renderStep0_SubscriptionConfirmation();
+          }
+        })()}
+        {renderCountryPicker()}
+        {renderCurrencyPicker()}
+        {renderProviderPicker()}
+      </>
+    );
   };
 
   // Si intégré dans un bottom sheet, ne pas utiliser Modal
@@ -1928,6 +2354,61 @@ const createStyles = (theme) => StyleSheet.create({
     width: 24,
   },
   stepContainer: {
+    flex: 1,
+  },
+  planSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginHorizontal: 20,
+    marginTop: 10,
+  },
+  planIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  planInfo: {
+    flex: 1,
+  },
+  planNameLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+  },
+  planPriceLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginTop: 2,
+  },
+  planPeriodLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: theme.colors.text.secondary,
+  },
+  featuresList: {
+    marginBottom: 32,
+    paddingHorizontal: 20,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
     flex: 1,
   },
   stepContainerContent: {
@@ -2110,14 +2591,14 @@ const createStyles = (theme) => StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
   confirmationRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    marginBottom: 12,
   },
   confirmationLabel: {
     fontSize: 14,
@@ -2127,6 +2608,11 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.colors.text.primary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 12,
   },
   successContainer: {
     alignItems: 'center',
@@ -2291,6 +2777,11 @@ const createStyles = (theme) => StyleSheet.create({
   section: {
     marginBottom: 20,
   },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
   countryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -2400,22 +2891,29 @@ const createStyles = (theme) => StyleSheet.create({
   // Styles pour les dropdowns
   dropdownButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 8,
-    padding: 16,
+    paddingHorizontal: 16,
+    height: 56,
     marginTop: 8,
   },
   dropdownButtonDisabled: {
     opacity: 0.5,
   },
+  dropdownButtonContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flex: 1,
+  },
   dropdownButtonText: {
     fontSize: 16,
     color: theme.colors.text.primary,
     flex: 1,
+    marginRight: 8,
   },
   dropdownButtonTextPlaceholder: {
     color: theme.colors.text.secondary,
@@ -2425,7 +2923,6 @@ const createStyles = (theme) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
-    gap: 8,
   },
   phonePrefixContainer: {
     backgroundColor: theme.colors.surface,
@@ -2433,7 +2930,7 @@ const createStyles = (theme) => StyleSheet.create({
     borderColor: theme.colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 16,
+    height: 56,
     minWidth: 70,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2449,7 +2946,8 @@ const createStyles = (theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     borderRadius: 8,
-    padding: 16,
+    paddingHorizontal: 16,
+    height: 56,
     fontSize: 16,
     color: theme.colors.text.primary,
   },

@@ -65,9 +65,9 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   const isIOS = shouldShowIOSOnly();
 
   // Vérifier si l'utilisateur a un abonnement actif
-  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' || 
-                                 subscriptionData?.hasActiveSubscription === true ||
-                                 (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' ||
+    subscriptionData?.hasActiveSubscription === true ||
+    (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
 
   // Sur Android : Si pas d'abonnement, NutritionCard affiche la carte "Menus verrouillés"
   // Sur iOS : Si pas d'abonnement, NutritionCard affiche une carte iOS spéciale (sans blur)
@@ -137,7 +137,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           onCompleteProfile={onCompleteProfile}
           onStepPress={onProfileStepPress}
           subscriptionData={subscriptionData}
-          onSubscriptionRenew={onSubscriptionRenew}
           onRefresh={onRefresh}
           dashboardData={dashboardData}
         />
@@ -151,14 +150,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
                 <Text style={styles.badgeText}>Profil complété +175 pts</Text>
               </View>
             </View>
-          ) : (
-            <View style={styles.subscriptionExpiredBadge}>
-              <View style={styles.badgeContent}>
-                <Ionicons name="warning" size={16} color="#F44336" />
-                <Text style={styles.subscriptionExpiredText}>Statut à vérifier</Text>
-              </View>
-            </View>
-          )}
+          ) : null}
           <ProgressCard
             key={dashboardData?.fetchedAt || 'initial'}
             dashboardData={dashboardData}
@@ -197,7 +189,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onSubscriptionPress={onSubscriptionRenew}
       />
 
-      <LAgoraCard 
+      <LAgoraCard
         posts={communityPosts}
         loading={communityLoading}
         onPostPress={(post: any) => {

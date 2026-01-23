@@ -71,9 +71,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   };
 
   const handleSubscriptionRenew = (): void => {
-    if (onClose) {
-      onClose('profile');
-    }
+    // Retiré à la demande de l'utilisateur
   };
 
   const handleLogout = (): void => {
@@ -87,7 +85,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       {/* Subscription Banner */}
       <SubscriptionBanner
         subscriptionData={subscriptionData}
-        onRenew={handleSubscriptionRenew}
       />
 
       <ScreenContent>

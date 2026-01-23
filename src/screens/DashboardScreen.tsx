@@ -670,8 +670,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         refreshing={refreshing}
         isProfileComplete={isProfileComplete}
         shouldBlurMenu={shouldBlurMenu}
-        showSubscriptionAlert={showSubscriptionAlert}
-        subscriptionAlertType={subscriptionAlertType}
         onHelpPress={() => navigateOverlay('FAQ')}
         onNotificationPress={() => navigateOverlay('Notifications')}
         onProfilePress={() => navigateOverlay('Settings')}

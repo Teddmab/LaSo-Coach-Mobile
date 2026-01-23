@@ -1,8 +1,8 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   Platform
 } from 'react-native';
@@ -15,9 +15,9 @@ interface SubscriptionBannerProps {
   onRenew?: () => void;
 }
 
-const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({ 
+const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
   subscriptionData,
-  onRenew 
+  onRenew
 }) => {
   if (!subscriptionData) {
     return null;
@@ -28,16 +28,19 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
   const daysRemaining = subscriptionData.daysRemaining ?? subscriptionData.subscription?.daysRemaining ?? 0;
   const isTrial = subscriptionData.isTrial ?? subscriptionData.subscription?.isTrial ?? false;
 
-  const statusRequiresAlert = status === 'EXPIRED' || 
-                               status === 'CANCELLED' || 
-                               status === 'INACTIVE' ||
-                               isExpired;
-  
+  // Ne pas afficher l'alerte si le statut est ACTIVE (même pour plan FREE par défaut)
+  // On a toujours un plan par défaut en cas de non-abonnement, donc on ne doit pas voir "abonnement expiré"
+  const hasActivePlan = status === 'ACTIVE' ||
+    subscriptionData.subscription?.status?.toUpperCase() === 'ACTIVE';
+
+  // Désactivé complètement selon la demande utilisateur : "retire moi ca de partout"
+  // Si pas d'abonnement -> Plan Test/Free. Si abonnement -> Plan en cours.
+  // Pas de messages d'expiration.
+  const statusRequiresAlert = false;
+
   const daysThreshold = isTrial ? 1 : 3;
-  const daysRequireAlert = daysRemaining !== undefined && 
-                           daysRemaining > 0 && 
-                           daysRemaining <= daysThreshold;
-  
+  const daysRequireAlert = false;
+
   if (!statusRequiresAlert && !daysRequireAlert) {
     return null;
   }
@@ -52,8 +55,8 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
         iconColor: '#F44336',
         gradientColors: ['#F44336', '#D32F2F'],
         title: 'Abonnement Expiré',
-        subtitle: 'Renouvelez pour continuer l\'accès',
-        buttonText: 'Renouveler',
+        subtitle: 'Veuillez vous réabonner pour continuer l\'accès',
+        buttonText: 'S\'abonner',
         buttonColor: '#FFFFFF',
         buttonTextColor: '#F44336'
       };
@@ -63,18 +66,18 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
         iconColor: '#FF9800',
         gradientColors: ['#FF9800', '#F57C00'],
         title: `Expire dans ${daysRemaining} jour(s)`,
-        subtitle: 'Renouvelez pour éviter l\'interruption',
-        buttonText: 'Renouveler',
+        subtitle: 'Veuillez vous réabonner pour éviter l\'interruption',
+        buttonText: 'S\'abonner',
         buttonColor: '#FFFFFF',
         buttonTextColor: '#FF9800'
       };
     }
-    
+
     return null;
   };
 
   const config = getBannerConfig();
-  
+
   if (!config) {
     return null;
   }
@@ -99,10 +102,10 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
     >
       <View style={styles.bannerContent}>
         <View style={styles.iconContainer}>
-          <Ionicons 
-            name={config.icon} 
-            size={24} 
-            color={config.iconColor} 
+          <Ionicons
+            name={config.icon}
+            size={24}
+            color={config.iconColor}
           />
         </View>
 
@@ -111,7 +114,7 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
           <Text style={styles.subtitle}>{config.subtitle}</Text>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.actionButton, { backgroundColor: config.buttonColor }]}
           onPress={handleRenew}
         >

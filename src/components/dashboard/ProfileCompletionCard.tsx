@@ -20,7 +20,6 @@ const ProfileCompletionCard = ({
   onCompleteProfile,
   onStepPress,
   subscriptionData,
-  onSubscriptionRenew,
   onRefresh,
   dashboardData
 }) => {
@@ -121,14 +120,7 @@ const ProfileCompletionCard = ({
   };
 
   const handleCompleteProfile = () => {
-    // Check subscription status before proceeding
-    const requiresRenewal = subscriptionData?.requiresRenewal || false;
-    
-    if (requiresRenewal && onSubscriptionRenew) {
-      onSubscriptionRenew();
-      return;
-    }
-    
+    // On a toujours un plan FREE par défaut, donc pas besoin de vérifier le renouvellement
     if (onCompleteProfile) {
       onCompleteProfile();
     }

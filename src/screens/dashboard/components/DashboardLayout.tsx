@@ -4,10 +4,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar';
 import DashboardHeader from './DashboardHeader';
 import DashboardContent from './DashboardContent';
-import SubscriptionBanner from '../../../components/SubscriptionBanner';
 import BottomNavigation from '../../../components/BottomNavigation';
 import MoreMenu from '../../../components/MoreMenu';
-import SubscriptionAlert from '../../../components/SubscriptionAlert';
 import NetworkStatus from '../../../components/NetworkStatus';
 import type { User } from '../../../types/auth';
 
@@ -25,8 +23,6 @@ interface DashboardLayoutProps {
   refreshing: boolean;
   isProfileComplete: boolean;
   shouldBlurMenu: boolean;
-  showSubscriptionAlert: boolean;
-  subscriptionAlertType: string | null;
   onHelpPress: () => void;
   onNotificationPress: () => void;
   onProfilePress: () => void;
@@ -60,8 +56,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   refreshing,
   isProfileComplete,
   shouldBlurMenu,
-  showSubscriptionAlert,
-  subscriptionAlertType,
   onHelpPress,
   onNotificationPress,
   onProfilePress,
@@ -104,10 +98,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         />
       </View>
 
-      <SubscriptionBanner 
-        subscriptionData={subscriptionData}
-        onRenew={onSubscriptionRenew}
-      />
+      {/* SubscriptionBanner supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE */}
 
       {/* Contenu avec padding pour le header en haut et la navigation en bas */}
       <View style={[styles.contentContainer, { 
@@ -149,13 +140,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         visible={showMoreMenu}
         onClose={onMoreMenuClose}
         onMenuItemPress={onMoreMenuItemPress}
-      />
-
-      <SubscriptionAlert
-        visible={showSubscriptionAlert}
-        type={subscriptionAlertType}
-        daysRemaining={subscriptionData?.daysRemaining}
-        onRenew={onSubscriptionRenew}
       />
     </SafeAreaView>
   );
