@@ -87,8 +87,8 @@ apply from: new File(["node", "--print", "require.resolve('@sentry/react-native/
 rootProject.ext.ndkVersion = "26.3.11579264"
 
 // Shorten CMake build path to avoid Windows 260-char limit
-rootProject.buildDir = file("${rootDir}/build")
-buildDir = file("${rootDir}/build/app")
+// rootProject.buildDir = file("${rootDir}/build")
+// buildDir = file("${rootDir}/build/app")
 
 android {
     ndkVersion rootProject.ext.ndkVersion
