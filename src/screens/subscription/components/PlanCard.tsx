@@ -15,7 +15,7 @@ interface PlanCardProps {
 const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
   const backgroundColor = getPlanBackgroundColor(plan.name);
   const features = plan.features || [];
-  
+
   // Check if current plan is iOS default plan (contains "ios" in name, case-insensitive)
   const isCurrentIOSPlan = isCurrent && plan.name?.toLowerCase().includes('ios');
   // Allow upgrade from iOS plan to paid plans
@@ -35,7 +35,7 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
     <View style={styles.planCardWithImage}>
       {plan.imageUrl ? (
         <ImagePersistent
-          source={{ uri: plan.imageUrl }} 
+          source={{ uri: plan.imageUrl }}
           style={styles.planCardImage}
           resizeMode="cover"
         />
@@ -44,22 +44,22 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
           <Ionicons name="images-outline" size={48} color={backgroundColor} />
         </View>
       )}
-      
+
       <View style={[styles.planCardContent, { backgroundColor }]}>
         <Text style={styles.planCardNameLarge}>{plan.name}</Text>
-        
+
         <View style={styles.planCardPricing}>
           {plan.originalPrice && plan.originalPrice > plan.price && (
             <Text style={styles.planCardOldPrice}>
-              {plan.currency || '€'}{plan.originalPrice} /mois
+              {plan.currency || '$'}{plan.originalPrice} /mois
             </Text>
           )}
           <Text style={styles.planCardPriceLarge}>
-            {plan.currency || '€'}{plan.price}
+            {plan.currency || '$'}{plan.price}
           </Text>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.planSubscribeButton}
           onPress={() => onSelect(plan)}
           disabled={!isClickable}

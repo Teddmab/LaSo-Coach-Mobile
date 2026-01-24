@@ -9,7 +9,7 @@
  */
 export const getPlanBackgroundColor = (planName: string): string => {
   const name = planName?.toLowerCase() || '';
-  
+
   if (name.includes('flexy')) {
     return '#4CAF50'; // Green
   } else if (name.includes('premium')) {
@@ -19,7 +19,7 @@ export const getPlanBackgroundColor = (planName: string): string => {
   } else if (name.includes('basic')) {
     return '#9E9E9E'; // Grey
   }
-  
+
   // Default color
   return '#2196F3';
 };
@@ -27,10 +27,10 @@ export const getPlanBackgroundColor = (planName: string): string => {
 /**
  * Format price with currency
  * @param price - Price amount
- * @param currency - Currency symbol (default: €)
+ * @param currency - Currency symbol (default: $)
  * @returns Formatted price string
  */
-export const formatPrice = (price: number, currency: string = '€'): string => {
+export const formatPrice = (price: number, currency: string = '$'): string => {
   return `${currency}${price.toFixed(2)}`;
 };
 

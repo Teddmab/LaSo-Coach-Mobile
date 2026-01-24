@@ -30,7 +30,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({
     }
   };
 
-  const formatAmount = (amount: number, currency: string = '€') => {
+  const formatAmount = (amount: number, currency: string = '$') => {
     return `${currency}${amount.toFixed(2)}`;
   };
 

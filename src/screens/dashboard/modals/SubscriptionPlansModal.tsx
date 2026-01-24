@@ -97,15 +97,15 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                           {plan.discountPrice && plan.discountPrice < plan.price ? (
                             <View style={styles.pricingRow}>
                               <Text style={[styles.planPrice, { color: theme.colors.primary }]}>
-                                {plan.currency || '€'}{plan.discountPrice}
+                                {plan.currency || '$'}{plan.discountPrice}
                               </Text>
                               <Text style={[styles.planPrice, styles.discountedPrice]}>
-                                {plan.currency || '€'}{plan.price}
+                                {plan.currency || '$'}{plan.price}
                               </Text>
                             </View>
                           ) : (
                             <Text style={styles.planPrice}>
-                              {plan.currency || '€'}{plan.price}
+                              {plan.currency || '$'}{plan.price}
                             </Text>
                           )}
                           {plan.duration && (

@@ -77,7 +77,7 @@ const ProfileOtherInfosSection: React.FC<ProfileOtherInfosSectionProps> = ({
     {
       icon: 'cash-outline',
       label: 'Prix',
-      value: plan.price ? `${plan.price}€ / mois` : 'Non renseigné',
+      value: plan.price ? `${plan.price}$ / mois` : 'Non renseigné',
     },
     {
       icon: 'checkmark-circle-outline',
