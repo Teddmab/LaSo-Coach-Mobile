@@ -76,8 +76,14 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                     return null;
                   }
 
+                  // Déterminer si c'est un plan annuel
+                  const isAnnual = plan.name?.toLowerCase().includes('annuel') || plan.name?.toLowerCase().includes('year');
+                  const priceSuffix = isAnnual ? '/an' : '/mois';
+
                   let backgroundColor = '#4CAF50';
-                  if (plan.name?.toLowerCase().includes('premium')) {
+                  if (isAnnual) {
+                    backgroundColor = '#FF9800'; // Orange vif pour annuel
+                  } else if (plan.name?.toLowerCase().includes('premium')) {
                     backgroundColor = '#8B5CF6';
                   } else if (plan.name?.toLowerCase().includes('flexy')) {
                     backgroundColor = '#FF6B35';
@@ -97,22 +103,18 @@ const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
                           {plan.discountPrice && plan.discountPrice < plan.price ? (
                             <View style={styles.pricingRow}>
                               <Text style={[styles.planPrice, { color: theme.colors.primary }]}>
-                                {plan.currency || '$'}{plan.discountPrice}
+                                {plan.currency || '$'}{plan.discountPrice} {priceSuffix}
                               </Text>
                               <Text style={[styles.planPrice, styles.discountedPrice]}>
-                                {plan.currency || '$'}{plan.price}
+                                {plan.currency || '$'}{plan.price} {priceSuffix}
                               </Text>
                             </View>
                           ) : (
                             <Text style={styles.planPrice}>
-                              {plan.currency || '$'}{plan.price}
+                              {plan.currency || '$'}{plan.price}{priceSuffix}
                             </Text>
                           )}
-                          {plan.duration && (
-                            <Text style={styles.planDuration}>
-                              / {plan.duration}
-                            </Text>
-                          )}
+                          {/* Duration is now included in price suffix */}
                         </View>
                         {plan.features && plan.features.length > 0 && (
                           <Text style={styles.planFeatures}>

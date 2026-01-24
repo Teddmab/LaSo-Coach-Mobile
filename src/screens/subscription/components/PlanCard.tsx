@@ -13,7 +13,6 @@ interface PlanCardProps {
 }
 
 const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
-  const backgroundColor = getPlanBackgroundColor(plan.name);
   const features = plan.features || [];
 
   // Check if current plan is iOS default plan (contains "ios" in name, case-insensitive)
@@ -21,6 +20,19 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
   // Allow upgrade from iOS plan to paid plans
   const isClickable = !isCurrent || isCurrentIOSPlan;
   const buttonText = isCurrentIOSPlan ? "Passer à ce plan" : (isCurrent ? 'Plan actuel' : "S'abonner");
+
+  // Déterminer si c'est un plan annuel
+  const isAnnual = plan.name?.toLowerCase().includes('annuel') || plan.name?.toLowerCase().includes('year');
+
+  // Couleurs personnalisées selon la demande utilisateur
+  // Plan annuel : fond orange clair, bouton orange vif
+  // Plan mensuel : fond bleu (défaut), bouton blanc
+  const cardBackgroundColor = isAnnual ? '#FFB74D' : (getPlanBackgroundColor(plan.name) || '#2196F3');
+  const buttonBackgroundColor = isAnnual ? '#E65100' : '#FFFFFF'; // Orange vif pour annuel, Blanc pour mensuel
+  const buttonTextColor = isAnnual ? '#FFFFFF' : cardBackgroundColor;
+
+  // Suffixe de prix
+  const priceSuffix = isAnnual ? '/an' : '/mois';
 
   // Précharger l'image du plan si elle existe
   useEffect(() => {
@@ -40,31 +52,31 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
           resizeMode="cover"
         />
       ) : (
-        <View style={[styles.planCardImagePlaceholder, { backgroundColor: backgroundColor + '20' }]}>
-          <Ionicons name="images-outline" size={48} color={backgroundColor} />
+        <View style={[styles.planCardImagePlaceholder, { backgroundColor: cardBackgroundColor + '20' }]}>
+          <Ionicons name="images-outline" size={48} color={cardBackgroundColor} />
         </View>
       )}
 
-      <View style={[styles.planCardContent, { backgroundColor }]}>
+      <View style={[styles.planCardContent, { backgroundColor: cardBackgroundColor }]}>
         <Text style={styles.planCardNameLarge}>{plan.name}</Text>
 
         <View style={styles.planCardPricing}>
           {plan.originalPrice && plan.originalPrice > plan.price && (
             <Text style={styles.planCardOldPrice}>
-              {plan.currency || '$'}{plan.originalPrice} /mois
+              {plan.currency || '$'}{plan.originalPrice} {priceSuffix}
             </Text>
           )}
           <Text style={styles.planCardPriceLarge}>
-            {plan.currency || '$'}{plan.price}
+            {plan.currency || '$'}{plan.price}{priceSuffix}
           </Text>
         </View>
 
         <TouchableOpacity
-          style={styles.planSubscribeButton}
+          style={[styles.planSubscribeButton, { backgroundColor: buttonBackgroundColor }]}
           onPress={() => onSelect(plan)}
           disabled={!isClickable}
         >
-          <Text style={[styles.planSubscribeButtonText, { color: backgroundColor }]}>
+          <Text style={[styles.planSubscribeButtonText, { color: buttonTextColor }]}>
             {buttonText}
           </Text>
         </TouchableOpacity>
@@ -75,7 +87,7 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
           <Text style={styles.planFeaturesTitle}>Inclus dans cette formule :</Text>
           {features.map((feature, index) => (
             <View key={index} style={styles.planFeatureItem}>
-              <View style={[styles.planFeatureCheckmark, { backgroundColor }]}>
+              <View style={[styles.planFeatureCheckmark, { backgroundColor: cardBackgroundColor }]}>
                 <Ionicons name="checkmark" size={14} color="#FFFFFF" />
               </View>
               <Text style={styles.planFeatureText}>{feature}</Text>
