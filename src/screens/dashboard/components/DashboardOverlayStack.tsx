@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { DashboardOverlayStackParamList } from '../../../types/navigation';
+import useCompanionMode from '../../../hooks/useCompanionMode';
 import FixedLayout from '../../../components/FixedLayout';
 import SettingsScreen from '../../SettingsScreen';
 import ProfileScreen from '../../ProfileScreen';
@@ -66,6 +67,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
   overlayNavigationRef,
   initialRouteName = 'Home',
 }) => {
+  const isCompanionMode = useCompanionMode();
   // Navigation stack state - simule une pile de navigation
   // La pile commence toujours avec 'Home' pour permettre le retour
   const [navigationStack, setNavigationStack] = useState<Array<{
@@ -221,8 +223,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
                 } else if (target === 'rendez-vous') {
                   stackNavigation.navigate('Profile', { initialStep: 1, activeTab: 'rendezvous' });
                 } else if (target === 'subscription') {
-                  // ✅ iOS COMPLIANCE: Block subscription navigation on iOS
-                  if (Platform.OS === 'ios') {
+                  // ✅ iOS COMPLIANCE: Block subscription navigation on iOS (unless companion mode is enabled)
+                  if (isCompanionMode) {
                     console.log('🎯 [DashboardOverlayStack] Subscription navigation blocked on iOS');
                     stackNavigation.navigate('Home');
                   } else {
@@ -584,8 +586,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
         );
 
       case 'Subscription':
-        // ✅ iOS COMPLIANCE: Block Subscription screen on iOS
-        if (Platform.OS === 'ios') {
+        // ✅ iOS COMPLIANCE: Block Subscription screen on iOS (unless companion mode is enabled)
+        if (isCompanionMode) {
           console.log('🎯 [DashboardOverlayStack] Subscription screen blocked on iOS - redirecting to Home');
           // Redirect to Home by navigating back or to Home
           if (stackNavigation.canGoBack()) {

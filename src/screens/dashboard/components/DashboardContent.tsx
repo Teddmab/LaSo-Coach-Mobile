@@ -18,6 +18,7 @@ interface DashboardContentProps {
   achievementsData: any;
   subscriptionData: any;
   agendaData: any[];
+  rendezvousData?: any;
   communityPosts: any[];
   agendaLoading: boolean;
   communityLoading: boolean;
@@ -43,6 +44,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   achievementsData,
   subscriptionData,
   agendaData,
+  rendezvousData,
   communityPosts,
   agendaLoading,
   communityLoading,
@@ -139,6 +141,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           subscriptionData={subscriptionData}
           onRefresh={onRefresh}
           dashboardData={dashboardData}
+          rendezvousData={rendezvousData}
         />
       ) : (
         <>

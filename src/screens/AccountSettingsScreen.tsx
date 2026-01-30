@@ -4,7 +4,7 @@ import FixedLayout from '../components/FixedLayout';
 import { SecurityForm, DangerZone } from './settings';
 import { useSecurity } from './settings/hooks/useSecurity';
 import { theme } from '../constants/theme';
-import { useCompanionMode } from '../hooks/useCompanionMode';
+import useCompanionMode from '../hooks/useCompanionMode';
 
 interface AccountSettingsScreenProps {
   onClose: () => void;

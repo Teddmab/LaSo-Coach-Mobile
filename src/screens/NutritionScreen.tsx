@@ -28,7 +28,7 @@ import { createLogger } from '../utils/logger';
 import { ShimmerCard, ShimmerList } from '../components/Shimmer';
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import { useAuth } from '../context/FirebaseAuthContext';
-import { useCompanionMode } from '../hooks/useCompanionMode';
+import useCompanionMode from '../hooks/useCompanionMode';
 
 // Create logger instance for NutritionScreen
 const logger = createLogger('NutritionScreen');
@@ -142,23 +142,24 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       time: 'entre 7h30-9h00'
     },
     lunch: { 
-      title: 'Déjeuner', 
+      title: 'Dejeuner', 
       icon: '🍽️', 
       bg: '#F0F8FF',
       time: 'entre 12h00-14h00'
+    },
+    snack: { 
+      title: 'Collation', 
+      icon: '🥤', 
+      bg: '#FFF9E6',
+      time: 'à 16h'
     },
     dinner: { 
       title: 'Souper', 
       icon: '🍲', 
       bg: '#FFF8DC',
-      time: 'entre 19h00-21h00'
+      time: 'entre 18h00 ~ 20h00'
     },
-    snack: { 
-      title: 'Bonus', 
-      icon: '🥤', 
-      bg: '#FFF9E6',
-      time: 'Snack'
-    }
+   
   };
 
   // Flag pour éviter les appels multiples simultanés
@@ -1518,7 +1519,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // Function to sort meals by type in correct order
   const sortMealsByType = (meals: Meal[]): Meal[] => {
-    const typeOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+    // Ordre correct : Petit-Dej, Dejeuner, Collation, Souper
+    const typeOrder = ['breakfast', 'lunch', 'snack', 'dinner'];
     return meals.sort((a: Meal, b: Meal) => {
       return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type);
     });
@@ -2784,15 +2786,15 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   mealTypeTitle: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'normal',
     color: '#333333',
     marginBottom: 4,
   },
   mealName: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#000000',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     marginBottom: 4,
   },
   mealTime: {

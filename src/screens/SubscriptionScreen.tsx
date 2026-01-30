@@ -6,7 +6,7 @@ import SubscriptionPaymentFlowImproved from '../components/SubscriptionPaymentFl
 import { useAuth } from '../context/FirebaseAuthContext';
 import { SubscriptionScreenProps, PaymentData } from './subscription/types';
 import { useSubscriptionScreen } from './subscription/hooks/useSubscriptionScreen';
-import { useCompanionMode } from '../hooks/useCompanionMode';
+import useCompanionMode from '../hooks/useCompanionMode';
 import YourPremiumCard from './subscription/components/YourPremiumCard';
 import ManageSubscriptionCard from './subscription/components/ManageSubscriptionCard';
 import PlanCard from './subscription/components/PlanCard';

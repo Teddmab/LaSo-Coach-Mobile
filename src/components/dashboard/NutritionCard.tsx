@@ -18,6 +18,7 @@ import { useIOSSimulation } from '../../hooks/useIOSSimulation';
 import { useAuth } from '../../context/FirebaseAuthContext';
 import ImagePersistent from '../ImagePersistent';
 import imageCache from '../../utils/imageCache';
+import { mealTypeMap } from '../../screens/nutrition/utils/nutritionUtils';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
@@ -360,18 +361,9 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
   );
 
   const getMealTypeIcon = (type) => {
-    switch (type) {
-      case 'breakfast':
-        return { name: 'sunny', color: '#FFD700' };
-      case 'lunch':
-        return { name: 'restaurant', color: '#FF8C00' };
-      case 'dinner':
-        return { name: 'moon', color: '#4169E1' };
-      case 'bonus':
-        return { name: 'star', color: '#FFD700' };
-      default:
-        return { name: 'restaurant', color: '#666' };
-    }
+    // Utiliser les emojis de mealTypeMap comme dans NutritionScreen
+    const mealType = mealTypeMap[type] || mealTypeMap['snack']; // fallback sur snack si type inconnu
+    return mealType?.icon || '🍽️';
   };
 
   const getMealTypeColor = (type) => {
@@ -392,13 +384,15 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
   const getMealTypeTitle = (type) => {
     switch (type) {
       case 'breakfast':
-        return 'Petit-Déj';
+        return 'Petit-dej';
       case 'lunch':
-        return 'Déjeuner';
+        return 'Dejeuner';
       case 'dinner':
         return 'Souper';
+      case 'snack':
+        return 'Collation';
       case 'bonus':
-        return 'Bonus';
+        return 'Collation'; // Fallback pour bonus
       default:
         return type;
     }
@@ -410,8 +404,10 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
         return 'entre 7h30-9h00';
       case 'lunch':
         return 'entre 12h00-14h00';
+      case 'snack':
+        return 'à 16h';
       case 'dinner':
-        return 'entre 19h00-21h00';
+        return 'entre 18h00 ~ 20h00';
       default:
         return '';
     }
@@ -529,19 +525,20 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       <View style={styles.mealsContainer}>
         {currentMenu?.meals
           .sort((a, b) => {
-            // Sort meals in the correct order: Petit-Déj, Déjeuner, Souper, Bonus
+            // Ordre correct : Petit-Dej, Dejeuner, Collation, Souper
             const order = { 
               'breakfast': 1, 
               'lunch': 2, 
-              'dinner': 3, 
-              'bonus': 4 
+              'snack': 3,
+              'dinner': 4,
+              'bonus': 3 // bonus = snack
             };
             const orderA = order[a.type] || 999;
             const orderB = order[b.type] || 999;
             return orderA - orderB;
           })
           .map((meal, index) => {
-            const icon = getMealTypeIcon(meal.type);
+            const iconEmoji = getMealTypeIcon(meal.type);
             const backgroundColor = getMealTypeColor(meal.type);
             
             // Précharger l'image du repas si elle existe
@@ -564,28 +561,33 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
               >
                 {/* Content area with image and text */}
                 <View style={styles.mealContent}>
-                  {/* Image on the left - flush with edges */}
-                  <ImagePersistent
-                    source={{ uri: meal.imageUrl }} 
-                    style={styles.mealImage}
-                    resizeMode="cover"
-                    onError={(error) => {
-                    }}
-                    fallbackSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
-                  />
+                  {/* Image on the left - avec container comme dans NutritionScreen */}
+                  <View style={styles.mealImageContainer}>
+                    <ImagePersistent
+                      source={{ uri: meal.imageUrl }} 
+                      style={styles.mealImage}
+                      resizeMode="cover"
+                      onError={(error) => {
+                      }}
+                      fallbackSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
+                    />
+                  </View>
                   
                   {/* Text content on the right */}
                   <View style={styles.mealInfo}>
-                    {/* Header with title and icon */}
+                    {/* Header with title and icon - structure comme dans NutritionScreen */}
                     <View style={styles.mealHeader}>
                       <Text style={styles.mealTypeTitle}>{getMealTypeTitle(meal.type)}</Text>
-                      <Ionicons name={icon.name} size={20} color={icon.color} />
+                      <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
+                      {getMealTimeRange(meal.type) && (
+                        <Text style={styles.mealTime}>{getMealTimeRange(meal.type)}</Text>
+                      )}
                     </View>
-                    
-                    <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
-                    {getMealTimeRange(meal.type) && (
-                      <Text style={styles.mealTime}>{getMealTimeRange(meal.type)}</Text>
-                    )}
+                  </View>
+
+                  {/* Icon and Status - Right */}
+                  <View style={styles.mealRightSection}>
+                    <Text style={styles.mealIconEmoji}>{iconEmoji}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -600,18 +602,21 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
+    marginHorizontal: 0, // Pas de margin horizontal, le padding sera géré par le contenu
     marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderRadius: 0, // Pas de border radius sur le container principal
+    padding: 0, // Pas de padding sur le container, on le met sur les sections internes
+    borderWidth: 0, // Pas de border sur le container
+    borderColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingHorizontal: 20, // Padding horizontal pour le header
+    paddingTop: 20,
+    paddingBottom: 16,
+    marginBottom: 0,
   },
   title: {
     fontSize: 18,
@@ -638,9 +643,10 @@ const styles = StyleSheet.create({
   },
   dateNavigation: {
     marginBottom: 16,
+    paddingHorizontal: 20, // Padding horizontal pour la navigation des dates
   },
   dateNavigationContent: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 0, // Pas de padding supplémentaire
     justifyContent: 'center',
     flexGrow: 1,
   },
@@ -669,22 +675,32 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
   },
   mealsContainer: {
-    marginBottom: 20,
+    paddingHorizontal: 20, // Padding horizontal pour les repas
+    paddingBottom: 24, // Padding bottom comme dans NutritionScreen
+    marginBottom: 0,
   },
   mealCard: {
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden', // Ensure the image doesn't overflow the rounded corners
+    borderWidth: 1,
+    borderColor: '#E0E0E0', // Border comme dans NutritionScreen
   },
   mealContent: {
     flexDirection: 'row',
     height: 80, // Fixed height for the content area
   },
+  mealImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    margin: 0,
+    overflow: 'hidden',
+  },
   mealImage: {
     width: 80,
     height: 80,
-    borderRadius: 0, // No border radius
-    margin: 0, // No margin - flush with edges
+    borderRadius: 8,
   },
   mealInfo: {
     flex: 1,
@@ -693,10 +709,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', // Distribute content evenly
   },
   mealHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  mealRightSection: {
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    paddingRight: 16,
+  },
+  mealIconEmoji: {
+    fontSize: 20,
   },
   mealTypeContainer: {
     flexDirection: 'row',
@@ -704,18 +728,20 @@ const styles = StyleSheet.create({
   },
   mealTypeTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
+    fontWeight: 'normal',
+    color: '#333333', // Comme dans NutritionScreen
+    marginBottom: 4,
   },
   mealName: {
     fontSize: 14,
-    fontWeight: '500',
-    color: theme.colors.text.primary,
+    color: '#000000', // Comme dans NutritionScreen
+    fontWeight: 'normal',
     marginBottom: 4,
   },
   mealTime: {
     fontSize: 12,
     color: theme.colors.text.secondary,
+    fontWeight: 'normal',
   },
   summaryContainer: {
     marginBottom: 20,

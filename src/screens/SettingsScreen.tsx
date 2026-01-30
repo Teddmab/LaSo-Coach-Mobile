@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import { SettingsScreenProps } from './settings/types';
@@ -9,6 +9,8 @@ import LogoutSection from './settings/components/LogoutSection';
 import { SETTINGS_ITEMS } from './settings/constants/settingsItems';
 import { ScreenContent } from './shared';
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
+import useCompanionMode from '../hooks/useCompanionMode';
+import { IOS_COMPANION_MODE } from '../config/featureFlags';
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({
   user,
@@ -25,14 +27,43 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   } = useSettings();
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
+  const { isCompanionMode } = useCompanionMode();
 
-  // Filtrer l'item "Abonnement & Paiement" sur iOS
+  // ✅ iOS COMPLIANCE: Filtrer les items liés aux paiements sur iOS (en mode compagnon)
+  // Les items "Abonnement & Paiement" et "Sécurité & Connexion" ne doivent pas être visibles sur iOS
+  // sauf si le mode companion est désactivé (override)
   const filteredSettingsItems = useMemo(() => {
-    if (isIOS) {
-      return SETTINGS_ITEMS.filter(item => item.id !== 'subscription');
+    // isCompanionMode est true si : Platform.OS === 'ios' && IOS_COMPANION_MODE && !isOverrideEnabled
+    // Si isCompanionMode est true, on filtre les items subscription et security-connection
+    if (isCompanionMode) {
+      const filtered = SETTINGS_ITEMS.filter(item => 
+        item.id !== 'subscription' && item.id !== 'security-connection'
+      );
+      if (__DEV__) {
+        console.log('🔒 [SettingsScreen] Filtering subscription and security items (iOS companion mode):', {
+          isCompanionMode,
+          isIOS,
+          platform: Platform.OS,
+          IOS_COMPANION_MODE,
+          originalCount: SETTINGS_ITEMS.length,
+          filteredCount: filtered.length,
+          subscriptionItemExists: SETTINGS_ITEMS.some(item => item.id === 'subscription'),
+          securityItemExists: SETTINGS_ITEMS.some(item => item.id === 'security-connection'),
+        });
+      }
+      return filtered;
+    }
+    if (__DEV__) {
+      console.log('✅ [SettingsScreen] Showing all settings items (not in companion mode):', {
+        isCompanionMode,
+        isIOS,
+        platform: Platform.OS,
+        IOS_COMPANION_MODE,
+        itemsCount: SETTINGS_ITEMS.length,
+      });
     }
     return SETTINGS_ITEMS;
-  }, [isIOS]);
+  }, [isCompanionMode, isIOS]);
 
   const handleSettingPress = (itemId: string): void => {
 
@@ -47,7 +78,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     if (itemId === 'profile' && onClose) {
       onClose(itemId);
     } else if (itemId === 'subscription' && onClose) {
+      // ✅ iOS COMPLIANCE: Bloquer la navigation vers subscription sur iOS (en mode compagnon)
+      if (isCompanionMode) {
+        console.log('🎯 [SettingsScreen] Subscription navigation blocked on iOS (companion mode)');
+        return;
+      }
       onClose('subscription');
+    } else if (itemId === 'security-connection' && onClose) {
+      // ✅ iOS COMPLIANCE: Bloquer la navigation vers security-connection sur iOS (en mode compagnon)
+      if (isCompanionMode) {
+        console.log('🎯 [SettingsScreen] Security-connection navigation blocked on iOS (companion mode)');
+        return;
+      }
+      onClose('security-connection');
     } else if (itemId === 'privacy' && onClose) {
       // Privacy section is expandable, handled above
       return;

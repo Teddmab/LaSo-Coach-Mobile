@@ -12,15 +12,12 @@ import {
   InitialMeasurement,
   ProgressPhoto,
   MeasurementForm,
-  PhotoForm,
-  ProgressTab,
 } from '../types';
 import { getCurrentWeight, getCurrentWaistSize, generateChartData } from '../utils/progressUtils';
 
 export const useProgressScreen = (
   onSubscriptionRenew?: () => void
 ) => {
-  const [activeTab, setActiveTab] = useState<ProgressTab>('measurements');
   const [profile, setProfile] = useState<any>(null);
   const [profileData, setProfileData] = useState<any>(null);
   const [initialMeasurements, setInitialMeasurements] = useState<InitialMeasurement | null>(null);
@@ -31,21 +28,16 @@ export const useProgressScreen = (
   const [refreshing, setRefreshing] = useState(false);
   const [achievementsData, setAchievementsData] = useState<any>(null);
   const [showMeasurementModal, setShowMeasurementModal] = useState(false);
-  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
   const [measurementForm, setMeasurementForm] = useState<MeasurementForm>({
     weight: '',
     waistSize: '',
     notes: '',
     error: '',
     saving: false,
-  });
-  const [photoForm, setPhotoForm] = useState<PhotoForm>({
-    weight: '',
-    notes: '',
     selectedPhoto: null,
     preview: null,
-    uploading: false,
-    error: '',
   });
 
   // Fetch profile data for avatar
@@ -205,133 +197,14 @@ export const useProgressScreen = (
     }
   };
 
-  const handleMeasurementSubmit = async (): Promise<void> => {
-    try {
-      setMeasurementForm(prev => ({ ...prev, saving: true, error: '' }));
-
-      const weight = parseFloat(measurementForm.weight);
-      const waistSize = parseFloat(measurementForm.waistSize);
-
-      if (!weight || weight < 10 || weight > 300) {
-        setMeasurementForm(prev => ({ ...prev, error: 'Le poids doit être entre 10 et 300 kg.' }));
-        return;
-      }
-
-      if (!waistSize || waistSize < 10 || waistSize > 300) {
-        setMeasurementForm(prev => ({ ...prev, error: 'Le tour de taille doit être entre 10 et 300 cm.' }));
-        return;
-      }
-
-      await api.post('/onboarding/measurements', {
-        weight,
-        waistSize,
-        notes: measurementForm.notes,
-      });
-
-      await fetchAllData();
-      setMeasurementForm({
-        weight: '',
-        waistSize: '',
-        notes: '',
-        error: '',
-        saving: false,
-      });
-      setShowMeasurementModal(false);
-      Alert.alert('Succès', 'Mesure ajoutée avec succès!');
-    } catch (error) {
-      console.error('[ProgressScreen] ❌ Error adding measurement:', error);
-      setMeasurementForm(prev => ({ 
-        ...prev, 
-        error: 'Erreur lors de l\'ajout de la mesure',
-        saving: false,
-      }));
-    }
-  };
-
-  const handlePhotoSubmit = async (): Promise<void> => {
-    try {
-      setPhotoForm(prev => ({ ...prev, uploading: true, error: '' }));
-
-      if (!photoForm.selectedPhoto) {
-        setPhotoForm(prev => ({ ...prev, error: 'Veuillez sélectionner une photo', uploading: false }));
-        return;
-      }
-
-      console.log('📤 Soumission photo - selectedPhoto:', {
-        hasPhoto: !!photoForm.selectedPhoto,
-        uri: photoForm.selectedPhoto?.uri ? photoForm.selectedPhoto.uri.substring(0, 50) + '...' : 'none',
-        type: photoForm.selectedPhoto?.type,
-        fileName: photoForm.selectedPhoto?.fileName,
-      });
-
-      const validation: any = ProgressPhotosApi.validatePhoto(photoForm.selectedPhoto);
-      console.log('🔍 Résultat validation:', validation);
-      
-      if (!validation.isValid) {
-        const errorMessage = (validation.errors || []).join(', ');
-        console.error('❌ Validation échouée:', errorMessage);
-        setPhotoForm(prev => ({ 
-          ...prev, 
-          error: errorMessage,
-          uploading: false,
-        }));
-        return;
-      }
-
-      const formData = ProgressPhotosApi.createFormData(photoForm.selectedPhoto, {
-        weight: photoForm.weight,
-        notes: photoForm.notes,
-      });
-
-      // Utiliser directement l'API comme dans la version web
-      const response = await api.post('/progress-photos', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('[ProgressScreen] 📸 Photo ajoutée, réponse:', {
-        success: response.data?.success,
-        data: response.data?.data,
-        fullResponse: response.data
-      });
-
-      // Rafraîchir les photos comme dans la version web (fetchProgressPhotos)
-      // Le frontend web appelle fetchProgressPhotos() après l'ajout
-      await fetchAllData();
-      
-      setPhotoForm({
-        weight: '',
-        notes: '',
-        selectedPhoto: null,
-        preview: null,
-        uploading: false,
-        error: '',
-      });
-      setShowPhotoModal(false);
-      Alert.alert('Succès', 'Photo ajoutée avec succès!');
-    } catch (error: any) {
-      console.error('[ProgressScreen] ❌ Error adding photo:', error);
-      let errorMessage = 'Erreur lors de l\'ajout de la photo';
-      if (error.response) {
-        errorMessage = error.response.data?.message || errorMessage;
-      } else if (error.request) {
-        errorMessage = 'Problème de connexion. Vérifiez votre internet.';
-      } else {
-        errorMessage = error.message || errorMessage;
-      }
-      setPhotoForm(prev => ({ 
-        ...prev, 
-        error: errorMessage,
-        uploading: false,
-      }));
-    }
-  };
-
   const handlePhotoSelection = async (): Promise<void> => {
     try {
-      // Request permissions (comme dans ProfileScreen)
+      console.log('[ProgressScreen] 📸 handlePhotoSelection called');
+      
+      // Demander les permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log('[ProgressScreen] 📸 Permission status:', status);
+      
       if (status !== 'granted') {
         Alert.alert(
           'Permission refusée',
@@ -340,62 +213,40 @@ export const useProgressScreen = (
         return;
       }
 
-      // Launch image picker (même logique que ProfileScreen)
+      console.log('[ProgressScreen] 📸 Launching image library...');
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Désactivé pour éviter les problèmes de URI sur Android
+        allowsEditing: false,
         quality: 0.8,
+      });
+      
+      console.log('[ProgressScreen] 📸 Image picker result:', {
+        canceled: result.canceled,
+        hasAssets: !!result.assets,
+        assetsCount: result.assets?.length || 0,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
         const imageUri = asset.uri;
         
-        console.log('📸 Image asset sélectionné:', {
-          uri: imageUri,
-          type: asset.type,
-          fileName: asset.fileName,
-          width: asset.width,
-          height: asset.height,
-          fileSize: asset.fileSize
-        });
-        
-        // CRITICAL: Déterminer le type MIME correct
-        // Parfois ImagePicker retourne juste "image" au lieu de "image/jpeg" ou "image/png"
         let mimeType = asset.type || 'image/jpeg';
-        
-        // Si le type est juste "image" sans sous-type, déterminer depuis l'URI ou fileName
         if (mimeType === 'image' || !mimeType.includes('/')) {
-          console.log('⚠️ Type MIME incomplet, détermination depuis URI/fileName...');
           const uri = imageUri || '';
           const fileName = asset.fileName || asset.name || '';
           
           if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) {
             mimeType = 'image/png';
-            console.log('✅ Type déterminé: image/png');
           } else if (uri.match(/\.(jpg|jpeg)$/i) || fileName.match(/\.(jpg|jpeg)$/i)) {
             mimeType = 'image/jpeg';
-            console.log('✅ Type déterminé: image/jpeg');
           } else if (uri.match(/\.(gif)$/i) || fileName.match(/\.(gif)$/i)) {
             mimeType = 'image/gif';
-            console.log('✅ Type déterminé: image/gif');
           } else {
-            // Par défaut JPEG
             mimeType = 'image/jpeg';
-            console.log('✅ Type par défaut: image/jpeg');
           }
         }
         
-        console.log('📸 Type MIME final:', mimeType);
-        
-        // CRITICAL: Copier le fichier vers un emplacement accessible (comme dans ProfileScreen)
-        // Cela résout les problèmes de "Network request failed" sur Android avec content:// URIs
-        console.log('📁 Préparation du fichier pour upload...');
-        
-        // Utiliser ProfileApi.copyFileToAccessibleLocation (déjà importé)
         const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
-        
-        // Préparer le nom de fichier avec la bonne extension
         const fileName = asset.fileName || asset.name || `progress_${Date.now()}.jpg`;
         const extension = mimeType.includes('png') ? 'png' : 
                          mimeType.includes('gif') ? 'gif' : 
@@ -404,39 +255,19 @@ export const useProgressScreen = (
           ? fileName 
           : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
         
-        // Créer un objet asset avec l'URI accessible
-        // CRITICAL: S'assurer que le type MIME est bien défini pour la validation
         const accessibleAsset = {
           ...asset,
-          uri: accessibleUri, // Utiliser l'URI accessible
-          type: mimeType, // Type MIME explicite pour la validation
-          mimeType: mimeType, // Aussi en mimeType pour compatibilité
+          uri: accessibleUri,
+          type: mimeType,
+          mimeType: mimeType,
           fileName: finalFileName,
-          // S'assurer que fileSize est présent si disponible
           fileSize: asset.fileSize || asset.size,
         };
         
-        console.log('✅ Fichier préparé:', {
-          originalUri: imageUri.substring(0, 50) + '...',
-          accessibleUri: accessibleUri.substring(0, 50) + '...',
-          type: mimeType,
-          mimeType: mimeType,
-          name: finalFileName,
-          fileSize: accessibleAsset.fileSize
-        });
-        
-        console.log('✅ Asset accessible créé:', {
-          hasUri: !!accessibleAsset.uri,
-          hasType: !!accessibleAsset.type,
-          hasMimeType: !!accessibleAsset.mimeType,
-          hasFileName: !!accessibleAsset.fileName,
-          type: accessibleAsset.type,
-        });
-        
-        setPhotoForm(prev => ({
+        setMeasurementForm(prev => ({
           ...prev,
           selectedPhoto: accessibleAsset,
-          preview: accessibleUri, // Utiliser l'URI accessible pour la prévisualisation
+          preview: accessibleUri,
         }));
       }
     } catch (error) {
@@ -444,6 +275,116 @@ export const useProgressScreen = (
       Alert.alert('Erreur', 'Erreur lors de la sélection de la photo');
     }
   };
+
+  const handleMeasurementSubmit = async (): Promise<void> => {
+    try {
+      setMeasurementForm(prev => ({ ...prev, saving: true, error: '' }));
+
+      const weight = parseFloat(measurementForm.weight);
+      const waistSize = measurementForm.waistSize ? parseFloat(measurementForm.waistSize) : undefined;
+
+      if (!weight || weight < 10 || weight > 300) {
+        setMeasurementForm(prev => ({ ...prev, error: 'Le poids doit être entre 10 et 300 kg.', saving: false }));
+        return;
+      }
+
+      // Le tour de taille est optionnel, mais s'il est fourni, il doit être valide
+      if (waistSize !== undefined && (isNaN(waistSize) || waistSize < 10 || waistSize > 300)) {
+        setMeasurementForm(prev => ({ ...prev, error: 'Le tour de taille doit être entre 10 et 300 cm.', saving: false }));
+        return;
+      }
+
+      // Si on édite une mesure existante
+      if (editingMeasurement && editingMeasurement.id) {
+        await api.put(`/onboarding/measurements/${editingMeasurement.id}`, {
+          weight,
+          ...(waistSize !== undefined && { waistSize }),
+          notes: measurementForm.notes,
+        });
+      } else {
+        // Nouvelle mesure
+        await api.post('/onboarding/measurements', {
+          weight,
+          ...(waistSize !== undefined && { waistSize }),
+          notes: measurementForm.notes,
+        });
+      }
+
+      // Si une photo est sélectionnée, l'uploader comme photo de progression
+      if (measurementForm.selectedPhoto) {
+        const validation: any = ProgressPhotosApi.validatePhoto(measurementForm.selectedPhoto);
+        if (!validation.isValid) {
+          const errorMessage = (validation.errors || []).join(', ');
+          setMeasurementForm(prev => ({ ...prev, error: errorMessage, saving: false }));
+          return;
+        }
+
+        const formData = ProgressPhotosApi.createFormData(measurementForm.selectedPhoto, {
+          weight: measurementForm.weight,
+          notes: measurementForm.notes,
+        });
+
+        await api.post('/progress-photos', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      }
+
+      await fetchAllData();
+      const wasEditing = !!editingMeasurement;
+      setMeasurementForm({
+        weight: '',
+        waistSize: '',
+        notes: '',
+        error: '',
+        saving: false,
+        selectedPhoto: null,
+        preview: null,
+      });
+      setEditingMeasurement(null);
+      setShowMeasurementModal(false);
+      Alert.alert('Succès', wasEditing ? 'Mesure modifiée avec succès!' : 'Mesure ajoutée avec succès!');
+    } catch (error) {
+      console.error('[ProgressScreen] ❌ Error saving measurement:', error);
+      setMeasurementForm(prev => ({ 
+        ...prev, 
+        error: 'Erreur lors de l\'enregistrement de la mesure',
+        saving: false,
+      }));
+    }
+  };
+
+  const handleEditMeasurement = (measurement: Measurement): void => {
+    setEditingMeasurement(measurement);
+    
+    // Si la mesure vient d'une photo, charger la photo existante
+    let preview = null;
+    if (measurement.isFromPhoto && measurement.photoUrl) {
+      preview = measurement.photoUrl;
+    } else if (measurement.photoUrl) {
+      preview = measurement.photoUrl;
+    }
+    
+    setMeasurementForm({
+      weight: measurement.weight.toString(),
+      waistSize: measurement.waistSize?.toString() || '',
+      notes: measurement.notes || '',
+      error: '',
+      saving: false,
+      selectedPhoto: null, // On ne charge pas l'asset complet, juste la preview
+      preview: preview,
+    });
+    setShowMeasurementModal(true);
+  };
+
+  const handleViewHistory = (measurement: Measurement): void => {
+    console.log('[ProgressScreen] 📊 View history for measurement:', measurement);
+    console.log('[ProgressScreen] 📊 Setting showHistoryModal to true');
+    setShowHistoryModal(true);
+  };
+
+  // Fonctions liées aux photos supprimées - seul l'onglet "Mesures & Statistiques" est disponible
 
   const handleDeleteMeasurement = async (measurementId: string): Promise<void> => {
     // Check if this measurement comes from a photo
@@ -483,52 +424,8 @@ export const useProgressScreen = (
     );
   };
 
-  const handleDeletePhoto = async (photoId: string): Promise<void> => {
-    Alert.alert(
-      'Supprimer la photo',
-      'Êtes-vous sûr de vouloir supprimer cette photo ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Utiliser directement l'API comme dans la version web
-              await api.delete(`/progress-photos/${photoId}`);
-              // Rafraîchir les photos comme dans la version web
-              await fetchAllData();
-              Alert.alert('Succès', 'Photo supprimée avec succès!');
-            } catch (error) {
-              console.error('[ProgressScreen] ❌ Error deleting photo:', error);
-              Alert.alert('Erreur', 'Erreur lors de la suppression de la photo');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const getPhotoUrl = (photo: ProgressPhoto): string | null => {
-    // Adapter comme la version web: photo.url.startsWith('http') ? photo.url : `${API_CONFIG.baseURL?.replace('/api/v1', '')}${photo.url}`
-    const photoUrl = photo.url || photo.imageUrl;
-    
-    if (!photoUrl) {
-      return null;
-    }
-    
-    // Si l'URL est déjà absolue, la retourner telle quelle
-    if (photoUrl.startsWith('http')) {
-      return photoUrl;
-    }
-    
-    // Construire l'URL complète comme dans la version web
-    const baseUrl = API_CONFIG.BASE_URL || '';
-    const rootUrl = baseUrl.replace('/api/v1', '');
-    const fullUrl = `${rootUrl}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
-    
-    return fullUrl;
-  };
+  // Fonction handleDeletePhoto supprimée - les photos sont gérées via handleDeleteMeasurement
+  // Fonction getPhotoUrl supprimée - non nécessaire pour l'onglet "Mesures & Statistiques" uniquement
 
   const getAvatarUrl = (avatarPath?: string | null): string | null => {
     if (!avatarPath) return null;
@@ -536,6 +433,15 @@ export const useProgressScreen = (
     const base = API_CONFIG.BASE_URL || '';
     const root = base.replace(/\/api\/v1$/, '');
     return `${root}${avatarPath.startsWith('/') ? '' : '/'}${avatarPath}`;
+  };
+
+  const getPhotoUrl = (photo: ProgressPhoto): string | null => {
+    const photoUrl = photo.url || photo.imageUrl;
+    if (!photoUrl) return null;
+    if (photoUrl.startsWith('http')) return photoUrl;
+    const baseUrl = API_CONFIG.BASE_URL || '';
+    const rootUrl = baseUrl.replace('/api/v1', '');
+    return `${rootUrl}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
   };
 
   // Combine measurements with progress photos that have weight
@@ -547,6 +453,7 @@ export const useProgressScreen = (
     // Dans la version web, les photos avec poids apparaissent dans le tableau des mesures
     progressPhotos.forEach(photo => {
       if (photo.weight && photo.weight > 0) {
+        const photoUrl = getPhotoUrl(photo);
         // Convert photo to measurement format
         // Note: Photos may not have waistSize, so we use null/undefined instead of 0
         allMeasurements.push({
@@ -556,6 +463,8 @@ export const useProgressScreen = (
           notes: photo.notes || 'Photo de progression',
           createdAt: photo.createdAt || photo.date || new Date().toISOString(),
           isFromPhoto: true, // Flag to identify it came from a photo
+          photoUrl: photoUrl || undefined,
+          photoId: photo.id,
         });
       }
     });
@@ -571,8 +480,6 @@ export const useProgressScreen = (
   const chartData = generateChartData(initialMeasurements, combinedMeasurements);
 
   return {
-    activeTab,
-    setActiveTab,
     profile,
     profileData,
     initialMeasurements,
@@ -585,21 +492,20 @@ export const useProgressScreen = (
     achievementsData,
     showMeasurementModal,
     setShowMeasurementModal,
-    showPhotoModal,
-    setShowPhotoModal,
+    showHistoryModal,
+    setShowHistoryModal,
     measurementForm,
     setMeasurementForm,
-    photoForm,
-    setPhotoForm,
+    editingMeasurement,
     handleRefresh,
     handleSubscriptionRenew,
     handleMeasurementSubmit,
-    handlePhotoSubmit,
     handlePhotoSelection,
+    handleEditMeasurement,
+    handleViewHistory,
     handleDeleteMeasurement,
-    handleDeletePhoto,
-    getPhotoUrl,
     getAvatarUrl,
+    getPhotoUrl,
     currentWeight,
     currentWaistSize,
     chartData,

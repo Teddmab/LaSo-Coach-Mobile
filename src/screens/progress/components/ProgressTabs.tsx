@@ -1,51 +1,33 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
-import { ProgressTab } from '../types';
 
 interface ProgressTabsProps {
-  activeTab: ProgressTab;
-  onTabChange: (tab: ProgressTab) => void;
+  // Props conservées pour compatibilité mais non utilisées
 }
 
-const ProgressTabs: React.FC<ProgressTabsProps> = ({ activeTab, onTabChange }) => {
+const ProgressTabs: React.FC<ProgressTabsProps> = () => {
+  // Un seul onglet disponible : "Mesures & Statistiques"
+  // Plus besoin de navigation entre onglets
   return (
     <View style={styles.container}>
-      <TouchableOpacity 
-        style={[styles.tab, activeTab === 'measurements' && styles.activeTab]}
-        onPress={() => onTabChange('measurements')}
-      >
+      <View style={styles.singleTab}>
         <Ionicons 
           name="trending-up" 
           size={20} 
-          color={activeTab === 'measurements' ? '#FFFFFF' : theme.colors.text.secondary} 
+          color="#FFFFFF"
         />
-        <Text style={[styles.tabText, activeTab === 'measurements' && styles.activeTabText]}>
+        <Text style={styles.tabText}>
           Mesures & Statistiques
         </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.tab, activeTab === 'photos' && styles.activeTab]}
-        onPress={() => onTabChange('photos')}
-      >
-        <Ionicons 
-          name="image" 
-          size={20} 
-          color={activeTab === 'photos' ? '#FFFFFF' : theme.colors.text.secondary} 
-        />
-        <Text style={[styles.tabText, activeTab === 'photos' && styles.activeTabText]}>
-          Photos de progression
-        </Text>
-      </TouchableOpacity>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     margin: 20,
     borderRadius: 12,
@@ -53,26 +35,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
-  tab: {
-    flex: 1,
+  singleTab: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
-  },
-  activeTab: {
     backgroundColor: theme.colors.primary,
   },
   tabText: {
     fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginLeft: 8,
-    fontWeight: '500',
-  },
-  activeTabText: {
     color: '#FFFFFF',
+    marginLeft: 8,
     fontWeight: '600',
   },
 });

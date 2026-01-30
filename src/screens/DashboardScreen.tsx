@@ -17,6 +17,7 @@ import { useAchievements } from './dashboard/hooks/useAchievements';
 import { useAgenda } from './dashboard/hooks/useAgenda';
 import { useCommunity } from './dashboard/hooks/useCommunity';
 import { AgendaApi } from '../services/agendaApi';
+import { ProfileApi } from '../services/profileApi';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -27,7 +28,7 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DashboardOverlayStackParamList } from '../types/navigation';
 
 // ✅ PHASE 1: Import feature flags for testing
-import { useCompanionMode } from '../hooks/useCompanionMode';
+import useCompanionMode from '../hooks/useCompanionMode';
 
 // TODO: PHASE 6 - Import entitlements hook for checking user access rights
 import { useEntitlements } from '../hooks/useEntitlements';
@@ -64,6 +65,42 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   } = useSubscription();
   const { achievementsData, fetchAchievementsData } = useAchievements();
   const { agendaData, loading: agendaLoading, fetchAgendaData } = useAgenda();
+  const [rendezvousData, setRendezvousData] = useState<any>(null);
+  
+  // ✅ Fonction pour récupérer le rendez-vous actuel
+  const fetchRendezvousData = useCallback(async (): Promise<void> => {
+    try {
+      const currentRendezvous = await ProfileApi.getCurrentRendezvous();
+      if (currentRendezvous) {
+        setRendezvousData(currentRendezvous);
+        if (__DEV__) {
+          console.log('📅 [DashboardScreen] Rendezvous data fetched:', {
+            status: currentRendezvous.status,
+            hasAssignedCoach: !!currentRendezvous.assignedCoach,
+            assignedCoachName: currentRendezvous.assignedCoach?.name,
+          });
+        }
+      } else {
+        setRendezvousData(null);
+      }
+    } catch (error: any) {
+      console.error('Error fetching rendezvous data:', error);
+      setRendezvousData(null);
+    }
+  }, []);
+  
+  // ✅ Polling automatique pour rafraîchir les données du rendez-vous toutes les 30 secondes
+  useEffect(() => {
+    // Récupérer immédiatement
+    fetchRendezvousData();
+    
+    // Puis rafraîchir toutes les 30 secondes
+    const interval = setInterval(() => {
+      fetchRendezvousData();
+    }, 30000); // 30 secondes
+    
+    return () => clearInterval(interval);
+  }, [fetchRendezvousData]);
   const { 
     communityPosts, 
     loading: communityLoading, 
@@ -313,7 +350,21 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     completedSteps.includes('recommendations') &&
     completedSteps.includes('rendezvous');
   
-  const isProfileComplete = dashboardData?.onboarding?.data?.isComplete || allFourStepsCompleted;
+  // ✅ MODIFICATION: Utiliser le rendezvousData depuis l'état local (mis à jour automatiquement)
+  // Fallback vers dashboardData si pas encore chargé
+  const currentRendezvousData = rendezvousData || dashboardData?.rendezvous || dashboardData?.rendezVous || null;
+  
+  // Un rendez-vous est considéré comme assigné si :
+  // - Le statut est ASSIGNED ou CONFIRMED
+  // - OU un coach est assigné (assignedCoach existe)
+  const isRendezvousAssigned = currentRendezvousData && (
+    currentRendezvousData.status === 'ASSIGNED' || 
+    currentRendezvousData.status === 'CONFIRMED' ||
+    !!currentRendezvousData.assignedCoach
+  );
+  
+  // ✅ MODIFICATION: Le profil est complet seulement si toutes les étapes sont complétées ET le rendez-vous est assigné
+  const isProfileComplete = (dashboardData?.onboarding?.data?.isComplete || allFourStepsCompleted) && isRendezvousAssigned;
   
   // Debug log to help verify completion status
   if (__DEV__) {
@@ -321,8 +372,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       isCompleteFromBackend: dashboardData?.onboarding?.data?.isComplete,
       completedSteps,
       allFourStepsCompleted,
+      isRendezvousAssigned,
+      rendezvousStatus: currentRendezvousData?.status,
+      hasAssignedCoach: !!currentRendezvousData?.assignedCoach,
+      assignedCoachName: currentRendezvousData?.assignedCoach?.name,
       isProfileComplete,
       stepCount: completedSteps.length,
+      rendezvousDataFromState: !!rendezvousData,
+      rendezvousDataFromDashboard: !!dashboardData?.rendezvous,
     });
   }
 
@@ -343,6 +400,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         fetchAgendaData(),
         fetchCommunityPosts(),
         checkSubscriptionStatus(),
+        fetchRendezvousData(),
       ]);
     } finally {
       setRefreshing(false);
@@ -441,8 +499,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'agenda': 'Agenda',
       'community': 'Community',
       'chat': 'Chat',
-      // ✅ iOS COMPLIANCE: Subscription removed from navigation on iOS
-      ...(Platform.OS !== 'ios' ? { 'subscription': 'Subscription' } : {}),
+      // ✅ iOS COMPLIANCE: Subscription removed from navigation on iOS (unless companion mode is enabled)
+      ...(companionMode ? {} : { 'subscription': 'Subscription' }),
       'security': 'Security',
       'language': 'Language',
       'notification-settings': 'NotificationSettings',
@@ -664,6 +722,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         achievementsData={achievementsData}
         subscriptionData={subscriptionData}
         agendaData={agendaData}
+        rendezvousData={currentRendezvousData}
         communityPosts={communityPosts}
         agendaLoading={agendaLoading}
         communityLoading={communityLoading}

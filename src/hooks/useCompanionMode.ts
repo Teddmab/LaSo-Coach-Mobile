@@ -2,27 +2,29 @@ import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import {
   IOS_COMPANION_MODE,
-  isIOSCompanionMode,
   shouldShowPurchaseFlows,
   shouldInitializePaymentProviders,
   shouldEnableIAP,
   getCompanionModeMessage,
 } from '../config/featureFlags';
+import { useCompanionModeContext } from '../context/CompanionModeContext';
 
 /**
  * Hook to check companion mode status
  * Use this in components that need to conditionally render based on companion mode
+ * Now uses the context to allow runtime override
  */
 export const useCompanionMode = () => {
-  const isCompanionMode = useMemo(() => isIOSCompanionMode(), []);
-  const canShowPurchaseFlows = useMemo(() => shouldShowPurchaseFlows(), []);
-  const canInitializePayments = useMemo(() => shouldInitializePaymentProviders(), []);
-  const canUseIAP = useMemo(() => shouldEnableIAP(), []);
+  const { isCompanionMode: isCompanionModeFromContext } = useCompanionModeContext();
+  
+  const canShowPurchaseFlows = useMemo(() => !isCompanionModeFromContext, [isCompanionModeFromContext]);
+  const canInitializePayments = useMemo(() => !isCompanionModeFromContext, [isCompanionModeFromContext]);
+  const canUseIAP = useMemo(() => !isCompanionModeFromContext, [isCompanionModeFromContext]);
   const companionMessage = useMemo(() => getCompanionModeMessage(), []);
 
   return {
-    /** True if iOS companion mode is active */
-    isCompanionMode,
+    /** True if iOS companion mode is active (considering override) */
+    isCompanionMode: isCompanionModeFromContext,
     
     /** True if purchase flows should be shown */
     canShowPurchaseFlows,

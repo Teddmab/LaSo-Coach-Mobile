@@ -15,23 +15,24 @@ export const mealTypeMap: { [key: string]: MealTypeConfig } = {
     time: 'entre 7h30-9h00'
   },
   lunch: { 
-    title: 'Déjeuner', 
+    title: 'Dejeuner', 
     icon: '🍽️', 
     bg: '#F0F8FF',
     time: 'entre 12h00-14h00'
+  },
+  snack: { 
+    title: 'Collation', 
+    icon: '🥤', 
+    bg: '#FFF9E6',
+    time: 'à 16h'
   },
   dinner: { 
     title: 'Souper', 
     icon: '🍲', 
     bg: '#FFF8DC',
-    time: 'entre 19h00-21h00'
-  },
-  snack: { 
-    title: 'Bonus', 
-    icon: '🥤', 
-    bg: '#FFF9E6',
-    time: 'Snack'
+    time: 'entre 18h00 ~ 20h00'
   }
+  
 };
 
 export const formatDate = (date: Date): string => {
@@ -46,7 +47,8 @@ export const formatDate = (date: Date): string => {
 };
 
 export const sortMealsByType = (meals: Meal[]): Meal[] => {
-  const typeOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+  // Ordre correct : Petit-Dej, Dejeuner, Collation, Souper
+  const typeOrder = ['breakfast', 'lunch', 'snack', 'dinner'];
   return [...meals].sort((a, b) => {
     return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type);
   });

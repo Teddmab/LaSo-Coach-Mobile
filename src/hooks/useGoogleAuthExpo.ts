@@ -1,11 +1,12 @@
 import { useCallback, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/FirebaseAuthContext';
+import { getGoogleAuthHostingUrl } from '../config/googleAuthHosting';
 
 // Fermer la WebView après authentification
 WebBrowser.maybeCompleteAuthSession();
@@ -91,58 +92,52 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
     try {
       setIsPrompting(true);
 
-      console.log('🚀 Lancement de l\'authentification Google via WebView (redirect URI direct)...');
+      console.log('🚀 Lancement de l\'authentification Google via Firebase Hosting...');
 
-      // Configuration OAuth Google
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-      };
+      // ✅ SOLUTION SIMPLE: Ouvrir directement la page Firebase Hosting
+      // La page Firebase Hosting gère tout le flux OAuth et redirige vers l'app via deep link
+      // L'URL est configurable dans src/config/googleAuthHosting.ts
+      const firebaseHostingUrl = getGoogleAuthHostingUrl();
+      
+      console.log(`🌐 [${Platform.OS}] Ouverture de la page Firebase Hosting:`, firebaseHostingUrl);
+      console.log('✅ La page va gérer le flux OAuth et rediriger vers l\'app');
 
-      // Utiliser le custom scheme directement pour éviter le problème de sessionStorage
-      // Le handler Firebase nécessite sessionStorage qui n'est pas accessible dans WebView
-      // On utilise donc le custom scheme et on gère l'échange du code nous-mêmes
-      const redirectUri = AuthSession.makeRedirectUri({
-        useProxy: false, // Pas de proxy
-        scheme: 'lasocoach', // Custom scheme de l'app
-        path: 'oauth', // Path pour le redirect
+      // ✅ SOLUTION: Utiliser openBrowserAsync et écouter les deep links manuellement
+      // openAuthSessionAsync ne capture pas correctement les deep links depuis une page web
+      console.log('🌐 [Google Auth] Ouverture de WebBrowser avec URL:', firebaseHostingUrl);
+      console.log('🔗 [Google Auth] Écoute des deep links: lasocoach://auth');
+      
+      // Créer une promesse pour attendre le deep link
+      let deepLinkResolve: ((url: string) => void) | null = null;
+      let deepLinkReject: ((error: Error) => void) | null = null;
+      
+      const deepLinkPromise = new Promise<string>((resolve, reject) => {
+        deepLinkResolve = resolve;
+        deepLinkReject = reject;
       });
       
-      console.log(`🌐 [${Platform.OS}] Redirect URI (custom scheme, sans Firebase handler):`, redirectUri);
-      console.log('⚠️ IMPORTANT: Ce redirect URI doit être configuré dans Google Cloud Console');
-
-      // Utiliser responseType: 'id_token' directement avec un nonce
-      // Cela évite complètement le handler Firebase qui nécessite sessionStorage
-      // Le nonce garantit la sécurité sans avoir besoin de sessionStorage
-      const nonce = await Crypto.randomUUID();
-      console.log('🔐 Nonce généré pour sécurité OAuth:', nonce.substring(0, 20) + '...');
-
-      const request = new AuthSession.AuthRequest({
-        clientId: firebaseOAuthClientIds.web,
-        scopes: ['openid', 'profile', 'email'],
-        responseType: AuthSession.ResponseType.IdToken, // Obtenir directement l'id_token
-        redirectUri: redirectUri,
-        usePKCE: false, // PKCE non compatible avec IdToken
-        extraParams: {
-          prompt: 'consent', // Forcer la sélection de compte à chaque fois
-          nonce: nonce, // CRITIQUE: Requis par Google pour responseType: IdToken (sécurité)
-        },
+      // Écouter les deep links
+      const deepLinkHandler = (event: { url: string }) => {
+        console.log('🔗 [Google Auth] Deep link reçu:', event.url);
+        if (event.url.startsWith('lasocoach://auth')) {
+          if (deepLinkResolve) {
+            deepLinkResolve(event.url);
+          }
+        }
+      };
+      
+      const linkingSubscription = Linking.addEventListener('url', deepLinkHandler);
+      
+      // Ouvrir le browser
+      const browserResult = await WebBrowser.openBrowserAsync(firebaseHostingUrl, {
+        showInRecents: true,
       });
-
-      console.log('📱 Ouverture de la WebView Google avec redirect URI direct...');
-      console.log('🔗 Redirect URI:', request.redirectUri);
-
-      // Utiliser promptAsync() sans proxy - redirect URI direct (comme version web)
-      const authResult = await request.promptAsync(discovery, {
-        useProxy: false, // Pas de proxy - redirect URI direct
-      });
-
-      console.log('📬 Résultat authentification:', authResult.type);
-      console.log('📋 Détails du résultat:', JSON.stringify(authResult, null, 2));
-
-      // Vérifier le résultat
-      if (authResult.type === 'cancel') {
+      
+      console.log('📱 [Google Auth] Browser ouvert:', browserResult.type);
+      
+      // Si l'utilisateur ferme le browser immédiatement, annuler
+      if (browserResult.type === 'cancel' || browserResult.type === 'dismiss') {
+        linkingSubscription.remove();
         console.log('ℹ️ Authentification Google annulée par l\'utilisateur');
         result = {
           user: null,
@@ -151,53 +146,68 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
         setIsPrompting(false);
         return result;
       }
-
-      // Gérer le cas "dismiss" qui arrive quand l'authentification est annulée
-      if (authResult.type === 'dismiss') {
-        console.log('ℹ️ Authentification Google dismissée par l\'utilisateur');
-        result = {
-          user: null,
-          error: null, // Pas d'erreur pour une annulation utilisateur
-        };
-        setIsPrompting(false);
-        return result;
-      }
-
-      if (authResult.type === 'error') {
-        console.error('❌ Erreur authentification Google:', authResult.error);
-        result = {
-          user: null,
-          error: authResult.error?.message || 'Erreur lors de l\'authentification Google',
-        };
-        setIsPrompting(false);
-        return result;
-      }
-
-      // Vérifier le résultat et extraire l'id_token directement
-      if (authResult.type === 'success') {
-        // Avec responseType: 'id_token', l'id_token est directement dans authResult.params
-        const idToken = authResult.params?.id_token;
+      
+      // Attendre le deep link avec un timeout
+      // Le browser reste ouvert, mais on écoute les deep links en arrière-plan
+      try {
+        const deepLinkUrl = await Promise.race([
+          deepLinkPromise,
+          new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout: Deep link non reçu dans les 60 secondes')), 60000)
+          )
+        ]);
         
-        if (idToken) {
-          console.log('✅ idToken reçu directement (sans handler Firebase):', idToken.substring(0, 50) + '...');
-          console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
+        // Fermer le browser une fois le deep link reçu
+        try {
+          await WebBrowser.dismissBrowser();
+        } catch (e) {
+          // Ignorer si le browser est déjà fermé
+        }
+        
+        linkingSubscription.remove();
+        
+        console.log('✅ [Google Auth] Deep link capturé:', deepLinkUrl);
+        
+        // Extraire l'id_token depuis le deep link
+        try {
+          const url = new URL(deepLinkUrl);
+          const idToken = url.searchParams.get('id_token');
+          const error = url.searchParams.get('error');
+          
+          if (error) {
+            console.error('❌ Erreur OAuth:', error);
+            result = {
+              user: null,
+              error: error || 'Erreur lors de l\'authentification Google',
+            };
+          } else if (idToken) {
+            console.log('✅ idToken reçu depuis Firebase Hosting:', idToken.substring(0, 50) + '...');
+            console.log(`📞 Appel ${isRegistration ? 'registerWithGoogle' : 'loginWithGoogle'}...`);
 
-          // Utiliser la fonction appropriée (login ou register) avec Firebase
-          result = await googleAuthFunction(idToken);
+            // Utiliser la fonction appropriée (login ou register) avec Firebase
+            result = await googleAuthFunction(idToken);
 
-          console.log('✅ Authentification Firebase réussie');
-        } else {
-          console.error('❌ Réponse OAuth invalide - idToken manquant:', authResult.params);
+            console.log('✅ Authentification Firebase réussie');
+          } else {
+            console.error('❌ idToken manquant dans le deep link');
+            result = {
+              user: null,
+              error: 'Token manquant. Veuillez réessayer.',
+            };
+          }
+        } catch (parseError) {
+          console.error('❌ Erreur parsing deep link:', parseError);
           result = {
             user: null,
-            error: 'Réponse OAuth invalide. Veuillez réessayer.',
+            error: 'Erreur lors du traitement de la réponse. Veuillez réessayer.',
           };
         }
-      } else {
-        console.error('❌ Réponse OAuth invalide:', authResult.type);
+      } catch (timeoutError: any) {
+        linkingSubscription.remove();
+        console.error('❌ Timeout ou erreur:', timeoutError.message);
         result = {
           user: null,
-          error: 'Réponse OAuth invalide. Veuillez réessayer.',
+          error: timeoutError.message || 'Le flux d\'authentification a pris trop de temps.',
         };
       }
 

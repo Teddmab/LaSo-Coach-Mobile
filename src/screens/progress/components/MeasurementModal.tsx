@@ -10,6 +10,8 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +25,8 @@ interface MeasurementModalProps {
   onFormChange: (form: Partial<MeasurementForm>) => void;
   onSubmit: () => void;
   onClose: () => void;
+  onPhotoSelect?: () => void;
+  isEditing?: boolean;
 }
 
 const MeasurementModal: React.FC<MeasurementModalProps> = ({
@@ -31,6 +35,8 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
   onFormChange,
   onSubmit,
   onClose,
+  onPhotoSelect,
+  isEditing = false,
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -66,7 +72,7 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Ajouter une nouvelle mesure</Text>
+              <Text style={styles.title}>{isEditing ? 'Modifier la mesure' : 'Ajouter une nouvelle mesure'}</Text>
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={handleClose}
@@ -97,7 +103,7 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Tour de taille (cm) *</Text>
+                <Text style={styles.label}>Tour de taille (cm)</Text>
                 <TextInput
                   style={styles.input}
                   value={form.waistSize}
@@ -125,6 +131,55 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
                 />
               </View>
 
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Photo de progression (optionnel)</Text>
+                <TouchableOpacity
+                  style={styles.photoSelector}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    console.log('[MeasurementModal] 📸 Photo selector pressed');
+                    console.log('[MeasurementModal] 📸 onPhotoSelect defined:', !!onPhotoSelect);
+                    console.log('[MeasurementModal] 📸 form.saving:', form.saving);
+                    if (form.saving) {
+                      console.log('[MeasurementModal] ⚠️ Form is saving, ignoring press');
+                      return;
+                    }
+                    if (onPhotoSelect) {
+                      console.log('[MeasurementModal] 📸 Calling onPhotoSelect...');
+                      onPhotoSelect();
+                    } else {
+                      console.warn('[MeasurementModal] ⚠️ onPhotoSelect is not defined');
+                      Alert.alert('Erreur', 'La fonction de sélection de photo n\'est pas disponible');
+                    }
+                  }}
+                  disabled={form.saving}
+                >
+                  {form.preview ? (
+                    <View style={styles.previewContainer}>
+                      <Image source={{ uri: form.preview }} style={styles.preview} />
+                      <TouchableOpacity
+                        style={styles.changePhotoButton}
+                        onPress={() => {
+                          console.log('[MeasurementModal] 📸 Change photo pressed, onPhotoSelect:', !!onPhotoSelect);
+                          if (onPhotoSelect) {
+                            onPhotoSelect();
+                          }
+                        }}
+                        disabled={form.saving}
+                      >
+                        <Ionicons name="camera-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.changePhotoText}>Changer la photo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.selectorPlaceholder}>
+                      <Ionicons name="camera-outline" size={48} color={theme.colors.text.secondary} />
+                      <Text style={styles.selectorText}>Sélectionner une photo</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+
               {form.error ? <Text style={styles.error}>{form.error}</Text> : null}
 
               <View style={styles.buttons}>
@@ -137,18 +192,18 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.submitButton, (form.saving || !form.weight || !form.waistSize) && styles.submitButtonDisabled]}
+                  style={[styles.submitButton, (form.saving || !form.weight) && styles.submitButtonDisabled]}
                   onPress={onSubmit}
-                  disabled={form.saving || !form.weight || !form.waistSize}
+                  disabled={form.saving || !form.weight}
                 >
                   <LinearGradient
-                    colors={(form.saving || !form.weight || !form.waistSize) ? ['#BDBDBD', '#9E9E9E'] : ['#8BC34A', '#689F38']}
+                    colors={(form.saving || !form.weight) ? ['#BDBDBD', '#9E9E9E'] : ['#8BC34A', '#689F38']}
                     style={styles.submitGradient}
                   >
                     {form.saving ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.submitText}>Ajouter</Text>
+                      <Text style={styles.submitText}>{isEditing ? 'Modifier' : 'Ajouter'}</Text>
                     )}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -283,6 +338,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  photoSelector: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    overflow: 'hidden',
+    minHeight: 150,
+  },
+  previewContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 200,
+  },
+  preview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  changePhotoButton: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  changePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectorPlaceholder: {
+    width: '100%',
+    height: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  selectorText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
   },
 });
 

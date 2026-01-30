@@ -17,6 +17,7 @@ interface DashboardLayoutProps {
   achievementsData: any;
   subscriptionData: any;
   agendaData: any[];
+  rendezvousData?: any;
   communityPosts: any[];
   agendaLoading: boolean;
   communityLoading: boolean;
@@ -50,6 +51,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   achievementsData,
   subscriptionData,
   agendaData,
+  rendezvousData,
   communityPosts,
   agendaLoading,
   communityLoading,
@@ -111,6 +113,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           achievementsData={achievementsData}
           subscriptionData={subscriptionData}
           agendaData={agendaData}
+          rendezvousData={rendezvousData}
           communityPosts={communityPosts}
           agendaLoading={agendaLoading}
           communityLoading={communityLoading}

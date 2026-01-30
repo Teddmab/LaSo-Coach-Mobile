@@ -28,7 +28,7 @@ import {
 import MobileMoneyPaymentForm, { MobileMoneyPaymentData } from './MobileMoneyPaymentForm';
 import * as mobileMoneyApi from '../services/mobileMoneyApi';
 import { usePaymentTracking } from '../context/PaymentContext';
-import { useCompanionMode } from '../hooks/useCompanionMode';
+import useCompanionMode from '../hooks/useCompanionMode';
 import api from '../services/api';
 
 // PawaPay countries configuration (same as web)

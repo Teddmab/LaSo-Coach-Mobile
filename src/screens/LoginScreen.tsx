@@ -26,6 +26,7 @@ import { validateEmail, validatePassword } from '../constants/utils';
 import { useAuth } from '../context/FirebaseAuthContext';
 import useGoogleAuthHybrid from '../hooks/useGoogleAuthHybrid';
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
+import useCompanionMode from '../hooks/useCompanionMode';
 import type { LoginScreenNavigationProp } from '../types/navigation';
 import type { RouteProp } from '@react-navigation/native';
 import HelpBottomSheet from '../components/auth/HelpBottomSheet';
@@ -113,6 +114,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     isPrompting: isGooglePrompting,
   } = useGoogleAuthHybrid(); // SDK natif sur iOS et Android
   const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
+  const { isCompanionMode } = useCompanionMode(); // Pour vérifier le mode compagnon
   
   /**
    * Handle Google login
@@ -1220,8 +1222,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                         )}
                       </TouchableOpacity>
 
-                      {/* Google Login Button - Temporairement masqué sur iOS */}
-                      {Platform.OS !== 'ios' && (
+                      {/* Google Login Button - Masqué en mode compagnon */}
+                      {!isCompanionMode && (
                         <TouchableOpacity
                           style={[styles.googleButton, loading && styles.loginButtonDisabled]}
                           onPress={handleGoogleLogin}
@@ -1413,8 +1415,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     </TouchableOpacity>
                   )}
 
-                  {/* Google Sign Up Button - Temporairement masqué sur iOS */}
-                  {currentStep < 4 && Platform.OS !== 'ios' && (
+                  {/* Google Sign Up Button - Masqué en mode compagnon */}
+                  {currentStep < 4 && !isCompanionMode && (
                     <>
                       {/* Divider */}
                       <View style={styles.dividerContainer}>

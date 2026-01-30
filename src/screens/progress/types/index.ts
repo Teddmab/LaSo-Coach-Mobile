@@ -16,6 +16,11 @@ export interface Measurement {
   notes?: string;
   createdAt: string;
   isFromPhoto?: boolean; // Flag to identify if measurement came from a progress photo
+  photoUrl?: string; // URL de la photo si elle existe
+  photoId?: string; // ID de la photo si elle existe
+  isInitial?: boolean; // Flag to identify if this is the initial measurement
+  date?: string; // Alternative date field
+  updatedAt?: string; // Alternative date field
 }
 
 export interface InitialMeasurement {
@@ -55,6 +60,8 @@ export interface MeasurementForm {
   notes: string;
   error: string;
   saving: boolean;
+  selectedPhoto?: any;
+  preview?: string | null;
 }
 
 export interface PhotoForm {

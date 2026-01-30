@@ -12,6 +12,7 @@ import ProfileStep1BottomSheet from './ProfileStep1BottomSheet';
 import ProfileStep2BottomSheet from './ProfileStep2BottomSheet';
 import ProfileStep3BottomSheet from './ProfileStep3BottomSheet';
 import ProfileStep4BottomSheet from './ProfileStep4BottomSheet';
+import RendezvousDetailBottomSheet from './RendezvousDetailBottomSheet';
 import { useAuth } from '../../context/FirebaseAuthContext';
 import Toast from 'react-native-toast-message';
 
@@ -21,13 +22,15 @@ const ProfileCompletionCard = ({
   onStepPress,
   subscriptionData,
   onRefresh,
-  dashboardData
+  dashboardData,
+  rendezvousData
 }) => {
   const { user } = useAuth();
   const [showStep1BottomSheet, setShowStep1BottomSheet] = useState(false);
   const [showStep2BottomSheet, setShowStep2BottomSheet] = useState(false);
   const [showStep3BottomSheet, setShowStep3BottomSheet] = useState(false);
   const [showStep4BottomSheet, setShowStep4BottomSheet] = useState(false);
+  const [showRendezvousDetailBottomSheet, setShowRendezvousDetailBottomSheet] = useState(false);
   // Force re-render when onboarding data changes
   React.useEffect(() => {
     // Data structure logged for debugging
@@ -119,6 +122,61 @@ const ProfileCompletionCard = ({
     return null;
   };
 
+  // ✅ MODIFICATION: Fonction pour déterminer la couleur de la carte selon l'état du rendez-vous
+  const getCardColor = () => {
+    const hasRendezvous = completedSteps.includes('rendezvous');
+    const rendezvous = rendezvousData || dashboardData?.rendezvous || dashboardData?.rendezVous || null;
+    
+    // Debug log pour vérifier les données
+    if (__DEV__) {
+      console.log('🎨 [ProfileCompletionCard] getCardColor:', {
+        hasRendezvous,
+        rendezvousExists: !!rendezvous,
+        rendezvousStatus: rendezvous?.status,
+        hasAssignedCoach: !!rendezvous?.assignedCoach,
+        assignedCoachName: rendezvous?.assignedCoach?.name,
+      });
+    }
+    
+    // Vert : Rendez-vous assigné (statut ASSIGNED/CONFIRMED ou assignedCoach existe)
+    // Vérifier aussi si le statut est une chaîne en minuscules
+    const isAssigned = rendezvous && (
+      rendezvous.status === 'ASSIGNED' || 
+      rendezvous.status === 'assigned' ||
+      rendezvous.status === 'CONFIRMED' ||
+      rendezvous.status === 'confirmed' ||
+      !!rendezvous.assignedCoach
+    );
+    
+    if (isAssigned) {
+      return {
+        backgroundColor: '#E8F5E9', // Vert clair
+        borderColor: '#4CAF50', // Vert
+        iconColor: '#4CAF50',
+        title: 'Rendez-vous assigné',
+      };
+    }
+    
+    // Jaune : Seulement à l'étape 4 quand le rendez-vous est créé mais en attente (PENDING)
+    // Les étapes 1-3 gardent la couleur par défaut (blanc)
+    if (hasRendezvous && rendezvous) {
+      return {
+        backgroundColor: '#FFF9C4', // Jaune clair
+        borderColor: '#FBC02D', // Jaune
+        iconColor: '#FBC02D',
+        title: 'Rendez-vous en attente',
+      };
+    }
+    
+    // Par défaut : Couleur blanche pour les étapes 1-3 (comportement original)
+    return {
+      backgroundColor: '#FFFFFF', // Blanc (couleur par défaut)
+      borderColor: '#E0E0E0', // Gris clair (couleur par défaut)
+      iconColor: theme.colors.text.primary, // Couleur de texte par défaut
+      title: 'Complétez votre profil',
+    };
+  };
+
   const handleCompleteProfile = () => {
     // On a toujours un plan FREE par défaut, donc pas besoin de vérifier le renouvellement
     if (onCompleteProfile) {
@@ -204,18 +262,131 @@ const ProfileCompletionCard = ({
     scrollRef.current.scrollTo({ x, animated: true });
   }, [currentActiveStep, visibleSteps.length]);
 
+  // ✅ MODIFICATION: Obtenir les couleurs dynamiques
+  const cardColors = getCardColor();
+  
+  // Vérifier si toutes les étapes sont complétées mais le rendez-vous est en attente
+  const hasRendezvous = completedSteps.includes('rendezvous');
+  const rendezvous = rendezvousData || dashboardData?.rendezvous || dashboardData?.rendezVous || null;
+  
+  // Un rendez-vous est assigné si :
+  // - Le rendez-vous existe
+  // - ET (statut ASSIGNED/CONFIRMED OU assignedCoach existe)
+  // Vérifier aussi si le statut est une chaîne en minuscules
+  const isRendezvousAssigned = rendezvous && (
+    rendezvous.status === 'ASSIGNED' || 
+    rendezvous.status === 'assigned' ||
+    rendezvous.status === 'CONFIRMED' ||
+    rendezvous.status === 'confirmed' ||
+    !!rendezvous.assignedCoach
+  );
+  
+  // Un rendez-vous est en attente si :
+  // - L'étape rendezvous est complétée (hasRendezvous)
+  // - ET le rendez-vous n'est pas assigné (soit il n'existe pas, soit il est PENDING)
+  const isRendezvousPending = hasRendezvous && !isRendezvousAssigned;
+  
+  // Si toutes les étapes sont complétées mais rendez-vous en attente, afficher un message minimal
+  const allStepsCompleted = visibleSteps.length === 0;
+  const showPendingMessage = allStepsCompleted && isRendezvousPending;
+  
+  // ✅ MODIFICATION: Si le rendez-vous est assigné, afficher un message de confirmation en vert
+  const showAssignedMessage = allStepsCompleted && isRendezvousAssigned;
+  
+  // Debug log
+  if (__DEV__) {
+    console.log('📊 [ProfileCompletionCard] Rendezvous status:', {
+      hasRendezvous,
+      rendezvousExists: !!rendezvous,
+      rendezvousStatus: rendezvous?.status,
+      hasAssignedCoach: !!rendezvous?.assignedCoach,
+      assignedCoachName: rendezvous?.assignedCoach?.name,
+      isRendezvousAssigned,
+      isRendezvousPending,
+      allStepsCompleted,
+      visibleStepsLength: visibleSteps.length,
+      showPendingMessage,
+      showAssignedMessage,
+      cardColors,
+    });
+  }
+
+  // Handler pour ouvrir le bottom sheet des détails du rendez-vous
+  const handleCardPress = () => {
+    console.log('🔵 [ProfileCompletionCard] handleCardPress called', {
+      showPendingMessage,
+      showAssignedMessage,
+      rendezvousExists: !!rendezvous,
+      rendezvous,
+    });
+    
+    // Ouvrir le bottom sheet si le rendez-vous est en attente ou assigné
+    if (showPendingMessage || showAssignedMessage) {
+      console.log('✅ [ProfileCompletionCard] Opening rendezvous detail bottom sheet');
+      setShowRendezvousDetailBottomSheet(true);
+    } else {
+      console.log('❌ [ProfileCompletionCard] Cannot open: showPendingMessage and showAssignedMessage are false');
+    }
+  };
+
   return (
-    <View style={styles.container} key={`profile-completion-${JSON.stringify(completedSteps)}`}>
+    <View 
+      style={[
+        styles.container, 
+        {
+          backgroundColor: cardColors.backgroundColor,
+          borderColor: cardColors.borderColor,
+          borderWidth: 2,
+        }
+      ]} 
+      key={`profile-completion-${JSON.stringify(completedSteps)}`}
+    >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="help-circle-outline" size={20} color={theme.colors.text.primary} />
-          <Text style={styles.title}>Complétez votre profil</Text>
+          <Ionicons name="help-circle-outline" size={20} color={cardColors.iconColor} />
+          <Text style={[styles.title, { color: cardColors.iconColor }]}>{cardColors.title}</Text>
         </View>
       </View>
 
       {/* Steps Cards - Only show incomplete steps */}
-      {visibleSteps.length > 0 ? (
+      {showAssignedMessage ? (
+        // ✅ MODIFICATION: Afficher un message de confirmation en vert quand le rendez-vous est assigné
+        <TouchableOpacity 
+          style={styles.assignedRendezvousContainer}
+          onPress={handleCardPress}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
+          <Text style={styles.assignedRendezvousText}>
+            Coach assigné avec succès !
+          </Text>
+          {rendezvous?.assignedCoach?.name && (
+            <Text style={styles.assignedRendezvousSubtext}>
+              {rendezvous.assignedCoach.name}
+            </Text>
+          )}
+          <Text style={styles.assignedRendezvousSubtext}>
+            Appuyez pour voir les détails
+          </Text>
+        </TouchableOpacity>
+      ) : showPendingMessage ? (
+        // ✅ MODIFICATION: Afficher un message minimal en jaune quand le rendez-vous est en attente
+        // PRIORITÉ: Afficher ce message AVANT de vérifier visibleSteps.length
+        <TouchableOpacity 
+          style={styles.pendingRendezvousContainer}
+          onPress={handleCardPress}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="time-outline" size={32} color="#FBC02D" />
+          <Text style={styles.pendingRendezvousText}>
+            Rendez-vous en attente
+          </Text>
+          <Text style={styles.pendingRendezvousSubtext}>
+            Appuyez pour voir les détails
+          </Text>
+        </TouchableOpacity>
+      ) : visibleSteps.length > 0 ? (
         <ScrollView 
           ref={scrollRef}
           horizontal 
@@ -306,6 +477,20 @@ const ProfileCompletionCard = ({
           <Text style={styles.totalPointsText}>{totalPoints} points offerts</Text>
         </TouchableOpacity>
       )}
+      
+      {/* ✅ MODIFICATION: Message minimal pour rendez-vous en attente */}
+      {showPendingMessage && (
+        <Text style={styles.pendingInstructionText}>
+          Votre rendez-vous est en attente d'assignation. Appuyez sur la carte pour voir les détails.
+        </Text>
+      )}
+      
+      {/* ✅ MODIFICATION: Message pour rendez-vous assigné */}
+      {showAssignedMessage && (
+        <Text style={styles.assignedInstructionText}>
+          Votre coach a été assigné avec succès. Appuyez sur la carte pour voir les détails.
+        </Text>
+      )}
 
       {/* Step Bottom Sheets */}
       <ProfileStep1BottomSheet
@@ -335,20 +520,30 @@ const ProfileCompletionCard = ({
         onComplete={() => handleStepComplete(4)}
         dashboardData={dashboardData}
       />
+      
+      {/* ✅ MODIFICATION: Bottom sheet pour afficher les détails du rendez-vous */}
+      <RendezvousDetailBottomSheet
+        visible={showRendezvousDetailBottomSheet}
+        rendezvousData={rendezvous || null}
+        onClose={() => {
+          console.log('🔴 [ProfileCompletionCard] Closing rendezvous detail bottom sheet');
+          setShowRendezvousDetailBottomSheet(false);
+        }}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    // backgroundColor et borderColor sont maintenant dynamiques (appliqués inline)
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderWidth: 2, // Augmenté à 2 pour correspondre à l'application inline
+    // borderColor sera appliqué inline dynamiquement
   },
   header: {
     flexDirection: 'row',
@@ -485,6 +680,50 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4CAF50',
     marginTop: 16,
+  },
+  pendingRendezvousContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  pendingRendezvousText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FBC02D',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  pendingRendezvousSubtext: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  pendingInstructionText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+  assignedRendezvousContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  assignedRendezvousText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4CAF50',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  assignedInstructionText: {
+    fontSize: 13,
+    color: '#4CAF50',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
 });
 

@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './src/context/FirebaseAuthContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ChatProvider } from './src/context/ChatContext';
 import { IOSSimulationProvider } from './src/context/IOSSimulationContext';
+import { CompanionModeProvider } from './src/context/CompanionModeContext';
 import { PaymentProvider } from './src/context/PaymentContext';
 // TODO: PHASE 4 - Import companion mode guard
 import { isIOSCompanionMode } from './src/config/featureFlags';
@@ -290,10 +291,12 @@ export default function App() {
           <NotificationProvider>
             <ChatProvider>
               <IOSSimulationProvider>
+                <CompanionModeProvider>
                 <PaymentProvider>
                   <NetworkStatus />
                   <AppContent />
                 </PaymentProvider>
+                </CompanionModeProvider>
               </IOSSimulationProvider>
             </ChatProvider>
           </NotificationProvider>

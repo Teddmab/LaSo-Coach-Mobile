@@ -1,24 +1,55 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ScrollView, Alert, Image } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
+import { Measurement, InitialMeasurement } from '../screens/progress/types';
 
 const screenWidth = Dimensions.get('window').width;
 const chartWidth = screenWidth - 80; // Account for card margins and padding
 
-const ProgressChart = ({ 
-  chartData, 
+interface ProgressChartProps {
+  chartData?: any[];
+  initialMeasurements?: InitialMeasurement | null;
+  measurements?: Measurement[];
+  onDataPointPress?: (data: any) => void;
+  onDeleteMeasurement?: (id?: string) => void;
+  onAddMeasurement?: () => void;
+  onEditMeasurement?: (measurement: Measurement) => void;
+  onViewHistory?: (measurement: Measurement) => void;
+  getPhotoUrl?: (photo: any) => string | null;
+}
+
+const ProgressChart: React.FC<ProgressChartProps> = ({ 
+  chartData = [], 
   initialMeasurements, 
   measurements = [],
   onDataPointPress,
   onDeleteMeasurement,
-  onAddMeasurement
+  onAddMeasurement,
+  onEditMeasurement,
+  onViewHistory,
+  getPhotoUrl
 }) => {
   const [selectedDataPoint, setSelectedDataPoint] = useState(null);
 
+  // Calculer les différences par rapport à la mesure initiale
+  const calculateDifferences = (measurement: Measurement) => {
+    if (!initialMeasurements || measurement.isInitial) return { weightDiff: null, waistDiff: null };
+    
+    const weightDiff = measurement.weight && initialMeasurements.weight
+      ? measurement.weight - initialMeasurements.weight
+      : null;
+    
+    const waistDiff = measurement.waistSize && initialMeasurements.waistSize
+      ? measurement.waistSize - initialMeasurements.waistSize
+      : null;
+    
+    return { weightDiff, waistDiff };
+  };
+
   // Format date to dd/mm/yy
-  const formatDateShort = (dateString) => {
+  const formatDateShort = (dateString: string | undefined | null): string => {
     if (!dateString) return 'N/A';
     
     const date = new Date(dateString);
@@ -50,10 +81,10 @@ const ProgressChart = ({
     }
 
     // Sort data by date
-    const sortedData = [...chartData].sort((a, b) => {
+    const sortedData = [...chartData].sort((a: any, b: any) => {
       const dateA = a.date || a.createdAt || a.updatedAt;
       const dateB = b.date || b.createdAt || b.updatedAt;
-      return new Date(dateA) - new Date(dateB);
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     });
 
     // Create labels - show only first, middle, and last for mobile
@@ -100,10 +131,10 @@ const ProgressChart = ({
     }
 
     // Sort data by date
-    const sortedData = [...chartData].sort((a, b) => {
+    const sortedData = [...chartData].sort((a: any, b: any) => {
       const dateA = a.date || a.createdAt || a.updatedAt;
       const dateB = b.date || b.createdAt || b.updatedAt;
-      return new Date(dateA) - new Date(dateB);
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     });
 
     // Create labels - show only first, middle, and last for mobile
@@ -135,7 +166,7 @@ const ProgressChart = ({
   };
 
   // Get chart configuration
-  const getChartConfig = (color) => ({
+  const getChartConfig = (color: string) => ({
     backgroundColor: '#FFFFFF',
     backgroundGradientFrom: '#FFFFFF',
     backgroundGradientTo: '#FFFFFF',
@@ -158,21 +189,21 @@ const ProgressChart = ({
   });
 
   // Get sorted measurements with initial measurement first
-  const getSortedMeasurements = () => {
+  const getSortedMeasurements = (): Measurement[] => {
     // Toujours créer une mesure initiale en première ligne avec poids et taille
-    const initialMeasurement = initialMeasurements ? {
-      ...initialMeasurements,
+    const initialMeasurement: Measurement | null = initialMeasurements ? {
+      id: 'initial',
+      weight: initialMeasurements.weight || 0,
+      waistSize: initialMeasurements.waistSize || 0,
+      createdAt: initialMeasurements.date || new Date().toISOString(),
       isInitial: true,
-      // S'assurer que le poids et la taille sont toujours présents
-      weight: initialMeasurements.weight || null,
-      waistSize: initialMeasurements.waistSize || null,
     } : null;
 
     if (!measurements || measurements.length === 0) {
       return initialMeasurement ? [initialMeasurement] : [];
     }
 
-    const allMeasurements = [...measurements];
+    const allMeasurements: Measurement[] = [...measurements];
     
     // S'assurer que la mesure initiale est toujours en première position
     // Retirer toute mesure initiale existante de la liste pour éviter les doublons
@@ -195,7 +226,7 @@ const ProgressChart = ({
       
       if (!dateA || !dateB) return 0;
       
-      return new Date(dateB) - new Date(dateA);
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
   };
 
@@ -230,7 +261,7 @@ const ProgressChart = ({
             withShadow={false}
             withScrollableDot={false}
             decorator={() => null}
-            onDataPointClick={(data) => {
+            onDataPointClick={(data: any) => {
               if (onDataPointPress) {
                 onDataPointPress(data);
               }
@@ -270,7 +301,7 @@ const ProgressChart = ({
             withShadow={false}
             withScrollableDot={false}
             decorator={() => null}
-            onDataPointClick={(data) => {
+            onDataPointClick={(data: any) => {
               if (onDataPointPress) {
                 onDataPointPress(data);
               }
@@ -285,90 +316,220 @@ const ProgressChart = ({
         )}
       </View>
 
-      {/* Recent Measurements Table */}
-      <View style={styles.measurementsSection}>
-        <View style={styles.measurementsHeader}>
-          <Text style={styles.measurementsTitle}>Mesures récentes</Text>
-        </View>
+      {/* Add Measurement Button - Input carré */}
+      <TouchableOpacity style={styles.addMeasurementInput} onPress={onAddMeasurement}>
+        <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
+        <Text style={styles.addMeasurementInputText}>Ajouter une nouvelle mesure</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// Composant séparé pour les mesures récentes
+interface RecentMeasurementsProps {
+  measurements?: Measurement[];
+  initialMeasurements?: InitialMeasurement | null;
+  onEditMeasurement?: (measurement: Measurement) => void;
+  onViewHistory?: (measurement: Measurement) => void;
+  onDeleteMeasurement?: (id?: string) => void;
+  onAddMeasurement?: () => void;
+}
+
+export const RecentMeasurements: React.FC<RecentMeasurementsProps> = ({ 
+  measurements = [],
+  initialMeasurements,
+  onEditMeasurement,
+  onViewHistory,
+  onDeleteMeasurement,
+  onAddMeasurement
+  }) => {
+  // Calculer les différences par rapport à la mesure initiale
+  const calculateDifferences = (measurement: Measurement) => {
+    if (!initialMeasurements || measurement.isInitial) return { weightDiff: null, waistDiff: null };
+    
+    const weightDiff = measurement.weight && initialMeasurements.weight
+      ? measurement.weight - initialMeasurements.weight
+      : null;
+    
+    const waistDiff = measurement.waistSize && initialMeasurements.waistSize
+      ? measurement.waistSize - initialMeasurements.waistSize
+      : null;
+    
+    return { weightDiff, waistDiff };
+  };
+
+  // Format date to dd/mm/yy
+  const formatDateShort = (dateString: string | undefined | null): string => {
+    if (!dateString) return 'N/A';
+    
+    const date = new Date(dateString);
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return 'N/A';
+    }
+    
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
+  // Sort measurements by date (most recent first)
+  const sortedMeasurements = [...measurements].sort((a: Measurement, b: Measurement) => {
+    const dateA = a.createdAt;
+    const dateB = b.createdAt;
+    return new Date(dateB).getTime() - new Date(dateA).getTime();
+  });
+
+  return (
+    <View style={styles.measurementsSection}>
+      <View style={styles.measurementsHeader}>
+        <Text style={styles.measurementsTitle}>Mesures récentes</Text>
+      </View>
         
         {sortedMeasurements.length > 0 ? (
           <ScrollView style={styles.measurementsTable} showsVerticalScrollIndicator={false}>
-            {sortedMeasurements.map((measurement, index) => (
-              <View key={index} style={styles.measurementRow}>
-                <View style={styles.measurementDate}>
-                  <Text style={[
-                    styles.measurementDateText,
-                    measurement.isInitial && styles.initialMeasurementText
-                  ]}>
-                    {formatDateShort(measurement.date || measurement.createdAt || measurement.updatedAt)}
-                  </Text>
-                  {measurement.isInitial && (
-                    <View style={styles.initialBadge}>
-                      <Text style={styles.initialBadgeText}>Initiale</Text>
+            {sortedMeasurements.map((measurement, index) => {
+              const { weightDiff, waistDiff } = calculateDifferences(measurement);
+              const hasPhoto = !!measurement.photoUrl;
+              
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.measurementCard, hasPhoto && styles.measurementCardWithPhoto]}
+                  onPress={() => {
+                    console.log('[RecentMeasurements] 🖱️ Card pressed, measurement:', measurement);
+                    console.log('[RecentMeasurements] 🖱️ onViewHistory defined:', !!onViewHistory);
+                    console.log('[RecentMeasurements] 🖱️ isInitial:', measurement.isInitial);
+                    if (onViewHistory && !measurement.isInitial) {
+                      console.log('[RecentMeasurements] 🖱️ Calling onViewHistory...');
+                      onViewHistory(measurement);
+                    } else {
+                      console.log('[RecentMeasurements] 🖱️ Not calling onViewHistory - conditions not met');
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  {/* Photo si disponible */}
+                  {hasPhoto && (
+                    <View style={styles.photoContainer}>
+                      <Image
+                        source={{ uri: measurement.photoUrl }}
+                        style={styles.measurementPhoto}
+                        resizeMode="cover"
+                      />
                     </View>
                   )}
-                </View>
-                
-                <View style={styles.measurementValues}>
-                  {/* Pour la mesure initiale, toujours afficher poids et taille même si null */}
-                  {measurement.isInitial ? (
-                    <>
-                      <View style={styles.measurementValue}>
-                        <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
-                        <Text style={styles.valueText}>
-                          {measurement.weight ? `${measurement.weight} kg` : '-'}
+                  
+                  {/* Contenu de la carte */}
+                  <View style={styles.measurementCardContent}>
+                    {/* Header avec date et actions */}
+                    <View style={styles.measurementCardHeader}>
+                      <View style={styles.dateContainer}>
+                        <Ionicons name="calendar-outline" size={14} color={theme.colors.text.secondary} />
+                        <Text style={styles.measurementCardDate}>
+                          {formatDateShort(measurement.date || measurement.createdAt || measurement.updatedAt)}
                         </Text>
                       </View>
-                      
-                      <View style={styles.measurementValue}>
-                        <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
-                        <Text style={styles.valueText}>
-                          {measurement.waistSize ? `${measurement.waistSize} cm` : '-'}
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
+                      {!measurement.isInitial && (
+                        <View style={styles.measurementActions}>
+                          <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              if (onEditMeasurement) {
+                                onEditMeasurement(measurement);
+                              }
+                            }}
+                          >
+                            <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              Alert.alert(
+                                'Supprimer la mesure',
+                                'Êtes-vous sûr de vouloir supprimer cette mesure ?',
+                                [
+                                  { text: 'Annuler', style: 'cancel' },
+                                  {
+                                    text: 'Supprimer',
+                                    style: 'destructive',
+                                    onPress: () => onDeleteMeasurement && onDeleteMeasurement(measurement.id)
+                                  }
+                                ]
+                              );
+                            }}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#F44336" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {/* Poids et taille sur une ligne */}
+                    <View style={styles.measurementValues}>
                       {measurement.weight && (
                         <View style={styles.measurementValue}>
                           <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
                           <Text style={styles.valueText}>{measurement.weight} kg</Text>
                         </View>
                       )}
-                      
                       {measurement.waistSize && (
                         <View style={styles.measurementValue}>
                           <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
                           <Text style={styles.valueText}>{measurement.waistSize} cm</Text>
                         </View>
                       )}
-                    </>
-                  )}
-                </View>
-                
-                {!measurement.isInitial && (
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => {
-                      Alert.alert(
-                        'Supprimer la mesure',
-                        'Êtes-vous sûr de vouloir supprimer cette mesure ?',
-                        [
-                          { text: 'Annuler', style: 'cancel' },
-                          {
-                            text: 'Supprimer',
-                            style: 'destructive',
-                            onPress: () => onDeleteMeasurement && onDeleteMeasurement(measurement.id)
-                          }
-                        ]
-                      );
-                    }}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#F44336" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
+                    </View>
+                    
+                    {/* Stats en pleine largeur */}
+                    {!measurement.isInitial && initialMeasurements && (weightDiff !== null || waistDiff !== null) && (
+                      <View style={styles.measurementSummary}>
+                        {weightDiff !== null && (
+                          <View style={styles.summaryRow}>
+                            <View style={styles.summaryRowContent}>
+                              <Ionicons 
+                                name={weightDiff < 0 ? "trending-down" : weightDiff > 0 ? "trending-up" : "remove"} 
+                                size={16} 
+                                color={weightDiff < 0 ? "#10B981" : weightDiff > 0 ? "#EF4444" : "#6B7280"} 
+                              />
+                              <Text style={[
+                                styles.summaryText,
+                                weightDiff < 0 && styles.summaryTextPositive,
+                                weightDiff > 0 && styles.summaryTextNegative
+                              ]}>
+                                Poids: {Math.abs(weightDiff).toFixed(1)} kg {weightDiff < 0 ? 'en moins' : weightDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                        {waistDiff !== null && (
+                          <View style={styles.summaryRow}>
+                            <View style={styles.summaryRowContent}>
+                              <Ionicons 
+                                name={waistDiff < 0 ? "trending-down" : waistDiff > 0 ? "trending-up" : "remove"} 
+                                size={16} 
+                                color={waistDiff < 0 ? "#10B981" : waistDiff > 0 ? "#EF4444" : "#6B7280"} 
+                              />
+                              <Text style={[
+                                styles.summaryText,
+                                waistDiff < 0 && styles.summaryTextPositive,
+                                waistDiff > 0 && styles.summaryTextNegative
+                              ]}>
+                                Tour de taille: {Math.abs(waistDiff).toFixed(1)} cm {waistDiff < 0 ? 'en moins' : waistDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         ) : (
           <View style={styles.emptyMeasurements}>
@@ -376,13 +537,6 @@ const ProgressChart = ({
             <Text style={styles.emptyMeasurementsText}>Aucune mesure disponible</Text>
           </View>
         )}
-        
-        {/* Add Measurement Button */}
-        <TouchableOpacity style={styles.addButton} onPress={onAddMeasurement}>
-          <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Ajouter une nouvelle mesure</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 };
@@ -446,9 +600,11 @@ const styles = StyleSheet.create({
   },
   measurementsSection: {
     marginTop: 20,
+    paddingHorizontal: 4, // Padding sur les bords
   },
   measurementsHeader: {
     marginBottom: 15,
+    paddingHorizontal: 4, // Padding pour le titre
   },
   measurementsTitle: {
     fontSize: 16,
@@ -456,47 +612,59 @@ const styles = StyleSheet.create({
     color: theme.colors.text.primary,
   },
   measurementsTable: {
-    maxHeight: 200,
+    // Pas de maxHeight pour permettre le scroll complet
+    paddingBottom: 20, // Espace en bas pour que la dernière mesure soit entièrement visible
   },
-  measurementRow: {
+  measurementCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    marginHorizontal: 0,
+    overflow: 'hidden',
+    borderWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  measurementCardWithPhoto: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 8,
   },
-  measurementDate: {
+  photoContainer: {
+    width: 100,
+    height: 100,
+  },
+  measurementPhoto: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F5F5F5',
+  },
+  measurementCardContent: {
     flex: 1,
+    padding: 16,
+  },
+  measurementCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
-  measurementDateText: {
-    fontSize: 14,
+  measurementCardDate: {
+    fontSize: 13,
+    fontWeight: '600',
     color: theme.colors.text.primary,
-    fontWeight: '500',
-  },
-  initialMeasurementText: {
-    fontWeight: '600',
-    color: '#8BC34A',
-  },
-  initialBadge: {
-    backgroundColor: '#E8F5E8',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  initialBadgeText: {
-    fontSize: 10,
-    color: '#4CAF50',
-    fontWeight: '600',
   },
   measurementValues: {
-    flex: 2,
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 10,
   },
   measurementValue: {
     flexDirection: 'row',
@@ -509,11 +677,51 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   valueText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.colors.text.primary,
-    fontWeight: '500',
   },
-  deleteButton: {
+  measurementSummary: {
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  summaryRow: {
+    marginBottom: 6,
+  },
+  summaryRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.colors.text.secondary,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  summaryTextPositive: {
+    color: '#10B981',
+  },
+  summaryTextNegative: {
+    color: '#EF4444',
+  },
+  measurementActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  actionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8F9FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewHistoryButton: {
     padding: 8,
   },
   emptyMeasurements: {
@@ -525,20 +733,25 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 8,
   },
-  addButton: {
+  addMeasurementInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#8BC34A',
-    paddingVertical: 14,
+    justifyContent: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderRadius: 12,
     marginTop: 15,
+    minHeight: 56,
   },
-  addButtonText: {
-    color: '#FFFFFF',
+  addMeasurementInputText: {
+    color: theme.colors.text.secondary,
     fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
+    fontWeight: '500',
+    marginLeft: 12,
   },
 });
 

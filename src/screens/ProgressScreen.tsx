@@ -1,20 +1,21 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
 import SubscriptionBanner from '../components/SubscriptionBanner';
-import ProgressChart from '../components/ProgressChart';
-import AchievementsCard from '../components/dashboard/AchievementsCard';
+import ProgressChart, { RecentMeasurements } from '../components/ProgressChart';
 import { ProgressScreenProps } from './progress/types';
 import { useProgressScreen } from './progress/hooks/useProgressScreen';
 import ProgressTabs from './progress/components/ProgressTabs';
 import ProgressCard from './progress/components/ProgressCard';
-import PhotosGrid from './progress/components/PhotosGrid';
 import MeasurementModal from './progress/components/MeasurementModal';
-import PhotoModal from './progress/components/PhotoModal';
+import MeasurementHistoryBottomSheet from '../components/progress/MeasurementHistoryBottomSheet';
 import { ShimmerCard } from '../components/Shimmer';
+
+const { width } = Dimensions.get('window');
 
 const ProgressScreen: React.FC<ProgressScreenProps> = ({
   user,
@@ -23,35 +24,32 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
   onFAQPress,
 }) => {
   const {
-    activeTab,
-    setActiveTab,
     profile,
     profileData,
     initialMeasurements,
     measurements,
     combinedMeasurements,
-    progressPhotos,
     subscriptionData,
     loading,
     refreshing,
     achievementsData,
     showMeasurementModal,
     setShowMeasurementModal,
-    showPhotoModal,
-    setShowPhotoModal,
+    showHistoryModal,
+    setShowHistoryModal,
     measurementForm,
     setMeasurementForm,
-    photoForm,
-    setPhotoForm,
+    editingMeasurement,
     handleRefresh,
     handleSubscriptionRenew,
     handleMeasurementSubmit,
-    handlePhotoSubmit,
     handlePhotoSelection,
+    handleEditMeasurement,
+    handleViewHistory,
     handleDeleteMeasurement,
-    handleDeletePhoto,
-    getPhotoUrl,
     getAvatarUrl,
+    getPhotoUrl,
+    progressPhotos,
     currentWeight,
     currentWaistSize,
     chartData,
@@ -101,7 +99,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           />
         }
       >
-        <ProgressTabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <ProgressTabs />
 
         <ProgressCard
           initialWeight={profile?.initialWeight ?? profile?.Profile?.initialWeight ?? null}
@@ -112,62 +110,78 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           targetWaistSize={profile?.targetWaistSize ?? profile?.Profile?.targetWaistSize ?? null}
         />
 
-        {activeTab === 'measurements' ? (
-          <>
-            <ProgressChart 
-              chartData={chartData}
-              initialMeasurements={(() => {
-                // Toujours utiliser les valeurs du profil si initialMeasurements est null ou incomplet
-                const profileInitialWeight = profile?.initialWeight ?? profile?.Profile?.initialWeight;
-                const profileInitialWaistSize = profile?.initialWaistSize ?? profile?.Profile?.initialWaistSize;
-                
-                // Si initialMeasurements existe et a des valeurs, l'utiliser
-                if (initialMeasurements && (initialMeasurements.weight || initialMeasurements.waistSize)) {
-                  return {
-                    weight: initialMeasurements.weight ?? profileInitialWeight ?? null,
-                    waistSize: initialMeasurements.waistSize ?? profileInitialWaistSize ?? null,
-                    date: initialMeasurements.date ?? profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
-                  };
-                }
-                
-                // Sinon, utiliser les valeurs du profil
-                if (profileInitialWeight || profileInitialWaistSize) {
-                  return {
-                    weight: profileInitialWeight ?? null,
-                    waistSize: profileInitialWaistSize ?? null,
-                    date: profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
-                  };
-                }
-                
-                return initialMeasurements;
-              })()}
-              measurements={combinedMeasurements as any}
-              onDataPointPress={(dataPoint: any, index: number) => {
-                console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);
-              }}
-              onDeleteMeasurement={handleDeleteMeasurement}
-              onAddMeasurement={() => setShowMeasurementModal(true)}
-            />
+        {/* Un seul onglet disponible : Mesures & Statistiques */}
+        <ProgressChart 
+          chartData={chartData}
+          initialMeasurements={(() => {
+            // Toujours utiliser les valeurs du profil si initialMeasurements est null ou incomplet
+            const profileInitialWeight = profile?.initialWeight ?? profile?.Profile?.initialWeight;
+            const profileInitialWaistSize = profile?.initialWaistSize ?? profile?.Profile?.initialWaistSize;
+            
+            // Si initialMeasurements existe et a des valeurs, l'utiliser
+            if (initialMeasurements && (initialMeasurements.weight || initialMeasurements.waistSize)) {
+              return {
+                weight: initialMeasurements.weight ?? profileInitialWeight ?? null,
+                waistSize: initialMeasurements.waistSize ?? profileInitialWaistSize ?? null,
+                date: initialMeasurements.date ?? profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
+              };
+            }
+            
+            // Sinon, utiliser les valeurs du profil
+            if (profileInitialWeight || profileInitialWaistSize) {
+              return {
+                weight: profileInitialWeight ?? null,
+                waistSize: profileInitialWaistSize ?? null,
+                date: profile?.createdAt ?? profile?.Profile?.createdAt ?? new Date().toISOString(),
+              };
+            }
+            
+            return initialMeasurements;
+          })()}
+          measurements={combinedMeasurements as any}
+          onDataPointPress={(dataPoint: any, index: number) => {
+            console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);
+          }}
+          onDeleteMeasurement={handleDeleteMeasurement}
+          onAddMeasurement={() => {
+            setShowMeasurementModal(true);
+          }}
+          onEditMeasurement={handleEditMeasurement}
+          onViewHistory={handleViewHistory}
+          getPhotoUrl={getPhotoUrl}
+        />
 
-            <AchievementsCard
-              badgesData={achievementsData}
-              onPress={() => {
-                if (onTabPress) {
-                  onTabPress('achievements');
-                }
-              }}
-              subscriptionData={subscriptionData}
-              onSubscriptionRenew={onSubscriptionRenew}
-            />
-          </>
-        ) : (
-          <PhotosGrid
-            photos={progressPhotos}
-            getPhotoUrl={getPhotoUrl}
-            onAddPhoto={() => setShowPhotoModal(true)}
-            onDeletePhoto={handleDeletePhoto}
-          />
+        {/* Photos de progression - à la place de la carte de badge */}
+        {progressPhotos && progressPhotos.length > 0 && (
+          <View style={styles.photosSection}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photosGrid}
+            >
+              {progressPhotos.map((photo) => {
+                const photoUrl = getPhotoUrl(photo);
+                if (!photoUrl) return null;
+                
+                return (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <Image source={{ uri: photoUrl }} style={styles.photoImage} resizeMode="cover" />
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
         )}
+
+        {/* Mesures récentes - en bas, en dehors du ProgressChart */}
+        <RecentMeasurements
+          measurements={combinedMeasurements}
+          initialMeasurements={initialMeasurements}
+          onEditMeasurement={handleEditMeasurement}
+          onViewHistory={handleViewHistory}
+          onDeleteMeasurement={handleDeleteMeasurement}
+          onAddMeasurement={() => setShowMeasurementModal(true)}
+        />
       </ScrollView>
 
       <MeasurementModal
@@ -175,16 +189,30 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
         form={measurementForm}
         onFormChange={(updates) => setMeasurementForm(prev => ({ ...prev, ...updates }))}
         onSubmit={handleMeasurementSubmit}
-        onClose={() => setShowMeasurementModal(false)}
+        onClose={() => {
+          setShowMeasurementModal(false);
+          setMeasurementForm({
+            weight: '',
+            waistSize: '',
+            notes: '',
+            error: '',
+            saving: false,
+            selectedPhoto: null,
+            preview: null,
+          });
+        }}
+        onPhotoSelect={handlePhotoSelection}
       />
 
-      <PhotoModal
-        visible={showPhotoModal}
-        form={photoForm}
-        onFormChange={(updates) => setPhotoForm(prev => ({ ...prev, ...updates }))}
-        onPhotoSelect={handlePhotoSelection}
-        onSubmit={handlePhotoSubmit}
-        onClose={() => setShowPhotoModal(false)}
+      <MeasurementHistoryBottomSheet
+        visible={showHistoryModal}
+        measurements={combinedMeasurements}
+        initialMeasurements={initialMeasurements}
+        onClose={() => {
+          console.log('[ProgressScreen] 🔴 Closing history modal');
+          setShowHistoryModal(false);
+        }}
+        getPhotoUrl={getPhotoUrl}
       />
     </>
   );
