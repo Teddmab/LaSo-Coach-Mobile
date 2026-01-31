@@ -42,8 +42,8 @@ const withIOSCrashFix = (config) => {
     }
 
     // S'assurer que la version est correcte (toujours mettre à jour pour correspondre à app.json)
-    // Lire depuis expo.version ou config.version (app.json)
-    const expectedVersion = config.expo?.version || config.version || '1.0.6';
+    // Lire depuis expo.ios.version (spécifique iOS) ou expo.version (global) ou config.version (app.json)
+    const expectedVersion = config.expo?.ios?.version || config.expo?.version || config.version || '1.0.7';
     if (!infoPlist.CFBundleShortVersionString || infoPlist.CFBundleShortVersionString !== expectedVersion) {
       infoPlist.CFBundleShortVersionString = expectedVersion;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleShortVersionString to: ${expectedVersion}`);
