@@ -20,6 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
       "buildNumber": "33",
+      "version": "1.0.6",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
