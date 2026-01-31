@@ -16,7 +16,7 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   onTabPress,
   activeTab,
 }) => {
-  const isCompanionMode = useCompanionMode();
+  const { isCompanionMode } = useCompanionMode();
   const [selectedTab, setSelectedTab] = useState<NotificationTab>('all');
   
   const {

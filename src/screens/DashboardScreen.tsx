@@ -157,13 +157,38 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     currentScreen,
     showMoreMenu,
     initialProfileStep,
-    handleTabPress,
+    handleTabPress: handleTabPressOriginal,
     handleMoreMenuItemPress: handleMoreMenuItemPressFromHook,
     handleMoreMenuClose,
     handleProfileStepPress,
     setCurrentScreen,
     previousScreen,
+    setActiveTab,
   } = useDashboardNavigation(undefined);
+
+  // ✅ FIX: Wrapper pour handleTabPress qui ferme l'overlay avant de changer de tab
+  const handleTabPress = useCallback((tabId: string): void => {
+    console.log('🔄 [DashboardScreen] handleTabPress:', {
+      tabId,
+      currentScreen,
+      activeTab,
+      isOnOverlay: currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen)
+    });
+    
+    // Si on est sur un overlay et on clique sur un tab du bottom navigation
+    const isOnOverlay = currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen);
+    const isBottomNavTab = ['home', 'progress', 'nutrition', 'achievements', 'more'].includes(tabId);
+    
+    if (isOnOverlay && isBottomNavTab && tabId !== 'more') {
+      console.log('✅ [DashboardScreen] Fermeture de l\'overlay avant changement de tab');
+      // Fermer l'overlay et aller directement sur le tab
+      setCurrentScreen(tabId);
+      handleTabPressOriginal(tabId);
+    } else {
+      // Comportement normal
+      handleTabPressOriginal(tabId);
+    }
+  }, [currentScreen, activeTab, handleTabPressOriginal, setCurrentScreen]);
 
   // Helper function to navigate in overlay stack - defined after setCurrentScreen is available
   const navigateOverlay = useCallback((screenName: keyof DashboardOverlayStackParamList, params?: any) => {
@@ -191,6 +216,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     
     const screenValue = screenMap[screenName] || 'home';
     
+    // ✅ FIX: Désactiver l'activeTab quand on navigue vers un overlay
+    console.log('🗺️ [DashboardScreen] navigateOverlay:', {
+      screenName,
+      screenValue,
+      willDeactivateTab: screenValue !== 'home'
+    });
+    
+    if (screenValue !== 'home') {
+      setActiveTab('');
+    }
+    
     // If Stack Navigator is already mounted, navigate directly
     if (overlayNavigationRef.current) {
       overlayNavigationRef.current.navigate(screenName as any, params);
@@ -200,7 +236,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       setPendingNavigation({ screenName, params });
       setCurrentScreen(screenValue);
     }
-  }, [setCurrentScreen]);
+  }, [setCurrentScreen, setActiveTab]);
   
   // ✅ PHASE 1: Log companion mode status for testing
   useEffect(() => {
@@ -418,14 +454,25 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
 
   // Handlers
   const handleSubscriptionRenew = async (): Promise<void> => {
+    console.log('🔔 [DashboardScreen] handleSubscriptionRenew appelé');
+    console.log('🔔 [DashboardScreen] isIOS:', isIOS);
+    console.log('🔔 [DashboardScreen] activeTab AVANT:', activeTab);
+    console.log('🔔 [DashboardScreen] navigateOverlay:', navigateOverlay);
     // Sur iOS, ne pas rediriger vers la page subscription (Reader App model)
     // Les cartes verrouillées afficheront le message de vérifier le statut
     if (isIOS) {
       // Sur iOS, on ne redirige jamais vers la page subscription
+      console.log('ℹ️ [DashboardScreen] iOS détecté - pas de redirection');
       return;
     }
     // Rediriger vers la page d'abonnement dédiée (Android uniquement)
+    console.log('✅ [DashboardScreen] Android détecté - redirection vers Subscription');
+    // ✅ FIX: Désactiver l'activeTab AVANT de naviguer
+    setActiveTab('');
+    console.log('✅ [DashboardScreen] activeTab désactivé');
     navigateOverlay('Subscription');
+    console.log('✅ [DashboardScreen] navigateOverlay(\'Subscription\') appelé');
+    console.log('✅ [DashboardScreen] activeTab APRÈS:', '');
   };
 
   const loadSubscriptionPlans = async (): Promise<void> => {
@@ -500,7 +547,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'community': 'Community',
       'chat': 'Chat',
       // ✅ iOS COMPLIANCE: Subscription removed from navigation on iOS (unless companion mode is enabled)
-      ...(companionMode ? {} : { 'subscription': 'Subscription' }),
+      ...(companionMode.isCompanionMode ? {} : { 'subscription': 'Subscription' }),
       'security': 'Security',
       'language': 'Language',
       'notification-settings': 'NotificationSettings',
@@ -511,6 +558,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       'about': 'About',
       'terms-and-policies': 'TermsAndPolicies',
     };
+    console.log('🗺️ [DashboardScreen] getOverlayRouteName:', {
+      screen,
+      isCompanionMode: companionMode.isCompanionMode,
+      hasSubscriptionRoute: !!routeMap['subscription'],
+      result: routeMap[screen] || null
+    });
     return routeMap[screen] || null;
   };
 

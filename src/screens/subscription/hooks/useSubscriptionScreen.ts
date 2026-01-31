@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavigationProp } from '@react-navigation/native';
 import SubscriptionApi from '../../../services/subscriptionApi';
 import SubscriptionService from '../../../services/subscriptionService';
@@ -18,6 +18,7 @@ export const useSubscriptionScreen = (
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [profileData, setProfileData] = useState<any>(null);
   const [showPaymentFlow, setShowPaymentFlow] = useState(false);
+  const pendingPlanRef = useRef<Plan | null>(null);
 
   const loadPlans = useCallback(async () => {
     try {
@@ -49,8 +50,13 @@ export const useSubscriptionScreen = (
   }, [loadPlans, loadSubscriptionStatus]);
 
   const handlePlanSelect = useCallback((plan: Plan) => {
+    console.log('🔄 [SubscriptionScreen] Plan selected:', plan?.id, plan?.name);
+    // Stocker le plan dans une ref pour éviter les problèmes de timing
+    pendingPlanRef.current = plan;
+    // Mettre à jour les deux états en même temps
     setSelectedPlan(plan);
     setShowPaymentFlow(true);
+    console.log('🔄 [SubscriptionScreen] States updated - showPaymentFlow: true, selectedPlan:', plan?.id);
   }, []);
 
   const handlePaymentSuccess = useCallback(async (paymentData: any) => {

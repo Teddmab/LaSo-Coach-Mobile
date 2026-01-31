@@ -67,7 +67,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
   overlayNavigationRef,
   initialRouteName = 'Home',
 }) => {
-  const isCompanionMode = useCompanionMode();
+  const { isCompanionMode } = useCompanionMode();
   // Navigation stack state - simule une pile de navigation
   // La pile commence toujours avec 'Home' pour permettre le retour
   const [navigationStack, setNavigationStack] = useState<Array<{

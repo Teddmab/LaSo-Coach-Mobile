@@ -384,7 +384,7 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
   const getMealTypeTitle = (type) => {
     switch (type) {
       case 'breakfast':
-        return 'Petit-dej';
+        return 'Petit-Déj';
       case 'lunch':
         return 'Dejeuner';
       case 'dinner':
@@ -453,8 +453,61 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
     );
   }
 
-  // On a toujours un plan FREE par défaut avec accessLevel ACTIVE
-  // Donc on ne doit jamais afficher de carte "Menus verrouillés"
+  // ✅ ANDROID: Bloquer l'accès si pas d'abonnement actif
+  // ✅ iOS: Laisser l'accès (mode compagnon)
+  const hasActiveSubscription = isIOS || 
+    subscriptionData?.status === 'ACTIVE' || 
+    subscriptionData?.hasActiveSubscription === true ||
+    (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+  
+  // Sur Android, si pas d'abonnement, afficher la carte verrouillée
+  if (Platform.OS === 'android' && !hasActiveSubscription) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
+          <Text style={styles.title}>Menu du jour</Text>
+          <Text style={styles.date}>{selectedDate.toLocaleDateString('fr-FR', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+          })}</Text>
+        </View>
+        <View style={styles.lockedContainer}>
+          <View style={styles.lockIconContainer}>
+            <Ionicons name="lock-closed" size={48} color="#FF9800" />
+          </View>
+          <Text style={styles.lockedTitle}>Menu du jour verrouillé</Text>
+          <Text style={styles.lockedMessage}>
+            Abonnez-vous pour accéder au menu du jour et débloquer tous les plans nutritionnels
+          </Text>
+          <TouchableOpacity 
+            style={styles.subscribeButton}
+            onPress={() => {
+              console.log('🔘 [NutritionCard] Bouton "Voir les plans d\'abonnement" cliqué');
+              console.log('🔘 [NutritionCard] onSubscriptionPress:', onSubscriptionPress);
+              console.log('🔘 [NutritionCard] onPress:', onPress);
+              if (onSubscriptionPress) {
+                console.log('✅ [NutritionCard] Appel de onSubscriptionPress()');
+                onSubscriptionPress();
+              } else if (onPress) {
+                console.log('⚠️ [NutritionCard] Appel de onPress() (fallback)');
+                onPress();
+              } else {
+                console.error('❌ [NutritionCard] Aucune fonction de callback disponible');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="rocket" size={20} color="#FFFFFF" />
+            <Text style={styles.subscribeButtonText}>Voir les plans d'abonnement</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+  
   // Si pas de nutritionData, ne rien afficher
   if (!nutritionData || !nutritionData.plan || !nutritionData.plan.menus || nutritionData.plan.menus.length === 0) {
     return null;
@@ -525,7 +578,7 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       <View style={styles.mealsContainer}>
         {currentMenu?.meals
           .sort((a, b) => {
-            // Ordre correct : Petit-Dej, Dejeuner, Collation, Souper
+            // Ordre correct : Petit-Déj, Dejeuner, Collation, Souper
             const order = { 
               'breakfast': 1, 
               'lunch': 2, 
@@ -932,6 +985,51 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     textAlign: 'center',
     marginTop: 4,
+  },
+  // Styles pour la carte verrouillée (Android sans abonnement)
+  lockedContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+  },
+  lockIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lockedTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  lockedMessage: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  subscribeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF9800',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  subscribeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

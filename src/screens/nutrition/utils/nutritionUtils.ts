@@ -107,19 +107,37 @@ export const generateWeekDays = (subscriptionData?: SubscriptionData | null): We
 export const calculateNutritionPlanDay = (
   selectedDate: Date,
   subscriptionData?: SubscriptionData | null,
-  currentPlan?: { numDays?: number } | null
+  currentPlan?: { numDays?: number; startDate?: string } | null,
+  profileData?: { createdAt?: string } | null
 ): number => {
-  if (!subscriptionData?.subscription?.startDate || !currentPlan?.numDays) {
+  if (!currentPlan?.numDays) {
     return 1;
   }
 
-  const startDate = new Date(subscriptionData.subscription?.startDate);
-  startDate.setHours(0, 0, 0, 0);
+  // ✅ PRIORITY LOGIC FOR REFERENCE DATE:
+  // 1. plan.startDate (nutrition plan start date) - PRIMARY SOURCE
+  // 2. subscription.startDate (subscription start date) - FALLBACK
+  // 3. profile.createdAt (user registration date) - LEGACY FALLBACK
+  // 4. Current date - LAST RESORT
+  
+  let referenceDate: Date;
+  
+  if (currentPlan.startDate) {
+    referenceDate = new Date(currentPlan.startDate);
+  } else if (subscriptionData?.subscription?.startDate) {
+    referenceDate = new Date(subscriptionData.subscription.startDate);
+  } else if (profileData?.createdAt) {
+    referenceDate = new Date(profileData.createdAt);
+  } else {
+    referenceDate = new Date();
+  }
+  
+  referenceDate.setHours(0, 0, 0, 0);
   
   const currentDate = new Date(selectedDate);
   currentDate.setHours(0, 0, 0, 0);
   
-  const daysSinceStart = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysSinceStart = Math.floor((currentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
   
   const planDay = (daysSinceStart % currentPlan.numDays) + 1;
   

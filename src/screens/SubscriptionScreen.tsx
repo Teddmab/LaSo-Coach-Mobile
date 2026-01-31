@@ -174,16 +174,39 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
         onClose={() => setShowInvoiceModal(false)}
       />
 
-      <SubscriptionPaymentFlowImproved
-        visible={showPaymentFlow && !!selectedPlan}
-        plan={selectedPlan}
-        onClose={() => {
-          setShowPaymentFlow(false);
-          setSelectedPlan(null);
-        }}
-        onSuccess={handlePaymentSuccess}
-        onError={handlePaymentError}
-      />
+      {/* Debug: Log state changes */}
+      {(() => {
+        const isVisible = showPaymentFlow && !!selectedPlan;
+        console.log('🔄 [SubscriptionScreen] Render - State check:', {
+          showPaymentFlow,
+          selectedPlan: selectedPlan?.id,
+          selectedPlanName: selectedPlan?.name,
+          hasSelectedPlan: !!selectedPlan,
+          visible: isVisible,
+          willRenderModal: showPaymentFlow && !!selectedPlan
+        });
+        
+        if (showPaymentFlow && selectedPlan) {
+          console.log('✅ [SubscriptionScreen] Modal SHOULD BE RENDERED');
+        } else {
+          console.log('❌ [SubscriptionScreen] Modal WILL NOT BE RENDERED');
+        }
+        return null;
+      })()}
+
+      {showPaymentFlow && selectedPlan ? (
+        <SubscriptionPaymentFlowImproved
+          visible={true}
+          plan={selectedPlan}
+          onClose={() => {
+            console.log('🔄 [SubscriptionScreen] Closing payment flow');
+            setShowPaymentFlow(false);
+            setSelectedPlan(null);
+          }}
+          onSuccess={handlePaymentSuccess}
+          onError={handlePaymentError}
+        />
+      ) : null}
     </FixedLayout>
   );
 };

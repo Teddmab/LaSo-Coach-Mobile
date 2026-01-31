@@ -16,6 +16,7 @@ export interface NutritionPlan {
   numDays?: number;
   menus?: Menu[];
   youtubeUrl?: string;
+  startDate?: string; // ✅ Date de début du plan nutritionnel (source principale pour calcul du jour)
 }
 
 export interface Menu {

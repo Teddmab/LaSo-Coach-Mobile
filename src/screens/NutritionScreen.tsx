@@ -13,7 +13,8 @@ import {
   Modal,
   TextInput,
   Linking,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -61,14 +62,17 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
   const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
   
+  // ✅ ANDROID: Nouveaux comptes sans abonnement actif ne doivent pas avoir accès aux plans
+  // ✅ iOS: On garde le comportement actuel (accès complet même sans abonnement)
   // Vérifier si l'utilisateur a un abonnement actif
-  // Vérifier si l'utilisateur a un plan actif (même FREE par défaut)
-  // On a toujours un plan par défaut avec accessLevel ACTIVE, donc on ne doit jamais afficher la carte "Menus verrouillés"
-  const hasActiveSubscription = (subscriptionData as any)?.status === 'ACTIVE' || 
-                                 (subscriptionData as any)?.hasActiveSubscription === true ||
-                                 ((subscriptionData as any)?.subscription?.status?.toUpperCase() === 'ACTIVE' && !(subscriptionData as any)?.isExpired) ||
-                                 (subscriptionData as any)?.accessLevel === 'ACTIVE' ||
-                                 (subscriptionData as any)?.accessLevel === 'FREE';
+  // Sur iOS (mode companion), on considère toujours qu'il y a un accès actif
+  // Sur Android, on vérifie strictement le statut de l'abonnement
+  const hasActiveSubscription = isIOS || isCompanionMode || 
+                                 ((subscriptionData as any)?.status === 'ACTIVE' && 
+                                  (subscriptionData as any)?.hasActiveSubscription === true &&
+                                  !(subscriptionData as any)?.isExpired) ||
+                                 ((subscriptionData as any)?.subscription?.status?.toUpperCase() === 'ACTIVE' && 
+                                  !(subscriptionData as any)?.isExpired);
   
   // Log pour debug
   if (__DEV__) {
@@ -350,27 +354,36 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       }
       
       // Step 2: Fetch profile and plans (conditionally based on subscription)
-      const shouldFetchPlans = subscription && 
+      // ✅ ANDROID: Nouveaux comptes sans abonnement actif ne doivent pas avoir accès aux plans
+      // ✅ iOS: On garde le comportement actuel (accès complet même sans abonnement)
+      const hasActiveSubscription = subscription && 
+        subscription.status === 'ACTIVE' && 
         subscription.status !== 'EXPIRED' && 
         subscription.status !== 'CANCELLED' && 
         subscription.status !== 'INACTIVE' &&
         !subscription.isExpired;
       
+      // Sur Android, on ne fetch les plans que si l'utilisateur a un abonnement actif
+      // Sur iOS (mode companion), on fetch toujours les plans (accès complet)
+      const shouldFetchPlans = isIOS || isCompanionMode || hasActiveSubscription;
+      
       logger.debug('Logic: Plans fetch decision', {
         subscriptionStatus: subscription?.status,
         isExpired: subscription?.isExpired,
+        hasActiveSubscription,
+        isIOS,
+        isCompanionMode,
         shouldFetchPlans,
         reason: shouldFetchPlans 
-          ? 'Subscription active - will fetch plans' 
-          : 'Subscription expired/inactive - will still fetch plans but expect empty response'
+          ? (isIOS || isCompanionMode ? 'iOS companion mode - full access' : 'Subscription active - will fetch plans')
+          : 'Android: No active subscription - will not fetch plans'
       });
       
-      // Always fetch plans (even if expired) to get fresh data, but log expected behavior
       logger.debug('API Request: Fetching profile and nutrition plans');
       console.log('🔄 [NutritionScreen] Envoi des requêtes API (profile + nutrition plans)');
       const [profileRes, plansRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
-        nutritionAPI.getPlans()
+        shouldFetchPlans ? nutritionAPI.getPlans() : Promise.resolve({ data: { plans: [] } })
       ]);
       console.log('✅ [NutritionScreen] Requêtes API terminées', {
         profileStatus: profileRes.status,
@@ -639,40 +652,67 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   };
 
   // Calculate which day in the nutrition plan cycle based on selected date
+  // ✅ FIX: Use plan.startDate as primary source (not subscription.startDate)
   const calculateNutritionPlanDay = (selectedDate: Date | number): number => {
     logger.group('📅 CALCULATE PLAN DAY');
     const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
-    logger.debug('Input: Calculating plan day for selected date', {
-      selectedDate: dateObj.toDateString(),
-      subscriptionStartDate: subscriptionData?.subscription?.startDate,
-      planNumDays: currentPlan?.numDays,
-    });
     
-    if (!subscriptionData?.subscription?.startDate || !currentPlan?.numDays) {
-      logger.warn('Missing required data for plan day calculation', {
-        hasStartDate: !!subscriptionData?.subscription?.startDate,
+    if (!currentPlan?.numDays) {
+      logger.warn('Missing plan numDays', {
         hasNumDays: !!currentPlan?.numDays,
         action: 'Returning default day 1'
       });
       logger.groupEnd();
       return 1; // Default to day 1
     }
-
-    const startDate = new Date((subscriptionData as any).subscription.startDate);
-    startDate.setHours(0, 0, 0, 0);
     
+    // ✅ PRIORITY LOGIC FOR REFERENCE DATE:
+    // 1. plan.startDate (nutrition plan start date) - PRIMARY SOURCE
+    // 2. subscription.startDate (subscription start date) - FALLBACK
+    // 3. profile.createdAt (user registration date) - LEGACY FALLBACK
+    // 4. Current date - LAST RESORT
+    
+    let referenceDate: Date;
+    let dateSource: string;
+    
+    if (currentPlan.startDate) {
+      referenceDate = new Date(currentPlan.startDate);
+      dateSource = 'plan.startDate';
+    } else if (subscriptionData?.subscription?.startDate) {
+      referenceDate = new Date(subscriptionData.subscription.startDate);
+      dateSource = 'subscription.startDate';
+    } else if (profileData?.createdAt) {
+      referenceDate = new Date(profileData.createdAt);
+      dateSource = 'profile.createdAt';
+    } else {
+      referenceDate = new Date();
+      dateSource = 'current date (fallback)';
+    }
+    
+    logger.debug('Input: Calculating plan day for selected date', {
+      selectedDate: dateObj.toDateString(),
+      planStartDate: currentPlan.startDate,
+      subscriptionStartDate: subscriptionData?.subscription?.startDate,
+      profileCreatedAt: profileData?.createdAt,
+      referenceDateUsed: referenceDate.toDateString(),
+      dateSource,
+      planNumDays: currentPlan.numDays,
+    });
+    
+    referenceDate.setHours(0, 0, 0, 0);
     const currentDate = dateObj;
     currentDate.setHours(0, 0, 0, 0);
     
-    // Calculate days since subscription started (0-indexed)
-    const daysSinceStart = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    // Calculate days since plan started (0-indexed)
+    const daysSinceStart = Math.floor((currentDate.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
     
     // Logic: Calculate which day in the plan cycle (1-indexed, repeating)
     // Example: 3-day plan cycles as 1,2,3,1,2,3...
     const planDay = (daysSinceStart % currentPlan.numDays) + 1;
     
     logger.debug('Logic: Plan day calculation', {
-      startDate: startDate.toDateString(),
+      dateSource,
+      referenceDate: referenceDate.toDateString(),
       currentDate: currentDate.toDateString(),
       daysSinceStart,
       planNumDays: currentPlan.numDays,
@@ -682,7 +722,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     
     logger.info('Plan day calculated', { 
       calendarDate: currentDate.toDateString(),
-      planDay: `${planDay}/${currentPlan.numDays}` 
+      planDay: `${planDay}/${currentPlan.numDays}`,
+      dateSource
     });
     logger.groupEnd();
     
@@ -1695,6 +1736,56 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     );
   }
 
+  // ✅ ANDROID: Afficher la carte verrouillée si pas d'abonnement actif
+  console.log('🔒 [NutritionScreen] Lock check:', {
+    platform: Platform.OS,
+    isAndroid: Platform.OS === 'android',
+    hasActiveSubscription,
+    willShowLock: Platform.OS === 'android' && !hasActiveSubscription
+  });
+  
+  if (Platform.OS === 'android' && !hasActiveSubscription) {
+    console.log('🔒 [NutritionScreen] Affichage de la carte verrouillée');
+    return (
+      <View style={[styles.content, { backgroundColor: '#F0F0F0' }]}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.lockedScrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          <View style={styles.lockedContainer}>
+            <View style={styles.lockIconContainer}>
+              <Ionicons name="lock-closed" size={64} color="#FF9800" />
+            </View>
+            <Text style={styles.lockedTitle}>Nutrition verrouillée</Text>
+            <Text style={styles.lockedMessage}>
+              Abonnez-vous pour accéder au menu du jour et débloquer tous les plans nutritionnels personnalisés
+            </Text>
+            <TouchableOpacity 
+              style={styles.subscribeButton}
+              onPress={() => {
+                console.log('🔘 [NutritionScreen] Bouton "Voir les plans d\'abonnement" cliqué');
+                console.log('🔘 [NutritionScreen] onSubscriptionRenew:', onSubscriptionRenew);
+                if (onSubscriptionRenew) {
+                  console.log('✅ [NutritionScreen] Appel de onSubscriptionRenew()');
+                  onSubscriptionRenew();
+                } else {
+                  console.error('❌ [NutritionScreen] onSubscriptionRenew est undefined');
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="rocket" size={20} color="#FFFFFF" />
+              <Text style={styles.subscribeButtonText}>Voir les plans d'abonnement</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <>
       {/* Subscription Banner supprimé - on a toujours un plan FREE par défaut */}
@@ -2478,6 +2569,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20, // Padding réduit car FixedLayout gère déjà l'espace pour la navigation
+  },
+  lockedScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100%',
   },
   sectionContainer: {
     padding: 20,
@@ -3851,6 +3948,59 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 8,
     backgroundColor: '#000000',
+  },
+  // Styles pour la carte verrouillée (Android sans abonnement)
+  lockedContainer: {
+    flex: 1,
+    width: '100%',
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 600,
+  },
+  lockIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  lockedTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  lockedMessage: {
+    fontSize: 16,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+    paddingHorizontal: 20,
+  },
+  subscribeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF9800',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  subscribeButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

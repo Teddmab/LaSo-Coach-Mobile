@@ -9,8 +9,15 @@ interface BottomNavigationProps {
   onTabPress?: (tabId: string) => void;
 }
 
-const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home', onTabPress }) => {
+const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabPress }) => {
   const insets = useSafeAreaInsets();
+  
+  // ✅ FIX: Ne pas utiliser de default value pour activeTab
+  // Si activeTab est vide (''), aucun tab ne doit être actif
+  const currentActiveTab = activeTab || null;
+  
+  // ✅ FIX: Log pour déboguer l'activeTab
+  console.log('🔵 [BottomNavigation] activeTab reçu:', activeTab, '| currentActiveTab:', currentActiveTab);
 
   const tabs = [
     { id: 'home', icon: 'home', activeIcon: 'home' },
@@ -36,15 +43,15 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab = 'home',
           key={tab.id}
           style={[
             styles.tab,
-            activeTab === tab.id && styles.activeTab
+            currentActiveTab === tab.id && styles.activeTab
           ]}
           onPress={() => onTabPress?.(tab.id)}
           activeOpacity={0.7}
         >
           <Ionicons
-            name={(activeTab === tab.id ? tab.activeIcon : tab.icon) as any}
+            name={(currentActiveTab === tab.id ? tab.activeIcon : tab.icon) as any}
             size={24}
-            color={activeTab === tab.id ? theme.colors.primary : theme.colors.text.secondary}
+            color={currentActiveTab === tab.id ? theme.colors.primary : theme.colors.text.secondary}
           />
         </TouchableOpacity>
       ))}

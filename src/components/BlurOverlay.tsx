@@ -64,8 +64,8 @@ const BlurOverlay: React.FC<BlurOverlayProps> = ({
                   style={styles.renewButton}
                   onPress={handleRenew}
                 >
-                  <Ionicons name="card" size={20} color="#FFFFFF" />
-                  <Text style={styles.renewButtonText}>Renouveler l'abonnement</Text>
+                  <Ionicons name="rocket" size={20} color="#FFFFFF" />
+                  <Text style={styles.renewButtonText}>Voir le plan d'abonnement</Text>
                 </TouchableOpacity>
               ) : null}
             </View>

@@ -347,6 +347,7 @@ class FirebaseAuthService {
         name: `${credentials.firstName} ${credentials.lastName || ''}`.trim(),
         role: 'USER',
         phone: credentials.phone,
+        platform: Platform.OS, // 'ios' or 'android'
       });
       } catch (postError: any) {
         // Améliorer la gestion d'erreur pour les erreurs réseau
@@ -450,6 +451,7 @@ class FirebaseAuthService {
       const response = await this.backendApi.post(`/${endpoint}`, {
         idToken: firebaseIdToken,
         provider: 'google',  // Optionnel, backend l'ignore
+        platform: Platform.OS, // 'ios' or 'android' - Important pour l'assignation de plan
       });
       
 

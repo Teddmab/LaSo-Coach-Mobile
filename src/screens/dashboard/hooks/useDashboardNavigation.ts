@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import useCompanionMode from '../../../hooks/useCompanionMode';
 
 export const useDashboardNavigation = (navigateOverlay?: (screenName: string, params?: any) => void) => {
-  const isCompanionMode = useCompanionMode();
+  const { isCompanionMode } = useCompanionMode();
   const [activeTab, setActiveTab] = useState<string>('home');
   const [currentScreen, setCurrentScreen] = useState<string>('home');
   const [previousScreen, setPreviousScreen] = useState<string | null>(null);
@@ -39,6 +39,8 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
         navigateOverlay(routeName as any);
       }
       setCurrentScreen(tabId);
+      // ✅ FIX: Désactiver l'activeTab quand on va sur un overlay
+      setActiveTab('');
     } else {
       // Onglets de navigation principaux
       console.log('Tab pressed:', tabId);
@@ -51,7 +53,7 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
         return tabId;
       });
     }
-  }, [navigateOverlay]);
+  }, [navigateOverlay, isCompanionMode]);
 
   const handleMoreMenuItemPress = useCallback((itemId: string): void => {
     const routeMap: Record<string, string> = {
@@ -75,6 +77,8 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
         'Settings': 'settings',
       };
       setCurrentScreen(screenMap[routeName] || itemId);
+      // ✅ FIX: Désactiver l'activeTab quand on va sur un overlay depuis le More Menu
+      setActiveTab('');
     }
     
     setShowMoreMenu(false);
@@ -103,6 +107,8 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
       return 'profile';
     });
     setInitialProfileStep(stepId);
+    // ✅ FIX: Désactiver l'activeTab quand on va sur Profile
+    setActiveTab('');
   }, []);
 
   const setCurrentScreenWithPrevious = useCallback((screen: string): void => {

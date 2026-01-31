@@ -67,9 +67,22 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   const isIOS = shouldShowIOSOnly();
 
   // Vérifier si l'utilisateur a un abonnement actif
-  const hasActiveSubscription = subscriptionData?.status === 'ACTIVE' ||
+  // Aligné avec la logique de NutritionScreen pour cohérence
+  const hasActiveSubscription = 
+    subscriptionData?.status === 'ACTIVE' ||
     subscriptionData?.hasActiveSubscription === true ||
-    (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+    subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE';
+
+  // Log pour debug
+  if (__DEV__) {
+    console.log('🏠 [DashboardContent] Vérification abonnement:', {
+      status: subscriptionData?.status,
+      hasActiveSubscription: subscriptionData?.hasActiveSubscription,
+      subscriptionStatus: subscriptionData?.subscription?.status,
+      isExpired: subscriptionData?.isExpired,
+      finalHasActive: hasActiveSubscription,
+    });
+  }
 
   // Sur Android : Si pas d'abonnement, NutritionCard affiche la carte "Menus verrouillés"
   // Sur iOS : Si pas d'abonnement, NutritionCard affiche une carte iOS spéciale (sans blur)

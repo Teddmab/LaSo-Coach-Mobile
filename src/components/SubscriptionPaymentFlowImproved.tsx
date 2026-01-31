@@ -9,13 +9,245 @@ import {
     StyleSheet,
     Platform,
     Modal,
+    KeyboardAvoidingView,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import Toast from 'react-native-toast-message';
 import SubscriptionApi from '../services/subscriptionApi';
 import { theme } from '../constants/theme';
 import api from '../services/api';
 import * as Notifications from 'expo-notifications';
+
+// Styles pour StripeWebViewModal (définis avant utilisation)
+const stripeWebViewStyles = StyleSheet.create({
+    webViewContainer: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    webViewHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        backgroundColor: '#FFFFFF',
+    },
+    webViewTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: theme.colors.text.primary,
+    },
+});
+
+// WebView Stripe - Modal séparé (déclaré avant utilisation)
+function StripeWebViewModal({
+    visible,
+    checkoutUrl,
+    sessionId,
+    planId,
+    onClose,
+    onSuccess,
+    onError,
+}: {
+    visible: boolean;
+    checkoutUrl: string | null;
+    sessionId: string | null;
+    planId: string | undefined;
+    onClose: () => void;
+    onSuccess?: (data: any) => void;
+    onError?: (error: string) => void;
+}) {
+    const [showCheckStatusButton, setShowCheckStatusButton] = React.useState(false);
+
+    // Afficher le bouton "Vérifier le statut" après 2 minutes
+    React.useEffect(() => {
+        if (!visible) {
+            setShowCheckStatusButton(false);
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setShowCheckStatusButton(true);
+            console.log('⏰ [Stripe WebView] Affichage du bouton "Vérifier le statut"');
+        }, 120000); // 2 minutes
+
+        return () => clearTimeout(timer);
+    }, [visible]);
+
+    const handleCheckStatus = async () => {
+        console.log('🔍 [Stripe WebView] Vérification manuelle du statut...');
+        try {
+            // Vérifier si le paiement est passé côté backend
+            const confirmResponse = await SubscriptionApi.confirmStripePayment({
+                sessionId: sessionId,
+                planId: planId,
+            });
+            
+            console.log('✅ [Stripe WebView] Statut vérifié:', confirmResponse);
+            
+            // Si le paiement est confirmé, déclencher le succès
+            onClose();
+            if (onSuccess) {
+                setTimeout(() => {
+                    onSuccess({
+                        planId,
+                        paymentMethod: 'stripe',
+                        sessionId,
+                    });
+                }, 300);
+            }
+        } catch (error: any) {
+            console.error('❌ [Stripe WebView] Erreur lors de la vérification:', error);
+            Toast.show({
+                type: 'error',
+                text1: 'Vérification échouée',
+                text2: error.message || 'Impossible de vérifier le statut du paiement',
+                position: 'top',
+            });
+        }
+    };
+
+    if (!visible || !checkoutUrl) return null;
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            <View style={stripeWebViewStyles.webViewContainer}>
+                <View style={stripeWebViewStyles.webViewHeader}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={stripeWebViewStyles.webViewTitle}>Paiement Stripe</Text>
+                        {showCheckStatusButton && (
+                            <Text style={{ fontSize: 11, color: theme.colors.text.secondary, marginTop: 2 }}>
+                                Paiement effectué ? Vérifiez le statut →
+                            </Text>
+                        )}
+                    </View>
+                    {showCheckStatusButton && (
+                        <TouchableOpacity 
+                            onPress={handleCheckStatus}
+                            style={{
+                                backgroundColor: theme.colors.primary,
+                                paddingHorizontal: 12,
+                                paddingVertical: 6,
+                                borderRadius: 6,
+                                marginRight: 8,
+                            }}
+                        >
+                            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>
+                                Vérifier
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={onClose}>
+                        <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+                    </TouchableOpacity>
+                </View>
+                <WebView
+                    source={{ uri: checkoutUrl }}
+                    // Intercepter les URLs AVANT qu'elles ne chargent (crucial pour custom schemes)
+                    onShouldStartLoadWithRequest={(request) => {
+                        const url = request.url;
+                        console.log('🔍 [Stripe WebView] Tentative de navigation vers:', url);
+                        
+                        // Détecter les URLs de succès
+                        if (url.includes('lasocoach://subscription-success') || 
+                            url.includes('subscription-success') || 
+                            url.includes('payment/success') ||
+                            url.includes('checkout/success')) {
+                            console.log('✅ [Stripe WebView] URL de succès détectée (interceptée)');
+                            onClose();
+                            if (onSuccess) {
+                                setTimeout(() => {
+                                    onSuccess({
+                                        planId,
+                                        paymentMethod: 'stripe',
+                                        sessionId,
+                                    });
+                                }, 300);
+                            }
+                            return false; // Empêcher le chargement de l'URL
+                        }
+                        
+                        // Détecter les URLs d'annulation
+                        if (url.includes('lasocoach://subscription-cancel') || 
+                            url.includes('subscription-cancel') ||
+                            url.includes('payment/cancel') ||
+                            url.includes('checkout/cancel')) {
+                            console.log('❌ [Stripe WebView] URL d\'annulation détectée (interceptée)');
+                            onClose();
+                            if (onError) {
+                                onError('Paiement annulé');
+                            }
+                            return false; // Empêcher le chargement de l'URL
+                        }
+                        
+                        // Autoriser les autres URLs (Stripe, etc.)
+                        return true;
+                    }}
+                    onNavigationStateChange={(navState) => {
+                        const url = navState.url;
+                        console.log('🔄 [Stripe WebView] Navigation state change:', url);
+                        
+                        // Fallback pour les URLs qui passent par onNavigationStateChange
+                        if (url.includes('lasocoach://subscription-success') || 
+                            url.includes('subscription-success') || 
+                            url.includes('payment/success') ||
+                            url.includes('checkout/success')) {
+                            console.log('✅ [Stripe WebView] URL de succès détectée (navigation)');
+                            onClose();
+                            if (onSuccess) {
+                                setTimeout(() => {
+                                    onSuccess({
+                                        planId,
+                                        paymentMethod: 'stripe',
+                                        sessionId,
+                                    });
+                                }, 300);
+                            }
+                        } else if (url.includes('lasocoach://subscription-cancel') || 
+                                   url.includes('subscription-cancel') ||
+                                   url.includes('payment/cancel') ||
+                                   url.includes('checkout/cancel')) {
+                            console.log('❌ [Stripe WebView] URL d\'annulation détectée (navigation)');
+                            onClose();
+                            if (onError) {
+                                onError('Paiement annulé');
+                            }
+                        }
+                    }}
+                    onError={(syntheticEvent) => {
+                        const errorEvent = syntheticEvent.nativeEvent;
+                        console.error('❌ [Stripe WebView] Erreur de chargement:', errorEvent);
+                        
+                        // Si l'erreur est due à une URL custom scheme (normal après succès), ignorer
+                        if (errorEvent.description?.includes('lasocoach://')) {
+                            console.log('ℹ️ [Stripe WebView] Erreur ignorée (custom scheme attendu)');
+                            return;
+                        }
+                        
+                        onClose();
+                        if (onError) {
+                            onError('Erreur lors du chargement de la page de paiement');
+                        }
+                    }}
+                    onLoadStart={() => {
+                        console.log('🔄 [Stripe WebView] Chargement de la page Stripe...');
+                    }}
+                    onLoadEnd={() => {
+                        console.log('✅ [Stripe WebView] Page Stripe chargée');
+                    }}
+                />
+            </View>
+        </Modal>
+    );
+}
 
 // Configuration PawaPay
 const PAWAPAY_COUNTRIES = [
@@ -57,11 +289,19 @@ export default function SubscriptionPaymentFlowImproved({
     onSuccess,
     onError,
 }: SubscriptionPaymentFlowProps) {
+    // Log au début du composant pour voir s'il est rendu
+    console.log('🔄🔄🔄 [PaymentFlow] ===== Component function called ===== visible:', visible, 'plan:', plan?.id, 'plan exists:', !!plan);
+    console.log('🔄 [PaymentFlow] Platform:', Platform.OS);
+    
     // États du flux
     const [currentStep, setCurrentStep] = useState(0);
+    console.log('🔄 [PaymentFlow] After useState - currentStep:', currentStep);
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    // ✅ Sélection de la méthode de paiement (Stripe ou Mobile Money)
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'stripe' | 'mobile' | null>(null);
 
     // États du formulaire Mobile Money
     const [country, setCountry] = useState(PAWAPAY_COUNTRIES[0].code);
@@ -70,6 +310,11 @@ export default function SubscriptionPaymentFlowImproved({
     const [currency, setCurrency] = useState('USD');
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
     const [loadingExchangeRate, setLoadingExchangeRate] = useState(false);
+
+    // États pour Stripe
+    const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
+    const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState<string | null>(null);
+    const [showStripeWebView, setShowStripeWebView] = useState(false);
 
     // États du paiement
     const [depositId, setDepositId] = useState<string | null>(null);
@@ -164,6 +409,13 @@ export default function SubscriptionPaymentFlowImproved({
                                 });
                             }, 1500);
                         }
+
+                        // Fermer automatiquement le modal après 3 secondes
+                        console.log('⏱️ [Mobile Money] Fermeture automatique du modal dans 3 secondes...');
+                        setTimeout(() => {
+                            console.log('✅ [Mobile Money] Fermeture automatique du modal');
+                            handleClose();
+                        }, 3000);
                     }
                 }
             } catch (err) {
@@ -189,18 +441,26 @@ export default function SubscriptionPaymentFlowImproved({
         setPhoneNumber('');
         setDepositId(null);
         setPaymentStatus(null);
+        setSelectedPaymentMethod(null);
+        setStripeSessionId(null);
+        setStripeCheckoutUrl(null);
+        setShowStripeWebView(false);
     };
 
+    // REMOVED: Reset logic was causing render issues
+    // The component will initialize with correct default states
     useEffect(() => {
-        if (visible && plan) {
-            resetFlow();
-        } else if (!visible) {
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-            }
+        console.log('🔄 [PaymentFlow] useEffect - visible:', visible, 'plan:', plan?.id);
+        if (!visible && pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
         }
-    }, [visible, plan]);
+    }, [visible]);
+
+    // Log current step changes
+    useEffect(() => {
+        console.log('🔄 [PaymentFlow] Current step changed to:', currentStep);
+    }, [currentStep]);
 
     // Nettoyer le polling au démontage
     useEffect(() => {
@@ -249,16 +509,102 @@ export default function SubscriptionPaymentFlowImproved({
             });
             return;
         }
+        console.log('🔄 [PaymentFlow] Passing from step 0 to step 1');
         setCurrentStep(1); // Aller à l'étape 1 (Méthode de paiement)
     };
 
-    // Passer à l'étape suivante depuis l'étape 1
+    // Passer à l'étape suivante depuis l'étape 1 (Mobile Money uniquement)
     const handleContinueFromPayment = () => {
+        if (selectedPaymentMethod !== 'mobile') {
+            return;
+        }
         if (!validateForm()) {
             return;
         }
         setError(null);
         setCurrentStep(2); // Aller à l'étape 2 (Récapitulatif)
+    };
+
+    // Gérer le paiement Stripe
+    const handleStripePayment = async () => {
+        if (processing || !plan?.id) {
+            console.log('⚠️ [Stripe] Conditions non remplies:', { processing, hasPlanId: !!plan?.id });
+            return;
+        }
+
+        try {
+            setProcessing(true);
+            setError(null);
+
+            console.log('🔵 [Stripe] Démarrage de la création de session');
+            console.log('🔵 [Stripe] Plan:', { id: plan.id, name: plan.name, price: plan.price });
+
+            // Créer une session de checkout Stripe via l'API backend
+            const requestData = {
+                subscriptionPlanId: plan.id,
+                amount: plan.price,
+                currency: 'usd',
+                successUrl: 'lasocoach://subscription-success',
+                cancelUrl: 'lasocoach://subscription-cancel',
+                clientType: 'mobile',
+            };
+            
+            console.log('🔵 [Stripe] Requête vers backend:', requestData);
+            const response = await api.post('/payments/create-stripe-checkout-session', requestData);
+            
+            console.log('✅ [Stripe] Réponse reçue du backend:', {
+                status: response.status,
+                hasData: !!response.data,
+                hasSuccess: response.data?.success,
+                hasCheckoutUrl: !!(response.data?.data?.checkoutUrl || response.data?.data?.url || response.data?.checkoutUrl || response.data?.url),
+                hasClientSecret: !!(response.data?.data?.clientSecret || response.data?.clientSecret),
+                fullResponse: JSON.stringify(response.data, null, 2)
+            });
+
+            // Vérifier différents formats de réponse possibles
+            // Le backend peut retourner 'checkoutUrl' ou 'url'
+            const checkoutUrl = response.data?.data?.checkoutUrl || response.data?.data?.url || response.data?.checkoutUrl || response.data?.url;
+            const sessionId = response.data?.data?.sessionId || response.data?.sessionId;
+            const clientSecret = response.data?.data?.clientSecret || response.data?.clientSecret;
+
+            if (checkoutUrl) {
+                console.log('✅ [Stripe] URL de checkout reçue, ouverture de la WebView');
+                // Ouvrir la WebView Stripe
+                setStripeCheckoutUrl(checkoutUrl);
+                setStripeSessionId(sessionId);
+                setShowStripeWebView(true);
+            } else if (clientSecret) {
+                console.log('⚠️ [Stripe] ClientSecret reçu mais SDK natif non implémenté');
+                // Si le backend retourne un clientSecret, utiliser le SDK Stripe natif
+                // (nécessite @stripe/stripe-react-native)
+                setError('Paiement Stripe natif non implémenté. Veuillez contacter le support.');
+            } else {
+                console.error('❌ [Stripe] Format de réponse invalide:', response.data);
+                setError('Impossible de créer la session de paiement Stripe. Format de réponse invalide.');
+            }
+        } catch (err: any) {
+            console.error('❌ [Stripe] Erreur lors de la création de la session:');
+            console.error('❌ [Stripe] Status:', err.response?.status);
+            console.error('❌ [Stripe] Message:', err.response?.data?.message);
+            console.error('❌ [Stripe] Data:', JSON.stringify(err.response?.data, null, 2));
+            console.error('❌ [Stripe] Full error:', err);
+            
+            const errorMessage = err.response?.data?.message || 
+                               err.response?.data?.error || 
+                               err.message || 
+                               'Erreur lors de l\'initialisation du paiement Stripe';
+            setError(errorMessage);
+            
+            // Afficher un Toast avec plus de détails
+            Toast.show({
+                type: 'error',
+                text1: 'Erreur Stripe',
+                text2: errorMessage,
+                visibilityTime: 5000,
+            });
+        } finally {
+            setProcessing(false);
+        }
     };
 
     // Confirmer le paiement
@@ -429,6 +775,14 @@ export default function SubscriptionPaymentFlowImproved({
                             });
                         }, 1500);
                     }
+
+                    // Fermer automatiquement le modal après 3 secondes
+                    console.log('⏱️ [Mobile Money] Fermeture automatique du modal dans 3 secondes...');
+                    setTimeout(() => {
+                        console.log('✅ [Mobile Money] Fermeture automatique du modal');
+                        handleClose();
+                    }, 3000);
+                    
                     return;
                 }
 
@@ -552,21 +906,172 @@ export default function SubscriptionPaymentFlowImproved({
             </View>
 
             <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={handleContinueFromInfo}
+                style={[styles.primaryButton, processing && styles.buttonDisabled]}
+                onPress={() => {
+                    console.log('🔄 [PaymentFlow] Button "Suivant" clicked, current step:', currentStep);
+                    handleContinueFromInfo();
+                }}
                 disabled={processing}
             >
-                <Text style={styles.primaryButtonText}>Suivant</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                {processing ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                    <>
+                        <Text style={styles.primaryButtonText}>Suivant</Text>
+                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                    </>
+                )}
             </TouchableOpacity>
         </ScrollView>
     );
 
-    // Étape 1: Méthode de paiement
-    const renderStep1 = () => (
-        <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionTitle}>Paiement Mobile</Text>
-            <Text style={styles.sectionSubtitle}>Sélectionnez votre opérateur et entrez votre numéro</Text>
+    // Étape 1: Sélection de la méthode de paiement puis formulaire
+    const renderStep1 = () => {
+        // Si aucune méthode n'est sélectionnée, afficher le sélecteur
+        if (!selectedPaymentMethod) {
+            return (
+                <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
+                    <Text style={styles.sectionTitle}>Choisissez votre méthode de paiement</Text>
+                    <Text style={styles.sectionSubtitle}>Sélectionnez comment vous souhaitez payer</Text>
+
+                    {/* Sélecteur Stripe */}
+                    <TouchableOpacity
+                        style={[
+                            styles.paymentMethodCard,
+                            selectedPaymentMethod === 'stripe' && styles.paymentMethodCardSelected
+                        ]}
+                        onPress={() => setSelectedPaymentMethod('stripe')}
+                        disabled={processing}
+                    >
+                        <View style={styles.paymentMethodHeader}>
+                            <View style={styles.paymentMethodIcon}>
+                                <Text style={styles.paymentMethodIconText}>💳</Text>
+                            </View>
+                            <View style={styles.paymentMethodInfo}>
+                                <Text style={styles.paymentMethodName}>Carte bancaire (Stripe)</Text>
+                                <Text style={styles.paymentMethodDesc}>Visa, Mastercard, American Express</Text>
+                            </View>
+                            {selectedPaymentMethod === 'stripe' && (
+                                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                            )}
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Sélecteur Mobile Money */}
+                    <TouchableOpacity
+                        style={[
+                            styles.paymentMethodCard,
+                            selectedPaymentMethod === 'mobile' && styles.paymentMethodCardSelected
+                        ]}
+                        onPress={() => setSelectedPaymentMethod('mobile')}
+                        disabled={processing}
+                    >
+                        <View style={styles.paymentMethodHeader}>
+                            <View style={styles.paymentMethodIcon}>
+                                <Text style={styles.paymentMethodIconText}>📱</Text>
+                            </View>
+                            <View style={styles.paymentMethodInfo}>
+                                <Text style={styles.paymentMethodName}>Paiement Mobile</Text>
+                                <Text style={styles.paymentMethodDesc}>Airtel Money, Orange Money, M-Pesa</Text>
+                            </View>
+                            {selectedPaymentMethod === 'mobile' && (
+                                <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+                            )}
+                        </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={styles.secondaryButton}
+                            onPress={() => setCurrentStep(0)}
+                            disabled={processing}
+                        >
+                            <Ionicons name="arrow-back" size={20} color={theme.colors.primary} />
+                            <Text style={styles.secondaryButtonText}>Retour</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            );
+        }
+
+        // Si Stripe est sélectionné
+        if (selectedPaymentMethod === 'stripe') {
+            return (
+                <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
+                    <View style={styles.paymentMethodHeader}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => setSelectedPaymentMethod(null)}
+                            disabled={processing}
+                        >
+                            <Ionicons name="arrow-back" size={20} color={theme.colors.primary} />
+                        </TouchableOpacity>
+                        <Text style={styles.sectionTitle}>Paiement par carte bancaire</Text>
+                    </View>
+                    <Text style={styles.sectionSubtitle}>Vous serez redirigé vers Stripe pour finaliser votre paiement</Text>
+
+                    <View style={styles.planSummaryCard}>
+                        <Text style={styles.summaryTitle}>Récapitulatif</Text>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Plan</Text>
+                            <Text style={styles.summaryValue}>{plan?.name}</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Montant</Text>
+                            <Text style={styles.summaryValue}>{plan?.price} $</Text>
+                        </View>
+                    </View>
+
+                    {error && (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="alert-circle" size={20} color={theme.colors.error} />
+                            <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={handleStripePayment}
+                        disabled={processing}
+                    >
+                        {processing ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                            <>
+                                <Text style={styles.primaryButtonText}>Payer avec Stripe</Text>
+                                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={styles.secondaryButton}
+                            onPress={() => setSelectedPaymentMethod(null)}
+                            disabled={processing}
+                        >
+                            <Ionicons name="arrow-back" size={20} color={theme.colors.primary} />
+                            <Text style={styles.secondaryButtonText}>Retour</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            );
+        }
+
+        // Si Mobile Money est sélectionné (formulaire existant)
+        return (
+            <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
+                <View style={styles.paymentMethodHeader}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => setSelectedPaymentMethod(null)}
+                        disabled={processing}
+                    >
+                        <Ionicons name="arrow-back" size={20} color={theme.colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.sectionTitle}>Paiement Mobile</Text>
+                </View>
+                <Text style={styles.sectionSubtitle}>Sélectionnez votre opérateur et entrez votre numéro</Text>
 
             {/* Pays et Opérateur */}
             <View style={styles.row}>
@@ -670,7 +1175,8 @@ export default function SubscriptionPaymentFlowImproved({
             {renderProviderPicker()}
             {renderCurrencyPicker()}
         </ScrollView>
-    );
+        );
+    };
 
     // Étape 2: Récapitulatif
     const renderStep2 = () => {
@@ -831,13 +1337,19 @@ export default function SubscriptionPaymentFlowImproved({
                                 : error || 'Une erreur est survenue lors du paiement. Veuillez réessayer.'}
                     </Text>
 
+                    {isSuccess && (
+                        <Text style={[styles.resultMessage, { fontSize: 13, color: theme.colors.text.secondary, marginTop: -8 }]}>
+                            Cette fenêtre se fermera automatiquement...
+                        </Text>
+                    )}
+
                     {isSuccess ? (
                         <TouchableOpacity
                             style={styles.primaryButton}
                             onPress={handleClose}
                         >
                             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                            <Text style={styles.primaryButtonText}>Fermer</Text>
+                            <Text style={styles.primaryButtonText}>Fermer maintenant</Text>
                         </TouchableOpacity>
                     ) : (
                         <View style={styles.buttonRow}>
@@ -986,36 +1498,170 @@ export default function SubscriptionPaymentFlowImproved({
         </Modal>
     );
 
-    if (!visible) return null;
+    // Log when modal visibility changes
+    useEffect(() => {
+        console.log('🔄 [PaymentFlow] Modal visibility changed:', visible, 'Plan:', plan?.id, plan?.name);
+        if (visible) {
+            console.log('✅ [PaymentFlow] Modal should be visible now');
+        } else {
+            console.log('❌ [PaymentFlow] Modal should be hidden');
+        }
+    }, [visible, plan]);
+
+    // Log on every render to see if component is being rendered
+    console.log('🔄 [PaymentFlow] Component render - visible:', visible, 'plan:', plan?.id, 'plan exists:', !!plan);
+
+    // Ne pas retourner null ici, laisser le Modal gérer la visibilité
+    console.log('🔄 [PaymentFlow] Checks passed, about to return JSX');
+    console.log('🔄 [PaymentFlow] visible type:', typeof visible, 'plan type:', typeof plan);
+
+    if (!visible || !plan) {
+        console.log('🔄 [PaymentFlow] Not visible or no plan, returning null');
+        return null;
+    }
+
+    console.log('✅✅✅ [PaymentFlow] RENDERING MODAL NOW ✅✅✅');
+
+    // Rendu de l'étape actuelle
+    const renderCurrentStep = () => {
+        switch (currentStep) {
+            case 0:
+                return renderStep0();
+            case 1:
+                return renderStep1();
+            case 2:
+                return renderStep2();
+            case 3:
+                return renderStep3();
+            case 4:
+                return renderStep4();
+            default:
+                return renderStep0();
+        }
+    };
 
     return (
-        <Modal
-            visible={visible}
-            transparent
-            animationType="slide"
-            onRequestClose={handleClose}
-        >
-            <View style={styles.container}>
-                <View style={styles.content}>
-                    {renderHeader()}
-                    {renderStepIndicators()}
+        <>
+            <Modal
+                visible={true}
+                transparent
+                animationType="slide"
+                onRequestClose={handleClose}
+            >
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.keyboardAvoidingView}
+                >
+                    <View style={styles.container}>
+                        {/* Backdrop avec BlurView pour fermer le modal */}
+                        <TouchableOpacity
+                            style={styles.backdropTouchable}
+                            activeOpacity={1}
+                            onPress={handleClose}
+                        >
+                            <BlurView
+                                intensity={20}
+                                tint="dark"
+                                style={styles.backdrop}
+                            />
+                        </TouchableOpacity>
+                        
+                        {/* Contenu du bottomsheet */}
+                        <View style={styles.content}>
+                            {renderHeader()}
+                            {renderStepIndicators()}
+                            {renderCurrentStep()}
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
 
-                    {currentStep === 0 && renderStep0()}
-                    {currentStep === 1 && renderStep1()}
-                    {currentStep === 2 && renderStep2()}
-                    {currentStep === 3 && renderStep3()}
-                    {currentStep === 4 && renderStep4()}
-                </View>
-            </View>
-        </Modal>
+            <StripeWebViewModal
+                visible={showStripeWebView}
+                checkoutUrl={stripeCheckoutUrl}
+                sessionId={stripeSessionId}
+                planId={plan?.id}
+                onClose={() => {
+                    console.log('🔵 [Stripe WebView] Fermeture manuelle de la WebView');
+                    setShowStripeWebView(false);
+                    setStripeCheckoutUrl(null);
+                }}
+                onSuccess={async (data) => {
+                    console.log('✅ [Stripe WebView] Succès détecté, vérification du paiement côté backend...');
+                    console.log('✅ [Stripe WebView] Data:', data);
+                    
+                    try {
+                        // Vérifier le paiement côté backend
+                        if (data.sessionId) {
+                            console.log('🔄 [Stripe] Confirmation du paiement avec sessionId:', data.sessionId);
+                            const confirmResponse = await SubscriptionApi.confirmStripePayment({
+                                sessionId: data.sessionId,
+                                planId: data.planId,
+                            });
+                            console.log('✅ [Stripe] Paiement confirmé par le backend:', confirmResponse);
+                        }
+                        
+                        // Afficher l'étape de confirmation
+                        setSuccess(true);
+                        setPaymentStatus('completed');
+                        setCurrentStep(4);
+                        
+                        // Appeler le callback onSuccess parent
+                        if (onSuccess) {
+                            onSuccess(data);
+                        }
+                        
+                        // Fermer automatiquement le modal après 3 secondes
+                        console.log('⏱️ [Stripe] Fermeture automatique du modal dans 3 secondes...');
+                        setTimeout(() => {
+                            console.log('✅ [Stripe] Fermeture automatique du modal');
+                            handleClose();
+                        }, 3000);
+                    } catch (error: any) {
+                        console.error('❌ [Stripe] Erreur lors de la confirmation du paiement:', error);
+                        // Même en cas d'erreur de confirmation, on considère que le paiement peut être réussi côté Stripe
+                        // On affiche quand même le succès mais on log l'erreur
+                        setSuccess(true);
+                        setPaymentStatus('completed');
+                        setCurrentStep(4);
+                        
+                        if (onSuccess) {
+                            onSuccess(data);
+                        }
+                        
+                        // Fermer automatiquement après 3 secondes
+                        setTimeout(() => {
+                            handleClose();
+                        }, 3000);
+                    }
+                }}
+                onError={(error) => {
+                    console.log('❌ [Stripe WebView] Erreur ou annulation détectée:', error);
+                    setError(error);
+                    setPaymentStatus('cancelled');
+                    setCurrentStep(4);
+                    if (onError) {
+                        onError(error);
+                    }
+                }}
+            />
+        </>
     );
 }
 
 const styles = StyleSheet.create({
+    keyboardAvoidingView: {
+        flex: 1,
+    },
     container: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'flex-end',
+    },
+    backdropTouchable: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    backdrop: {
+        flex: 1,
     },
     content: {
         backgroundColor: '#FFFFFF',
@@ -1024,6 +1670,11 @@ const styles = StyleSheet.create({
         maxHeight: '95%',
         minHeight: '80%',
         paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        elevation: 5,
     },
     header: {
         flexDirection: 'row',
@@ -1209,6 +1860,64 @@ const styles = StyleSheet.create({
     },
     inputError: {
         borderColor: theme.colors.error,
+    },
+    // Méthodes de paiement
+    paymentMethodCard: {
+        backgroundColor: '#F8F9FA',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 16,
+        borderWidth: 2,
+        borderColor: '#E0E0E0',
+    },
+    paymentMethodCardSelected: {
+        borderColor: theme.colors.primary,
+        backgroundColor: '#F0F7FF',
+    },
+    paymentMethodHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    paymentMethodIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    paymentMethodIconText: {
+        fontSize: 24,
+    },
+    paymentMethodInfo: {
+        flex: 1,
+    },
+    paymentMethodName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: theme.colors.text.primary,
+        marginBottom: 4,
+    },
+    paymentMethodDesc: {
+        fontSize: 14,
+        color: theme.colors.text.secondary,
+    },
+    backButton: {
+        padding: 8,
+        marginRight: 8,
+    },
+    planSummaryCard: {
+        backgroundColor: '#F8F9FA',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 24,
+    },
+    summaryTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: theme.colors.text.primary,
+        marginBottom: 16,
     },
     hint: {
         fontSize: 12,

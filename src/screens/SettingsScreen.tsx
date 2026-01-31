@@ -33,9 +33,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Les items "Abonnement & Paiement" et "Sécurité & Connexion" ne doivent pas être visibles sur iOS
   // sauf si le mode companion est désactivé (override)
   const filteredSettingsItems = useMemo(() => {
+    // Vérification directe de la plateforme iOS pour garantir le filtrage
     // isCompanionMode est true si : Platform.OS === 'ios' && IOS_COMPANION_MODE && !isOverrideEnabled
-    // Si isCompanionMode est true, on filtre les items subscription et security-connection
-    if (isCompanionMode) {
+    // On filtre aussi directement si on est sur iOS et que IOS_COMPANION_MODE est activé
+    const shouldFilter = isCompanionMode || (Platform.OS === 'ios' && IOS_COMPANION_MODE);
+    
+    if (shouldFilter) {
       const filtered = SETTINGS_ITEMS.filter(item => 
         item.id !== 'subscription' && item.id !== 'security-connection'
       );
@@ -45,6 +48,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           isIOS,
           platform: Platform.OS,
           IOS_COMPANION_MODE,
+          shouldFilter,
           originalCount: SETTINGS_ITEMS.length,
           filteredCount: filtered.length,
           subscriptionItemExists: SETTINGS_ITEMS.some(item => item.id === 'subscription'),
@@ -79,14 +83,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       onClose(itemId);
     } else if (itemId === 'subscription' && onClose) {
       // ✅ iOS COMPLIANCE: Bloquer la navigation vers subscription sur iOS (en mode compagnon)
-      if (isCompanionMode) {
+      // Vérification directe de la plateforme iOS pour garantir le blocage
+      if (isCompanionMode || (Platform.OS === 'ios' && IOS_COMPANION_MODE)) {
         console.log('🎯 [SettingsScreen] Subscription navigation blocked on iOS (companion mode)');
         return;
       }
       onClose('subscription');
     } else if (itemId === 'security-connection' && onClose) {
       // ✅ iOS COMPLIANCE: Bloquer la navigation vers security-connection sur iOS (en mode compagnon)
-      if (isCompanionMode) {
+      // Vérification directe de la plateforme iOS pour garantir le blocage
+      if (isCompanionMode || (Platform.OS === 'ios' && IOS_COMPANION_MODE)) {
         console.log('🎯 [SettingsScreen] Security-connection navigation blocked on iOS (companion mode)');
         return;
       }

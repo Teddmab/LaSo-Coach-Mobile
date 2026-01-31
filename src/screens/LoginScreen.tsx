@@ -402,7 +402,10 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
 
   /**
    * Handle final registration
-   * After successful registration, automatically activate free plan (aligned with web version)
+   * 
+   * Note: Plan assignment logic:
+   * - Android: No default plan - user must manually subscribe
+   * - iOS: Default iOS plan may be assigned by backend (companion mode)
    */
   const handleFinalRegistration = async (): Promise<void> => {
     if (!validateStep3()) {
@@ -420,10 +423,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
         role: 'USER'
       };
 
-      // Register user
+      // Register user (platform info is sent automatically by firebaseAuthService)
       await register(registrationData);
-
-      // Note: No automatic plan activation - user must manually subscribe to a plan
     } catch (error: any) {
       // Améliorer la gestion d'erreur pour mieux afficher les erreurs réseau
       let errorMessage = 'Une erreur est survenue lors de l\'inscription';
