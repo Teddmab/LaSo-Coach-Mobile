@@ -42,6 +42,7 @@ import {
   SubscriptionData,
   MealInteraction 
 } from './nutrition/types';
+import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from './nutrition/utils/dateCalculations';
 
 const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
@@ -283,9 +284,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus, currentPlan]);
   
   useEffect(() => {
-    // ✅ FIX iOS: Ne pas bloquer sur isFetchingAllData - les données peuvent être disponibles
-    // même si fetchAllData est toujours en cours (dans le finally)
-    // On vérifie juste isLoadingDayData pour éviter les appels multiples
+    // ✅ FIX: Call loadDayData when currentPlan and weekDays are ready
+    // This ensures meals load on initial page load
     if (currentPlan && subscriptionData && weekDays && weekDays.length > 0 && !isLoadingDayData) {
       console.log('🔄 [NutritionScreen] useEffect triggered - loading day data', {
         selectedDate: selectedDate instanceof Date ? selectedDate.toDateString() : selectedDate,
@@ -293,7 +293,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         currentPlanId: currentPlan.id,
         weekDaysCount: weekDays.length,
         subscriptionStatus: (subscriptionData as any)?.status,
-        isFetchingAllData, // Log pour debug mais ne bloque plus
+        trigger: 'useEffect dependency changed',
       });
       // ✅ FIX: Appeler loadDayData() immédiatement quand toutes les conditions sont remplies
       loadDayData();
@@ -306,7 +306,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           hasWeekDays: !!weekDays,
           weekDaysLength: weekDays?.length || 0,
           isLoadingDayData,
-          isFetchingAllData,
+          reason: !currentPlan ? 'No currentPlan' : 
+                  !subscriptionData ? 'No subscriptionData' :
+                  !weekDays || weekDays.length === 0 ? 'No weekDays' :
+                  isLoadingDayData ? 'Already loading' : 'Unknown'
         });
       }
     }
@@ -633,34 +636,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         subscriptionId: finalSubscriptionId,
       };
       
-      // ✅ FIX iOS: Charger les données du jour après que fetchAllData soit terminé
-      // Utiliser les variables locales loadedPlan et subscription qui sont déjà disponibles
-      // Sur iOS, weekDays peut prendre plus de temps à se recalculer, donc on augmente le délai
-      // et on réessaie plusieurs fois si nécessaire
-      if (loadedPlan && subscription) {
-        // Premier essai après 300ms (augmenté pour iOS)
-        setTimeout(() => {
-          logger.debug('🔄 [NutritionScreen] fetchAllData completed - triggering loadDayData (attempt 1)', {
-            planId: loadedPlan.id,
-            subscriptionStatus: subscription.status,
-            hasWeekDays: weekDays && weekDays.length > 0,
-          });
-          // Appeler loadDayData même si weekDays n'est pas encore disponible
-          // loadDayData vérifie déjà weekDays en interne et retourne si non disponible
-          loadDayData();
-        }, 300);
-        
-        // ✅ FIX iOS: Deuxième tentative après 800ms pour s'assurer que weekDays est recalculé
-        setTimeout(() => {
-          if (weekDays && weekDays.length > 0 && !isLoadingDayData) {
-            logger.debug('🔄 [NutritionScreen] Retry loadDayData (attempt 2)', {
-              hasWeekDays: true,
-              weekDaysLength: weekDays.length,
-            });
-            loadDayData();
-          }
-        }, 800);
-      }
+      // ✅ FIX: Don't call loadDayData() here - let the useEffect handle it
+      // The useEffect at line ~285 will trigger when currentPlan, subscriptionData, and weekDays are ready
+      // This avoids race conditions with weekDays recalculation
+      logger.debug('🔄 [NutritionScreen] fetchAllData completed - useEffect will trigger loadDayData when ready', {
+        hasPlan: !!loadedPlan,
+        hasSubscription: !!subscription,
+        message: 'Relying on useEffect to call loadDayData when all dependencies are ready'
+      });
     }
   };
 
@@ -765,36 +748,41 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       setIsLoadingDayData(true);
       logger.group('🍽️ LOAD DAY DATA');
       logger.info('Loading meals for selected day only');
-      
-      // Use the same logic as NutritionCard: find the index of selected date in weekDays
-      // This gives us a 1-based index (1, 2, 3, 4, 5, 6, 7) that corresponds to menu.day
+      ✅ NEW: Calculate actual plan day from calendar date
+      // This handles plans of any length (3-day, 7-day, 14-day, 21-day, etc.)
       const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
       selectedDateObj.setHours(0, 0, 0, 0);
       
-      // Find the index of selected date in weekDays (1-based, like NutritionCard)
-      // weekDays is generated from today + 0 to 6 days, so index 0 = today, index 1 = tomorrow, etc.
-      let menuDay = 1; // Default to day 1
-      
-      const dayIndex = weekDays.findIndex(day => {
-        const dayDate = new Date(day.date);
-        dayDate.setHours(0, 0, 0, 0);
-        return dayDate.getTime() === selectedDateObj.getTime();
-      });
-      
-      // Convert to 1-based index (like NutritionCard's selectedDay: 1, 2, 3, 4, 5, 6, 7)
-      if (dayIndex >= 0) {
-        menuDay = dayIndex + 1;
-      } else {
-        // If date not found in weekDays, calculate days since start of weekDays
-        const firstWeekDay = new Date(weekDays[0].date);
-        firstWeekDay.setHours(0, 0, 0, 0);
-        const daysDiff = Math.floor((selectedDateObj.getTime() - firstWeekDay.getTime()) / (1000 * 60 * 60 * 24));
-        menuDay = daysDiff >= 0 && daysDiff < 7 ? daysDiff + 1 : 1;
+      // Determine plan start date (from subscription or fallback to today)
+      let planStartDate = today;
+      if (subscriptionData?.subscription?.startDate) {
+        planStartDate = new Date(subscriptionData.subscription.startDate);
+        planStartDate.setHours(0, 0, 0, 0);
+      } else if (currentPlan?.startDate) {
+        planStartDate = new Date(currentPlan.startDate);
+        planStartDate.setHours(0, 0, 0, 0);
       }
       
-      console.log('🔄 [NutritionScreen] loadDayData called', {
-        selectedDate: selectedDateObj.toDateString(),
+      // Use shared utility to calculate plan day from calendar date
+      // This supports cycling plans and long plans correctly
+      const menuDay = calculatePlanDayFromDate(
+        selectedDateObj,
+        planStartDate,
+        currentPlan.numDays || 7 // Default to 7-day cycle if not specified
+      );
+      
+      // Get plan progress information for logging
+      const planProgress = getPlanProgress(
+        selectedDateObj,
+        planStartDate,
+        currentPlan.numDays || 7
+      );planStartDate: planStartDate.toDateString(),
         menuDay,
+        planProgress: {
+          daysElapsed: planProgress.daysElapsed,
+          cycleNumber: planProgress.cycleNumber,
+          progressInCycle: `${planProgress.progressInCycle}%`
+        },
         currentPlanId: currentPlan.id,
         planNumDays: currentPlan.numDays,
         menusCount: currentPlan.menus?.length || 0,
@@ -805,31 +793,34 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       
       logger.debug('Input: Day selection parameters', {
         selectedDate: selectedDateObj.toDateString(),
-        dayIndex,
-        menuDay,
-        currentPlan: {
-          id: currentPlan.id,
-          name: currentPlan.name,
-          numDays: currentPlan.numDays,
-          menusCount: currentPlan.menus?.length || 0,
-        }
-      });
-      
-      // Logic: Get meals for selected day (using direct menu.day match like NutritionCard)
-      logger.debug('Logic: Finding menu for menu day', {
+        planStartDate: planStartDate.toDateString(),
+        calculatedMenuDay: menuDay,
+        daysElapsed: planProgress.daysElapsed,
+        cycleNumber: planProgress.cycleNumber
+      ✅ NEW: Use shared utility to find menu for the calculated plan day
+      // This ensures consistency with NutritionCard and handles all plan lengths
+      logger.debug('Logic: Finding menu for calculated plan day', {
         menuDay,
         availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
-        searchCriteria: `menu.day === ${menuDay}`
+        planNumDays: currentPlan.numDays,
+        note: 'Using shared utility function for consistency'
       });
       
-      // Try to find menu with menuDay, if not found, use modulo to cycle through plan days
-      // This handles cases where plan has fewer days than 7 (e.g., 3-day plan)
-      let dayMenu = currentPlan.menus?.find((menu: any) => menu.day === menuDay);
+      // Use shared utility for consistent menu finding logic
+      const dayMenu = findMenuForPlanDay(currentPlan.menus, menuDay);
       
-      // If not found and plan has numDays, use modulo to find the correct day in the cycle
-      if (!dayMenu && currentPlan.numDays && currentPlan.menus && currentPlan.menus.length > 0) {
-        const cycleDay = ((menuDay - 1) % currentPlan.numDays) + 1;
-        dayMenu = currentPlan.menus.find((menu: any) => menu.day === cycleDay);
+      if (dayMenu) {
+        console.log('✅ [NutritionScreen] Menu found', {
+          requestedPlanDay: menuDay,
+          foundMenuDay: dayMenu.day,
+          mealsCount: dayMenu.meals?.length || 0,
+          isExactMatch: dayMenu.day === menuDay,
+          isFallback: dayMenu.day !== menuDay
+        });
+      } else {
+        console.log('⚠️ [NutritionScreen] No menu found', {
+          requestedPlanDay: menuDay,
+          availableMenus: currentPlan.menus?.length || 0d((menu: any) => menu.day === cycleDay);
         console.log('🔄 [NutritionScreen] Menu not found for menuDay, trying cycleDay', {
           menuDay,
           cycleDay,
@@ -1957,15 +1948,15 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
               subscriptionStatus: subscriptionData?.status,
               subscriptionDataKeys: subscriptionData ? Object.keys(subscriptionData) : [],
               plansResponseStatus,
-              willShowMeals: plansResponseStatus === 200 || (currentPlan && hasActiveSubscription),
-              willShowLockCard: (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200,
               dayMealsCount: dayMeals.length,
+              willShowMeals: plansResponseStatus === 200 || (currentPlan && hasActiveSubscription) || dayMeals.length > 0,
+              willShowLockCard: (!currentPlan || !hasActiveSubscription) && plansResponseStatus !== 200,
             });
           }
           return null;
         })()}
-        {/* Meals List - Show when status is 200 OR when there's an active plan AND active subscription */}
-        {(plansResponseStatus === 200 || (currentPlan && hasActiveSubscription)) && (
+        {/* Meals List - Show when status is 200 OR when there's an active plan AND active subscription OR when we have meals data */}
+        {(plansResponseStatus === 200 || (currentPlan && hasActiveSubscription) || dayMeals.length > 0) && (
           <View style={styles.mealsContainer}>
             {/* Selected Day's Meals */}
             {dayMeals.length > 0 ? (

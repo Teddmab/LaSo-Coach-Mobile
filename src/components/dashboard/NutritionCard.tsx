@@ -19,6 +19,7 @@ import { useAuth } from '../../context/FirebaseAuthContext';
 import ImagePersistent from '../ImagePersistent';
 import imageCache from '../../utils/imageCache';
 import { mealTypeMap } from '../../screens/nutrition/utils/nutritionUtils';
+import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from '../../screens/nutrition/utils/dateCalculations';
 
 const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
@@ -28,6 +29,9 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(1);
+  
+  // ✅ NEW: Track plan start date for accurate plan day calculation
+  const [planStartDate, setPlanStartDate] = useState(null);
 
   // Generate dates for the week
   const generateWeekDates = () => {
@@ -310,6 +314,24 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
           };
           
           setNutritionData(nutritionData);
+          
+          // ✅ NEW: Store plan start date for accurate plan day calculation
+          // Try to get from subscription data, or fallback to today
+          const startDate = subscriptionData?.subscription?.startDate 
+            ? new Date(subscriptionData.subscription.startDate)
+            : currentPlan?.startDate 
+            ? new Date(currentPlan.startDate)
+            : new Date();
+          startDate.setHours(0, 0, 0, 0);
+          setPlanStartDate(startDate);
+          
+          if (__DEV__) {
+            console.log('✅ [NutritionCard] Plan start date set:', {
+              planStartDate: startDate.toDateString(),
+              source: subscriptionData?.subscription?.startDate ? 'subscription' : 
+                      currentPlan?.startDate ? 'plan' : 'today (fallback)'
+            });
+          }
         } catch (completionError) {
           // Use plan data without completion status
           const nutritionData = {
@@ -323,6 +345,15 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
             }
           };
           setNutritionData(nutritionData);
+          
+          // ✅ NEW: Store plan start date even when completion fetch fails
+          const startDate = subscriptionData?.subscription?.startDate 
+            ? new Date(subscriptionData.subscription.startDate)
+            : currentPlan?.startDate 
+            ? new Date(currentPlan.startDate)
+            : new Date();
+          startDate.setHours(0, 0, 0, 0);
+          setPlanStartDate(startDate);
           
           if (__DEV__) {
             console.log('✅ [NutritionCard] NutritionData défini avec succès');
@@ -513,8 +544,48 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
     return null;
   }
 
-  // Get the menu for the selected day (1-based index)
-  const currentMenu = nutritionData.plan.menus.find(menu => menu.day === selectedDay) || nutritionData.plan.menus[0];
+  // ✅ NEW: Calculate actual plan day from selected calendar date
+  // This ensures NutritionCard shows the same meals as NutritionScreen
+  const selectedDateObj = weekDates[selectedDay - 1]; // selectedDay is 1-based
+  
+  // Use shared utility to calculate plan day (handles all plan lengths)
+  const menuDay = planStartDate && nutritionData.plan?.numDays
+    ? calculatePlanDayFromDate(
+        selectedDateObj,
+        planStartDate,
+        nutritionData.plan.numDays
+      )
+    : selectedDay; // Fallback to simple day index if no plan info
+  
+  // Use shared utility to find menu (consistent with NutritionScreen)
+  const currentMenu = findMenuForPlanDay(nutritionData.plan.menus, menuDay) || nutritionData.plan.menus[0];
+  
+  // Get plan progress information for potential display
+  const planProgress = planStartDate && nutritionData.plan?.numDays
+    ? getPlanProgress(
+        selectedDateObj,
+        planStartDate,
+        nutritionData.plan.numDays
+      )
+    : null;
+  
+  if (__DEV__) {
+    console.log('🍽️ [NutritionCard] Menu selection', {
+      selectedDay,
+      selectedDate: selectedDateObj?.toDateString(),
+      planStartDate: planStartDate?.toDateString(),
+      planNumDays: nutritionData.plan?.numDays,
+      calculatedMenuDay: menuDay,
+      foundMenuDay: currentMenu?.day,
+      isExactMatch: currentMenu?.day === menuDay,
+      planProgress: planProgress ? {
+        daysElapsed: planProgress.daysElapsed,
+        cycleNumber: planProgress.cycleNumber,
+        progressInCycle: `${planProgress.progressInCycle}%`
+      } : 'N/A'
+    });
+  }
+
   const { completionStatus } = nutritionData;
 
   // Check if selected date is today
@@ -531,6 +602,13 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       <View style={styles.header}>
         <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
         <Text style={styles.title}>Menu du jour</Text>
+        {planProgress && nutritionData.plan.numDays > 7 && (
+          <View style={styles.planDayBadge}>
+            <Text style={styles.planDayBadgeText}>
+              Jour {menuDay}/{nutritionData.plan.numDays}
+            </Text>
+          </View>
+        )}
         <Text style={styles.date}>{selectedDate.toLocaleDateString('fr-FR', { 
           weekday: 'long', 
           day: 'numeric', 
@@ -681,6 +759,18 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 14,
     color: theme.colors.text.secondary,
+  },
+  planDayBadge: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginHorizontal: 8,
+  },
+  planDayBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1976D2',
   },
   phaseBanner: {
     backgroundColor: '#E3F2FD',
