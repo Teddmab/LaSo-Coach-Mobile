@@ -283,14 +283,17 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus, currentPlan]);
   
   useEffect(() => {
-    // Wait for all required data to be available
-    if (currentPlan && subscriptionData && weekDays && weekDays.length > 0 && !isLoadingDayData && !isFetchingAllData) {
+    // ✅ FIX iOS: Ne pas bloquer sur isFetchingAllData - les données peuvent être disponibles
+    // même si fetchAllData est toujours en cours (dans le finally)
+    // On vérifie juste isLoadingDayData pour éviter les appels multiples
+    if (currentPlan && subscriptionData && weekDays && weekDays.length > 0 && !isLoadingDayData) {
       console.log('🔄 [NutritionScreen] useEffect triggered - loading day data', {
         selectedDate: selectedDate instanceof Date ? selectedDate.toDateString() : selectedDate,
         selectedDateKey,
         currentPlanId: currentPlan.id,
         weekDaysCount: weekDays.length,
         subscriptionStatus: (subscriptionData as any)?.status,
+        isFetchingAllData, // Log pour debug mais ne bloque plus
       });
       // ✅ FIX: Appeler loadDayData() immédiatement quand toutes les conditions sont remplies
       loadDayData();
@@ -630,23 +633,33 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         subscriptionId: finalSubscriptionId,
       };
       
-      // ✅ FIX: Charger les données du jour après que fetchAllData soit terminé
+      // ✅ FIX iOS: Charger les données du jour après que fetchAllData soit terminé
       // Utiliser les variables locales loadedPlan et subscription qui sont déjà disponibles
-      // setTimeout pour s'assurer que les setState sont appliqués et que weekDays est recalculé
+      // Sur iOS, weekDays peut prendre plus de temps à se recalculer, donc on augmente le délai
+      // et on réessaie plusieurs fois si nécessaire
       if (loadedPlan && subscription) {
+        // Premier essai après 300ms (augmenté pour iOS)
         setTimeout(() => {
-          logger.debug('🔄 [NutritionScreen] fetchAllData completed - triggering loadDayData', {
+          logger.debug('🔄 [NutritionScreen] fetchAllData completed - triggering loadDayData (attempt 1)', {
             planId: loadedPlan.id,
             subscriptionStatus: subscription.status,
             hasWeekDays: weekDays && weekDays.length > 0,
           });
-          // Vérifier que weekDays est disponible avant d'appeler loadDayData
-          if (weekDays && weekDays.length > 0) {
+          // Appeler loadDayData même si weekDays n'est pas encore disponible
+          // loadDayData vérifie déjà weekDays en interne et retourne si non disponible
+          loadDayData();
+        }, 300);
+        
+        // ✅ FIX iOS: Deuxième tentative après 800ms pour s'assurer que weekDays est recalculé
+        setTimeout(() => {
+          if (weekDays && weekDays.length > 0 && !isLoadingDayData) {
+            logger.debug('🔄 [NutritionScreen] Retry loadDayData (attempt 2)', {
+              hasWeekDays: true,
+              weekDaysLength: weekDays.length,
+            });
             loadDayData();
-          } else {
-            logger.warn('⚠️ [NutritionScreen] weekDays not yet available, will retry via useEffect');
           }
-        }, 200);
+        }, 800);
       }
     }
   };

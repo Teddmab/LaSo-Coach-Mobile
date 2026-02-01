@@ -13,9 +13,11 @@ const AgendaScreen: React.FC<AgendaScreenProps> = ({
   onTabPress,
   activeTab,
 }) => {
-  const [selectedYear, setSelectedYear] = useState<number>(2025);
-  const [selectedMonth, setSelectedMonth] = useState<number>(7); // July = 7
-  const [selectedDate, setSelectedDate] = useState<number>(18);
+  // Utiliser la date actuelle au lieu d'une date hardcodée
+  const today = new Date();
+  const [selectedYear, setSelectedYear] = useState<number>(today.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number>(today.getMonth() + 1); // getMonth() retourne 0-11
+  const [selectedDate, setSelectedDate] = useState<number>(today.getDate());
 
   const {
     rendezvousLoading,
