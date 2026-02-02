@@ -35,8 +35,8 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, hasActivePaidPlan,
 
   // Couleurs personnalisées selon la demande utilisateur
   // Plan annuel : fond orange clair, bouton orange vif
-  // Plan mensuel : fond bleu (défaut), bouton blanc
-  const cardBackgroundColor = isAnnual ? '#FFB74D' : (getPlanBackgroundColor(plan.name) || '#2196F3');
+  // Plan mensuel : fond #aece2e (vert/jaune), bouton blanc
+  const cardBackgroundColor = isAnnual ? '#FFB74D' : (getPlanBackgroundColor(plan.name) || '#aece2e');
   const buttonBackgroundColor = isAnnual ? '#E65100' : '#FFFFFF'; // Orange vif pour annuel, Blanc pour mensuel
   const buttonTextColor = isAnnual ? '#FFFFFF' : cardBackgroundColor;
 

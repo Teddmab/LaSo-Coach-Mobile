@@ -31,6 +31,7 @@ import { useAuth } from '../context/FirebaseAuthContext';
 import ProfileInformationsSection from '../components/profile/ProfileInformationsSection';
 import ProfileRendezvousSection from '../components/profile/ProfileRendezvousSection';
 import ProfileOtherInfosSection from '../components/profile/ProfileOtherInfosSection';
+import ProfileStep4BottomSheet from '../components/dashboard/ProfileStep4BottomSheet';
 // Preload OnboardingAccordion at module level for instant availability
 import OnboardingAccordion from '../components/profile/OnboardingAccordion';
 // Preload DashboardService at module level for instant availability
@@ -66,6 +67,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   const [selectedAvatarImage, setSelectedAvatarImage] = useState<string | null>(null);
   const [rendezvousData, setRendezvousData] = useState(null);
   const [rendezvousLoading, setRendezvousLoading] = useState(true);
+  const [showRendezvousBottomSheet, setShowRendezvousBottomSheet] = useState(false);
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
   const [durationOptions] = useState(['30 minutes', '60 minutes', '90 minutes']);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
@@ -1074,46 +1076,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
   };
 
   const handleRescheduleAppointment = () => {
-    console.log('📅 handleRescheduleAppointment called');
-    console.log('📅 Current showBookingForm:', showBookingForm);
-    console.log('📅 Current showAppointmentModal:', showAppointmentModal);
-    console.log('📅 Current showSaveModal:', showSaveModal);
-    console.log('📅 Current showObjectivesModal:', showObjectivesModal);
-    console.log('📅 Current showRecommendationsModal:', showRecommendationsModal);
-    
-    // Close any other modals first
-    setShowSaveModal(false);
-    setShowObjectivesModal(false);
-    setShowRecommendationsModal(false);
-    
-    // Reset form data to current appointment data or empty values
-    if (rendezvousData) {
-      const appointmentDate = new Date(rendezvousData.scheduledAt);
-      const formattedDate = `${appointmentDate.getDate().toString().padStart(2, '0')}/${(appointmentDate.getMonth() + 1).toString().padStart(2, '0')}/${appointmentDate.getFullYear()} ${appointmentDate.getHours().toString().padStart(2, '0')}:${appointmentDate.getMinutes().toString().padStart(2, '0')}:${appointmentDate.getSeconds().toString().padStart(2, '0')}`;
-      
-      setFormData(prev => ({
-        ...prev,
-        appointmentDate: formattedDate,
-        appointmentDuration: `${rendezvousData.duration} minutes`,
-        appointmentSubject: rendezvousData.subject,
-        appointmentNotes: rendezvousData.notes || ''
-      }));
-    } else {
-      // Reset to empty values for new appointment
-      setFormData(prev => ({
-        ...prev,
-        appointmentDate: '',
-        appointmentDuration: '60 minutes',
-        appointmentSubject: '',
-        appointmentNotes: ''
-      }));
+    // Ouvrir le bottomsheet pour modifier le rendez-vous
+    setShowRendezvousBottomSheet(true);
+  };
+
+  const handleRendezvousComplete = async () => {
+    setShowRendezvousBottomSheet(false);
+    // Rafraîchir les données du rendez-vous après modification
+    await fetchRendezvousData();
+    // Rafraîchir aussi dashboardData
+    try {
+      const dashboard = await DashboardService.getDashboardData();
+      setDashboardData(dashboard);
+    } catch (error) {
+      console.log('⚠️ Profile: Could not refresh dashboard data:', error);
     }
-    
-    // Set the appointment modal states
-    setShowBookingForm(true);
-    setShowAppointmentModal(true);
-    console.log('📅 Opening reschedule appointment form');
-    console.log('📅 showBookingForm set to true');
   };
 
   const handleConfirmAppointment = async () => {
@@ -3268,6 +3245,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
       {renderGenderModal()}
       {renderOccupationModal()}
       {renderDateModal()}
+
+      {/* Rendez-vous Bottom Sheet */}
+      <ProfileStep4BottomSheet
+        visible={showRendezvousBottomSheet}
+        onClose={() => setShowRendezvousBottomSheet(false)}
+        onComplete={handleRendezvousComplete}
+        dashboardData={{ rendezvous: rendezvousData, rendezVous: rendezvousData }}
+      />
     </>
     );
 };

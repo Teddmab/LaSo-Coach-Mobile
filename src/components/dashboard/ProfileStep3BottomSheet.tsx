@@ -21,17 +21,35 @@ interface ProfileStep3BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   onComplete: () => void;
+  isStepCompleted?: boolean; // Indique si l'étape est déjà complétée
 }
 
 const ProfileStep3BottomSheet: React.FC<ProfileStep3BottomSheetProps> = ({
   visible,
   onClose,
   onComplete,
+  isStepCompleted = false,
 }) => {
   const insets = useSafeAreaInsets();
   const { completeRecommendations, loading } = useOnboarding();
   const [photoConsent, setPhotoConsent] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+  
+  // Si l'étape est déjà complétée, empêcher la modification
+  useEffect(() => {
+    if (visible && isStepCompleted) {
+      Toast.show({
+        type: 'info',
+        text1: 'Étape déjà complétée',
+        text2: 'Cette étape ne peut plus être modifiée',
+        visibilityTime: 2000,
+      });
+      // Fermer le bottomsheet après un court délai
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+    }
+  }, [visible, isStepCompleted, onClose]);
 
   // Reset form when modal closes
   useEffect(() => {

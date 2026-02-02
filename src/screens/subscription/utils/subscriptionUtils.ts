@@ -15,13 +15,13 @@ export const getPlanBackgroundColor = (planName: string): string => {
   } else if (name.includes('premium')) {
     return '#FF9800'; // Orange
   } else if (name.includes('pro')) {
-    return '#2196F3'; // Blue
+    return '#aece2e'; // Vert/Jaune (remplace le bleu)
   } else if (name.includes('basic')) {
     return '#9E9E9E'; // Grey
   }
 
   // Default color
-  return '#2196F3';
+  return '#aece2e'; // Vert/Jaune (remplace le bleu)
 };
 
 /**

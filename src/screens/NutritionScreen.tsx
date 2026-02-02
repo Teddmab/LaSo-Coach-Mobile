@@ -43,6 +43,7 @@ import {
   MealInteraction 
 } from './nutrition/types';
 import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from './nutrition/utils/dateCalculations';
+import CompleteMealsBottomSheet from '../components/nutrition/CompleteMealsBottomSheet';
 
 const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
@@ -168,6 +169,64 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     },
    
   };
+
+  // Fonction helper pour vérifier si un repas est complété (même logique que dans BottomSheet)
+  const isMealCompleted = useCallback((mealId: string, completionData: CompletionStatus | null | any): boolean => {
+    if (!completionData) {
+      return false;
+    }
+
+    // ✅ PRIORITÉ 1: Vérifier dans completionsByDay (source principale selon les logs du backend)
+    if (completionData?.completionsByDay) {
+      for (const dayKey in completionData.completionsByDay) {
+        const dayCompletions = completionData.completionsByDay[dayKey];
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          );
+          if (found) {
+            return true;
+          }
+        }
+      }
+    }
+
+    // ✅ PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
+    if (completionData?.dayProgress?.completedMealIds?.includes(mealId) === true) {
+      return true;
+    }
+    
+    // ✅ PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
+    if (completionData?.mealStatus?.[mealId]?.completed === true) {
+      return true;
+    }
+    
+    // ✅ PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
+    if (completionData?.allCompletions?.some(
+      (completion: any) => completion?.mealId === mealId
+    ) === true) {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // Vérifier s'il y a des repas non complétés pour afficher le bouton
+  const hasIncompleteMeals = useMemo(() => {
+    if (!currentPlan || dayMeals.length === 0) {
+      return false;
+    }
+
+    // Utiliser freshCompletionData en priorité, puis completionStatus
+    const completionDataToUse = freshCompletionData || completionStatus;
+    
+    // Vérifier s'il y a au moins un repas non complété
+    const hasIncomplete = dayMeals.some((meal: Meal) => {
+      return !isMealCompleted(meal.id, completionDataToUse);
+    });
+
+    return hasIncomplete;
+  }, [dayMeals, freshCompletionData, completionStatus, currentPlan, isMealCompleted]);
 
   // Flag pour éviter les appels multiples simultanés
   const [isLoadingDayData, setIsLoadingDayData] = useState(false);
@@ -2189,8 +2248,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         )}
 
         {/* Bouton "Compléter des repas" - Sous la carte de progression */}
-        {/* ✅ MASQUÉ: Bouton compléter caché mais code conservé */}
-        {false && currentPlan && dayMeals.length > 0 && (
+        {/* ✅ TEMPORAIREMENT MASQUÉ - On va continuer les fixes après */}
+        {false && currentPlan && dayMeals.length > 0 && hasIncompleteMeals && (
           <View style={styles.completeMealsButtonContainer}>
             <TouchableOpacity
               style={styles.completeMealsButton}
@@ -2254,38 +2313,12 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     });
                     
                     // ✅ Filtrer les repas pour ne garder que ceux NON complétés avec le statut frais
+                    // Utiliser la fonction helper isMealCompleted pour un filtrage cohérent
                     const incompleteMeals = dayMeals.filter((meal: Meal) => {
-                      const isCompletedByIds = globalCompletionData?.dayProgress?.completedMealIds?.includes(meal.id) === true;
-                      const isCompletedByStatus = globalCompletionData?.mealStatus?.[meal.id]?.completed === true;
-                      const isCompletedInAllCompletions = globalCompletionData?.allCompletions?.some(
-                        (completion: any) => completion?.mealId === meal.id
-                      ) === true;
+                      const isCompleted = isMealCompleted(meal.id, globalCompletionData);
                       
-                      // ✅ Vérifier dans TOUS les jours de completionsByDay (pas seulement le jour sélectionné)
-                      let isCompletedInCompletionsByDay = false;
-                      if (globalCompletionData?.completionsByDay) {
-                        // Parcourir tous les jours dans completionsByDay
-                        Object.values(globalCompletionData.completionsByDay).forEach((dayCompletions: any) => {
-                          if (Array.isArray(dayCompletions)) {
-                            const found = dayCompletions.some(
-                              (completion: any) => completion?.mealId === meal.id && completion?.completedAt
-                            );
-                            if (found) {
-                              isCompletedInCompletionsByDay = true;
-                            }
-                          }
-                        });
-                      }
-                      
-                      const isCompleted = isCompletedByIds || isCompletedByStatus || isCompletedInAllCompletions || isCompletedInCompletionsByDay;
-                      
-                      if (isCompleted) {
-                        console.log(`🚫 [COMPLETE MEALS] Repas ${meal.name} (${meal.id}) est déjà complété:`, {
-                          isCompletedByIds,
-                          isCompletedByStatus,
-                          isCompletedInAllCompletions,
-                          isCompletedInCompletionsByDay,
-                        });
+                      if (isCompleted && __DEV__) {
+                        console.log(`🚫 [COMPLETE MEALS] Repas ${meal.name} (${meal.id}) est déjà complété`);
                       }
                       
                       // Ne garder que les repas NON complétés
@@ -2302,59 +2335,17 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                     setShowCompletionModal(true);
                   } catch (error) {
                     console.error('❌ [COMPLETE MEALS] Erreur lors du rafraîchissement du statut:', error);
-                    // En cas d'erreur, utiliser le statut local actuel
+                    // En cas d'erreur, utiliser le statut local actuel avec la fonction helper
                     const incompleteMeals = dayMeals.filter((meal: Meal) => {
-                      const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id) === true;
-                      const isCompletedByStatus = completionStatus?.mealStatus?.[meal.id]?.completed === true;
-                      const isCompletedInAllCompletions = completionStatus?.allCompletions?.some(
-                        (completion: any) => completion?.mealId === meal.id
-                      ) === true;
-                      
-                      // ✅ Vérifier dans TOUS les jours de completionsByDay
-                      let isCompletedInCompletionsByDay = false;
-                      if (completionStatus?.completionsByDay) {
-                        Object.values(completionStatus.completionsByDay).forEach((dayCompletions: any) => {
-                          if (Array.isArray(dayCompletions)) {
-                            const found = dayCompletions.some(
-                              (completion: any) => completion?.mealId === meal.id && completion?.completedAt
-                            );
-                            if (found) {
-                              isCompletedInCompletionsByDay = true;
-                            }
-                          }
-                        });
-                      }
-                      
-                      return !(isCompletedByIds || isCompletedByStatus || isCompletedInAllCompletions || isCompletedInCompletionsByDay);
+                      return !isMealCompleted(meal.id, completionStatus);
                     });
                     setMealsToComplete(incompleteMeals);
                     setShowCompletionModal(true);
                   }
                 } else {
-                  // Si pas de plan, utiliser le statut local actuel
+                  // Si pas de plan, utiliser le statut local actuel avec la fonction helper
                   const incompleteMeals = dayMeals.filter((meal: Meal) => {
-                    const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id) === true;
-                    const isCompletedByStatus = completionStatus?.mealStatus?.[meal.id]?.completed === true;
-                    const isCompletedInAllCompletions = completionStatus?.allCompletions?.some(
-                      (completion: any) => completion?.mealId === meal.id
-                    ) === true;
-                    
-                    // ✅ Vérifier dans TOUS les jours de completionsByDay
-                    let isCompletedInCompletionsByDay = false;
-                    if (completionStatus?.completionsByDay) {
-                      Object.values(completionStatus.completionsByDay).forEach((dayCompletions: any) => {
-                        if (Array.isArray(dayCompletions)) {
-                          const found = dayCompletions.some(
-                            (completion: any) => completion?.mealId === meal.id && completion?.completedAt
-                          );
-                          if (found) {
-                            isCompletedInCompletionsByDay = true;
-                          }
-                        }
-                      });
-                    }
-                    
-                    return !(isCompletedByIds || isCompletedByStatus || isCompletedInAllCompletions || isCompletedInCompletionsByDay);
+                    return !isMealCompleted(meal.id, completionStatus);
                   });
                   setMealsToComplete(incompleteMeals);
                   setShowCompletionModal(true);
@@ -2731,264 +2722,35 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         </View>
       </Modal>
 
-      {/* Meal Completion Modal */}
-      <Modal
+      {/* Meal Completion BottomSheet */}
+      <CompleteMealsBottomSheet
         visible={showCompletionModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCompletionModal(false)}
-      >
-        <View style={styles.completionModalOverlay}>
-          <View style={styles.completionModalContent}>
-            <View style={styles.completionModalHeader}>
-              <Text style={styles.completionModalTitle}>
-                {isIOS ? 'Marquer des plats comme complétés' : 'Marquer des repas comme complétés'}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowCompletionModal(false);
-                  // ✅ Réinitialiser les données fraîches quand on ferme le modal
-                  setFreshCompletionData(null);
-                }}
-                style={styles.completionModalCloseButton}
-              >
-                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView 
-              style={styles.completionModalBody}
-              contentContainerStyle={styles.completionModalBodyContent}
-              showsVerticalScrollIndicator={true}
-            >
-              {(() => {
-                // ✅ Utiliser les données fraîches si disponibles, sinon utiliser completionStatus
-                const completionDataToUse = freshCompletionData || completionStatus;
-                
-                // Log pour debug
-                console.log('🔍 [BOTTOM SHEET] Filtrage des repas:', {
-                  totalDayMeals: dayMeals.length,
-                  usingFreshData: !!freshCompletionData,
-                  hasCompletionData: !!completionDataToUse,
-                  hasCompletionsByDay: !!completionDataToUse?.completionsByDay,
-                  completionsByDayKeys: completionDataToUse?.completionsByDay ? Object.keys(completionDataToUse.completionsByDay) : [],
-                  completionsByDayTotal: completionDataToUse?.completionsByDay ? Object.values(completionDataToUse.completionsByDay).reduce((total: number, dayCompletions: any) => {
-                    return total + (Array.isArray(dayCompletions) ? dayCompletions.length : 0);
-                  }, 0) : 0,
-                });
-                
-                const mealsList = dayMeals.filter((meal: Meal) => {
-                  const isCompletedByIds = completionDataToUse?.dayProgress?.completedMealIds?.includes(meal.id) === true;
-                  const isCompletedByStatus = completionDataToUse?.mealStatus?.[meal.id]?.completed === true;
-                  const isCompletedInAllCompletions = completionDataToUse?.allCompletions?.some(
-                    (completion: any) => completion?.mealId === meal.id
-                  ) === true;
-                  
-                  // ✅ Vérifier dans TOUS les jours de completionsByDay (pas seulement le jour sélectionné)
-                  let isCompletedInCompletionsByDay = false;
-                  if (completionDataToUse?.completionsByDay) {
-                    // Parcourir tous les jours dans completionsByDay
-                    Object.values(completionDataToUse.completionsByDay).forEach((dayCompletions: any) => {
-                      if (Array.isArray(dayCompletions)) {
-                        const found = dayCompletions.some(
-                          (completion: any) => completion?.mealId === meal.id && completion?.completedAt
-                        );
-                        if (found) {
-                          isCompletedInCompletionsByDay = true;
-                        }
-                      }
-                    });
-                  }
-                  
-                  // Ne garder que les repas NON complétés
-                  const isCompleted = isCompletedByIds || isCompletedByStatus || isCompletedInAllCompletions || isCompletedInCompletionsByDay;
-                  
-                  if (isCompleted) {
-                    console.log(`🚫 [BOTTOM SHEET] Repas ${meal.name} (${meal.id}) filtré car complété:`, {
-                      mealId: meal.id,
-                      mealName: meal.name,
-                      isCompletedByIds,
-                      isCompletedByStatus,
-                      isCompletedInAllCompletions,
-                      isCompletedInCompletionsByDay,
-                      completionsByDayCheck: completionDataToUse?.completionsByDay ? 'présent' : 'absent',
-                    });
-                  }
-                  
-                  return !isCompleted;
-                });
-                
-                console.log('✅ [BOTTOM SHEET] Résultat du filtrage:', {
-                  totalMeals: dayMeals.length,
-                  filteredMeals: mealsList.length,
-                  filteredMealIds: mealsList.map((m: Meal) => m.id),
-                  allMealIds: dayMeals.map((m: Meal) => m.id),
-                });
-                
-                if (mealsList.length === 0) {
-                  return (
-                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                      <Ionicons name="checkmark-circle" size={48} color="#4CAF50" style={{ marginBottom: 12 }} />
-                      <Text style={{ fontSize: 18, fontWeight: '600', color: '#4CAF50', textAlign: 'center' }}>
-                        {isIOS ? 'Tous les plats sont déjà complétés pour aujourd\'hui' : 'Tous les repas sont déjà complétés pour aujourd\'hui'}
-                      </Text>
-                      <Text style={{ marginTop: 8, color: '#757575', textAlign: 'center' }}>
-                        Bravo ! Continuez comme ça 🎉
-                      </Text>
-                    </View>
-                  );
-                }
-                
-                return mealsList.map((meal: Meal) => {
-                const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
-                // Tous les repas dans cette liste sont non complétés (filtrage fait au-dessus)
-                const isCompleted = false;
-                
-                return (
-                  <View key={meal.id} style={styles.completionMealItem}>
-                    <View style={styles.completionMealImageContainer}>
-                      {meal.imageUrl ? (
-                        <Image 
-                          source={{ uri: meal.imageUrl }}
-                          style={styles.completionMealImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={styles.completionMealPlaceholder}>
-                          <Text style={styles.completionMealPlaceholderText}>{mealType.icon}</Text>
-                        </View>
-                      )}
-                      {/* ✅ Ajouter l'icône et le type de repas à côté de l'image */}
-                      <View style={styles.completionMealTypeBadge}>
-                        <Text style={styles.completionMealTypeIcon}>{mealType.icon}</Text>
-                        <Text style={styles.completionMealTypeText}>{mealType.title}</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.completionMealInfo}>
-                      <Text style={styles.completionMealName}>{meal.name}</Text>
-                      <Text style={styles.completionMealTime}>{mealType.time}</Text>
-                      <View style={styles.completionMealDetails}>
-                        <Text style={styles.completionMealCalories}>
-                          {meal.calories || meal.calorieCount || 'N/A'} kcal
-                        </Text>
-                        <Text style={styles.completionMealPoints}>
-                          {meal.points || meal.pointValue || 0} points
-                        </Text>
-                      </View>
-                    </View>
-                    
-                    {/* ✅ Masquer le bouton compléter si le repas est déjà complété */}
-                    {!isCompleted && (
-                      <View style={styles.completionMealActions}>
-                        <TouchableOpacity 
-                          style={styles.completionDetailsButton}
-                          onPress={() => {
-                            // Afficher les détails nutritionnels
-                            Alert.alert(
-                              meal.name,
-                              `Détails nutritionnels:\n\n` +
-                              `🔥 Calories: ${meal.calories || 0} kcal\n` +
-                              `🥩 Protéines: ${meal.proteins || 0}g\n` +
-                              `🍚 Glucides: ${meal.carbs || 0}g\n` +
-                              `🥑 Lipides: ${meal.fats || 0}g\n\n` +
-                              `⭐ Points: ${meal.points || 0}`,
-                              [{ text: 'OK', style: 'cancel' }]
-                            );
-                            logger.info('User Action: View meal nutritional details', { mealId: meal.id });
-                          }}
-                        >
-                          <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                          style={styles.completionCheckButton}
-                          onPress={async () => {
-                            try {
-                              await handleMealComplete(meal.id);
-                              
-                              // ✅ Retirer immédiatement le repas de la liste mealsToComplete
-                              setMealsToComplete(prevMeals => 
-                                prevMeals.filter(m => m.id !== meal.id)
-                              );
-                              
-                              logger.info('User Action: Mark meal as completed from modal', { mealId: meal.id });
-                            } catch (error) {
-                              // En cas d'erreur, ne pas fermer le modal pour permettre de réessayer
-                              logger.error('Error completing meal from modal', { mealId: meal.id, error });
-                            }
-                          }}
-                        >
-                          <Ionicons name="checkmark-outline" size={20} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                );
-                });
-              })()}
-            </ScrollView>
-            
-            <View style={styles.completionModalFooter}>
-              <TouchableOpacity
-                style={styles.completeAllButton}
-                onPress={async () => {
-                  // Filtrer seulement les repas non complétés
-                  const incompleteMeals = mealsToComplete.filter((meal: Meal) => {
-                    const isCompletedByIds = completionStatus?.dayProgress?.completedMealIds?.includes(meal.id);
-                    const isCompletedByStatus = completionStatus?.mealStatus?.[meal.id]?.completed;
-                    return !isCompletedByIds && !isCompletedByStatus;
-                  });
-                  
-                  logger.info('User Action: Complete all incomplete meals', { 
-                    totalMeals: mealsToComplete.length,
-                    incompleteMeals: incompleteMeals.length 
-                  });
-                  
-                  if (incompleteMeals.length === 0) {
-                    Toast.show({
-                      type: 'info',
-                      text1: 'Information',
-                      text2: isIOS ? 'Tous les plats sont déjà complétés' : 'Tous les repas sont déjà complétés'
-                    });
-                    setShowCompletionModal(false);
-                    return;
-                  }
-                  
-                  for (const meal of incompleteMeals) {
-                    await handleMealComplete(meal.id);
-                    // handleMealComplete met déjà à jour le statut immédiatement
-                  }
-                  // Un seul refresh final pour synchroniser avec le serveur
-                  if (currentPlan?.id) {
-                    setTimeout(() => {
-                      loadDayData();
-                    }, 500);
-                  }
-                  setShowCompletionModal(false);
-                  Toast.show({
-                    type: 'success',
-                    text1: 'Succès',
-                    text2: isIOS 
-                      ? `${incompleteMeals.length} ${incompleteMeals.length === 1 ? 'plat' : 'plats'} marqué${incompleteMeals.length === 1 ? '' : 's'} comme complété${incompleteMeals.length === 1 ? '' : 's'}`
-                      : `${incompleteMeals.length} repas marqués comme complétés`
-                  });
-                }}
-              >
-                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                <Text style={styles.completeAllButtonText}>Tout compléter</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.completionCancelButton}
-                onPress={() => setShowCompletionModal(false)}
-              >
-                <Text style={styles.completionCancelButtonText}>Annuler</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => {
+          setShowCompletionModal(false);
+          // Réinitialiser les données fraîches quand on ferme le bottomsheet
+          setFreshCompletionData(null);
+        }}
+        meals={dayMeals}
+        completionStatus={completionStatus}
+        freshCompletionData={freshCompletionData}
+        onMealComplete={handleMealComplete}
+        onRefresh={loadDayData}
+        onUpdateCompletionData={(data) => {
+          // Mettre à jour freshCompletionData avec les nouvelles données
+          setFreshCompletionData(data);
+          // Mettre à jour aussi completionStatus pour qu'il soit toujours à jour
+          setCompletionStatus(prevStatus => ({
+            ...prevStatus,
+            ...data,
+            progress: data?.progress || prevStatus?.progress,
+            allCompletions: data?.allCompletions || prevStatus?.allCompletions,
+            dayProgress: data?.dayProgress || prevStatus?.dayProgress,
+            mealStatus: data?.mealStatus || prevStatus?.mealStatus,
+            completionsByDay: data?.completionsByDay || prevStatus?.completionsByDay,
+          }));
+        }}
+        isIOS={isIOS}
+      />
 
       {/* BlurOverlay supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE */}
       

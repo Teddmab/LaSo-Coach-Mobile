@@ -472,6 +472,9 @@ export default function SubscriptionPaymentFlowImproved({
         };
     }, []);
 
+    // Vérifier si le plan est gratuit (défini tôt pour être utilisé partout)
+    const isFreePlan = plan && (plan.price === 0 || plan.isFree || plan.name?.toLowerCase().includes('free'));
+
     // Calculer le montant final
     const calculateFinalAmount = () => {
         const basePrice = plan?.price || 0;
@@ -500,7 +503,7 @@ export default function SubscriptionPaymentFlowImproved({
     };
 
     // Passer à l'étape suivante depuis l'étape 0
-    const handleContinueFromInfo = () => {
+    const handleContinueFromInfo = async () => {
         if (!plan?.id) {
             Toast.show({
                 type: 'error',
@@ -509,8 +512,66 @@ export default function SubscriptionPaymentFlowImproved({
             });
             return;
         }
-        console.log('🔄 [PaymentFlow] Passing from step 0 to step 1');
-        setCurrentStep(1); // Aller à l'étape 1 (Méthode de paiement)
+
+        // ✅ Pour les plans gratuits : activation directe sans passer par le choix de méthode de paiement
+        if (isFreePlan) {
+            try {
+                setProcessing(true);
+                setError(null);
+                
+                console.log('🆓 [PaymentFlow] Plan gratuit détecté, activation directe...');
+                
+                const subscriptionData = await SubscriptionApi.activateFreeTrial(plan.id);
+                
+                console.log('✅ [PaymentFlow] Plan gratuit activé avec succès:', subscriptionData);
+                
+                setSuccess(true);
+                setCurrentStep(4); // Passer directement à l'étape 4 (Confirmation)
+                
+                // ✅ Appeler onSuccess immédiatement pour rafraîchir les données et débloquer les pages
+                if (onSuccess) {
+                    // Ne pas attendre, appeler immédiatement pour mettre à jour les pages bloquées
+                    onSuccess({
+                        planId: plan.id,
+                        paymentMethod: 'free',
+                        subscription: subscriptionData,
+                    });
+                }
+                
+                Toast.show({
+                    type: 'success',
+                    text1: 'Abonnement activé',
+                    text2: 'Votre plan gratuit a été activé avec succès !',
+                    visibilityTime: 3000,
+                });
+                
+                // Fermer automatiquement le modal après 2 secondes
+                setTimeout(() => {
+                    handleClose();
+                }, 2000);
+            } catch (error: any) {
+                console.error('❌ [PaymentFlow] Erreur lors de l\'activation du plan gratuit:', error);
+                const errorMessage = error.response?.data?.message || 
+                                   error.message || 
+                                   'Erreur lors de l\'activation de l\'abonnement gratuit';
+                setError(errorMessage);
+                setCurrentStep(4); // Afficher l'erreur dans l'étape 4
+                
+                Toast.show({
+                    type: 'error',
+                    text1: 'Erreur',
+                    text2: errorMessage,
+                    visibilityTime: 5000,
+                });
+            } finally {
+                setProcessing(false);
+            }
+            return;
+        }
+
+        // Pour les plans payants : passer à l'étape 1 (Méthode de paiement)
+        console.log('💳 [PaymentFlow] Plan payant, passage à l\'étape 1 (Méthode de paiement)');
+        setCurrentStep(1);
     };
 
     // Passer à l'étape suivante depuis l'étape 1 (Mobile Money uniquement)
@@ -848,6 +909,9 @@ export default function SubscriptionPaymentFlowImproved({
     // Rendu des indicateurs d'étapes
     const renderStepIndicators = () => {
         if (currentStep >= 3) return null; // Masquer pour les étapes de traitement et résultat
+        
+        // Pour les plans gratuits, ne pas afficher les indicateurs d'étapes (seulement 2 étapes)
+        if (isFreePlan) return null;
 
         return (
             <View style={styles.stepIndicators}>
@@ -908,7 +972,7 @@ export default function SubscriptionPaymentFlowImproved({
             <TouchableOpacity
                 style={[styles.primaryButton, processing && styles.buttonDisabled]}
                 onPress={() => {
-                    console.log('🔄 [PaymentFlow] Button "Suivant" clicked, current step:', currentStep);
+                    console.log('🔄 [PaymentFlow] Button clicked, current step:', currentStep, 'isFreePlan:', isFreePlan);
                     handleContinueFromInfo();
                 }}
                 disabled={processing}
@@ -917,8 +981,14 @@ export default function SubscriptionPaymentFlowImproved({
                     <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                     <>
-                        <Text style={styles.primaryButtonText}>Suivant</Text>
-                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                        <Text style={styles.primaryButtonText}>
+                            {isFreePlan ? 'Compléter' : 'Suivant'}
+                        </Text>
+                        <Ionicons 
+                            name={isFreePlan ? "checkmark-circle" : "arrow-forward"} 
+                            size={20} 
+                            color="#FFFFFF" 
+                        />
                     </>
                 )}
             </TouchableOpacity>

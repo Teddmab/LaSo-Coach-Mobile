@@ -82,8 +82,40 @@ const OnboardingAccordion: React.FC<OnboardingAccordionProps> = ({
   };
 
   const handleStepPress = (step: Step) => {
-    // If step is completed, don't open bottom sheet
-    if (isStepCompleted(step.key)) {
+    // ✅ Empêcher l'ouverture du bottomsheet pour les étapes 1, 2, 3 si elles sont déjà complétées
+    if (step.id === 1 && isStepCompleted(step.key)) {
+      import('react-native-toast-message').then(({ default: Toast }) => {
+        Toast.show({
+          type: 'info',
+          text1: 'Étape déjà complétée',
+          text2: 'Cette étape ne peut plus être modifiée',
+          visibilityTime: 2000,
+        });
+      });
+      return;
+    }
+    
+    if (step.id === 2 && isStepCompleted(step.key)) {
+      import('react-native-toast-message').then(({ default: Toast }) => {
+        Toast.show({
+          type: 'info',
+          text1: 'Étape déjà complétée',
+          text2: 'Cette étape ne peut plus être modifiée',
+          visibilityTime: 2000,
+        });
+      });
+      return;
+    }
+    
+    if (step.id === 3 && isStepCompleted(step.key)) {
+      import('react-native-toast-message').then(({ default: Toast }) => {
+        Toast.show({
+          type: 'info',
+          text1: 'Étape déjà complétée',
+          text2: 'Cette étape ne peut plus être modifiée',
+          visibilityTime: 2000,
+        });
+      });
       return;
     }
 
@@ -231,6 +263,7 @@ const OnboardingAccordion: React.FC<OnboardingAccordionProps> = ({
         onComplete={() => handleStepComplete(1)}
         user={user}
         dashboardData={dashboardData}
+        isStepCompleted={isStepCompleted('profile_setup')}
       />
       
       <ProfileStep2BottomSheet
@@ -238,12 +271,14 @@ const OnboardingAccordion: React.FC<OnboardingAccordionProps> = ({
         onClose={() => setShowStep2BottomSheet(false)}
         onComplete={() => handleStepComplete(2)}
         dashboardData={dashboardData}
+        isStepCompleted={isStepCompleted('goals_setup')}
       />
       
       <ProfileStep3BottomSheet
         visible={showStep3BottomSheet}
         onClose={() => setShowStep3BottomSheet(false)}
         onComplete={() => handleStepComplete(3)}
+        isStepCompleted={isStepCompleted('recommendations')}
       />
       
       <ProfileStep4BottomSheet

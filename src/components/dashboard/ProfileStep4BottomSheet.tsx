@@ -45,25 +45,43 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [tempDate, setTempDate] = useState(new Date());
-  const [tempTime, setTempTime] = useState(new Date());
   const [duration, setDuration] = useState(60);
   const [subject, setSubject] = useState('');
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [previousRendezvousDate, setPreviousRendezvousDate] = useState<Date | null>(null);
 
   // Initialize with existing rendezvous data if available
   useEffect(() => {
     if (visible && dashboardData) {
       // Check if there's existing rendezvous data
       const existingRendezvous = dashboardData?.rendezvous || dashboardData?.rendezVous;
-      if (existingRendezvous) {
+      if (existingRendezvous && existingRendezvous.scheduledAt) {
         const scheduledAt = new Date(existingRendezvous.scheduledAt);
-        setSelectedDate(scheduledAt);
+        // Pour un changement de rendez-vous, la date minimale est aujourd'hui + 72h
+        const now = new Date();
+        const minDate = new Date(now);
+        minDate.setDate(now.getDate() + 3); // Ajouter 3 jours (72h)
+        minDate.setHours(0, 0, 0, 0);
+        
+        // Utiliser la date minimale si le rendez-vous existant est dans le passé ou trop proche
+        const initialDate = scheduledAt < minDate ? new Date(minDate) : scheduledAt;
+        
+        setSelectedDate(initialDate);
         setSelectedTime(scheduledAt);
         setDuration(existingRendezvous.duration || 60);
         setSubject(existingRendezvous.subject || '');
         setNotes(existingRendezvous.notes || '');
+        setIsRescheduling(true);
+        setPreviousRendezvousDate(scheduledAt);
+      } else {
+        // Nouveau rendez-vous - initialiser avec la date/heure actuelle
+        const now = new Date();
+        setSelectedDate(now);
+        setSelectedTime(now);
+        setIsRescheduling(false);
+        setPreviousRendezvousDate(null);
       }
     }
   }, [dashboardData, visible]);
@@ -77,24 +95,86 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
     }
   }, [visible]);
 
-  const handleDateChange = (date: Date) => {
-    setSelectedDate(date);
-    setTempDate(date);
+  const updateDate = (field: 'day' | 'month' | 'year', delta: number) => {
+    const newDate = new Date(selectedDate);
+    
+    if (field === 'day') {
+      newDate.setDate(selectedDate.getDate() + delta);
+    } else if (field === 'month') {
+      newDate.setMonth(selectedDate.getMonth() + delta);
+    } else if (field === 'year') {
+      newDate.setFullYear(selectedDate.getFullYear() + delta);
+    }
+    
+    // Construire la date complète avec l'heure sélectionnée
+    const scheduledDateTime = new Date(newDate);
+    scheduledDateTime.setHours(selectedTime.getHours());
+    scheduledDateTime.setMinutes(selectedTime.getMinutes());
+    scheduledDateTime.setSeconds(0);
+    scheduledDateTime.setMilliseconds(0);
+    
+    // Calculer la date minimale : aujourd'hui + 3 jours (pour respecter les 62h)
+    const now = new Date();
+    const minDate = new Date(now);
+    minDate.setDate(now.getDate() + 3); // Ajouter 3 jours
+    minDate.setHours(0, 0, 0, 0); // Commencer à minuit
+    
+    // Construire la date minimale complète avec l'heure sélectionnée
+    const minDateTime = new Date(minDate);
+    minDateTime.setHours(selectedTime.getHours());
+    minDateTime.setMinutes(selectedTime.getMinutes());
+    minDateTime.setSeconds(0);
+    minDateTime.setMilliseconds(0);
+    
+    // Toujours permettre l'incrémentation, mais afficher un avertissement si on est avant la date minimale
+    if (isRescheduling && scheduledDateTime < minDateTime) {
+      const daysRemaining = Math.ceil((minDateTime.getTime() - scheduledDateTime.getTime()) / (1000 * 60 * 60 * 24));
+      const hoursRemaining = Math.ceil((minDateTime.getTime() - scheduledDateTime.getTime()) / (1000 * 60 * 60));
+      
+      // Afficher un message d'avertissement mais permettre quand même la modification
+      Toast.show({
+        type: 'warning',
+        text1: 'Date minimale requise',
+        text2: `Le rendez-vous doit être dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} (${hoursRemaining}h) minimum`,
+        visibilityTime: 2500,
+      });
+      
+      // Appliquer quand même la date pour permettre l'incrémentation progressive
+      setSelectedDate(newDate);
+      return;
+    }
+    
+    // Pour un nouveau rendez-vous, vérifier qu'il est dans le futur
+    if (!isRescheduling && scheduledDateTime <= now) {
+      Toast.show({
+        type: 'info',
+        text1: 'Date invalide',
+        text2: 'La date et l\'heure doivent être dans le futur',
+        visibilityTime: 3000,
+      });
+      return;
+    }
+    
+    // Si la date est valide, l'appliquer
+    setSelectedDate(newDate);
   };
 
-  const handleTimeChange = (time: Date) => {
-    setSelectedTime(time);
-    setTempTime(time);
-  };
-
-  const confirmDate = () => {
-    setSelectedDate(tempDate);
-    setShowDatePicker(false);
-  };
-
-  const confirmTime = () => {
-    setSelectedTime(tempTime);
-    setShowTimePicker(false);
+  const updateTime = (field: 'hour' | 'minute', delta: number) => {
+    const newTime = new Date(selectedTime);
+    
+    if (field === 'hour') {
+      const newHour = selectedTime.getHours() + delta;
+      if (newHour >= 0 && newHour <= 23) {
+        newTime.setHours(newHour);
+        setSelectedTime(newTime);
+      }
+    } else if (field === 'minute') {
+      const newMinute = selectedTime.getMinutes() + delta;
+      if (newMinute >= 0 && newMinute <= 59) {
+        newTime.setMinutes(newMinute);
+        setSelectedTime(newTime);
+      }
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -113,6 +193,150 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
     });
   };
 
+  // Mini Calendar Component
+  const renderMiniCalendar = () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    // Date minimale : aujourd'hui + 72h (3 jours)
+    const minDate = new Date(now);
+    minDate.setDate(now.getDate() + 3);
+    minDate.setHours(0, 0, 0, 0);
+    
+    const currentMonth = selectedDate.getMonth();
+    const currentYear = selectedDate.getFullYear();
+    
+    // Obtenir le premier jour du mois et le nombre de jours
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay() === 0 ? 7 : firstDay.getDay(); // Lundi = 1, Dimanche = 7
+    
+    const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const monthNames = [
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    ];
+    
+    const isDateDisabled = (day: number): boolean => {
+      const date = new Date(currentYear, currentMonth, day);
+      date.setHours(0, 0, 0, 0);
+      
+      // Désactiver les dates passées
+      if (date < now) {
+        return true;
+      }
+      
+      // Désactiver les dates dans les 72h (3 jours) après aujourd'hui
+      if (date < minDate) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    const isDateSelected = (day: number): boolean => {
+      return selectedDate.getDate() === day &&
+             selectedDate.getMonth() === currentMonth &&
+             selectedDate.getFullYear() === currentYear;
+    };
+    
+    const handleDateSelect = (day: number) => {
+      const newDate = new Date(currentYear, currentMonth, day);
+      if (!isDateDisabled(day)) {
+        setSelectedDate(newDate);
+      }
+    };
+    
+    const changeMonth = (delta: number) => {
+      const newDate = new Date(selectedDate);
+      newDate.setMonth(currentMonth + delta);
+      // S'assurer que la date minimale est respectée
+      if (newDate < minDate) {
+        setSelectedDate(new Date(minDate));
+      } else {
+        setSelectedDate(newDate);
+      }
+    };
+    
+    // Créer les jours du calendrier
+    const calendarDays: React.ReactNode[] = [];
+    
+    // Jours vides avant le premier jour du mois
+    for (let i = 1; i < startDayOfWeek; i++) {
+      calendarDays.push(<View key={`empty-${i}`} style={styles.calendarEmptyDay} />);
+    }
+    
+    // Jours du mois
+    for (let day = 1; day <= daysInMonth; day++) {
+      const disabled = isDateDisabled(day);
+      const selected = isDateSelected(day);
+      
+      calendarDays.push(
+        <TouchableOpacity
+          key={day}
+          style={[
+            styles.calendarDayCell,
+            selected && styles.calendarDayCellSelected,
+            disabled && styles.calendarDayCellDisabled,
+          ]}
+          onPress={() => handleDateSelect(day)}
+          disabled={disabled}
+        >
+          <Text style={[
+            styles.calendarDayText,
+            selected && styles.calendarDayTextSelected,
+            disabled && styles.calendarDayTextDisabled,
+          ]}>
+            {day}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    
+    return (
+      <View style={styles.miniCalendarContainer}>
+        {/* Header avec mois et navigation */}
+        <View style={styles.calendarHeader}>
+          <TouchableOpacity
+            style={styles.calendarNavButton}
+            onPress={() => changeMonth(-1)}
+          >
+            <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.calendarMonthYear}>
+            {monthNames[currentMonth]} {currentYear}
+          </Text>
+          <TouchableOpacity
+            style={styles.calendarNavButton}
+            onPress={() => changeMonth(1)}
+          >
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Jours de la semaine */}
+        <View style={styles.calendarWeekDays}>
+          {weekDays.map((day, index) => (
+            <View key={index} style={styles.calendarWeekDay}>
+              <Text style={styles.calendarWeekDayText}>{day}</Text>
+            </View>
+          ))}
+        </View>
+        
+        {/* Grille du calendrier */}
+        <View style={styles.calendarGrid}>
+          {calendarDays}
+        </View>
+        
+        {/* Date sélectionnée */}
+        <Text style={styles.calendarSelectedDate}>
+          {formatDate(selectedDate)}
+        </Text>
+      </View>
+    );
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -127,8 +351,29 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
     scheduledDateTime.setSeconds(0);
     scheduledDateTime.setMilliseconds(0);
 
-    if (scheduledDateTime <= now) {
-      newErrors.date = 'La date et l\'heure doivent être dans le futur';
+    // Si c'est un changement de RDV, vérifier que la nouvelle date est au moins 3 jours après aujourd'hui (62h)
+    if (isRescheduling) {
+      const minDate = new Date(now);
+      minDate.setDate(now.getDate() + 3); // Ajouter 3 jours
+      minDate.setHours(0, 0, 0, 0);
+      
+      // Construire la date minimale complète avec l'heure sélectionnée
+      const minDateTime = new Date(minDate);
+      minDateTime.setHours(selectedTime.getHours());
+      minDateTime.setMinutes(selectedTime.getMinutes());
+      minDateTime.setSeconds(0);
+      minDateTime.setMilliseconds(0);
+      
+      if (scheduledDateTime < minDateTime) {
+        const daysRemaining = Math.ceil((minDateTime.getTime() - scheduledDateTime.getTime()) / (1000 * 60 * 60 * 24));
+        const hoursRemaining = Math.ceil((minDateTime.getTime() - scheduledDateTime.getTime()) / (1000 * 60 * 60));
+        newErrors.date = `Le nouveau rendez-vous doit être dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} minimum (${hoursRemaining}h)`;
+      }
+    } else {
+      // Pour un nouveau rendez-vous, juste vérifier qu'il est dans le futur
+      if (scheduledDateTime <= now) {
+        newErrors.date = 'La date et l\'heure doivent être dans le futur';
+      }
     }
 
     setErrors(newErrors);
@@ -148,6 +393,29 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
       scheduledDateTime.setSeconds(0);
       scheduledDateTime.setMilliseconds(0);
 
+      // Si c'est un changement de RDV, utiliser ProfileApi.createRendezvous directement
+      // (le backend devrait gérer la mise à jour) et NE PAS marquer comme complété pour éviter les points
+      if (isRescheduling) {
+        const ProfileApi = require('../../services/profileApi').ProfileApi;
+        await ProfileApi.createRendezvous({
+          scheduledAt: scheduledDateTime.toISOString(),
+          subject: subject.trim(),
+          duration,
+          notes: notes.trim() || undefined,
+        });
+        
+        Toast.show({
+          type: 'success',
+          text1: 'Rendez-vous modifié',
+          text2: 'Votre rendez-vous a été modifié avec succès',
+          visibilityTime: 3000,
+        });
+        onComplete();
+        onClose();
+        return;
+      }
+
+      // Pour un nouveau rendez-vous, utiliser completeRendezVous qui attribue les points
       const result = await completeRendezVous({
         scheduledAt: scheduledDateTime.toISOString(),
         subject: subject.trim(),
@@ -156,10 +424,11 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
       });
 
       if (result.success) {
+        // Ne pas afficher les points si c'est un changement de RDV
         Toast.show({
           type: 'success',
-          text1: 'Étape 4 complétée !',
-          text2: '+25 points obtenus',
+          text1: isRescheduling ? 'Rendez-vous modifié' : 'Étape 4 complétée !',
+          text2: isRescheduling ? 'Votre rendez-vous a été modifié avec succès' : '+25 points obtenus',
           visibilityTime: 3000,
         });
         onComplete();
@@ -213,7 +482,9 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
 
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Étape 4: Rendez-vous</Text>
+              <Text style={styles.title}>
+                {isRescheduling ? 'Modifier le rendez-vous' : 'Étape 4: Rendez-vous'}
+              </Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#000000" />
               </TouchableOpacity>
@@ -229,33 +500,96 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
                 <Text style={styles.label}>Date *</Text>
                 <TouchableOpacity
                   style={[styles.dateTimeButton, errors.date && styles.inputError]}
-                  onPress={() => {
-                    setTempDate(selectedDate);
-                    setShowDatePicker(true);
-                  }}
+                  onPress={() => setShowDatePicker(!showDatePicker)}
                 >
                   <Ionicons name="calendar-outline" size={20} color={theme.colors.primary} />
                   <Text style={styles.dateTimeText}>
                     {formatDate(selectedDate)}
                   </Text>
+                  <Ionicons 
+                    name={showDatePicker ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color={theme.colors.text.secondary} 
+                  />
                 </TouchableOpacity>
                 {errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
+                
+                {/* Mini Calendar Inline */}
+                {showDatePicker && (
+                  <View style={styles.inlinePickerContainer}>
+                    {renderMiniCalendar()}
+                  </View>
+                )}
               </View>
 
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Heure *</Text>
                 <TouchableOpacity
                   style={styles.dateTimeButton}
-                  onPress={() => {
-                    setTempTime(selectedTime);
-                    setShowTimePicker(true);
-                  }}
+                  onPress={() => setShowTimePicker(!showTimePicker)}
                 >
                   <Ionicons name="time-outline" size={20} color={theme.colors.primary} />
                   <Text style={styles.dateTimeText}>
                     {formatTime(selectedTime)}
                   </Text>
+                  <Ionicons 
+                    name={showTimePicker ? "chevron-up" : "chevron-down"} 
+                    size={20} 
+                    color={theme.colors.text.secondary} 
+                  />
                 </TouchableOpacity>
+                
+                {/* Time Picker Inline */}
+                {showTimePicker && (
+                  <View style={styles.inlinePickerContainer}>
+                    <View style={styles.timeInputContainer}>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.timeInputLabel}>Heure</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => updateTime('hour', -1)}
+                          >
+                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                          <Text style={styles.timePickerValue}>
+                            {selectedTime.getHours().toString().padStart(2, '0')}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => updateTime('hour', 1)}
+                          >
+                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                      <Text style={styles.timeSeparator}>:</Text>
+                      <View style={styles.timeInputGroup}>
+                        <Text style={styles.timeInputLabel}>Minute</Text>
+                        <View style={styles.timePickerControls}>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => updateTime('minute', -1)}
+                          >
+                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                          <Text style={styles.timePickerValue}>
+                            {selectedTime.getMinutes().toString().padStart(2, '0')}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.timePickerButton}
+                            onPress={() => updateTime('minute', 1)}
+                          >
+                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.timePreview}>
+                      {formatTime(selectedTime)}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -315,259 +649,6 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
               </View>
             </ScrollView>
 
-            {/* Date Picker Modal */}
-            <Modal
-              visible={showDatePicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowDatePicker(false)}
-            >
-              <View style={styles.pickerModal}>
-                <TouchableOpacity
-                  style={StyleSheet.absoluteFillObject}
-                  activeOpacity={1}
-                  onPress={() => setShowDatePicker(false)}
-                >
-                  <BlurView
-                    intensity={20}
-                    tint="dark"
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                </TouchableOpacity>
-                <View style={styles.pickerModalContent}>
-                  <View style={styles.pickerModalHeader}>
-                    <Text style={styles.pickerModalTitle}>Sélectionner la date</Text>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Ionicons name="close" size={24} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView style={styles.pickerScrollView}>
-                    <View style={styles.datePickerRow}>
-                      <View style={styles.datePickerColumn}>
-                        <Text style={styles.dateInputLabel}>Jour</Text>
-                        <View style={styles.datePickerControls}>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setDate(tempDate.getDate() - 1);
-                              if (newDate >= new Date()) {
-                                setTempDate(newDate);
-                              }
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.datePickerValue}>
-                            {tempDate.getDate().toString().padStart(2, '0')}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setDate(tempDate.getDate() + 1);
-                              setTempDate(newDate);
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      <View style={styles.datePickerColumn}>
-                        <Text style={styles.dateInputLabel}>Mois</Text>
-                        <View style={styles.datePickerControls}>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setMonth(tempDate.getMonth() - 1);
-                              if (newDate >= new Date()) {
-                                setTempDate(newDate);
-                              }
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.datePickerValue}>
-                            {(tempDate.getMonth() + 1).toString().padStart(2, '0')}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setMonth(tempDate.getMonth() + 1);
-                              setTempDate(newDate);
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      <View style={styles.datePickerColumn}>
-                        <Text style={styles.dateInputLabel}>Année</Text>
-                        <View style={styles.datePickerControls}>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setFullYear(tempDate.getFullYear() - 1);
-                              if (newDate >= new Date()) {
-                                setTempDate(newDate);
-                              }
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.datePickerValue}>
-                            {tempDate.getFullYear()}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.datePickerButton}
-                            onPress={() => {
-                              const newDate = new Date(tempDate);
-                              newDate.setFullYear(tempDate.getFullYear() + 1);
-                              setTempDate(newDate);
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                    <Text style={styles.datePreview}>
-                      {formatDate(tempDate)}
-                    </Text>
-                  </ScrollView>
-                  <View style={styles.pickerModalFooter}>
-                    <TouchableOpacity
-                      style={styles.pickerCancelButton}
-                      onPress={() => setShowDatePicker(false)}
-                    >
-                      <Text style={styles.pickerCancelText}>Annuler</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.pickerConfirmButton}
-                      onPress={confirmDate}
-                    >
-                      <Text style={styles.pickerConfirmText}>Confirmer</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-
-            {/* Time Picker Modal */}
-            <Modal
-              visible={showTimePicker}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setShowTimePicker(false)}
-            >
-              <View style={styles.pickerModal}>
-                <TouchableOpacity
-                  style={StyleSheet.absoluteFillObject}
-                  activeOpacity={1}
-                  onPress={() => setShowTimePicker(false)}
-                >
-                  <BlurView
-                    intensity={20}
-                    tint="dark"
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                </TouchableOpacity>
-                <View style={styles.pickerModalContent}>
-                  <View style={styles.pickerModalHeader}>
-                    <Text style={styles.pickerModalTitle}>Sélectionner l'heure</Text>
-                    <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                      <Ionicons name="close" size={24} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView style={styles.pickerScrollView}>
-                    <View style={styles.timeInputContainer}>
-                      <View style={styles.timeInputGroup}>
-                        <Text style={styles.timeInputLabel}>Heure</Text>
-                        <View style={styles.timePickerControls}>
-                          <TouchableOpacity
-                            style={styles.timePickerButton}
-                            onPress={() => {
-                              const newTime = new Date(tempTime);
-                              const newHour = tempTime.getHours() === 0 ? 23 : tempTime.getHours() - 1;
-                              newTime.setHours(newHour);
-                              setTempTime(newTime);
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.timePickerValue}>
-                            {tempTime.getHours().toString().padStart(2, '0')}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.timePickerButton}
-                            onPress={() => {
-                              const newTime = new Date(tempTime);
-                              const newHour = tempTime.getHours() === 23 ? 0 : tempTime.getHours() + 1;
-                              newTime.setHours(newHour);
-                              setTempTime(newTime);
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                      <Text style={styles.timeSeparator}>:</Text>
-                      <View style={styles.timeInputGroup}>
-                        <Text style={styles.timeInputLabel}>Minute</Text>
-                        <View style={styles.timePickerControls}>
-                          <TouchableOpacity
-                            style={styles.timePickerButton}
-                            onPress={() => {
-                              const newTime = new Date(tempTime);
-                              const newMinute = tempTime.getMinutes() === 0 ? 59 : tempTime.getMinutes() - 1;
-                              newTime.setMinutes(newMinute);
-                              setTempTime(newTime);
-                            }}
-                          >
-                            <Ionicons name="chevron-down" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <Text style={styles.timePickerValue}>
-                            {tempTime.getMinutes().toString().padStart(2, '0')}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.timePickerButton}
-                            onPress={() => {
-                              const newTime = new Date(tempTime);
-                              const newMinute = tempTime.getMinutes() === 59 ? 0 : tempTime.getMinutes() + 1;
-                              newTime.setMinutes(newMinute);
-                              setTempTime(newTime);
-                            }}
-                          >
-                            <Ionicons name="chevron-up" size={20} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                    <Text style={styles.timePreview}>
-                      {formatTime(tempTime)}
-                    </Text>
-                  </ScrollView>
-                  <View style={styles.pickerModalFooter}>
-                    <TouchableOpacity
-                      style={styles.pickerCancelButton}
-                      onPress={() => setShowTimePicker(false)}
-                    >
-                      <Text style={styles.pickerCancelText}>Annuler</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.pickerConfirmButton}
-                      onPress={confirmTime}
-                    >
-                      <Text style={styles.pickerConfirmText}>Confirmer</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-
             {/* Footer Button */}
             <View style={styles.footer}>
               <TouchableOpacity
@@ -579,7 +660,9 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Text style={styles.completeButtonText}>Compléter</Text>
+                    <Text style={styles.completeButtonText}>
+                      {isRescheduling ? 'Modifier' : 'Compléter'}
+                    </Text>
                     <Ionicons name="checkmark" size={20} color="#FFFFFF" />
                   </>
                 )}
@@ -883,6 +966,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  inlinePickerContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  miniCalendarContainer: {
+    width: '100%',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  calendarNavButton: {
+    padding: 8,
+  },
+  calendarMonthYear: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  calendarWeekDays: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  calendarWeekDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  calendarWeekDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+  },
+  calendarEmptyDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+  },
+  calendarDayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    margin: 2,
+  },
+  calendarDayCellSelected: {
+    backgroundColor: theme.colors.primary,
+  },
+  calendarDayCellDisabled: {
+    backgroundColor: '#F0F0F0',
+    opacity: 0.5,
+  },
+  calendarDayText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.text.primary,
+  },
+  calendarDayTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  calendarDayTextDisabled: {
+    color: '#BDBDBD',
+  },
+  calendarSelectedDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
   },
 });
 

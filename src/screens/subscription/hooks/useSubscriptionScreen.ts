@@ -228,24 +228,40 @@ export const useSubscriptionScreen = (
 
   const handlePaymentSuccess = useCallback(async (paymentData: any) => {
     try {
+      console.log('✅ [SubscriptionScreen] Payment success callback, refreshing data...');
       setShowPaymentFlow(false);
       setSelectedPlan(null);
       
+      // ✅ Rafraîchir le profil pour mettre à jour les données d'abonnement
       if (refreshProfile) {
+        console.log('🔄 [SubscriptionScreen] Refreshing profile...');
         await refreshProfile();
       }
       
+      // ✅ Recharger le statut d'abonnement pour mettre à jour les pages bloquées
+      console.log('🔄 [SubscriptionScreen] Reloading subscription status...');
       await loadSubscriptionStatus();
       
-      Toast.show({
-        type: 'success',
-        text1: 'Paiement réussi',
-        text2: 'Votre abonnement a été activé avec succès.',
-      });
+      // ✅ Recharger les plans pour mettre à jour la liste
+      console.log('🔄 [SubscriptionScreen] Reloading plans...');
+      const status = await SubscriptionService.getSubscriptionStatus();
+      await loadPlans(status);
+      
+      // Ne pas afficher de toast ici pour les plans gratuits (déjà affiché dans le flow)
+      // Seulement pour les plans payants
+      if (paymentData?.paymentMethod !== 'free') {
+        Toast.show({
+          type: 'success',
+          text1: 'Paiement réussi',
+          text2: 'Votre abonnement a été activé avec succès.',
+        });
+      }
+      
+      console.log('✅ [SubscriptionScreen] Data refreshed successfully');
     } catch (error) {
-      console.error('Error after payment success:', error);
+      console.error('❌ [SubscriptionScreen] Error after payment success:', error);
     }
-  }, [refreshProfile, loadSubscriptionStatus]);
+  }, [refreshProfile, loadSubscriptionStatus, loadPlans]);
 
   const handlePaymentError = useCallback((error: any) => {
     setShowPaymentFlow(false);

@@ -25,6 +25,7 @@ interface ProfileStep1BottomSheetProps {
   onComplete: () => void;
   user?: any;
   dashboardData?: any;
+  isStepCompleted?: boolean; // Indique si l'étape est déjà complétée
 }
 
 // Liste des pays en ordre alphabétique avec RDC en premier
@@ -90,11 +91,28 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   onComplete,
   user,
   dashboardData,
+  isStepCompleted = false,
 }) => {
   const insets = useSafeAreaInsets();
   const { completeProfileSetup, loading } = useOnboarding();
   const { user: authUser } = useAuth(); // Récupérer l'utilisateur depuis le contexte Firebase
   const [currentSubStep, setCurrentSubStep] = useState(1);
+  
+  // Si l'étape est déjà complétée, empêcher la modification
+  useEffect(() => {
+    if (visible && isStepCompleted) {
+      Toast.show({
+        type: 'info',
+        text1: 'Étape déjà complétée',
+        text2: 'Cette étape ne peut plus être modifiée',
+        visibilityTime: 2000,
+      });
+      // Fermer le bottomsheet après un court délai
+      setTimeout(() => {
+        onClose();
+      }, 2000);
+    }
+  }, [visible, isStepCompleted, onClose]);
   
   // Form data
   const [formData, setFormData] = useState({

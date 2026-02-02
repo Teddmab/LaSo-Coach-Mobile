@@ -146,6 +146,37 @@ const ProfileCompletionCard: React.FC<ProfileCompletionCardProps> = ({
   };
 
   const handleStepPress = (stepId: number) => {
+    // ✅ Empêcher l'ouverture du bottomsheet pour les étapes 1, 2, 3 si elles sont déjà complétées
+    if (stepId === 1 && completedSteps.includes('profile_setup')) {
+      Toast.show({
+        type: 'info',
+        text1: 'Étape déjà complétée',
+        text2: 'Cette étape ne peut plus être modifiée',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+    
+    if (stepId === 2 && completedSteps.includes('goals_setup')) {
+      Toast.show({
+        type: 'info',
+        text1: 'Étape déjà complétée',
+        text2: 'Cette étape ne peut plus être modifiée',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+    
+    if (stepId === 3 && completedSteps.includes('recommendations')) {
+      Toast.show({
+        type: 'info',
+        text1: 'Étape déjà complétée',
+        text2: 'Cette étape ne peut plus être modifiée',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+    
     // Vérifier si les étapes précédentes sont complétées
     if (!arePreviousStepsCompleted(stepId)) {
       const currentStepId = getCurrentIncompleteStepId();
@@ -350,6 +381,7 @@ const ProfileCompletionCard: React.FC<ProfileCompletionCardProps> = ({
         onComplete={() => handleStepComplete(1)}
         user={user}
         dashboardData={dashboardData}
+        isStepCompleted={completedSteps.includes('profile_setup')}
       />
       
       <ProfileStep2BottomSheet
@@ -357,12 +389,14 @@ const ProfileCompletionCard: React.FC<ProfileCompletionCardProps> = ({
         onClose={() => setShowStep2BottomSheet(false)}
         onComplete={() => handleStepComplete(2)}
         dashboardData={dashboardData}
+        isStepCompleted={completedSteps.includes('goals_setup')}
       />
       
       <ProfileStep3BottomSheet
         visible={showStep3BottomSheet}
         onClose={() => setShowStep3BottomSheet(false)}
         onComplete={() => handleStepComplete(3)}
+        isStepCompleted={completedSteps.includes('recommendations')}
       />
       
       <ProfileStep4BottomSheet
