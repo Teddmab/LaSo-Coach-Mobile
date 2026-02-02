@@ -83,8 +83,8 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 apply from: new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim(), "../sentry.gradle")
 
-// Override NDK version to use installed NDK 27.0.12077987 (16KB page size compatible)
-rootProject.ext.ndkVersion = "27.0.12077987"
+// Override NDK version to use installed NDK 27.1.12297006 (16KB page size compatible)
+rootProject.ext.ndkVersion = "27.1.12297006"
 
 // Shorten CMake build path to avoid Windows 260-char limit
 // rootProject.buildDir = file("${rootDir}/build")
