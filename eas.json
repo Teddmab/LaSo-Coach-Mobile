@@ -14,7 +14,7 @@
       },
       "android": {
         "env": {
-          "ANDROID_NDK_VERSION": "25.2.9519653"
+          "ANDROID_NDK_VERSION": "27.0.12077987"
         }
       }
     },
