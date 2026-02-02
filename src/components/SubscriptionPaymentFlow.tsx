@@ -250,8 +250,17 @@ export default function SubscriptionPaymentFlow({
       
       const subscriptionData = await SubscriptionApi.activateFreeTrial(plan.id);
       
+      // ✅ MODIFICATION: Définir paymentDetails pour le plan gratuit pour afficher la confirmation
+      setPaymentDetails({
+        planId: plan.id,
+        paymentMethod: 'free',
+        subscription: subscriptionData,
+        amount: 0,
+        currency: 'USD',
+      });
+      
       setSuccess(true);
-      setCurrentStep(4); // Étape 4 = résultat (au lieu de 3)
+      setCurrentStep(4); // Étape 4 = page de confirmation
       
       if (onSuccess) {
         onSuccess({
@@ -1465,7 +1474,7 @@ export default function SubscriptionPaymentFlow({
               {processing ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.nextButtonText}>S'abonner</Text>
+                <Text style={styles.nextButtonText}>Commencer</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1941,34 +1950,51 @@ export default function SubscriptionPaymentFlow({
   );
 
   const renderStep4_Result = () => {
-    if (success && paymentDetails) {
+    if (success && (paymentDetails || isFreePlan)) {
+      const isFree = isFreePlan || paymentDetails?.paymentMethod === 'free';
+      
       return (
         <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false}>
           <View style={styles.successContainer}>
             <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
-            <Text style={styles.resultTitle}>Paiement réussi !</Text>
+            <Text style={styles.resultTitle}>
+              {isFree ? 'Abonnement activé !' : 'Paiement réussi !'}
+            </Text>
             <Text style={styles.resultSubtitle}>
-              Votre abonnement a été activé avec succès
+              {isFree 
+                ? 'Votre essai gratuit de 7 jours a été activé avec succès'
+                : 'Votre abonnement a été activé avec succès'}
             </Text>
           </View>
 
-          {/* Détails du paiement */}
+          {/* Détails de l'abonnement */}
           <View style={styles.paymentDetailsCard}>
-            <Text style={styles.paymentDetailsTitle}>Détails du paiement</Text>
+            <Text style={styles.paymentDetailsTitle}>
+              {isFree ? 'Détails de l\'abonnement' : 'Détails du paiement'}
+            </Text>
             
             <View style={styles.paymentDetailRow}>
               <Text style={styles.paymentDetailLabel}>Plan:</Text>
               <Text style={styles.paymentDetailValue}>{plan?.name || 'N/A'}</Text>
             </View>
             
-            <View style={styles.paymentDetailRow}>
-              <Text style={styles.paymentDetailLabel}>Montant:</Text>
-              <Text style={styles.paymentDetailValue}>
-                {paymentDetails.currency === 'CDF' 
-                  ? `${Math.round(paymentDetails.amount * 2300).toLocaleString()} CDF`
-                  : `${paymentDetails.amount} USD`}
-              </Text>
-            </View>
+            {!isFree && paymentDetails && (
+              <View style={styles.paymentDetailRow}>
+                <Text style={styles.paymentDetailLabel}>Montant:</Text>
+                <Text style={styles.paymentDetailValue}>
+                  {paymentDetails.currency === 'CDF' 
+                    ? `${Math.round(paymentDetails.amount * 2300).toLocaleString()} CDF`
+                    : `${paymentDetails.amount} USD`}
+                </Text>
+              </View>
+            )}
+            
+            {isFree && (
+              <View style={styles.paymentDetailRow}>
+                <Text style={styles.paymentDetailLabel}>Durée:</Text>
+                <Text style={styles.paymentDetailValue}>7 jours gratuits</Text>
+              </View>
+            )}
             
             {mobileMoneyDepositId && (
               <View style={styles.paymentDetailRow}>
@@ -1977,11 +2003,11 @@ export default function SubscriptionPaymentFlow({
               </View>
             )}
             
-            {paymentDetails.subscription && (
+            {(paymentDetails?.subscription || isFree) && (
               <View style={styles.paymentDetailRow}>
                 <Text style={styles.paymentDetailLabel}>Statut:</Text>
                 <Text style={styles.paymentDetailValue}>
-                  {paymentDetails.subscription.status === 'ACTIVE' ? 'Actif' : paymentDetails.subscription.status}
+                  {paymentDetails?.subscription?.status === 'ACTIVE' || isFree ? 'Actif' : paymentDetails?.subscription?.status || 'Actif'}
                 </Text>
               </View>
             )}

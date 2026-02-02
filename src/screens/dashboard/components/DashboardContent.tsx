@@ -7,6 +7,7 @@ import AchievementsCard from '../../../components/dashboard/AchievementsCard';
 import NutritionCard from '../../../components/dashboard/NutritionCard';
 import AgoraContentCard from '../../../components/dashboard/AgoraContentCard';
 import LAgoraCard from '../../../components/dashboard/LAgoraCard';
+import NewsCard from '../../../components/dashboard/NewsCard';
 import { Ionicons } from '@expo/vector-icons';
 import { ShimmerCard } from '../../../components/Shimmer';
 import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
@@ -203,6 +204,16 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         }}
         subscriptionData={subscriptionData}
         onSubscriptionPress={onSubscriptionRenew}
+      />
+
+      {/* News Card */}
+      <NewsCard
+        news={agendaData?.filter((item: any) => item.type === 'content') || []}
+        loading={agendaLoading}
+        onNewsPress={(news: any) => {
+          onPostPress(news);
+        }}
+        onMarkComplete={onMarkContentComplete}
       />
 
       <LAgoraCard

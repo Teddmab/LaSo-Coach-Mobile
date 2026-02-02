@@ -18,32 +18,7 @@ export const nutritionAPI: {
   async getPlans() {
     try {
       const url = '/nutrition/plans';
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('🍽️ [NUTRITION PLANS] Envoi de la requête API');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('📤 Méthode: GET');
-      console.log('📤 Endpoint: /api/v1/nutrition/plans');
-      console.log('📤 URL complète:', url);
-      console.log('📤 Timestamp:', new Date().toISOString());
-      
       const response = await api.get(url);
-      console.log('📡 [NUTRITION PLANS] Requête HTTP envoyée avec succès');
-      
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('✅ [NUTRITION PLANS] Réponse reçue avec succès');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('📥 Status HTTP:', response.status, response.statusText);
-      console.log('📥 Headers:', JSON.stringify(response.headers || {}, null, 2));
-      console.log('📥 Données reçues:', JSON.stringify(response.data, null, 2));
-      console.log('📥 Structure des données:', {
-        hasData: !!response.data,
-        dataKeys: response.data ? Object.keys(response.data) : [],
-        hasDataField: !!response.data?.data,
-        hasPlansArray: Array.isArray(response.data?.data?.plans) || Array.isArray(response.data?.plans),
-        plansCount: response.data?.data?.plans?.length || response.data?.plans?.length || 0,
-        plansData: response.data?.data?.plans || response.data?.plans || [],
-      });
-      console.log('═══════════════════════════════════════════════════════════');
       
       // Return both data and status for lock card logic
       return {
@@ -64,21 +39,6 @@ export const nutritionAPI: {
         config?: any;
       };
       
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('❌ [NUTRITION PLANS] Erreur lors de la requête');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('📤 Requête qui a échoué:', {
-        method: apiError?.config?.method || 'GET',
-        url: apiError?.config?.url || '/nutrition/plans',
-        headers: apiError?.config?.headers || {},
-      });
-      console.log('📥 Status HTTP:', apiError?.response?.status || apiError?.status || 'N/A');
-      console.log('📥 Status Text:', apiError?.response?.statusText || 'N/A');
-      console.log('📥 Message d\'erreur:', apiError?.message || 'N/A');
-      console.log('📥 Données d\'erreur:', JSON.stringify(apiError?.response?.data || {}, null, 2));
-      console.log('📥 Headers de réponse:', JSON.stringify(apiError?.response?.headers || {}, null, 2));
-      console.log('📥 Erreur complète:', JSON.stringify(error, null, 2));
-      console.log('═══════════════════════════════════════════════════════════');
       
       return {
         data: apiError?.response?.data || null,

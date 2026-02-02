@@ -66,8 +66,8 @@ const AgoraContentCard = ({ content, onMarkComplete, onPress }) => {
       {/* Content */}
       <View style={styles.content}>
         <Text style={styles.author}>{content.author || 'Anonyme'}</Text>
-        <Text style={styles.title} numberOfLines={2}>New</Text>
-        <Text style={styles.description} numberOfLines={2}>{content.description}</Text>
+        <Text style={styles.title} numberOfLines={2}>{content.title || 'Nouvelle actualité'}</Text>
+        <Text style={styles.description} numberOfLines={2}>{content.description || ''}</Text>
         
         {/* Points Display */}
         {content.points && (

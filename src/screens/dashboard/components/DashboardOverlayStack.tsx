@@ -423,6 +423,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
               onTabPress={onTabPress}
               activeTab={activeTab}
               onClose={() => stackNavigation.goBack()}
+              onFAQPress={() => stackNavigation.navigate('FAQ')}
             />
           </FixedLayout>
         );

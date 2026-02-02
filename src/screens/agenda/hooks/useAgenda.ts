@@ -65,6 +65,24 @@ export const useAgenda = () => {
       return;
     }
 
+    // ✅ MODIFICATION: Vérifier si un rendez-vous existe déjà et si 62h se sont écoulées
+    if (rendezvousData?.scheduledAt) {
+      const lastRendezvousDate = new Date(rendezvousData.scheduledAt);
+      const now = new Date();
+      const hoursSinceLastRendezvous = (now.getTime() - lastRendezvousDate.getTime()) / (1000 * 60 * 60);
+      
+      if (hoursSinceLastRendezvous < 62) {
+        const hoursRemaining = Math.ceil(62 - hoursSinceLastRendezvous);
+        const daysRemaining = Math.ceil(hoursRemaining / 24);
+        Toast.show({
+          type: 'error',
+          text1: 'Délai requis',
+          text2: `Vous devez attendre ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} après votre dernier rendez-vous pour en prendre un nouveau.`,
+        });
+        return;
+      }
+    }
+
     const selectedDate = new Date(formData.scheduledAt);
     const minDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
 

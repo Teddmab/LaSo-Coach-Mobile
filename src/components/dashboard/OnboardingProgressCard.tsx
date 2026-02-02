@@ -83,11 +83,13 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
     }
   };
 
-  // Calculate total points available
-  const totalPointsAvailable = ONBOARDING_STEPS.reduce(
-    (sum, step) => sum + step.points,
-    0
-  );
+  // ✅ MODIFICATION: Calculate total points COLLECTED (from completed steps)
+  const totalPointsCollected = ONBOARDING_STEPS
+    .filter(step => {
+      const stepKey = step.key;
+      return completedSteps.includes(stepKey);
+    })
+    .reduce((sum, step) => sum + step.points, 0);
 
   // Get current step for points display
   const currentStepData = ONBOARDING_STEPS.find(s => s.key === currentStep);
@@ -174,7 +176,7 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
       {/* Total Points Display */}
       <View style={styles.totalPointsContainer}>
         <Text style={styles.totalPointsText}>
-          {totalPointsAvailable} points offerts
+          {totalPointsCollected} points collectés
         </Text>
       </View>
     </View>

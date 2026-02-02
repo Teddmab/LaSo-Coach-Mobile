@@ -6,6 +6,7 @@ export interface ChatScreenProps {
   onTabPress?: (tabId: string) => void;
   activeTab?: string;
   onClose?: () => void;
+  onFAQPress?: () => void;
 }
 
 export interface Message {

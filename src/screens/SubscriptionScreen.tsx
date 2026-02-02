@@ -56,6 +56,11 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   };
 
   const currentPlanId = currentSubscription?.subscription?.plan?.id;
+  const currentPlan = currentSubscription?.subscription?.plan;
+  const hasActivePaidPlan = currentSubscription?.status === 'ACTIVE' && 
+                            currentPlan && 
+                            currentPlan.price > 0 && 
+                            !currentPlan.isFree;
 
   if (loading) {
     return (
@@ -130,12 +135,6 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
 
         <YourPremiumCard subscription={currentSubscription} />
 
-        <ManageSubscriptionCard
-          subscription={currentSubscription}
-          invoices={invoices}
-          onViewInvoices={handleViewInvoices}
-        />
-
         <View style={styles.sectionContainer}>
           <TouchableOpacity
             style={styles.faqLink}
@@ -154,15 +153,22 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
                 {companionMessage || 'Gérez votre abonnement sur le site web à lasocoach.com'}
               </Text>
             </View>
-          ) : (
+          ) : plans.length > 0 ? (
             plans.map((plan) => (
               <PlanCard
                 key={plan.id}
                 plan={plan}
                 isCurrent={plan.id === currentPlanId}
+                hasActivePaidPlan={hasActivePaidPlan}
                 onSelect={handlePlanSelect}
               />
             ))
+          ) : (
+            <View style={styles.emptyStateContainer}>
+              <Text style={styles.emptyStateText}>
+                Aucun plan d'abonnement disponible pour le moment.
+              </Text>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -306,6 +312,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   companionModeMessage: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyStateContainer: {
+    backgroundColor: theme.colors.surface,
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  emptyStateText: {
     fontSize: 14,
     color: theme.colors.text.secondary,
     textAlign: 'center',

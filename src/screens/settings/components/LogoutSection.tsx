@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface LogoutSectionProps {
@@ -21,8 +21,9 @@ const LogoutSection: React.FC<LogoutSectionProps> = ({ onLogout }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 20,
+    marginTop: Platform.OS === 'android' ? -2 : 20,
     marginHorizontal: 20,
+    marginBottom: Platform.OS === 'android' ? 20 : 0,
   },
   item: {
     flexDirection: 'row',

@@ -1,10 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
-  TouchableOpacity,
-  ScrollView
+  TouchableOpacity
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -16,7 +15,17 @@ import RendezvousDetailBottomSheet from './RendezvousDetailBottomSheet';
 import { useAuth } from '../../context/FirebaseAuthContext';
 import Toast from 'react-native-toast-message';
 
-const ProfileCompletionCard = ({ 
+interface ProfileCompletionCardProps {
+  onboardingData?: any;
+  onCompleteProfile?: () => void;
+  onStepPress?: (stepId: number) => void;
+  subscriptionData?: any;
+  onRefresh?: () => void;
+  dashboardData?: any;
+  rendezvousData?: any;
+}
+
+const ProfileCompletionCard: React.FC<ProfileCompletionCardProps> = ({ 
   onboardingData,
   onCompleteProfile,
   onStepPress,
@@ -31,10 +40,6 @@ const ProfileCompletionCard = ({
   const [showStep3BottomSheet, setShowStep3BottomSheet] = useState(false);
   const [showStep4BottomSheet, setShowStep4BottomSheet] = useState(false);
   const [showRendezvousDetailBottomSheet, setShowRendezvousDetailBottomSheet] = useState(false);
-  // Force re-render when onboarding data changes
-  React.useEffect(() => {
-    // Data structure logged for debugging
-  }, [onboardingData]);
 
   // Only 4 steps as per design
   const steps = [
@@ -49,40 +54,53 @@ const ProfileCompletionCard = ({
   const completedSteps = onboardingDataSafe?.data?.completedSteps || [];
   const currentStep = onboardingDataSafe?.data?.currentStep || 'profile_setup';
 
+  // ✅ MODIFICATION: Trouver la première étape non complétée pour la marquer comme active
+  const getFirstIncompleteStepId = (): number | null => {
+    if (!completedSteps.includes('profile_setup')) return 1;
+    if (!completedSteps.includes('goals_setup')) return 2;
+    if (!completedSteps.includes('recommendations')) return 3;
+    if (!completedSteps.includes('rendezvous')) return 4;
+    return null; // Toutes les étapes sont complétées
+  };
+
+  const firstIncompleteStepId = getFirstIncompleteStepId();
+
   // Update step completion status based on onboarding data
   const updatedSteps = steps.map(step => {
     let completed = false;
-    let isCurrent = false;
+    // ✅ MODIFICATION: Une étape est active si elle est la première non complétée
+    const isCurrent = step.id === firstIncompleteStepId && !completedSteps.includes(
+      step.id === 1 ? 'profile_setup' :
+      step.id === 2 ? 'goals_setup' :
+      step.id === 3 ? 'recommendations' :
+      'rendezvous'
+    );
 
     switch (step.id) {
       case 1: // Mon Profil
         completed = completedSteps.includes('profile_setup');
-        isCurrent = currentStep === 'profile_setup';
         break;
       case 2: // Mes Objectifs
         completed = completedSteps.includes('goals_setup');
-        isCurrent = currentStep === 'goals_setup';
         break;
       case 3: // Recommandations
         completed = completedSteps.includes('recommendations');
-        isCurrent = currentStep === 'recommendations';
         break;
       case 4: // Rendez-vous
         completed = completedSteps.includes('rendezvous');
-        isCurrent = currentStep === 'rendezvous';
         break;
     }
 
     return { ...step, completed, isCurrent };
   });
 
-  // Filter out completed steps - only show incomplete steps
-  const visibleSteps = updatedSteps.filter(step => !step.completed);
+  // ✅ MODIFICATION: Ne pas filtrer les étapes complétées - afficher toutes les étapes
+  const visibleSteps = updatedSteps;
 
-  // Calculate total points (only for visible/incomplete steps)
-  const totalPoints = visibleSteps.length > 0 
-    ? visibleSteps.reduce((sum, step) => sum + step.points, 0)
-    : 0;
+  // ✅ MODIFICATION: Calculer les points COLLECTÉS (depuis les étapes complétées)
+  const totalPointsCollected = updatedSteps
+    .filter(step => step.completed)
+    .reduce((sum, step) => sum + step.points, 0);
 
   // Calculate progress percentage
   const completedStepsCount = updatedSteps.filter(step => step.completed).length;
@@ -93,23 +111,18 @@ const ProfileCompletionCard = ({
   const activeStepIndex = visibleSteps.length > 0 ? 0 : -1;
   const currentActiveStep = activeStepIndex >= 0 ? activeStepIndex : 0;
 
-  // Helper function to check if previous steps are completed
+  // ✅ MODIFICATION: Helper function to check if previous steps are completed
+  // Étape 2 dépend de l'étape 1, mais étapes 3 et 4 sont indépendantes
   const arePreviousStepsCompleted = (stepId: number): boolean => {
     if (stepId === 1) return true; // Step 1 is always accessible
+    if (stepId === 3) return true; // Step 3 is independent
+    if (stepId === 4) return true; // Step 4 is independent
     
-    const stepMap: Record<number, string> = {
-      1: 'profile_setup',
-      2: 'goals_setup',
-      3: 'recommendations',
-      4: 'rendezvous',
-    };
-    
-    // Check all previous steps
-    for (let i = 1; i < stepId; i++) {
-      if (!completedSteps.includes(stepMap[i])) {
-        return false;
-      }
+    // Step 2 depends on step 1
+    if (stepId === 2) {
+      return completedSteps.includes('profile_setup');
     }
+    
     return true;
   };
 
@@ -122,60 +135,8 @@ const ProfileCompletionCard = ({
     return null;
   };
 
-  // ✅ MODIFICATION: Fonction pour déterminer la couleur de la carte selon l'état du rendez-vous
-  const getCardColor = () => {
-    const hasRendezvous = completedSteps.includes('rendezvous');
-    const rendezvous = rendezvousData || dashboardData?.rendezvous || dashboardData?.rendezVous || null;
-    
-    // Debug log pour vérifier les données
-    if (__DEV__) {
-      console.log('🎨 [ProfileCompletionCard] getCardColor:', {
-        hasRendezvous,
-        rendezvousExists: !!rendezvous,
-        rendezvousStatus: rendezvous?.status,
-        hasAssignedCoach: !!rendezvous?.assignedCoach,
-        assignedCoachName: rendezvous?.assignedCoach?.name,
-      });
-    }
-    
-    // Vert : Rendez-vous assigné (statut ASSIGNED/CONFIRMED ou assignedCoach existe)
-    // Vérifier aussi si le statut est une chaîne en minuscules
-    const isAssigned = rendezvous && (
-      rendezvous.status === 'ASSIGNED' || 
-      rendezvous.status === 'assigned' ||
-      rendezvous.status === 'CONFIRMED' ||
-      rendezvous.status === 'confirmed' ||
-      !!rendezvous.assignedCoach
-    );
-    
-    if (isAssigned) {
-      return {
-        backgroundColor: '#E8F5E9', // Vert clair
-        borderColor: '#4CAF50', // Vert
-        iconColor: '#4CAF50',
-        title: 'Rendez-vous assigné',
-      };
-    }
-    
-    // Jaune : Seulement à l'étape 4 quand le rendez-vous est créé mais en attente (PENDING)
-    // Les étapes 1-3 gardent la couleur par défaut (blanc)
-    if (hasRendezvous && rendezvous) {
-      return {
-        backgroundColor: '#FFF9C4', // Jaune clair
-        borderColor: '#FBC02D', // Jaune
-        iconColor: '#FBC02D',
-        title: 'Rendez-vous en attente',
-      };
-    }
-    
-    // Par défaut : Couleur blanche pour les étapes 1-3 (comportement original)
-    return {
-      backgroundColor: '#FFFFFF', // Blanc (couleur par défaut)
-      borderColor: '#E0E0E0', // Gris clair (couleur par défaut)
-      iconColor: theme.colors.text.primary, // Couleur de texte par défaut
-      title: 'Complétez votre profil',
-    };
-  };
+  // ✅ MODIFICATION: La carte garde toujours les couleurs par défaut
+  // Seule l'étape 4 change de couleur selon le statut du rendez-vous
 
   const handleCompleteProfile = () => {
     // On a toujours un plan FREE par défaut, donc pas besoin de vérifier le renouvellement
@@ -184,9 +145,7 @@ const ProfileCompletionCard = ({
     }
   };
 
-  const scrollRef = useRef<ScrollView | null>(null);
-
-  const handleStepPress = (stepId) => {
+  const handleStepPress = (stepId: number) => {
     // Vérifier si les étapes précédentes sont complétées
     if (!arePreviousStepsCompleted(stepId)) {
       const currentStepId = getCurrentIncompleteStepId();
@@ -251,28 +210,13 @@ const ProfileCompletionCard = ({
     }
   };
 
-  // Centrer automatiquement l'étape active dans le carrousel
-  React.useEffect(() => {
-    if (!scrollRef.current || visibleSteps.length === 0) return;
-
-    const cardWidth = 152; // largeur approximative (140) + marge
-    const targetIndex = currentActiveStep;
-    const x = Math.max(0, cardWidth * targetIndex - cardWidth); // décale pour centrer visuellement
-
-    scrollRef.current.scrollTo({ x, animated: true });
-  }, [currentActiveStep, visibleSteps.length]);
-
-  // ✅ MODIFICATION: Obtenir les couleurs dynamiques
-  const cardColors = getCardColor();
-  
-  // Vérifier si toutes les étapes sont complétées mais le rendez-vous est en attente
+  // ✅ MODIFICATION: Obtenir les données du rendez-vous pour l'étape 4
   const hasRendezvous = completedSteps.includes('rendezvous');
   const rendezvous = rendezvousData || dashboardData?.rendezvous || dashboardData?.rendezVous || null;
   
   // Un rendez-vous est assigné si :
   // - Le rendez-vous existe
   // - ET (statut ASSIGNED/CONFIRMED OU assignedCoach existe)
-  // Vérifier aussi si le statut est une chaîne en minuscules
   const isRendezvousAssigned = rendezvous && (
     rendezvous.status === 'ASSIGNED' || 
     rendezvous.status === 'assigned' ||
@@ -285,136 +229,79 @@ const ProfileCompletionCard = ({
   // - L'étape rendezvous est complétée (hasRendezvous)
   // - ET le rendez-vous n'est pas assigné (soit il n'existe pas, soit il est PENDING)
   const isRendezvousPending = hasRendezvous && !isRendezvousAssigned;
-  
-  // Si toutes les étapes sont complétées mais rendez-vous en attente, afficher un message minimal
-  const allStepsCompleted = visibleSteps.length === 0;
-  const showPendingMessage = allStepsCompleted && isRendezvousPending;
-  
-  // ✅ MODIFICATION: Si le rendez-vous est assigné, afficher un message de confirmation en vert
-  const showAssignedMessage = allStepsCompleted && isRendezvousAssigned;
-  
-  // Debug log
-  if (__DEV__) {
-    console.log('📊 [ProfileCompletionCard] Rendezvous status:', {
-      hasRendezvous,
-      rendezvousExists: !!rendezvous,
-      rendezvousStatus: rendezvous?.status,
-      hasAssignedCoach: !!rendezvous?.assignedCoach,
-      assignedCoachName: rendezvous?.assignedCoach?.name,
-      isRendezvousAssigned,
-      isRendezvousPending,
-      allStepsCompleted,
-      visibleStepsLength: visibleSteps.length,
-      showPendingMessage,
-      showAssignedMessage,
-      cardColors,
-    });
-  }
-
-  // Handler pour ouvrir le bottom sheet des détails du rendez-vous
-  const handleCardPress = () => {
-    console.log('🔵 [ProfileCompletionCard] handleCardPress called', {
-      showPendingMessage,
-      showAssignedMessage,
-      rendezvousExists: !!rendezvous,
-      rendezvous,
-    });
-    
-    // Ouvrir le bottom sheet si le rendez-vous est en attente ou assigné
-    if (showPendingMessage || showAssignedMessage) {
-      console.log('✅ [ProfileCompletionCard] Opening rendezvous detail bottom sheet');
-      setShowRendezvousDetailBottomSheet(true);
-    } else {
-      console.log('❌ [ProfileCompletionCard] Cannot open: showPendingMessage and showAssignedMessage are false');
-    }
-  };
 
   return (
     <View 
-      style={[
-        styles.container, 
-        {
-          backgroundColor: cardColors.backgroundColor,
-          borderColor: cardColors.borderColor,
-          borderWidth: 2,
-        }
-      ]} 
+      style={styles.container}
       key={`profile-completion-${JSON.stringify(completedSteps)}`}
     >
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="help-circle-outline" size={20} color={cardColors.iconColor} />
-          <Text style={[styles.title, { color: cardColors.iconColor }]}>{cardColors.title}</Text>
+          <Ionicons name="help-circle-outline" size={20} color={theme.colors.text.primary} />
+          <Text style={styles.title}>Complétez votre profil</Text>
         </View>
       </View>
 
-      {/* Steps Cards - Only show incomplete steps */}
-      {showAssignedMessage ? (
-        // ✅ MODIFICATION: Afficher un message de confirmation en vert quand le rendez-vous est assigné
-        <TouchableOpacity 
-          style={styles.assignedRendezvousContainer}
-          onPress={handleCardPress}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-          <Text style={styles.assignedRendezvousText}>
-            Coach assigné avec succès !
-          </Text>
-          {rendezvous?.assignedCoach?.name && (
-            <Text style={styles.assignedRendezvousSubtext}>
-              {rendezvous.assignedCoach.name}
-            </Text>
-          )}
-          <Text style={styles.assignedRendezvousSubtext}>
-            Appuyez pour voir les détails
-          </Text>
-        </TouchableOpacity>
-      ) : showPendingMessage ? (
-        // ✅ MODIFICATION: Afficher un message minimal en jaune quand le rendez-vous est en attente
-        // PRIORITÉ: Afficher ce message AVANT de vérifier visibleSteps.length
-        <TouchableOpacity 
-          style={styles.pendingRendezvousContainer}
-          onPress={handleCardPress}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="time-outline" size={32} color="#FBC02D" />
-          <Text style={styles.pendingRendezvousText}>
-            Rendez-vous en attente
-          </Text>
-          <Text style={styles.pendingRendezvousSubtext}>
-            Appuyez pour voir les détails
-          </Text>
-        </TouchableOpacity>
-      ) : visibleSteps.length > 0 ? (
-        <ScrollView 
-          ref={scrollRef}
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.stepsContainer}
-        >
-          {visibleSteps.map((step, index) => {
-            const isActive = index === currentActiveStep;
+      {/* ✅ MODIFICATION: Layout 2x2 avec flexWrap - Afficher toutes les étapes */}
+      <View style={styles.stepsGridContainer}>
+          {updatedSteps.map((step) => {
+            const isActive = step.isCurrent;
+            const isCompleted = step.completed;
+            
+            // ✅ MODIFICATION: Pour l'étape 4, appliquer les couleurs selon le statut du rendez-vous
+            let stepCardStyle: any[] = [styles.stepCard];
+            let stepIconStyle: any[] = [styles.stepIcon];
+            let stepTextStyle: any[] = [styles.stepTitle];
+            
+            if (step.id === 4 && isCompleted && rendezvous) {
+              // Étape 4 complétée : couleur selon le statut du rendez-vous
+              if (isRendezvousAssigned) {
+                stepCardStyle.push(styles.stepCardStep4Assigned);
+                stepIconStyle.push(styles.stepIconStep4Assigned);
+                stepTextStyle.push(styles.stepTextStep4Assigned);
+              } else if (isRendezvousPending) {
+                stepCardStyle.push(styles.stepCardStep4Pending);
+                stepIconStyle.push(styles.stepIconStep4Pending);
+                stepTextStyle.push(styles.stepTextStep4Pending);
+              }
+            } else if (isCompleted) {
+              // Étapes complétées : vert
+              stepCardStyle.push(styles.stepCardCompleted);
+              stepIconStyle.push(styles.stepIconCompleted);
+              stepTextStyle.push(styles.stepTitleCompleted);
+            } else {
+              // ✅ MODIFICATION: Toutes les étapes non complétées sont en violet
+              // La première non complétée sera marquée comme active, mais toutes les non complétées sont violettes
+              stepCardStyle.push(styles.stepCardActive);
+              stepIconStyle.push(styles.stepIconActive);
+              stepTextStyle.push(styles.stepTitleActive);
+            }
             
             return (
               <TouchableOpacity 
                 key={step.id} 
-                style={[
-                  styles.stepCard,
-                  isActive && styles.stepCardActive
-                ]}
-                onPress={() => handleStepPress(step.id)}
+                style={stepCardStyle}
+                onPress={() => {
+                  // ✅ MODIFICATION: Si étape 4 complétée et rendez-vous existe, ouvrir RendezvousDetailBottomSheet
+                  if (step.id === 4 && isCompleted && rendezvous) {
+                    setShowRendezvousDetailBottomSheet(true);
+                  } else {
+                    handleStepPress(step.id);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 {/* Circular Icon */}
-                <View style={[
-                  styles.stepIcon,
-                  isActive && styles.stepIconActive
-                ]}>
-                  <View style={[
-                    styles.stepIconDot,
-                    isActive && styles.stepIconDotActive
-                  ]} />
+                <View style={stepIconStyle}>
+                  {isCompleted ? (
+                    <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                  ) : (
+                    <View style={[
+                      styles.stepIconDot,
+                      isActive && styles.stepIconDotActive
+                    ]} />
+                  )}
                 </View>
 
                 {/* Step Number */}
@@ -426,70 +313,34 @@ const ProfileCompletionCard = ({
                 </Text>
 
                 {/* Step Title */}
-                <Text style={[
-                  styles.stepTitle,
-                  isActive && styles.stepTitleActive
-                ]}>
+                <Text style={stepTextStyle}>
                   {step.title}
                 </Text>
 
                 {/* Points Badge */}
-                <View style={[
-                  styles.pointsBadge,
-                  isActive && styles.pointsBadgeActive
-                ]}>
-                  <Text style={[
-                    styles.pointsText,
-                    isActive && styles.pointsTextActive
+                {!isCompleted && (
+                  <View style={[
+                    styles.pointsBadge,
+                    isActive && styles.pointsBadgeActive
                   ]}>
-                    +{step.points} pts
-                  </Text>
-                </View>
+                    <Text style={[
+                      styles.pointsText,
+                      isActive && styles.pointsTextActive
+                    ]}>
+                      +{step.points} pts
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
-      ) : (
-        <View style={styles.allStepsCompletedContainer}>
-          <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
-          <Text style={styles.allStepsCompletedText}>
-            Toutes les étapes sont complétées !
-          </Text>
         </View>
-      )}
 
-      {/* Instruction Text */}
-      {visibleSteps.length > 0 && (
-        <Text style={styles.instructionText}>
-          {visibleSteps.length === 1 
-            ? 'Terminez cette dernière étape pour activer votre coaching personnalisé.'
-            : `Terminez les ${visibleSteps.length} étapes restantes pour activer votre coaching personnalisé.`
-          }
-        </Text>
-      )}
-
-      {/* Total Points Button - Only show if there are visible steps */}
-      {visibleSteps.length > 0 && (
-        <TouchableOpacity 
-          style={styles.totalPointsButton}
-          onPress={handleCompleteProfile}
-        >
-          <Text style={styles.totalPointsText}>{totalPoints} points offerts</Text>
-        </TouchableOpacity>
-      )}
-      
-      {/* ✅ MODIFICATION: Message minimal pour rendez-vous en attente */}
-      {showPendingMessage && (
-        <Text style={styles.pendingInstructionText}>
-          Votre rendez-vous est en attente d'assignation. Appuyez sur la carte pour voir les détails.
-        </Text>
-      )}
-      
-      {/* ✅ MODIFICATION: Message pour rendez-vous assigné */}
-      {showAssignedMessage && (
-        <Text style={styles.assignedInstructionText}>
-          Votre coach a été assigné avec succès. Appuyez sur la carte pour voir les détails.
-        </Text>
+      {/* ✅ MODIFICATION: Afficher les points collectés */}
+      {totalPointsCollected > 0 && (
+        <View style={styles.totalPointsContainer}>
+          <Text style={styles.totalPointsText}>{totalPointsCollected} points collectés</Text>
+        </View>
       )}
 
       {/* Step Bottom Sheets */}
@@ -536,14 +387,14 @@ const ProfileCompletionCard = ({
 
 const styles = StyleSheet.create({
   container: {
-    // backgroundColor et borderColor sont maintenant dynamiques (appliqués inline)
+    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 20,
     borderRadius: 16,
     padding: 20,
-    borderWidth: 2, // Augmenté à 2 pour correspondre à l'application inline
-    // borderColor sera appliqué inline dynamiquement
+    borderWidth: 1,
+    borderColor: '#E5E5E5', // Gris clair tamisé comme les autres cartes
   },
   header: {
     flexDirection: 'row',
@@ -566,22 +417,41 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
+  // ✅ MODIFICATION: Grid 2x2 pour les étapes
+  stepsGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   stepCard: {
-    width: 140,
+    width: '48%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
-    marginRight: 12,
   },
   stepCardCompleted: {
-    opacity: 0.4,
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  // ✅ MODIFICATION: Styles pour l'étape 4 selon le statut du rendez-vous
+  stepCardStep4Assigned: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+  stepCardStep4Pending: {
+    backgroundColor: '#FFF9C4',
+    borderColor: '#FBC02D',
+    borderWidth: 2,
   },
   stepCardActive: {
-    backgroundColor: '#F3E5F5',
-    borderColor: '#9C27B0',
+    backgroundColor: '#F3E5F5', // Violet clair pour étape active
+    borderColor: '#9C27B0', // Violet pour étape active
     borderWidth: 2,
   },
   stepIcon: {
@@ -593,8 +463,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  stepIconCompleted: {
+    backgroundColor: 'transparent',
+  },
+  stepIconStep4Assigned: {
+    backgroundColor: 'transparent',
+  },
+  stepIconStep4Pending: {
+    backgroundColor: 'transparent',
+  },
   stepIconActive: {
-    backgroundColor: '#9C27B0',
+    backgroundColor: '#9C27B0', // Violet pour étape active
   },
   stepIconDot: {
     width: 12,
@@ -623,11 +502,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   stepTitleActive: {
-    color: '#9C27B0',
+    color: '#9C27B0', // Violet pour étape active
     fontSize: 15,
   },
   stepTitleCompleted: {
-    color: theme.colors.text.secondary,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  stepTextStep4Assigned: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  stepTextStep4Pending: {
+    color: '#FBC02D',
+    fontWeight: '600',
   },
   pointsBadge: {
     backgroundColor: '#E8F5E9',
@@ -664,6 +552,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#4CAF50',
+  },
+  totalPointsContainer: {
+    marginTop: 16,
+    alignItems: 'center',
   },
   totalPointsText: {
     fontSize: 16,

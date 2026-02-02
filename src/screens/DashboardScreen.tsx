@@ -8,8 +8,6 @@ import DashboardLayout from './dashboard/components/DashboardLayout';
 import { DashboardOverlayStack } from './dashboard/components/DashboardOverlayStack';
 import FixedLayout from '../components/FixedLayout';
 import MoreMenu from '../components/MoreMenu';
-import WelcomeBottomSheet from '../components/auth/WelcomeBottomSheet';
-import { useWelcomeFlow } from '../hooks/useWelcomeFlow';
 import { useDashboardData } from './dashboard/hooks/useDashboardData';
 import { useSubscription } from './dashboard/hooks/useSubscription';
 import { useDashboardNavigation } from './dashboard/hooks/useDashboardNavigation';
@@ -47,12 +45,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // TODO: PHASE 6 - Get user entitlements to determine feature access
   const { entitlements, loading: entitlementsLoading, canAccess, refresh: refreshEntitlements } = useEntitlements();
   
-  // Welcome flow hook
-  const {
-    showWelcomeBottomSheet,
-    isNewUser,
-    handleWelcomeStart,
-  } = useWelcomeFlow();
   
   // Custom hooks for data management
   const { dashboardData, fetchDashboardData, setDashboardData, loading: dashboardLoading } = useDashboardData();
@@ -602,13 +594,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (currentScreen !== 'home' && getOverlayRouteName(currentScreen)) {
     return (
       <>
-        {/* Welcome Bottom Sheet for new users */}
-        <WelcomeBottomSheet
-          visible={showWelcomeBottomSheet}
-          userName={userName}
-          onStart={handleWelcomeStart}
-        />
-
       <DashboardOverlayStack
         user={user}
         activeTab={activeTab}
@@ -646,13 +631,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'progress') {
     return (
       <>
-        {/* Welcome Bottom Sheet for new users */}
-        <WelcomeBottomSheet
-          visible={showWelcomeBottomSheet}
-          userName={userName}
-          onStart={handleWelcomeStart}
-        />
-
         <FixedLayout
           headerTitle="Progression"
           activeTab={activeTab}
@@ -684,13 +662,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'nutrition') {
     return (
       <>
-        {/* Welcome Bottom Sheet for new users */}
-        <WelcomeBottomSheet
-          visible={showWelcomeBottomSheet}
-          userName={userName}
-          onStart={handleWelcomeStart}
-        />
-
         <FixedLayout
           headerTitle="Nutrition"
           activeTab={activeTab}
@@ -722,13 +693,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   if (activeTab === 'achievements') {
     return (
       <>
-        {/* Welcome Bottom Sheet for new users */}
-        <WelcomeBottomSheet
-          visible={showWelcomeBottomSheet}
-          userName={userName}
-          onStart={handleWelcomeStart}
-        />
-
         <FixedLayout
           headerTitle="Réalisations"
           activeTab={activeTab}
@@ -759,12 +723,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // Default home screen
   return (
     <>
-      {/* Welcome Bottom Sheet for new users */}
-      <WelcomeBottomSheet
-        visible={showWelcomeBottomSheet}
-        userName={userName}
-        onStart={handleWelcomeStart}
-      />
 
 
       <DashboardLayout

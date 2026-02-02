@@ -9,17 +9,26 @@ import ImagePersistent from '../../../components/ImagePersistent';
 interface PlanCardProps {
   plan: Plan;
   isCurrent?: boolean;
+  hasActivePaidPlan?: boolean;
   onSelect: (plan: Plan) => void;
 }
 
-const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
+const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, hasActivePaidPlan, onSelect }) => {
   const features = plan.features || [];
 
   // Check if current plan is iOS default plan (contains "ios" in name, case-insensitive)
   const isCurrentIOSPlan = isCurrent && plan.name?.toLowerCase().includes('ios');
+  // Check if this is a paid plan
+  const isPaidPlan = plan.price > 0 && !plan.isFree;
+  // If user has an active paid plan, disable other paid plans (but allow free plan)
+  const isDisabled = hasActivePaidPlan && isPaidPlan && !isCurrent;
   // Allow upgrade from iOS plan to paid plans
-  const isClickable = !isCurrent || isCurrentIOSPlan;
-  const buttonText = isCurrentIOSPlan ? "Passer à ce plan" : (isCurrent ? 'Plan actuel' : "S'abonner");
+  const isClickable = (!isCurrent || isCurrentIOSPlan) && !isDisabled;
+  const buttonText = isDisabled 
+    ? 'Non disponible' 
+    : isCurrentIOSPlan 
+      ? "Passer à ce plan" 
+      : (isCurrent ? 'Plan actuel' : "S'abonner");
 
   // Déterminer si c'est un plan annuel
   const isAnnual = plan.name?.toLowerCase().includes('annuel') || plan.name?.toLowerCase().includes('year');
@@ -67,16 +76,24 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, onSelect }) => {
             </Text>
           )}
           <Text style={styles.planCardPriceLarge}>
-            {plan.currency || '$'}{plan.price}{priceSuffix}
+            {plan.price === 0 || plan.isFree ? 'Gratuit pour 7 jours' : `${plan.currency || '$'}${plan.price}${priceSuffix}`}
           </Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.planSubscribeButton, { backgroundColor: buttonBackgroundColor }]}
+          style={[
+            styles.planSubscribeButton, 
+            { backgroundColor: buttonBackgroundColor },
+            isDisabled && styles.planSubscribeButtonDisabled
+          ]}
           onPress={() => onSelect(plan)}
           disabled={!isClickable}
         >
-          <Text style={[styles.planSubscribeButtonText, { color: buttonTextColor }]}>
+          <Text style={[
+            styles.planSubscribeButtonText, 
+            { color: buttonTextColor },
+            isDisabled && styles.planSubscribeButtonTextDisabled
+          ]}>
             {buttonText}
           </Text>
         </TouchableOpacity>
@@ -154,9 +171,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     opacity: 1,
   },
+  planSubscribeButtonDisabled: {
+    backgroundColor: '#E0E0E0',
+    opacity: 0.6,
+  },
   planSubscribeButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  planSubscribeButtonTextDisabled: {
+    color: '#9E9E9E',
   },
   planFeaturesSection: {
     backgroundColor: '#F5F5DC',

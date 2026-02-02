@@ -1223,8 +1223,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                         )}
                       </TouchableOpacity>
 
-                      {/* Google Login Button - Masqué en mode compagnon */}
-                      {!isCompanionMode && (
+                      {/* Google Login Button - Masqué sur iOS et en mode compagnon */}
+                      {Platform.OS !== 'ios' && !isCompanionMode && (
                         <TouchableOpacity
                           style={[styles.googleButton, loading && styles.loginButtonDisabled]}
                           onPress={handleGoogleLogin}
@@ -1416,8 +1416,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
                     </TouchableOpacity>
                   )}
 
-                  {/* Google Sign Up Button - Masqué en mode compagnon */}
-                  {currentStep < 4 && !isCompanionMode && (
+                  {/* Google Sign Up Button - Masqué sur iOS et en mode compagnon */}
+                  {currentStep < 4 && Platform.OS !== 'ios' && !isCompanionMode && (
                     <>
                       {/* Divider */}
                       <View style={styles.dividerContainer}>

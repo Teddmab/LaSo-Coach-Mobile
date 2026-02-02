@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, TextInput, Dimensions, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import { Conversation } from '../types';
 import { formatDate, getConversationTitle, getConversationAvatar } from '../utils/chatUtils';
 import { User } from '../../../types/auth';
+import { formatDateLabel, formatTimeLabel, getDaysUntil } from '../../agenda/utils/agendaUtils';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -13,6 +16,10 @@ interface ConversationListProps {
   currentUser?: User | null;
   onSearchChange: (text: string) => void;
   onConversationPress: (conversation: Conversation) => void;
+  rendezvousData?: any | null;
+  onFAQPress?: () => void;
+  onTakeRendezvous?: () => void;
+  onModifyRendezvous?: () => void;
 }
 
 const ConversationList: React.FC<ConversationListProps> = ({
@@ -22,6 +29,10 @@ const ConversationList: React.FC<ConversationListProps> = ({
   currentUser,
   onSearchChange,
   onConversationPress,
+  rendezvousData,
+  onFAQPress,
+  onTakeRendezvous,
+  onModifyRendezvous,
 }) => {
   const filteredConversations = conversations.filter(conv => {
     if (!searchText) return true;
@@ -89,10 +100,12 @@ const ConversationList: React.FC<ConversationListProps> = ({
         extraData={`${conversations.length}-${conversations.map(c => `${c.id}-${c.unreadCount || 0}-${c.lastMessage?.id || ''}`).join(',')}`}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubbles-outline" size={48} color="#E0E0E0" />
-            <Text style={styles.emptyText}>Aucune conversation</Text>
-          </View>
+          <EmptyConversationsCard 
+            rendezvousData={rendezvousData} 
+            onFAQPress={onFAQPress}
+            onTakeRendezvous={onTakeRendezvous}
+            onModifyRendezvous={onModifyRendezvous}
+          />
         }
       />
     </View>
@@ -188,6 +201,281 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.text.secondary,
     marginTop: 16,
+  },
+});
+
+// ✅ MODIFICATION: Carte UI pour l'état vide avec message selon le statut du rendez-vous
+const EmptyConversationsCard: React.FC<{ rendezvousData?: any | null; onFAQPress?: () => void; onTakeRendezvous?: () => void; onModifyRendezvous?: () => void }> = ({ 
+  rendezvousData, 
+  onFAQPress,
+  onTakeRendezvous,
+  onModifyRendezvous
+}) => {
+  // CAS 2 - RDV PAS ENCORE PRIS
+  if (!rendezvousData) {
+    return (
+      <View style={emptyCardStyles.container}>
+        <View style={emptyCardStyles.card}>
+          <View style={emptyCardStyles.content}>
+            <Text style={emptyCardStyles.title}>
+              Vous retrouverez nos échanges ici, une fois votre rendez-vous pris avec LaSoCoach.
+            </Text>
+            
+            {onTakeRendezvous && (
+              <TouchableOpacity 
+                style={emptyCardStyles.actionButton}
+                onPress={onTakeRendezvous}
+                activeOpacity={0.7}
+              >
+                <Text style={emptyCardStyles.actionButtonText}>Prendre un rendez-vous</Text>
+              </TouchableOpacity>
+            )}
+            
+            {onFAQPress && (
+              <TouchableOpacity 
+                style={emptyCardStyles.faqLink}
+                onPress={onFAQPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="help-circle-outline" size={18} color={theme.colors.primary} />
+                <Text style={emptyCardStyles.faqLinkText}>
+                  Besoin d'aide ? Consultez notre FAQ
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Formater la date du rendez-vous
+  const rendezvousDate = rendezvousData?.scheduledAt ? new Date(rendezvousData.scheduledAt) : null;
+  const now = new Date();
+  const isDatePassed = rendezvousDate && rendezvousDate < now;
+  
+  // CAS 3 - DATE DU RENDEZ-VOUS PASSÉE
+  if (isDatePassed) {
+    const formattedDate = rendezvousDate ? formatDateLabel(rendezvousDate) : null;
+    const formattedTime = rendezvousDate ? formatTimeLabel(rendezvousDate) : null;
+    
+    return (
+      <View style={emptyCardStyles.container}>
+        <View style={emptyCardStyles.card}>
+          <View style={emptyCardStyles.content}>
+            <Text style={emptyCardStyles.title}>
+              Nous n'avons pas pu vous joindre à l'heure prévue.
+            </Text>
+            <Text style={emptyCardStyles.description}>
+              Choisissez une nouvelle date pour reprendre votre rendez-vous.
+            </Text>
+            
+            {rendezvousDate && (
+              <View style={emptyCardStyles.detailsContainer}>
+                <View style={emptyCardStyles.detailRow}>
+                  <Text style={emptyCardStyles.detailLabel}>Rendez-vous initial</Text>
+                  <Text style={emptyCardStyles.detailValue}>
+                    {formattedDate} à {formattedTime}
+                  </Text>
+                </View>
+                <View style={emptyCardStyles.detailRow}>
+                  <Text style={emptyCardStyles.detailLabel}>Statut</Text>
+                  <Text style={[emptyCardStyles.detailValue, { color: '#FF3B30' }]}>RDV manqué</Text>
+                </View>
+              </View>
+            )}
+            
+            {onModifyRendezvous && (
+              <TouchableOpacity 
+                style={emptyCardStyles.actionButton}
+                onPress={onModifyRendezvous}
+                activeOpacity={0.7}
+              >
+                <Text style={emptyCardStyles.actionButtonText}>Modifier mon RDV</Text>
+              </TouchableOpacity>
+            )}
+            
+            {onFAQPress && (
+              <TouchableOpacity 
+                style={emptyCardStyles.faqLink}
+                onPress={onFAQPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="help-circle-outline" size={18} color={theme.colors.primary} />
+                <Text style={emptyCardStyles.faqLinkText}>
+                  Besoin d'aide ? Consultez notre FAQ
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // CAS 1 - RDV PRIS (date future)
+  const formattedDate = rendezvousDate ? formatDateLabel(rendezvousDate) : null;
+  const formattedTime = rendezvousDate ? formatTimeLabel(rendezvousDate) : null;
+  const daysRemaining = rendezvousDate ? getDaysUntil(rendezvousDate) : null;
+
+  return (
+    <View style={emptyCardStyles.container}>
+      <View style={emptyCardStyles.card}>
+        <View style={emptyCardStyles.content}>
+          <Text style={emptyCardStyles.title}>
+            Nous vous contactera via le chat, une fois votre rendez-vous confirmé.
+          </Text>
+          
+          {rendezvousDate && (
+            <View style={emptyCardStyles.detailsContainer}>
+              <View style={emptyCardStyles.detailRow}>
+                <Text style={emptyCardStyles.detailLabel}>Date du rendez-vous</Text>
+                <Text style={emptyCardStyles.detailValue}>
+                  {formattedDate} à {formattedTime}
+                </Text>
+              </View>
+              {daysRemaining && (
+                <View style={emptyCardStyles.detailRow}>
+                  <Text style={emptyCardStyles.detailLabel}>Échéance</Text>
+                  <Text style={[emptyCardStyles.detailValue, { color: theme.colors.primary }]}>
+                    {daysRemaining}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {onFAQPress && (
+            <TouchableOpacity 
+              style={emptyCardStyles.faqLink}
+              onPress={onFAQPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="help-circle-outline" size={18} color={theme.colors.primary} />
+              <Text style={emptyCardStyles.faqLinkText}>
+                Besoin d'aide ? Consultez notre FAQ
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const emptyCardStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: SCREEN_WIDTH - 40,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 20,
+    gap: 8,
+    alignSelf: 'flex-start',
+  },
+  statusBadgeText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  detailsContainer: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  detailLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  detailLabel: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  detailValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginVertical: 20,
+  },
+  content: {
+    width: '100%',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+    textAlign: 'left',
+  },
+  description: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'left',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  faqLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  faqLinkText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  actionButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

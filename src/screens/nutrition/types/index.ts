@@ -17,6 +17,9 @@ export interface NutritionPlan {
   menus?: Menu[];
   youtubeUrl?: string;
   startDate?: string; // ✅ Date de début du plan nutritionnel (source principale pour calcul du jour)
+  description?: string; // ✅ Description du plan
+  totalPoints?: number; // ✅ Total de points du plan
+  dietaryRestrictions?: string[]; // ✅ Restrictions alimentaires
 }
 
 export interface Menu {
@@ -65,6 +68,23 @@ export interface MealTypeConfig {
 }
 
 export interface CompletionStatus {
+  // ✅ NOUVEAU: Structure correspondant à la réponse API du backend
+  plan?: {
+    id: string;
+    name: string;
+    description?: string;
+    numDays?: number;
+    tascPhase?: string;
+  };
+  progress?: {
+    percentage: number;        // Pourcentage de progression (0-100)
+    completedMeals: number;    // Nombre de repas complétés
+    totalMeals: number;        // Nombre total de repas
+    remainingMeals: number;    // Nombre de repas restants
+  };
+  completionsByDay?: Record<number, any[]>;  // Complétions organisées par jour
+  allCompletions?: any[];      // Toutes les complétions (array)
+  // ✅ GARDÉ pour compatibilité avec le code existant
   dayProgress?: {
     completedMealIds?: string[];
   };

@@ -438,7 +438,7 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       case 'snack':
         return 'à 16h';
       case 'dinner':
-        return 'entre 18h00 ~ 20h00';
+        return 'entre 18h00-20h00';
       default:
         return '';
     }
@@ -588,9 +588,8 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
 
   const { completionStatus } = nutritionData;
 
-  // Check if selected date is today
+  // Check if selected date is today (selectedDateObj already declared above)
   const today = new Date();
-  const selectedDateObj = weekDates[selectedDay - 1]; // selectedDay is 1-based, so subtract 1 for array index
   const isToday = selectedDateObj && 
     selectedDateObj.getDate() === today.getDate() &&
     selectedDateObj.getMonth() === today.getMonth() &&

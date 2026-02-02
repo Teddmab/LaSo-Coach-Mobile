@@ -30,7 +30,7 @@ export const mealTypeMap: { [key: string]: MealTypeConfig } = {
     title: 'Souper', 
     icon: '🍲', 
     bg: '#FFF8DC',
-    time: 'entre 18h00 ~ 20h00'
+    time: 'entre 18h00-20h00'
   }
   
 };

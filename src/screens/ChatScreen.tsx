@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { theme } from '../constants/theme';
@@ -6,15 +6,18 @@ import { ChatScreenProps } from './chat/types';
 import { useChatScreen } from './chat/hooks/useChatScreen';
 import { useUgcTerms } from '../hooks/useUgcTerms';
 import { useModeration } from '../hooks/useModeration';
+import { ProfileApi } from '../services/profileApi';
 import UgcTermsModal from '../components/UgcTermsModal';
 import BlockUserModal from '../components/BlockUserModal';
 import ConversationList from './chat/components/ConversationList';
 import ChatView from './chat/components/ChatView';
+import ProfileStep4BottomSheet from '../components/dashboard/ProfileStep4BottomSheet';
 
 const ChatScreen: React.FC<ChatScreenProps> = ({
   user,
   onTabPress,
   activeTab,
+  onFAQPress,
 }) => {
   const navigation = useNavigation();
   
@@ -32,6 +35,33 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
   // Block user modal state
   const [showBlockModal, setShowBlockModal] = React.useState(false);
   const [userToBlock, setUserToBlock] = React.useState<{ id: string; name: string } | null>(null);
+  
+  // ✅ MODIFICATION: État pour les données du rendez-vous
+  const [rendezvousData, setRendezvousData] = React.useState<any>(null);
+  const [showRendezvousBottomSheet, setShowRendezvousBottomSheet] = React.useState(false);
+  
+  // ✅ MODIFICATION: Fonction pour récupérer les données du rendez-vous
+  const fetchRendezvousData = useCallback(async () => {
+    try {
+      const data = await ProfileApi.getCurrentRendezvous();
+      setRendezvousData(data);
+    } catch (error) {
+      console.error('Error fetching rendezvous data:', error);
+      setRendezvousData(null);
+    }
+  }, []);
+  
+  // ✅ MODIFICATION: Charger les données du rendez-vous au montage et lors du focus
+  useEffect(() => {
+    fetchRendezvousData();
+  }, [fetchRendezvousData]);
+  
+  // ✅ MODIFICATION: Handler pour compléter le rendez-vous depuis le bottom sheet
+  const handleRendezvousComplete = useCallback(async () => {
+    setShowRendezvousBottomSheet(false);
+    // Rafraîchir les données du rendez-vous après création
+    await fetchRendezvousData();
+  }, [fetchRendezvousData]);
 
   const {
     conversations,
@@ -132,6 +162,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
             currentUser={currentUser}
             onSearchChange={setSearchText}
             onConversationPress={handleConversationPress}
+            rendezvousData={rendezvousData}
+            onFAQPress={onFAQPress || (() => onTabPress?.('faq'))}
+            onTakeRendezvous={() => {
+              // ✅ MODIFICATION: Ouvrir le bottom sheet de rendez-vous (même que l'étape 4)
+              setShowRendezvousBottomSheet(true);
+            }}
+            onModifyRendezvous={() => {
+              // Naviguer vers l'onglet Agenda pour modifier le rendez-vous
+              onTabPress?.('agenda');
+            }}
           />
 
           {/* Connection Status */}
@@ -169,6 +209,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
           onCancel={handleCancelBlock}
         />
       )}
+
+      {/* ✅ MODIFICATION: Bottom sheet pour prendre un rendez-vous (même que l'étape 4) */}
+      <ProfileStep4BottomSheet
+        visible={showRendezvousBottomSheet}
+        onClose={() => setShowRendezvousBottomSheet(false)}
+        onComplete={handleRendezvousComplete}
+        dashboardData={{ rendezvous: rendezvousData, rendezVous: rendezvousData }}
+      />
     </>
   );
 };

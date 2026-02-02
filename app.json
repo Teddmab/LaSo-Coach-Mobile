@@ -2,7 +2,7 @@
   "expo": {
     "name": "LasoCoach",
     "slug": "laso-coach",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "33",
+      "buildNumber": "34",
       "version": "1.0.7",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
@@ -42,7 +42,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.afrotouch.lasocoach",
-      "versionCode": 7,
+      "versionCode": 8,
       "icon": "./assets/icon.png",
       "intentFilters": [
         {

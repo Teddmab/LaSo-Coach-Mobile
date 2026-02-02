@@ -55,9 +55,14 @@ const ProgramSessionCard: React.FC<ProgramSessionCardProps> = ({ session, onDele
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 16,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   header: {
     flexDirection: 'row',
@@ -68,9 +73,14 @@ const styles = StyleSheet.create({
   },
   pointsBadge: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   pointsText: {
     color: '#FFFFFF',
@@ -98,8 +108,8 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
+    height: 220,
+    borderRadius: 16,
     marginBottom: 16,
   },
   videoPlaceholder: {
@@ -133,8 +143,10 @@ const styles = StyleSheet.create({
     right: 20,
   },
   details: {
-    backgroundColor: '#C8E6C9',
-    padding: 16,
+    backgroundColor: '#F0F9F4',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
   },
   time: {
     flexDirection: 'row',
@@ -157,8 +169,9 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2D5016',
+    fontWeight: '600',
+    color: '#1A5D2E',
+    lineHeight: 24,
   },
 });
 
