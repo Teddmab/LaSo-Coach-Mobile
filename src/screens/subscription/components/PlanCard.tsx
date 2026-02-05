@@ -32,12 +32,20 @@ const PlanCard: React.FC<PlanCardProps> = ({ plan, isCurrent, hasActivePaidPlan,
 
   // Déterminer si c'est un plan annuel
   const isAnnual = plan.name?.toLowerCase().includes('annuel') || plan.name?.toLowerCase().includes('year');
+  
+  // ✅ Déterminer si c'est un plan gratuit
+  const isFreePlan = plan.price === 0 || plan.isFree || plan.name?.toLowerCase().includes('free') || plan.name?.toLowerCase().includes('gratuit');
 
   // Couleurs personnalisées selon la demande utilisateur
   // Plan annuel : fond orange clair, bouton orange vif
+  // Plan gratuit : fond bleu, bouton blanc
   // Plan mensuel : fond #aece2e (vert/jaune), bouton blanc
-  const cardBackgroundColor = isAnnual ? '#FFB74D' : (getPlanBackgroundColor(plan.name) || '#aece2e');
-  const buttonBackgroundColor = isAnnual ? '#E65100' : '#FFFFFF'; // Orange vif pour annuel, Blanc pour mensuel
+  const cardBackgroundColor = isAnnual 
+    ? '#FFB74D' 
+    : isFreePlan 
+      ? '#2196F3' // Bleu pour plan gratuit
+      : (getPlanBackgroundColor(plan.name) || '#aece2e');
+  const buttonBackgroundColor = isAnnual ? '#E65100' : '#FFFFFF'; // Orange vif pour annuel, Blanc pour mensuel/gratuit
   const buttonTextColor = isAnnual ? '#FFFFFF' : cardBackgroundColor;
 
   // Suffixe de prix

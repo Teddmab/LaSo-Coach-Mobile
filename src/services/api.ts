@@ -358,6 +358,17 @@ const executeRequest = async (config: RequestConfig): Promise<FetchResponse> => 
     }
 
     if (!response.ok) {
+      // ✅ Log détaillé pour les erreurs 400 (surtout pour les subscriptions)
+      if (response.status === 400 && url.includes('/subscriptions')) {
+        console.error('🔴 [api.executeRequest] Erreur 400 sur endpoint subscription:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          responseData,
+          config: finalConfig,
+        });
+      }
+      
       const error = createFetchError(
         `Request failed with status ${response.status}`,
         response,

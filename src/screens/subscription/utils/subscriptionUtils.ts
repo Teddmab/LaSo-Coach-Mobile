@@ -10,7 +10,10 @@
 export const getPlanBackgroundColor = (planName: string): string => {
   const name = planName?.toLowerCase() || '';
 
-  if (name.includes('flexy')) {
+  // ✅ Plan gratuit : couleur bleue
+  if (name.includes('free') || name.includes('gratuit') || name.includes('essai')) {
+    return '#2196F3'; // Blue
+  } else if (name.includes('flexy')) {
     return '#4CAF50'; // Green
   } else if (name.includes('premium')) {
     return '#FF9800'; // Orange

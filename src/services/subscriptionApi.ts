@@ -170,10 +170,32 @@ export class SubscriptionApi {
     try {
       // API_BASE_URL already contains /api/v1, so use /subscriptions/create
       // Final URL will be: {API_BASE_URL}/subscriptions/create = {API_BASE_URL}/api/v1/subscriptions/create
+      console.log('📤 [SubscriptionApi] Envoi de la requête subscribe:', {
+        endpoint: '/subscriptions/create',
+        subscriptionData,
+      });
+      
       const response = await api.post('/subscriptions/create', subscriptionData);
       
+      console.log('✅ [SubscriptionApi] Réponse subscribe reçue:', {
+        status: response.status,
+        data: response.data,
+      });
+      
       return response.data.data || response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // ✅ Log détaillé de l'erreur avant de la propager
+      console.error('❌ [SubscriptionApi] Erreur dans subscribe:', {
+        error,
+        errorType: typeof error,
+        errorKeys: Object.keys(error || {}),
+        errorResponse: error?.response,
+        errorStatus: error?.response?.status,
+        errorData: error?.response?.data,
+        errorMessage: error?.message,
+        fullErrorString: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+      });
+      
       throw error;
     }
   }
@@ -193,8 +215,43 @@ export class SubscriptionApi {
         planId: planId, // Format utilisé par la version web (au lieu de subscriptionPlanId)
       };
       
-      return await this.subscribe(subscriptionData);
-    } catch (error) {
+      console.log('🆓 [SubscriptionApi] Activation de l\'essai gratuit:', {
+        planId,
+        subscriptionData,
+        endpoint: '/subscriptions/create',
+      });
+      
+      const result = await this.subscribe(subscriptionData);
+      
+      console.log('✅ [SubscriptionApi] Essai gratuit activé avec succès:', result);
+      
+      return result;
+    } catch (error: any) {
+      // ✅ Extraire correctement les données d'erreur selon la structure fetch/axios
+      const errorStatus = error?.response?.status || error?.status || (error?.message?.includes('400') ? 400 : undefined);
+      const errorData = error?.response?.data || error?.data || null;
+      const errorMessage = errorData?.message || errorData?.error || error?.message;
+      
+      console.error('❌ [SubscriptionApi] Erreur lors de l\'activation de l\'essai gratuit:', {
+        planId,
+        errorType: typeof error,
+        errorKeys: Object.keys(error || {}),
+        errorResponse: error?.response,
+        errorStatus,
+        errorData,
+        errorMessage,
+        fullError: error,
+        fullErrorString: JSON.stringify(error, null, 2),
+      });
+      
+      // ✅ Enrichir l'erreur avec les données extraites pour faciliter le debug
+      if (error && !error.response) {
+        error.response = {
+          status: errorStatus,
+          data: errorData,
+        };
+      }
+      
       throw error;
     }
   }

@@ -247,8 +247,18 @@ export default function SubscriptionPaymentFlow({
     // Pour les plans gratuits : activation directe
     try {
       setProcessing(true);
+      setError(null);
+      
+      console.log('🆓 [PaymentFlow] Activation du plan gratuit:', {
+        planId: plan.id,
+        planName: plan.name,
+        planPrice: plan.price,
+        isFree: plan.isFree,
+      });
       
       const subscriptionData = await SubscriptionApi.activateFreeTrial(plan.id);
+      
+      console.log('✅ [PaymentFlow] Plan gratuit activé avec succès:', subscriptionData);
       
       // ✅ MODIFICATION: Définir paymentDetails pour le plan gratuit pour afficher la confirmation
       setPaymentDetails({
@@ -269,16 +279,70 @@ export default function SubscriptionPaymentFlow({
           subscription: subscriptionData,
         });
       }
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Erreur lors de l\'activation de l\'abonnement gratuit';
-      setError(errorMessage);
+    } catch (error: any) {
+      // ✅ Extraire correctement les données d'erreur selon la structure fetch/axios
+      const errorStatus = error?.response?.status || error?.status || (error?.message?.includes('400') ? 400 : undefined);
+      const errorData = error?.response?.data || error?.data || null;
+      const errorMessage = errorData?.message || errorData?.error || error?.message || 'Erreur lors de l\'activation de l\'abonnement gratuit';
+      
+      console.error('❌ [PaymentFlow] Erreur lors de l\'activation du plan gratuit:', {
+        error,
+        errorType: typeof error,
+        errorKeys: Object.keys(error || {}),
+        errorResponse: error?.response,
+        errorStatus,
+        errorData,
+        errorMessage,
+        planId: plan.id,
+        planName: plan.name,
+        fullErrorString: JSON.stringify(error, null, 2),
+      });
+      
+      // ✅ Gestion spécifique pour l'erreur 400 (Bad Request)
+      // Cela peut indiquer que l'utilisateur a déjà utilisé l'essai gratuit
+      if (errorStatus === 400) {
+        const isAlreadyUsed = errorMessage?.toLowerCase().includes('déjà') || 
+                             errorMessage?.toLowerCase().includes('already') ||
+                             errorMessage?.toLowerCase().includes('utilisé') ||
+                             errorMessage?.toLowerCase().includes('used') ||
+                             errorMessage?.toLowerCase().includes('essai gratuit');
+        
+        if (isAlreadyUsed) {
+          const message = 'Vous avez déjà utilisé votre essai gratuit. Veuillez choisir un plan payant.';
+          setError(message);
+          Toast.show({
+            type: 'info',
+            text1: 'Essai gratuit déjà utilisé',
+            text2: message,
+            visibilityTime: 4000,
+          });
+        } else {
+          // Autre erreur 400 (plan invalide, données manquantes, etc.)
+          setError(errorMessage);
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur',
+            text2: errorMessage,
+            visibilityTime: 4000,
+          });
+        }
+      } else {
+        // Autres erreurs (401, 403, 500, etc.)
+        setError(errorMessage);
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: errorMessage,
+          visibilityTime: 4000,
+        });
+      }
+      
       setCurrentStep(3); // Étape 3 = résultat (au lieu de 4)
       
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: errorMessage,
-      });
+      // Appeler onError si fourni
+      if (onError) {
+        onError(error);
+      }
     } finally {
       setProcessing(false);
     }

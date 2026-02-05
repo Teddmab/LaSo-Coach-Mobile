@@ -27,6 +27,7 @@ interface CompleteMealsBottomSheetProps {
   onRefresh: () => void;
   onUpdateCompletionData?: (data: any) => void;
   isIOS?: boolean;
+  planDay?: number; // Jour du plan pour filtrer les repas complétés par jour
 }
 
 // Meal type configuration
@@ -67,6 +68,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   onRefresh,
   onUpdateCompletionData,
   isIOS = false,
+  planDay,
 }) => {
   const insets = useSafeAreaInsets();
   const [completingMealIds, setCompletingMealIds] = useState<Set<string>>(new Set());
@@ -109,73 +111,111 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   }, [visible, freshCompletionData, completionStatus]);
 
   // Fonction helper pour vérifier si un repas est complété
+  // ✅ MODIFIÉ: Filtrer uniquement les repas complétés du jour sélectionné (planDay)
   const isMealCompleted = (mealId: string, completionData: any): boolean => {
     if (!completionData) {
       return false;
     }
 
-    // ✅ PRIORITÉ 1: Vérifier dans completionsByDay (source principale selon les logs du backend)
-    // Le backend retourne uniquement completionsByDay, donc c'est la source la plus fiable
-    if (completionData?.completionsByDay) {
-      // Parcourir tous les jours (les clés peuvent être des strings "1", "7", etc.)
-      for (const dayKey in completionData.completionsByDay) {
-        const dayCompletions = completionData.completionsByDay[dayKey];
-        if (Array.isArray(dayCompletions)) {
-          const found = dayCompletions.some(
-            (completion: any) => {
-              // Vérifier que le mealId correspond ET qu'il y a un completedAt
-              const matches = completion?.mealId === mealId && completion?.completedAt;
-              if (matches && __DEV__) {
-                console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${dayKey}]`);
-              }
-              return matches;
+    // ✅ PRIORITÉ 1: Vérifier dans completionsByDay pour le jour spécifique (planDay)
+    // Le backend retourne completionsByDay organisé par jour du plan
+    if (completionData?.completionsByDay && planDay !== undefined) {
+      // Convertir planDay en string pour la clé (les clés peuvent être des strings "1", "7", etc.)
+      const dayKey = String(planDay);
+      const dayCompletions = completionData.completionsByDay[dayKey];
+      
+      if (Array.isArray(dayCompletions)) {
+        const found = dayCompletions.some(
+          (completion: any) => {
+            // Vérifier que le mealId correspond ET qu'il y a un completedAt
+            const matches = completion?.mealId === mealId && completion?.completedAt;
+            if (matches && __DEV__) {
+              console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] pour le jour ${planDay}`);
             }
-          );
-          if (found) {
-            return true; // Repas trouvé dans completionsByDay = déjà complété
+            return matches;
           }
+        );
+        if (found) {
+          return true; // Repas trouvé dans completionsByDay pour ce jour = déjà complété
+        }
+      }
+      
+      // Vérifier aussi avec la clé numérique au cas où
+      const numericDayCompletions = completionData.completionsByDay[planDay];
+      if (Array.isArray(numericDayCompletions)) {
+        const found = numericDayCompletions.some(
+          (completion: any) => {
+            const matches = completion?.mealId === mealId && completion?.completedAt;
+            if (matches && __DEV__) {
+              console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDay}] (clé numérique) pour le jour ${planDay}`);
+            }
+            return matches;
+          }
+        );
+        if (found) {
+          return true;
         }
       }
     }
 
     // ✅ PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
+    // Note: dayProgress peut contenir les repas complétés du jour actuel
     const isCompletedByIds = completionData?.dayProgress?.completedMealIds?.includes(mealId) === true;
     if (isCompletedByIds) {
+      if (__DEV__) {
+        console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans dayProgress.completedMealIds`);
+      }
       return true;
     }
     
     // ✅ PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
+    // Note: mealStatus peut être global, donc on vérifie quand même
     const isCompletedByStatus = completionData?.mealStatus?.[mealId]?.completed === true;
     if (isCompletedByStatus) {
+      if (__DEV__) {
+        console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans mealStatus`);
+      }
       return true;
     }
     
     // ✅ PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
+    // Note: allCompletions contient toutes les complétions, donc on vérifie quand même
     const isCompletedInAllCompletions = completionData?.allCompletions?.some(
       (completion: any) => completion?.mealId === mealId
     ) === true;
     if (isCompletedInAllCompletions) {
+      if (__DEV__) {
+        console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans allCompletions`);
+      }
       return true;
     }
     
-    return false; // Repas non complété
+    return false; // Repas non complété pour ce jour
   };
 
   // Filtrer les repas non complétés
   const getIncompleteMeals = () => {
-    // Utiliser les données locales mises à jour en priorité, puis freshCompletionData, puis completionStatus
-    const completionDataToUse = localCompletionData || freshCompletionData || completionStatus;
+    // ✅ Utiliser completionStatus en priorité car il est toujours à jour et persistant
+    // Puis localCompletionData (mises à jour locales), puis freshCompletionData
+    const completionDataToUse = completionStatus || localCompletionData || freshCompletionData;
     
     // Log pour déboguer
     if (__DEV__) {
+      const dayCompletions = planDay !== undefined && completionDataToUse?.completionsByDay 
+        ? completionDataToUse.completionsByDay[planDay] || completionDataToUse.completionsByDay[String(planDay)] || []
+        : [];
+      
       console.log('🔍 [CompleteMealsBottomSheet] Filtrage des repas:', {
         totalMeals: meals.length,
+        planDay: planDay !== undefined ? planDay : 'non défini',
         hasLocalData: !!localCompletionData,
         hasFreshData: !!freshCompletionData,
         hasCompletionStatus: !!completionStatus,
         usingData: completionDataToUse ? 'local/fresh/status' : 'none',
         hasCompletionsByDay: !!completionDataToUse?.completionsByDay,
         completionsByDayKeys: completionDataToUse?.completionsByDay ? Object.keys(completionDataToUse.completionsByDay) : [],
+        completionsForCurrentDay: Array.isArray(dayCompletions) ? dayCompletions.length : 0,
+        completedMealIdsForDay: Array.isArray(dayCompletions) ? dayCompletions.map((c: any) => c.mealId) : [],
         totalCompletions: completionDataToUse?.completionsByDay ? Object.values(completionDataToUse.completionsByDay).reduce((total: number, dayCompletions: any) => {
           return total + (Array.isArray(dayCompletions) ? dayCompletions.length : 0);
         }, 0) : 0,
@@ -219,9 +259,10 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   };
 
   // Utiliser useMemo pour recalculer la liste quand les données changent
+  // ✅ AJOUTÉ planDay dans les dépendances pour que le filtrage se mette à jour quand le jour change
   const incompleteMeals = useMemo(() => {
     return getIncompleteMeals();
-  }, [meals, localCompletionData, freshCompletionData, completionStatus, completedMealIds]);
+  }, [meals, localCompletionData, freshCompletionData, completionStatus, completedMealIds, planDay]);
 
   const handleMealComplete = async (mealId: string) => {
     // Éviter les doubles clics
