@@ -91,14 +91,34 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       const dataToUse = freshCompletionData || completionStatus;
       if (dataToUse) {
         if (__DEV__) {
+          // Log détaillé pour voir les données reçues
+          const allCompletedMealIds = new Set<string>();
+          if (dataToUse?.completionsByDay) {
+            Object.values(dataToUse.completionsByDay).forEach((dayCompletions: any) => {
+              if (Array.isArray(dayCompletions)) {
+                dayCompletions.forEach((completion: any) => {
+                  if (completion?.mealId) {
+                    allCompletedMealIds.add(completion.mealId);
+                  }
+                });
+              }
+            });
+          }
+          
           console.log('🔄 [CompleteMealsBottomSheet] Mise à jour localCompletionData à l\'ouverture:', {
             hasFreshData: !!freshCompletionData,
             hasCompletionStatus: !!completionStatus,
+            usingFreshData: !!freshCompletionData,
             hasCompletionsByDay: !!dataToUse?.completionsByDay,
             completionsByDayKeys: dataToUse?.completionsByDay ? Object.keys(dataToUse.completionsByDay) : [],
             totalCompletions: dataToUse?.completionsByDay ? Object.values(dataToUse.completionsByDay).reduce((total: number, dayCompletions: any) => {
               return total + (Array.isArray(dayCompletions) ? dayCompletions.length : 0);
             }, 0) : 0,
+            allCompletedMealIds: Array.from(allCompletedMealIds),
+            planDay: planDay !== undefined ? planDay : 'non défini',
+            hasProgress: !!dataToUse?.progress,
+            progressPercentage: dataToUse?.progress?.percentage,
+            progressCompletedMeals: dataToUse?.progress?.completedMeals,
           });
         }
         setLocalCompletionData(dataToUse);
@@ -108,7 +128,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
         }
       }
     }
-  }, [visible, freshCompletionData, completionStatus]);
+  }, [visible, freshCompletionData, completionStatus, planDay]);
 
   // Fonction helper pour vérifier si un repas est complété
   // ✅ MODIFIÉ: Filtrer uniquement les repas complétés du jour sélectionné (planDay)
@@ -195,9 +215,9 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
 
   // Filtrer les repas non complétés
   const getIncompleteMeals = () => {
-    // ✅ Utiliser completionStatus en priorité car il est toujours à jour et persistant
-    // Puis localCompletionData (mises à jour locales), puis freshCompletionData
-    const completionDataToUse = completionStatus || localCompletionData || freshCompletionData;
+    // ✅ Utiliser freshCompletionData et localCompletionData en priorité (données les plus récentes après complétion)
+    // Puis completionStatus (données du serveur, peuvent être légèrement en retard)
+    const completionDataToUse = localCompletionData || freshCompletionData || completionStatus;
     
     // Log pour déboguer
     if (__DEV__) {
@@ -207,11 +227,12 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       
       console.log('🔍 [CompleteMealsBottomSheet] Filtrage des repas:', {
         totalMeals: meals.length,
+        mealIds: meals.map((m: Meal) => m.id),
         planDay: planDay !== undefined ? planDay : 'non défini',
         hasLocalData: !!localCompletionData,
         hasFreshData: !!freshCompletionData,
         hasCompletionStatus: !!completionStatus,
-        usingData: completionDataToUse ? 'local/fresh/status' : 'none',
+        usingData: localCompletionData ? 'localCompletionData' : freshCompletionData ? 'freshCompletionData' : completionStatus ? 'completionStatus' : 'none',
         hasCompletionsByDay: !!completionDataToUse?.completionsByDay,
         completionsByDayKeys: completionDataToUse?.completionsByDay ? Object.keys(completionDataToUse.completionsByDay) : [],
         completionsForCurrentDay: Array.isArray(dayCompletions) ? dayCompletions.length : 0,
@@ -219,14 +240,15 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
         totalCompletions: completionDataToUse?.completionsByDay ? Object.values(completionDataToUse.completionsByDay).reduce((total: number, dayCompletions: any) => {
           return total + (Array.isArray(dayCompletions) ? dayCompletions.length : 0);
         }, 0) : 0,
+        completedInSession: Array.from(completedMealIds),
       });
     }
     
     const incompleteMeals = meals.filter((meal: Meal) => {
-      // Si le repas a déjà été complété dans cette session, le masquer
+      // Si le repas a déjà été complété dans cette session, le masquer immédiatement
       if (completedMealIds.has(meal.id)) {
         if (__DEV__) {
-          console.log(`🚫 [CompleteMealsBottomSheet] Repas ${meal.name} (${meal.id}) masqué car complété dans cette session`);
+          console.log(`🚫 [CompleteMealsBottomSheet] Repas ${meal.name} (${meal.id}) masqué car complété dans cette session (optimiste)`);
         }
         return false;
       }
@@ -236,7 +258,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
         const isCompleted = isMealCompleted(meal.id, completionDataToUse);
         if (isCompleted) {
           if (__DEV__) {
-            console.log(`🚫 [CompleteMealsBottomSheet] Repas ${meal.name} (${meal.id}) masqué car déjà complété dans les données`);
+            console.log(`🚫 [CompleteMealsBottomSheet] Repas ${meal.name} (${meal.id}) masqué car déjà complété dans les données (source: ${localCompletionData ? 'local' : freshCompletionData ? 'fresh' : 'status'})`);
           }
           return false;
         }
