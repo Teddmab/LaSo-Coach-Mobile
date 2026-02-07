@@ -45,6 +45,7 @@ import {
 } from './nutrition/types';
 import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from './nutrition/utils/dateCalculations';
 import CompleteMealsBottomSheet from '../components/nutrition/CompleteMealsBottomSheet';
+import PastMealsBottomSheet from '../components/nutrition/PastMealsBottomSheet';
 import SubscriptionAlert from '../components/nutrition/SubscriptionAlert';
 
 const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTabPress, activeTab, onSubscriptionRenew, onFAQPress }) => {
@@ -131,6 +132,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [completingMealInModal, setCompletingMealInModal] = useState<string | null>(null); // ID du repas en cours de complétion dans le modal YouTube
   // ✅ Stocker les données de complétion fraîches pour le filtrage du bottom sheet
   const [freshCompletionData, setFreshCompletionData] = useState<any>(null);
+  // ✅ État pour le bottomsheet des plats passés
+  const [showPastMealsBottomSheet, setShowPastMealsBottomSheet] = useState(false);
   
   // Full-screen image modal state
   const [showImageModal, setShowImageModal] = useState(false);
@@ -175,16 +178,18 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // Fonction helper pour vérifier si un repas est complété (même logique que dans BottomSheet)
   // ✅ MODIFIÉ: Filtrer uniquement les repas complétés du jour sélectionné (planDay)
+
   const isMealCompleted = useCallback((mealId: string, completionData: CompletionStatus | null | any, planDayToCheck?: number): boolean => {
     if (!completionData) {
       return false;
     }
 
-    // ✅ PRIORITÉ 1: Vérifier dans completionsByDay pour le jour spécifique (planDay)
-    // Si planDayToCheck est fourni, vérifier uniquement ce jour
-    if (completionData?.completionsByDay) {
-      if (planDayToCheck !== undefined) {
-        // Vérifier uniquement le jour spécifique
+    // ✅ IMPORTANT: Si planDayToCheck est fourni, vérifier UNIQUEMENT ce jour spécifique
+    // Ne pas utiliser les sources globales (allCompletions, mealStatus) car elles contiennent
+    // les complétions de TOUS les jours, ce qui causerait des faux positifs
+    if (planDayToCheck !== undefined) {
+      // Vérifier UNIQUEMENT dans completionsByDay pour le jour spécifique
+      if (completionData?.completionsByDay) {
         const dayKey = String(planDayToCheck);
         const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDayToCheck];
         if (Array.isArray(dayCompletions)) {
@@ -195,33 +200,38 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
             return true;
           }
         }
-      } else {
-        // Si pas de planDay spécifié, vérifier tous les jours (comportement par défaut)
-        for (const dayKey in completionData.completionsByDay) {
-          const dayCompletions = completionData.completionsByDay[dayKey];
-          if (Array.isArray(dayCompletions)) {
-            const found = dayCompletions.some(
-              (completion: any) => completion?.mealId === mealId && completion?.completedAt
-            );
-            if (found) {
-              return true;
-            }
+      }
+      // Si planDay est fourni, on ne vérifie QUE ce jour - retourner false si pas trouvé
+      return false;
+    }
+
+    // ✅ Si pas de planDay spécifié, vérifier dans toutes les sources (comportement par défaut)
+    // PRIORITÉ 1: Vérifier dans completionsByDay (tous les jours)
+    if (completionData?.completionsByDay) {
+      for (const dayKey in completionData.completionsByDay) {
+        const dayCompletions = completionData.completionsByDay[dayKey];
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          );
+          if (found) {
+            return true;
           }
         }
       }
     }
 
-    // ✅ PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
+    // PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
     if (completionData?.dayProgress?.completedMealIds?.includes(mealId) === true) {
       return true;
     }
     
-    // ✅ PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
+    // PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
     if (completionData?.mealStatus?.[mealId]?.completed === true) {
       return true;
     }
     
-    // ✅ PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
+    // PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
     if (completionData?.allCompletions?.some(
       (completion: any) => completion?.mealId === mealId
     ) === true) {
@@ -230,6 +240,82 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     
     return false;
   }, []);
+
+  // ✅ NOUVELLE FONCTION : Récupérer les plats passés non complétés
+  // Utilise useMemo pour optimiser le calcul
+  const pastIncompleteMeals = useMemo((): Array<{ meal: Meal; date: Date; planDay: number }> => {
+    if (!currentPlan || !completionStatus) {
+      return [];
+    }
+
+    const pastMeals: Array<{ meal: Meal; date: Date; planDay: number }> = [];
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
+    // Déterminer la date de début du plan
+    let planStartDate = todayDate;
+    if (subscriptionData?.subscription?.startDate) {
+      planStartDate = new Date(subscriptionData.subscription.startDate);
+      planStartDate.setHours(0, 0, 0, 0);
+    } else if (currentPlan?.startDate) {
+      planStartDate = new Date(currentPlan.startDate);
+      planStartDate.setHours(0, 0, 0, 0);
+    }
+
+    // Parcourir tous les jours depuis le début du plan jusqu'à hier
+    const yesterday = new Date(todayDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+
+    // Ne pas aller avant la date de début du plan
+    const startDate = planStartDate > yesterday ? yesterday : planStartDate;
+
+    // Parcourir chaque jour passé
+    for (let date = new Date(startDate); date <= yesterday; date.setDate(date.getDate() + 1)) {
+      const dateCopy = new Date(date);
+      dateCopy.setHours(0, 0, 0, 0);
+
+      // Calculer le planDay pour cette date
+      const planDay = calculatePlanDayFromDate(
+        dateCopy,
+        planStartDate,
+        currentPlan.numDays || 7
+      );
+
+      // Trouver le menu pour ce planDay
+      const dayMenu = findMenuForPlanDay(currentPlan.menus, planDay);
+      
+      if (dayMenu && dayMenu.meals) {
+        // Pour chaque repas du jour, vérifier s'il est complété
+        dayMenu.meals.forEach((meal: Meal) => {
+          const isCompleted = isMealCompleted(meal.id, completionStatus, planDay);
+          if (!isCompleted) {
+            pastMeals.push({
+              meal,
+              date: dateCopy,
+              planDay
+            });
+          }
+        });
+      }
+    }
+
+    // Trier par date (plus récent en premier)
+    pastMeals.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    if (__DEV__) {
+      console.log('📅 [PAST MEALS] Plats passés non complétés:', {
+        count: pastMeals.length,
+        meals: pastMeals.map(p => ({
+          mealName: p.meal.name,
+          date: p.date.toDateString(),
+          planDay: p.planDay
+        }))
+      });
+    }
+
+    return pastMeals;
+  }, [currentPlan, completionStatus, subscriptionData, isMealCompleted]);
 
   // Vérifier s'il y a des repas non complétés pour afficher le bouton
   const hasIncompleteMeals = useMemo(() => {
@@ -254,60 +340,73 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   const [isFetchingAllData, setIsFetchingAllData] = useState(false);
   const hasInitialLoadRef = React.useRef(false);
   const lastFetchAttemptRef = React.useRef<{ planId: string | null; subscriptionId: string | null } | null>(null);
+  const lastSelectedDateRef = React.useRef<number | null>(null);
 
   useEffect(() => {
-    console.log('🔄 [NutritionScreen] useEffect - Démarrage du chargement initial');
-    fetchAllData();
-    hasInitialLoadRef.current = true;
+    console.log('🔄 [NutritionScreen] useEffect - Démarrage du chargement initial', {
+      platform: Platform.OS,
+      hasInitialLoad: hasInitialLoadRef.current
+    });
+    if (!hasInitialLoadRef.current) {
+      fetchAllData();
+      hasInitialLoadRef.current = true;
+    }
   }, []);
 
-  // ✅ OPTIMISÉ : Recharger le statut de complétion quand l'écran revient au focus
-  // Cela permet d'avoir les dernières données de complétion sans tout recharger
+  // ✅ OPTIMISÉ : Charger les données quand l'écran revient au focus
   useFocusEffect(
     useCallback(() => {
-      // Ne rien faire si :
-      // 1. On est en train de charger
-      // 2. C'est le premier chargement (déjà géré par useEffect ci-dessus)
-      if (isFetchingAllData || isLoadingDayData || !hasInitialLoadRef.current) {
+      console.log('🔄 [NutritionScreen] useFocusEffect triggered', {
+        platform: Platform.OS,
+        hasInitialLoad: hasInitialLoadRef.current,
+        hasPlan: !!currentPlan?.id,
+        hasSubscription: !!subscriptionData,
+        hasWeekDays: !!weekDays && weekDays.length > 0
+      });
+      
+      // Ne rien faire si c'est le premier chargement (déjà géré par useEffect ci-dessus)
+      if (!hasInitialLoadRef.current) {
+        console.log('⏳ [NutritionScreen] useFocusEffect - Waiting for initial load');
         return;
       }
 
-      // ✅ Recharger UNIQUEMENT le statut de complétion (comme la version web)
-      // Les repas du jour sont déjà chargés, on met juste à jour leur statut
-      if (currentPlan?.id) {
-        console.log('🔄 [NutritionScreen] Screen focused - Refreshing completion status only');
-        fetchCompletionStatus(currentPlan.id);
+      // Si on n'a pas encore de plan chargé, charger toutes les données
+      if (!currentPlan?.id || !subscriptionData || !weekDays || weekDays.length === 0) {
+        console.log('🔄 [NutritionScreen] Screen focused - Missing data, fetching all data');
+        fetchAllData();
+        return;
       }
+
+      // Si on a déjà les données de base mais pas de repas du jour, charger les repas
+      if (!dayMeals || dayMeals.length === 0) {
+        console.log('🔄 [NutritionScreen] Screen focused - No meals loaded, loading day data', {
+          platform: Platform.OS,
+          hasPlan: !!currentPlan?.id,
+          hasSubscription: !!subscriptionData,
+          weekDaysCount: weekDays.length
+        });
+        // Sur Android, utiliser un délai pour s'assurer que les états sont appliqués
+        if (Platform.OS === 'android') {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              loadDayData();
+            }, 50);
+          });
+        } else {
+          loadDayData();
+        }
+        return;
+      }
+
+      // Sinon, juste rafraîchir le statut de complétion
+      console.log('🔄 [NutritionScreen] Screen focused - Refreshing completion status only');
+      fetchCompletionStatus(currentPlan.id);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
   );
 
   // Use selectedDate timestamp for dependency to ensure React detects changes
   const selectedDateKey = selectedDate instanceof Date ? selectedDate.getTime() : selectedDate;
-  
-  // ✅ SIMPLIFIED: Charger les données UNIQUEMENT quand la date change
-  // Le chargement initial est géré par fetchAllData (avec un appel direct à loadDayData en finally)
-  useEffect(() => {
-    // Ne rien faire si on n'a pas encore fait le chargement initial
-    if (!hasInitialLoadRef.current) {
-      return;
-    }
-
-    // Ne rien faire si on n'a pas les données de base
-    if (!currentPlan || !subscriptionData || !weekDays || weekDays.length === 0) {
-      return;
-    }
-
-    // Ne rien faire si on est déjà en train de charger
-    if (isLoadingDayData || isFetchingAllData) {
-      return;
-    }
-
-    // ✅ Charger UNIQUEMENT quand la date sélectionnée change
-    console.log('📅 [NutritionScreen] Date changed - Loading day data');
-    loadDayData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDateKey]);
   
   // Check if a date is outside subscription coverage
   const isDateOutsideSubscription = (date: Date) => {
@@ -387,6 +486,61 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
   // Recalculate weekDays whenever subscriptionData, plansResponseStatus, or currentPlan changes
   const weekDays = useMemo(() => generateWeekDays(), [subscriptionData, plansResponseStatus, currentPlan]);
   
+  // ✅ NOUVEAU: Charger automatiquement les repas quand toutes les données sont disponibles
+  // Cela garantit que les repas s'affichent immédiatement sans refresh manuel
+  // IMPORTANT: Ce useEffect se déclenche dès que currentPlan, subscriptionData ou weekDays sont disponibles
+  useEffect(() => {
+    // Ne rien faire si on n'a pas encore fait le chargement initial
+    if (!hasInitialLoadRef.current) {
+      return;
+    }
+
+    // Ne rien faire si on n'a pas les données de base
+    if (!currentPlan?.id || !subscriptionData || !weekDays || weekDays.length === 0) {
+      console.log('⏳ [NutritionScreen] Waiting for data:', {
+        hasPlan: !!currentPlan?.id,
+        hasSubscription: !!subscriptionData,
+        hasWeekDays: !!weekDays && weekDays.length > 0
+      });
+      return;
+    }
+
+    // Ne rien faire si on est déjà en train de charger
+    if (isLoadingDayData || isFetchingAllData) {
+      console.log('⏳ [NutritionScreen] Already loading, skipping...');
+      return;
+    }
+
+    // Ne charger que si on n'a pas encore de repas chargés OU si la date a changé
+    const shouldLoad = !dayMeals || dayMeals.length === 0 || selectedDateKey !== (lastSelectedDateRef.current || null);
+    
+    if (shouldLoad) {
+      console.log('🔄 [NutritionScreen] Auto-loading day data - All data available', {
+        platform: Platform.OS,
+        hasPlan: !!currentPlan?.id,
+        hasSubscription: !!subscriptionData,
+        weekDaysCount: weekDays.length,
+        dayMealsCount: dayMeals?.length || 0,
+        selectedDateKey
+      });
+      lastSelectedDateRef.current = selectedDateKey;
+      // Sur Android, utiliser requestAnimationFrame + setTimeout pour s'assurer que le render est terminé
+      // Sur iOS, queueMicrotask suffit généralement
+      if (Platform.OS === 'android') {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            loadDayData();
+          }, 50);
+        });
+      } else {
+        queueMicrotask(() => {
+          loadDayData();
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlan?.id, subscriptionData, weekDays?.length, selectedDateKey, dayMeals?.length]);
+
   // ✅ FIX: Simplifié - Ne se déclenche QUE quand on change de jour sélectionné
   // Le chargement initial est géré par fetchAllData, pas par ce useEffect
   useEffect(() => {
@@ -413,6 +567,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       return;
     }
 
+    // ✅ Déclarer en dehors du try pour être accessible dans finally
+    let subscription: any = null;
+    let loadedPlan: NutritionPlan | null = null; // Pour tracker le plan chargé
+    
     try {
       setIsFetchingAllData(true);
       setLoading(true);
@@ -443,8 +601,6 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         SubscriptionService.getSubscriptionStatus()
       ]).then(results => results[0]);
       
-      let subscription = null;
-      let loadedPlan = null; // Pour tracker le plan chargé
       if (subscriptionRes.status === 'fulfilled') {
         subscription = subscriptionRes.value;
       }
@@ -724,29 +880,58 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       setIsFetchingAllData(false);
       
       // Mettre à jour la référence du dernier état chargé pour éviter les boucles
-      // Utiliser les états React qui ont été mis à jour dans le bloc try
-      const finalPlanId = currentPlan?.id || null;
-      const finalSubscriptionId = (subscriptionData as any)?.subscription?.id || (subscriptionData as any)?.id || null;
+      // Utiliser loadedPlan (variable locale) car currentPlan (état React) n'est pas encore mis à jour
+      const finalPlanId = loadedPlan?.id || null;
+      const finalSubscriptionId = subscription?.subscription?.id || subscription?.id || null;
       lastFetchAttemptRef.current = {
         planId: finalPlanId,
         subscriptionId: finalSubscriptionId,
       };
       
-      // ✅ IMPORTANT: Appeler loadDayData ICI car weekDays est maintenant disponible
-      // weekDays est généré par useMemo et n'est disponible qu'après que les états React soient appliqués
+      // ✅ IMPORTANT: Appeler loadDayData ICI en utilisant loadedPlan (variable locale)
+      // currentPlan (état React) n'est pas encore mis à jour dans le finally block
       logger.debug('🔄 [NutritionScreen] fetchAllData completed', {
-        hasPlan: !!currentPlan,
-        hasSubscription: !!subscriptionData,
-        hasCompletionStatus: !!completionStatus,
-        hasWeekDays: !!weekDays && weekDays.length > 0
+        hasLoadedPlan: !!loadedPlan,
+        hasSubscription: !!subscription,
+        loadedPlanId: loadedPlan?.id,
+        platform: Platform.OS
       });
       
-      // Attendre le prochain tick pour s'assurer que tous les états et useMemo sont appliqués
-      if (currentPlan?.id && completionStatus) {
-        logger.info('✅ [NutritionScreen] Calling loadDayData after state updates');
-        setTimeout(() => {
-          loadDayData();
-        }, 0);
+      // ✅ Appeler loadDayData avec loadedPlan (variable locale) car currentPlan n'est pas encore mis à jour
+      if (loadedPlan?.id) {
+        console.log('✅ [NutritionScreen] fetchAllData finally - Calling loadDayData', {
+          platform: Platform.OS,
+          planId: loadedPlan.id,
+          hasSubscription: !!subscription,
+          note: 'Using loadedPlan (local variable) instead of currentPlan (React state)'
+        });
+        logger.info('✅ [NutritionScreen] Calling loadDayData after state updates', {
+          platform: Platform.OS,
+          planId: loadedPlan.id,
+          hasSubscription: !!subscription
+        });
+        // Sur Android, utiliser un délai légèrement plus long pour s'assurer que tous les états sont appliqués
+        // Sur iOS, queueMicrotask suffit généralement
+        if (Platform.OS === 'android') {
+          // Utiliser requestAnimationFrame pour s'assurer que le render est terminé
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              console.log('🔄 [NutritionScreen] Android - Executing loadDayData with loadedPlan');
+              loadDayData(loadedPlan); // ✅ Passer loadedPlan en paramètre
+            }, 150); // Augmenté à 150ms pour Android pour garantir que setCurrentPlan est appliqué
+          });
+        } else {
+          // Sur iOS, utiliser un délai aussi pour garantir que setCurrentPlan est appliqué
+          setTimeout(() => {
+            console.log('🔄 [NutritionScreen] iOS - Executing loadDayData with loadedPlan');
+            loadDayData(loadedPlan); // ✅ Passer loadedPlan en paramètre
+          }, 50);
+        }
+      } else {
+        console.warn('⚠️ [NutritionScreen] fetchAllData finally - No loadedPlan.id, cannot call loadDayData', {
+          hasLoadedPlan: !!loadedPlan,
+          planId: loadedPlan?.id
+        });
       }
     }
   };
@@ -873,20 +1058,47 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
 
   // ✅ FONCTION SIMPLIFIÉE : Charger les données du jour (SANS appel API de complétion)
   // Charge uniquement les repas du jour et leurs interactions (like/dislike)
-  const loadDayData = async () => {
-    if (!currentPlan?.id) {
+  // planToUse: Plan optionnel à utiliser (si fourni, utilise celui-ci au lieu de currentPlan)
+  const loadDayData = async (planToUse?: NutritionPlan | null) => {
+    // Utiliser le plan fourni en paramètre ou currentPlan (état React)
+    const plan = planToUse || currentPlan;
+    
+    console.log('🔵 [LOAD DAY DATA] Function called', {
+      platform: Platform.OS,
+      hasPlanParam: !!planToUse,
+      hasCurrentPlan: !!currentPlan?.id,
+      planId: plan?.id,
+      hasWeekDays: !!weekDays && weekDays.length > 0,
+      weekDaysCount: weekDays?.length || 0,
+      hasSubscription: !!subscriptionData
+    });
+    
+    if (!plan?.id) {
+      console.warn('⚠️ [LOAD DAY DATA] Cannot load: No plan ID', {
+        hasPlanParam: !!planToUse,
+        hasCurrentPlan: !!currentPlan?.id
+      });
       logger.warn('Cannot load day data: No current plan ID');
       return;
     }
     
     // Wait for weekDays to be available
     if (!weekDays || weekDays.length === 0) {
+      console.warn('⚠️ [LOAD DAY DATA] Cannot load: weekDays not available', {
+        weekDays: weekDays,
+        weekDaysLength: weekDays?.length
+      });
       logger.debug('weekDays not yet available, skipping loadDayData');
       return;
     }
     
     try {
       setIsLoadingDayData(true);
+      console.log('✅ [LOAD DAY DATA] Starting to load meals', {
+        platform: Platform.OS,
+        planId: plan.id,
+        selectedDate: selectedDate instanceof Date ? selectedDate.toDateString() : selectedDate
+      });
       logger.group('🍽️ LOAD DAY DATA');
       logger.info('Loading meals for selected day only');
       // ✅ NEW: Calculate actual plan day from calendar date
@@ -899,8 +1111,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       if (subscriptionData?.subscription?.startDate) {
         planStartDate = new Date(subscriptionData.subscription.startDate);
         planStartDate.setHours(0, 0, 0, 0);
-      } else if (currentPlan?.startDate) {
-        planStartDate = new Date(currentPlan.startDate);
+      } else if (plan?.startDate) {
+        planStartDate = new Date(plan.startDate);
         planStartDate.setHours(0, 0, 0, 0);
       }
       
@@ -909,7 +1121,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       const menuDay = calculatePlanDayFromDate(
         selectedDateObj,
         planStartDate,
-        currentPlan.numDays || 7 // Default to 7-day cycle if not specified
+        plan.numDays || 7 // Default to 7-day cycle if not specified
       );
       
       // ✅ Stocker le planDay pour le passer à la bottomsheet
@@ -919,7 +1131,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       const planProgress = getPlanProgress(
         selectedDateObj,
         planStartDate,
-        currentPlan.numDays || 7
+        plan.numDays || 7
       );
       
       logger.info('Plan progress calculated', {
@@ -930,10 +1142,10 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           cycleNumber: planProgress.cycleNumber,
           progressInCycle: `${planProgress.progressInCycle}%`
         },
-        currentPlanId: currentPlan.id,
-        planNumDays: currentPlan.numDays,
-        menusCount: currentPlan.menus?.length || 0,
-        menusAvailable: currentPlan.menus?.map((m: any) => ({ day: m.day, mealsCount: m.meals?.length || 0 })) || [],
+        currentPlanId: plan.id,
+        planNumDays: plan.numDays,
+        menusCount: plan.menus?.length || 0,
+        menusAvailable: plan.menus?.map((m: any) => ({ day: m.day, mealsCount: m.meals?.length || 0 })) || [],
         weekDaysCount: weekDays?.length || 0,
         weekDaysDates: weekDays?.map(d => d.date.toDateString()) || [],
       });
@@ -950,13 +1162,13 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // This ensures consistency with NutritionCard and handles all plan lengths
       logger.debug('Logic: Finding menu for calculated plan day', {
         menuDay,
-        availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
-        planNumDays: currentPlan.numDays,
+        availableMenuDays: plan.menus?.map((m: any) => m.day) || [],
+        planNumDays: plan.numDays,
         note: 'Using shared utility function for consistency'
       });
       
       // Use shared utility for consistent menu finding logic
-      let dayMenu = findMenuForPlanDay(currentPlan.menus, menuDay);
+      let dayMenu = findMenuForPlanDay(plan.menus, menuDay);
       
       if (dayMenu) {
         console.log('✅ [NutritionScreen] Menu found', {
@@ -969,14 +1181,14 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       } else {
         console.log('⚠️ [NutritionScreen] No menu found', {
           requestedPlanDay: menuDay,
-          availableMenus: currentPlan.menus?.length || 0,
-          availableMenuDays: currentPlan.menus?.map((m: any) => m.day) || [],
+          availableMenus: plan.menus?.length || 0,
+          availableMenuDays: plan.menus?.map((m: any) => m.day) || [],
         });
       }
       
       // Final fallback: use first menu (like NutritionCard does)
-      if (!dayMenu && currentPlan.menus && currentPlan.menus.length > 0) {
-        dayMenu = currentPlan.menus[0];
+      if (!dayMenu && plan.menus && plan.menus.length > 0) {
+        dayMenu = plan.menus[0];
         console.log('🔄 [NutritionScreen] Using fallback: first menu', {
           fallbackMenuDay: dayMenu.day,
         });
@@ -1060,16 +1272,16 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       } else {
         logger.warn('No menu found for menu day', {
           menuDay,
-          availableDays: currentPlan.menus?.map(m => m.day) || [],
+          availableDays: plan.menus?.map(m => m.day) || [],
           action: 'Setting empty meals array'
         });
         // Fallback: try to use the first menu if available
-        if (currentPlan.menus && currentPlan.menus.length > 0) {
+        if (plan.menus && plan.menus.length > 0) {
           logger.info('Using fallback: first menu available', {
-            fallbackMenuDay: currentPlan.menus[0].day,
-            mealsCount: currentPlan.menus[0].meals?.length || 0,
+            fallbackMenuDay: plan.menus[0].day,
+            mealsCount: plan.menus[0].meals?.length || 0,
           });
-          setDayMeals(currentPlan.menus[0].meals || []);
+          setDayMeals(plan.menus[0].meals || []);
         } else {
           setDayMeals([]);
         }
@@ -1081,7 +1293,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       // ✅ NOUVEAU : Utiliser les données de complétion déjà chargées (pas d'appel API ici)
       // Les données de complétion sont chargées UNE SEULE FOIS dans fetchAllData
       logger.debug('Using cached completion status', {
-        planId: currentPlan.id,
+        planId: plan.id,
         menuDay,
         hasCompletionStatus: !!completionStatus,
       });
@@ -1313,16 +1525,17 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
     }
   };
 
-  const handleMealComplete = async (mealId: string) => {
+  const handleMealComplete = async (mealId: string, planDayOverride?: number) => {
     console.log('🔵 [MEAL COMPLETE] ==========================================');
     console.log('🔵 [MEAL COMPLETE] Début de la complétion du repas');
     console.log('🔵 [MEAL COMPLETE] mealId:', mealId);
+    console.log('🔵 [MEAL COMPLETE] planDayOverride:', planDayOverride);
     console.log('🔵 [MEAL COMPLETE] currentPlan:', currentPlan ? { id: currentPlan.id, name: currentPlan.name } : 'null');
     console.log('🔵 [MEAL COMPLETE] selectedDate:', selectedDate);
     console.log('🔵 [MEAL COMPLETE] subscriptionData:', subscriptionData ? { status: subscriptionData.status } : 'null');
     
     logger.group('✅ MEAL COMPLETE ACTION');
-    logger.info('User Action: Meal complete button pressed', { mealId });
+    logger.info('User Action: Meal complete button pressed', { mealId, planDayOverride });
     
     // Charger le statut de complétion à jour avant de vérifier
     let freshCompletionStatus = completionStatus;
@@ -1330,7 +1543,8 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
       try {
         const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
         selectedDateObj.setHours(0, 0, 0, 0);
-        const planDay = calculateNutritionPlanDay(selectedDateObj);
+        // ✅ Utiliser planDayOverride si fourni, sinon calculer depuis selectedDate
+        const planDay = planDayOverride !== undefined ? planDayOverride : calculateNutritionPlanDay(selectedDateObj);
         // Utiliser getCompletionStatus au lieu de getDayCompletionStatus
         const globalCompletionData = await nutritionAPI.getCompletionStatus(currentPlan.id);
         
@@ -1964,31 +2178,49 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           isSelected && styles.selectedMealCard,
           isCompleted && styles.completedMealCard
         ]}
-        pointerEvents={isCompleted ? 'none' : 'auto'}
       >
-        {/* Icône de succès pour les repas complétés */}
-        {isCompleted && (
-          <View style={styles.completedMealBadge}>
-            <Ionicons name="checkmark-circle" size={28} color="#4CAF50" />
-          </View>
-        )}
-        
-        {isCompleted ? (
-          // Si complété, utiliser un View non cliquable avec pointerEvents='none'
-          <View style={styles.mealContent} pointerEvents="none">
+        {/* ✅ TOUS les repas sont cliquables, même s'ils sont complétés */}
+        <TouchableOpacity 
+          style={styles.mealContent}
+          onPress={() => {
+            setSelectedMeal(meal);
+            // Open modal and set up video if available
+            if (meal.youtubeUrl) {
+              const videoId = getYouTubeVideoId(meal.youtubeUrl);
+              if (videoId) {
+                setYoutubeVideoId(videoId);
+                setYoutubePlaying(true);
+              } else {
+                setYoutubeVideoId(null);
+                setYoutubePlaying(false);
+              }
+            } else {
+              setYoutubeVideoId(null);
+              setYoutubePlaying(false);
+            }
+            setShowYoutubeModal(true);
+            logger.info('User Action: Opening meal details modal from meal card', {
+              mealId: meal.id,
+              hasYoutubeUrl: !!meal.youtubeUrl,
+              videoId: meal.youtubeUrl ? getYouTubeVideoId(meal.youtubeUrl) : null,
+              isCompleted
+            });
+          }}
+          activeOpacity={0.8}
+        >
           {/* Meal Image - Left thumbnail */}
           <View style={styles.mealCardImageContainer}>
             {meal.imageUrl ? (
               <Image 
                 source={{ uri: meal.imageUrl }}
-                style={styles.mealCardImage}
+                style={[styles.mealCardImage, isCompleted && styles.completedMealImage]}
                 resizeMode="cover"
                 onError={(error) => logger.warn('Meal image load error', { mealId: meal.id, mealName: meal.name, error })}
                 onLoad={() => logger.debug('Meal image loaded successfully', { mealId: meal.id, imageUrl: meal.imageUrl })}
               />
             ) : (
-              <View style={styles.placeholderImage}>
-                <Text style={styles.placeholderText}>🍽️</Text>
+              <View style={[styles.placeholderImage, isCompleted && styles.completedMealImage]}>
+                <Text style={[styles.placeholderText, isCompleted && styles.completedMealText]}>🍽️</Text>
               </View>
             )}
           </View>
@@ -1997,98 +2229,24 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
           <View style={styles.mealInfo}>
             {/* Header: Type de repas à gauche, Heure à droite */}
             <View style={styles.mealHeaderRow}>
-              <Text style={styles.mealTypeTitle}>{mealType.title}</Text>
+              <Text style={[styles.mealTypeTitle, isCompleted && styles.completedMealText]}>{mealType.title}</Text>
               {mealType.time && (
-                <Text style={styles.mealTime}>{mealType.time}</Text>
+                <Text style={[styles.mealTime, isCompleted && styles.completedMealText]}>{mealType.time}</Text>
               )}
             </View>
             
             {/* Ligne de séparation */}
-            <View style={styles.mealDivider} />
+            <View style={[styles.mealDivider, isCompleted && styles.completedMealDivider]} />
             
             {/* Nom du repas */}
-            <Text style={styles.mealName} numberOfLines={2}>{meal.name || 'Aucun plat'}</Text>
+            <Text style={[styles.mealName, isCompleted && styles.completedMealText]} numberOfLines={2}>{meal.name || 'Aucun plat'}</Text>
           </View>
 
           {/* Icon emoji - Right */}
           <View style={styles.mealRightSection}>
-            <Text style={styles.mealIcon}>{mealType.icon}</Text>
+            <Text style={[styles.mealIcon, isCompleted && styles.completedMealIcon]}>{mealType.icon}</Text>
           </View>
-        </View>
-        ) : (
-          // Si non complété, utiliser un TouchableOpacity cliquable
-          <TouchableOpacity 
-            style={styles.mealContent}
-            disabled={isCompleted}
-            onPress={() => {
-              // Protection supplémentaire : ne pas ouvrir si complété
-              if (isCompleted) {
-                return;
-              }
-              setSelectedMeal(meal);
-              // Open modal and set up video if available
-              if (meal.youtubeUrl) {
-                const videoId = getYouTubeVideoId(meal.youtubeUrl);
-                if (videoId) {
-                  setYoutubeVideoId(videoId);
-                  setYoutubePlaying(true);
-                } else {
-                  setYoutubeVideoId(null);
-                  setYoutubePlaying(false);
-                }
-              } else {
-                setYoutubeVideoId(null);
-                setYoutubePlaying(false);
-              }
-              setShowYoutubeModal(true);
-              logger.info('User Action: Opening meal details modal from meal card', {
-                mealId: meal.id,
-                hasYoutubeUrl: !!meal.youtubeUrl,
-                videoId: meal.youtubeUrl ? getYouTubeVideoId(meal.youtubeUrl) : null
-              });
-            }}
-            activeOpacity={0.8}
-          >
-            {/* Meal Image - Left thumbnail */}
-            <View style={styles.mealCardImageContainer}>
-              {meal.imageUrl ? (
-                <Image 
-                  source={{ uri: meal.imageUrl }}
-                  style={styles.mealCardImage}
-                  resizeMode="cover"
-                  onError={(error) => logger.warn('Meal image load error', { mealId: meal.id, mealName: meal.name, error })}
-                  onLoad={() => logger.debug('Meal image loaded successfully', { mealId: meal.id, imageUrl: meal.imageUrl })}
-                />
-              ) : (
-                <View style={styles.placeholderImage}>
-                  <Text style={styles.placeholderText}>🍽️</Text>
-                </View>
-              )}
-            </View>
-            
-            {/* Meal Info - Right side */}
-            <View style={styles.mealInfo}>
-              {/* Header: Type de repas à gauche, Heure à droite */}
-              <View style={styles.mealHeaderRow}>
-                <Text style={styles.mealTypeTitle}>{mealType.title}</Text>
-                {mealType.time && (
-                  <Text style={styles.mealTime}>{mealType.time}</Text>
-                )}
-              </View>
-              
-              {/* Ligne de séparation */}
-              <View style={styles.mealDivider} />
-              
-              {/* Nom du repas */}
-              <Text style={styles.mealName} numberOfLines={2}>{meal.name || 'Aucun plat'}</Text>
-            </View>
-
-            {/* Icon emoji - Right */}
-            <View style={styles.mealRightSection}>
-              <Text style={styles.mealIcon}>{mealType.icon}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        </TouchableOpacity>
       </View>
     );
   };
@@ -2345,6 +2503,20 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         {/* Meals List - Show when status is 200 OR when there's an active plan AND active subscription OR when we have meals data */}
         {(plansResponseStatus === 200 || (currentPlan && hasActiveSubscription) || dayMeals.length > 0) && (
           <View style={styles.mealsContainer}>
+            {/* ✅ NOUVEAU : Bouton pour ouvrir le bottomsheet des plats passés */}
+            {pastIncompleteMeals.length > 0 && (
+              <TouchableOpacity
+                style={styles.pastMealsButton}
+                onPress={() => setShowPastMealsBottomSheet(true)}
+              >
+                <Ionicons name="time-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.pastMealsButtonText}>
+                  {pastIncompleteMeals.length} plat{pastIncompleteMeals.length > 1 ? 's' : ''} passé{pastIncompleteMeals.length > 1 ? 's' : ''} à compléter
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+
             {/* Selected Day's Meals */}
             {dayMeals.length > 0 ? (
               <>
@@ -2867,7 +3039,18 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       isCompleting && styles.youtubeModalCompleteButtonDisabled
                     ]}
                     onPress={async () => {
-                      if (isCompleted || isCompleting) return;
+                      // Si déjà complété, ne rien faire (mais le bouton reste cliquable pour l'UX)
+                      if (isCompleted) {
+                        Toast.show({
+                          type: 'info',
+                          text1: 'Repas déjà complété',
+                          text2: 'Ce repas a déjà été marqué comme complété',
+                          visibilityTime: 2000,
+                        });
+                        return;
+                      }
+                      
+                      if (isCompleting) return;
                         
                       try {
                         setCompletingMealInModal(selectedMeal.id);
@@ -2891,7 +3074,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                         setCompletingMealInModal(null);
                       }
                     }}
-                    disabled={isCompleted || isCompleting}
+                    disabled={isCompleting}
                   >
                     {isCompleting ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
@@ -2899,7 +3082,7 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
                       <>
                         <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                         <Text style={styles.youtubeModalCompleteButtonText}>
-                          Ce repas est déjà complété
+                          Repas complété
                         </Text>
                       </>
                     ) : (
@@ -3002,6 +3185,23 @@ const NutritionScreen: React.FC<NutritionScreenProps> = ({ user, onLogout, onTab
         }}
         isIOS={isIOS}
         planDay={currentPlanDay}
+      />
+
+      {/* ✅ NOUVEAU : BottomSheet pour les plats passés non complétés */}
+      <PastMealsBottomSheet
+        visible={showPastMealsBottomSheet}
+        onClose={() => setShowPastMealsBottomSheet(false)}
+        pastMeals={pastIncompleteMeals}
+        completionStatus={completionStatus}
+        freshCompletionData={freshCompletionData}
+        onMealComplete={async (mealId: string, planDay: number) => {
+          await handleMealComplete(mealId, planDay);
+          // Rafraîchir le statut de complétion après complétion
+          if (currentPlan?.id) {
+            await fetchCompletionStatus(currentPlan.id);
+          }
+        }}
+        isIOS={isIOS}
       />
 
       {/* BlurOverlay supprimé - on a toujours un plan FREE par défaut avec accessLevel ACTIVE */}
@@ -3334,30 +3534,19 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary,
   },
   completedMealCard: {
-    borderWidth: 3,
-    borderColor: '#4CAF50',
-    borderStyle: 'solid',
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    opacity: 0.6, // Griser la carte complétée
   },
-  completedMealBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: '#4CAF50',
+  completedMealText: {
+    color: '#888888', // Texte grisé pour les repas complétés
+  },
+  completedMealDivider: {
+    backgroundColor: '#CCCCCC', // Ligne de séparation grisée
+  },
+  completedMealIcon: {
+    opacity: 0.5, // Icône grisée
+  },
+  completedMealImage: {
+    opacity: 0.5, // Image grisée pour les repas complétés
   },
   mealContent: {
     flexDirection: 'row',
@@ -3399,7 +3588,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 8,
+    marginBottom: -1,
   },
   mealTypeTitle: {
     fontSize: 16,
@@ -3410,13 +3599,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 1,
     backgroundColor: '#E0E0E0',
-    marginBottom: 8,
+    marginBottom: 2,
+    marginTop: 2,
   },
   mealName: {
     fontSize: 14,
     color: '#000000',
     fontWeight: '500',
     lineHeight: 20,
+    paddingTop: -2,
+    minHeight: 14, // Hauteur minimale pour 2 lignes (22 * 2)
   },
   mealTime: {
     fontSize: 12,
@@ -3877,6 +4069,58 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  // ✅ NOUVEAU : Styles pour les plats passés non complétés
+  pastMealsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  pastMealsButtonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  pastMealCardContainer: {
+    marginBottom: 16,
+  },
+  pastMealCard: {
+    borderRadius: 12,
+    backgroundColor: '#FFF9E6',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    padding: 12,
+    marginBottom: 8,
+  },
+  pastMealCardOverdue: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#FF6B6B',
+  },
+  pastMealDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  pastMealDateText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  pastMealOverdueText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
   },
   completeAllMealsButton: {
     flexDirection: 'row',

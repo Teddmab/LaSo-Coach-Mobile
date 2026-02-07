@@ -137,49 +137,53 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       return false;
     }
 
-    // ✅ PRIORITÉ 1: Vérifier dans completionsByDay pour le jour spécifique (planDay)
-    // Le backend retourne completionsByDay organisé par jour du plan
-    if (completionData?.completionsByDay && planDay !== undefined) {
-      // Convertir planDay en string pour la clé (les clés peuvent être des strings "1", "7", etc.)
-      const dayKey = String(planDay);
-      const dayCompletions = completionData.completionsByDay[dayKey];
-      
-      if (Array.isArray(dayCompletions)) {
-        const found = dayCompletions.some(
-          (completion: any) => {
-            // Vérifier que le mealId correspond ET qu'il y a un completedAt
-            const matches = completion?.mealId === mealId && completion?.completedAt;
-            if (matches && __DEV__) {
-              console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] pour le jour ${planDay}`);
+    // ✅ IMPORTANT: Si planDay est fourni, vérifier UNIQUEMENT ce jour spécifique
+    // Ne pas utiliser les sources globales (allCompletions, mealStatus) car elles contiennent
+    // les complétions de TOUS les jours, ce qui causerait des faux positifs
+    if (planDay !== undefined) {
+      // Vérifier UNIQUEMENT dans completionsByDay pour le jour spécifique
+      if (completionData?.completionsByDay) {
+        // Convertir planDay en string pour la clé (les clés peuvent être des strings "1", "7", etc.)
+        const dayKey = String(planDay);
+        const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDay];
+        
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => {
+              // Vérifier que le mealId correspond ET qu'il y a un completedAt
+              const matches = completion?.mealId === mealId && completion?.completedAt;
+              if (matches && __DEV__) {
+                console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] pour le jour ${planDay}`);
+              }
+              return matches;
             }
-            return matches;
+          );
+          if (found) {
+            return true; // Repas trouvé dans completionsByDay pour ce jour = déjà complété
           }
-        );
-        if (found) {
-          return true; // Repas trouvé dans completionsByDay pour ce jour = déjà complété
         }
       }
-      
-      // Vérifier aussi avec la clé numérique au cas où
-      const numericDayCompletions = completionData.completionsByDay[planDay];
-      if (Array.isArray(numericDayCompletions)) {
-        const found = numericDayCompletions.some(
-          (completion: any) => {
-            const matches = completion?.mealId === mealId && completion?.completedAt;
-            if (matches && __DEV__) {
-              console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDay}] (clé numérique) pour le jour ${planDay}`);
-            }
-            return matches;
+      // Si planDay est fourni, on ne vérifie QUE ce jour - retourner false si pas trouvé
+      return false;
+    }
+
+    // ✅ Si pas de planDay spécifié, vérifier dans toutes les sources (comportement par défaut)
+    // PRIORITÉ 1: Vérifier dans completionsByDay (tous les jours)
+    if (completionData?.completionsByDay) {
+      for (const dayKey in completionData.completionsByDay) {
+        const dayCompletions = completionData.completionsByDay[dayKey];
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          );
+          if (found) {
+            return true;
           }
-        );
-        if (found) {
-          return true;
         }
       }
     }
 
-    // ✅ PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
-    // Note: dayProgress peut contenir les repas complétés du jour actuel
+    // PRIORITÉ 2: Vérifier dans dayProgress.completedMealIds (pour compatibilité)
     const isCompletedByIds = completionData?.dayProgress?.completedMealIds?.includes(mealId) === true;
     if (isCompletedByIds) {
       if (__DEV__) {
@@ -188,8 +192,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       return true;
     }
     
-    // ✅ PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
-    // Note: mealStatus peut être global, donc on vérifie quand même
+    // PRIORITÉ 3: Vérifier dans mealStatus (pour compatibilité)
     const isCompletedByStatus = completionData?.mealStatus?.[mealId]?.completed === true;
     if (isCompletedByStatus) {
       if (__DEV__) {
@@ -198,8 +201,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       return true;
     }
     
-    // ✅ PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
-    // Note: allCompletions contient toutes les complétions, donc on vérifie quand même
+    // PRIORITÉ 4: Vérifier dans allCompletions (pour compatibilité)
     const isCompletedInAllCompletions = completionData?.allCompletions?.some(
       (completion: any) => completion?.mealId === mealId
     ) === true;
@@ -210,7 +212,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       return true;
     }
     
-    return false; // Repas non complété pour ce jour
+    return false; // Repas non complété
   };
 
   // Filtrer les repas non complétés
