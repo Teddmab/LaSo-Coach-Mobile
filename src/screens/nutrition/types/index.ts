@@ -68,7 +68,14 @@ export interface MealTypeConfig {
 }
 
 export interface CompletionStatus {
-  // ✅ NOUVEAU: Structure correspondant à la réponse API du backend
+  // ✅ NOUVEAU: Structure correspondant à la réponse API du backend (champs directs)
+  planId?: string;
+  totalMeals?: number;           // Nombre total de repas dans le plan
+  completedMeals?: number;       // Nombre de repas complétés
+  completionPercentage?: number; // Pourcentage de complétion (0-100)
+  dailyCompletion?: Record<string, { completed: number; total: number }>;
+  
+  // Structure imbriquée alternative (pour compatibilité)
   plan?: {
     id: string;
     name: string;
@@ -82,8 +89,10 @@ export interface CompletionStatus {
     totalMeals: number;        // Nombre total de repas
     remainingMeals: number;    // Nombre de repas restants
   };
-  completionsByDay?: Record<number, any[]>;  // Complétions organisées par jour
+  completionsByDay?: Record<number | string, any[]>;  // Complétions organisées par jour
   allCompletions?: any[];      // Toutes les complétions (array)
+  mealStatus?: Record<string, { completed: boolean; completedAt?: string; feedback?: string }>;
+  
   // ✅ GARDÉ pour compatibilité avec le code existant
   dayProgress?: {
     completedMealIds?: string[];
