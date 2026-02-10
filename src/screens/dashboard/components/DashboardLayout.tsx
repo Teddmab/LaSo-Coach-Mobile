@@ -41,6 +41,11 @@ interface DashboardLayoutProps {
   onCommentPress: (postId: string) => void;
   onMarkContentComplete: (contentId: string) => Promise<void>;
   onCompleteDayPress: () => void;
+  // ✅ Nutrition data from NutritionScreen hooks
+  nutritionDayMeals?: any[];
+  nutritionCurrentPlanDay?: number;
+  nutritionCompletionData?: any;
+  nutritionCurrentPlan?: any;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -75,6 +80,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onCommentPress,
   onMarkContentComplete,
   onCompleteDayPress,
+  nutritionDayMeals,
+  nutritionCurrentPlanDay,
+  nutritionCompletionData,
+  nutritionCurrentPlan,
 }) => {
   const insets = useSafeAreaInsets();
   // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
@@ -131,6 +140,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           onCommentPress={onCommentPress}
           onMarkContentComplete={onMarkContentComplete}
           onCompleteDayPress={onCompleteDayPress}
+          nutritionDayMeals={nutritionDayMeals}
+          nutritionCurrentPlanDay={nutritionCurrentPlanDay}
+          nutritionCompletionData={nutritionCompletionData}
+          nutritionCurrentPlan={nutritionCurrentPlan}
         />
       </View>
 

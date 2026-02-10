@@ -57,5 +57,6 @@ export interface SubscriptionScreenProps {
   activeTab?: string;
   showBackButton?: boolean;
   onBackPress?: () => void;
+  onRefresh?: () => void | Promise<void>; // ✅ Callback pour rafraîchir le dashboard après activation
 }
 

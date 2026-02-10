@@ -1,532 +1,443 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
   StyleSheet, 
-  ScrollView, 
   TouchableOpacity,
-  Image,
   Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
 import { useIOSSimulation } from '../../hooks/useIOSSimulation';
 import { useAuth } from '../../context/FirebaseAuthContext';
 import ImagePersistent from '../ImagePersistent';
-import imageCache from '../../utils/imageCache';
 import { mealTypeMap } from '../../screens/nutrition/utils/nutritionUtils';
 import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from '../../screens/nutrition/utils/dateCalculations';
+import { Meal, NutritionPlan, CompletionStatus } from '../../screens/nutrition/types';
+import MealDetailModal from '../nutrition/MealDetailModal';
+import Toast from 'react-native-toast-message';
 
-const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionPress }) => {
+interface NutritionCardProps {
+  onPress?: () => void;
+  subscriptionData?: any;
+  onSubscriptionPress?: () => void;
+  onTabPress?: (tabId: string) => void;
+  // ✅ Props optionnelles pour utiliser les données de NutritionScreen directement
+  dayMeals?: Meal[];
+  currentPlanDay?: number;
+  completionData?: any;
+  currentPlan?: any;
+}
+
+const NutritionCard: React.FC<NutritionCardProps> = ({ 
+  onPress, 
+  subscriptionData, 
+  onSubscriptionPress, 
+  onTabPress,
+  dayMeals: propsDayMeals,
+  currentPlanDay: propsCurrentPlanDay,
+  completionData: propsCompletionData,
+  currentPlan: propsCurrentPlan,
+}) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
   const { refreshProfile } = useAuth();
-  const [nutritionData, setNutritionData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(1);
   
-  // ✅ NEW: Track plan start date for accurate plan day calculation
-  const [planStartDate, setPlanStartDate] = useState(null);
+  // ✅ Utiliser les données passées en props si disponibles (de NutritionScreen), sinon charger
+  const usePropsData = !!(propsDayMeals && propsDayMeals.length > 0);
+  
+  const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(propsCurrentPlan || null);
+  const [loading, setLoading] = useState(!usePropsData);
+  const [completionStatus, setCompletionStatus] = useState<CompletionStatus | null>(propsCompletionData || null);
+  const [freshCompletionData, setFreshCompletionData] = useState<any>(propsCompletionData || null);
+  const [planStartDate, setPlanStartDate] = useState<Date | null>(null);
+  const [currentPlanDay, setCurrentPlanDay] = useState<number | undefined>(propsCurrentPlanDay);
+  const [dayMeals, setDayMeals] = useState<Meal[]>(propsDayMeals || []);
+  const [showMealDetailModal, setShowMealDetailModal] = useState(false);
+  const [completingMealInModal, setCompletingMealInModal] = useState<string | null>(null);
 
-  // Generate dates for the week
-  const generateWeekDates = () => {
-    const dates = [];
-    const today = new Date();
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
-      dates.push(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // ✅ Mettre à jour les données quand les props changent (données de NutritionScreen)
+  useEffect(() => {
+    if (propsDayMeals && propsDayMeals.length > 0) {
+      setDayMeals(propsDayMeals);
+      setLoading(false);
+      if (__DEV__) {
+        console.log('🍽️ [NutritionCard] Données mises à jour depuis NutritionScreen (props)', {
+          mealsCount: propsDayMeals.length,
+          breakfastMeal: propsDayMeals.find(m => m.type === 'breakfast')?.name || 'N/A',
+          planDay: propsCurrentPlanDay,
+        });
+      }
     }
-    return dates;
-  };
+  }, [propsDayMeals, propsCurrentPlanDay]);
+  
+  useEffect(() => {
+    if (propsCurrentPlanDay !== undefined) {
+      setCurrentPlanDay(propsCurrentPlanDay);
+    }
+  }, [propsCurrentPlanDay]);
+  
+  useEffect(() => {
+    if (propsCompletionData) {
+      setCompletionStatus(propsCompletionData);
+      setFreshCompletionData(propsCompletionData);
+    }
+  }, [propsCompletionData]);
+  
+  useEffect(() => {
+    if (propsCurrentPlan) {
+      setCurrentPlan(propsCurrentPlan);
+    }
+  }, [propsCurrentPlan]);
 
-  const weekDates = generateWeekDates();
+  // ✅ Même logique que NutritionScreen pour vérifier si un repas est complété
+  const isMealCompleted = useCallback((mealId: string, completionData: any, planDayToCheck?: number): boolean => {
+    if (!completionData) {
+      return false;
+    }
 
-  // Mock data structure based on your API with multiple days
-  const mockNutritionData = {
-    plan: {
-      id: "plan_123",
-      name: "Test Nutrition Plan",
-      description: "Test",
-      type: "test",
-      tascPhase: "Test",
-      totalPoints: 554,
-      menus: [
-        {
-          day: 1,
-          title: "Day 1",
-          description: "Test menu",
-          type: "test",
-          meals: [
-            {
-              id: "meal_123",
-              name: "Boiled Plantain with Egg Sauce",
-              type: "breakfast",
-              imageUrl: "https://via.placeholder.com/80x80/90EE90/000000?text=Plantain",
-              kcal: 300,
-              protein: 15,
-              carbs: 45,
-              fats: 10,
-              points: 50
-            },
-            {
-              id: "meal_124",
-              name: "Chicken Bowl",
-              type: "lunch",
-              imageUrl: "https://via.placeholder.com/80x80/FFB366/000000?text=Chicken",
-              kcal: 450,
-              protein: 25,
-              carbs: 35,
-              fats: 15,
-              points: 75
-            },
-            {
-              id: "meal_125",
-              name: "Groundnut Soup with Fufu",
-              type: "dinner",
-              imageUrl: "https://via.placeholder.com/80x80/87CEEB/000000?text=Soup",
-              kcal: 380,
-              protein: 20,
-              carbs: 40,
-              fats: 12,
-              points: 65
-            },
-            {
-              id: "meal_126",
-              name: "Test",
-              type: "bonus",
-              imageUrl: "https://via.placeholder.com/80x80/FFFF99/000000?text=Bonus",
-              kcal: 150,
-              protein: 8,
-              carbs: 20,
-              fats: 5,
-              points: 25
-            }
-          ]
-        },
-        {
-          day: 2,
-          title: "Day 2",
-          description: "Test menu day 2",
-          type: "test",
-          meals: [
-            {
-              id: "meal_127",
-              name: "Oatmeal with Berries",
-              type: "breakfast",
-              imageUrl: "https://via.placeholder.com/80x80/FFE4B5/000000?text=Oatmeal",
-              kcal: 280,
-              protein: 12,
-              carbs: 50,
-              fats: 8,
-              points: 45
-            },
-            {
-              id: "meal_128",
-              name: "Salmon Salad",
-              type: "lunch",
-              imageUrl: "https://via.placeholder.com/80x80/98FB98/000000?text=Salmon",
-              kcal: 420,
-              protein: 30,
-              carbs: 25,
-              fats: 18,
-              points: 70
-            },
-            {
-              id: "meal_129",
-              name: "Vegetable Stir Fry",
-              type: "dinner",
-              imageUrl: "https://via.placeholder.com/80x80/FFB6C1/000000?text=StirFry",
-              kcal: 350,
-              protein: 18,
-              carbs: 35,
-              fats: 14,
-              points: 60
-            },
-            {
-              id: "meal_130",
-              name: "Protein Shake",
-              type: "bonus",
-              imageUrl: "https://via.placeholder.com/80x80/DDA0DD/000000?text=Shake",
-              kcal: 180,
-              protein: 25,
-              carbs: 15,
-              fats: 3,
-              points: 30
-            }
-          ]
-        },
-        {
-          day: 3,
-          title: "Day 3",
-          description: "Test menu day 3",
-          type: "test",
-          meals: [
-            {
-              id: "meal_131",
-              name: "Greek Yogurt with Honey",
-              type: "breakfast",
-              imageUrl: "https://via.placeholder.com/80x80/F0E68C/000000?text=Yogurt",
-              kcal: 220,
-              protein: 20,
-              carbs: 25,
-              fats: 5,
-              points: 40
-            },
-            {
-              id: "meal_132",
-              name: "Quinoa Bowl",
-              type: "lunch",
-              imageUrl: "https://via.placeholder.com/80x80/DEB887/000000?text=Quinoa",
-              kcal: 380,
-              protein: 22,
-              carbs: 45,
-              fats: 12,
-              points: 65
-            },
-            {
-              id: "meal_133",
-              name: "Grilled Chicken with Vegetables",
-              type: "dinner",
-              imageUrl: "https://via.placeholder.com/80x80/87CEEB/000000?text=Chicken",
-              kcal: 400,
-              protein: 35,
-              carbs: 20,
-              fats: 16,
-              points: 75
-            },
-            {
-              id: "meal_134",
-              name: "Fruit Salad",
-              type: "bonus",
-              imageUrl: "https://via.placeholder.com/80x80/FFA07A/000000?text=Fruit",
-              kcal: 120,
-              protein: 2,
-              carbs: 25,
-              fats: 1,
-              points: 20
-            }
-          ]
+    if (planDayToCheck !== undefined) {
+      if (completionData?.completionsByDay) {
+        const dayKey = String(planDayToCheck);
+        const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDayToCheck];
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          );
+          if (found) {
+            return true;
+          }
         }
-      ]
-    },
-    completionStatus: {
-      totalMeals: 4,
-      completedMeals: 0,
-      completionPercentage: 0,
-      pointsEarned: 0,
-      totalPoints: 554,
+      }
+      return false;
     }
-  };
 
-  const fetchNutritionData = React.useCallback(async () => {
+    if (completionData?.completionsByDay) {
+      for (const dayKey in completionData.completionsByDay) {
+        const dayCompletions = completionData.completionsByDay[dayKey];
+        if (Array.isArray(dayCompletions)) {
+          const found = dayCompletions.some(
+            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          );
+          if (found) {
+            return true;
+          }
+        }
+      }
+    }
+
+    if (completionData?.dayProgress?.completedMealIds?.includes(mealId) === true) {
+      return true;
+    }
+    
+    if (completionData?.mealStatus?.[mealId]?.completed === true) {
+      return true;
+    }
+    
+    if (completionData?.allCompletions?.some(
+      (completion: any) => completion?.mealId === mealId
+    ) === true) {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
+  // ✅ Chargement simplifié et rapide : tout en une fois
+  // ⚠️ NE CHARGER QUE SI LES DONNÉES NE SONT PAS FOURNIES EN PROPS
+  const fetchQuickData = useCallback(async () => {
+    // Si les données sont déjà fournies via props (de NutritionScreen), ne pas charger
+    if (usePropsData && propsDayMeals && propsDayMeals.length > 0) {
+      if (__DEV__) {
+        console.log('🍽️ [NutritionCard] Utilisation des données de NutritionScreen (props)', {
+          mealsCount: propsDayMeals.length,
+          breakfastMeal: propsDayMeals.find(m => m.type === 'breakfast')?.name || 'N/A',
+        });
+      }
+      return;
+    }
+    
     try {
       setLoading(true);
       
-      // Fetch nutrition plans - même logique que NutritionScreen
+      // 1. Charger les plans (rapide)
       const plansResponse = await nutritionAPI.getPlans();
-      
-      // Support both old and new format (comme dans NutritionScreen)
       const plansData = plansResponse?.data || plansResponse;
-      const httpStatus = plansResponse?.status || 200;
-      
-      // Vérifier si on a des plans (même logique que NutritionScreen)
-      const plansCount = plansData?.data?.plans?.length || plansData?.plans?.length || 0;
       const allPlans = plansData?.data?.plans || plansData?.plans || [];
       
-      if (__DEV__) {
-        console.log('🍽️ [NutritionCard] Plans chargés:', {
-          httpStatus,
-          plansCount,
-          hasPlansData: !!plansData,
-          plansStructure: {
-            hasDataField: !!plansData?.data,
-            hasPlansArray: Array.isArray(plansData?.data?.plans) || Array.isArray(plansData?.plans),
-            plansArrayLength: allPlans.length,
-          },
-        });
+      if (allPlans.length === 0) {
+        setCurrentPlan(null);
+        setLoading(false);
+        return;
       }
       
-      // Si on a des plans, utiliser le premier plan actif ou le premier disponible
-      if (plansCount > 0 && allPlans.length > 0) {
-        const currentPlan = allPlans.find((plan: any) => plan.isActive) || allPlans[0];
+      const activePlan = allPlans.find((plan: any) => plan.isActive) || allPlans[0];
+      setCurrentPlan(activePlan);
+      
+      // 2. Calculer immédiatement le planDay et charger les repas (sans attendre completion status)
+      // ✅ Utiliser EXACTEMENT la même logique que useNutritionData.loadDayData pour garantir la cohérence
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDateObj = today;
+      selectedDateObj.setHours(0, 0, 0, 0);
+      
+      // Determine plan start date (EXACTEMENT la même logique que useNutritionData.loadDayData)
+      let planStartDate = today;
+      if (subscriptionData?.subscription?.startDate) {
+        planStartDate = new Date(subscriptionData.subscription.startDate);
+        planStartDate.setHours(0, 0, 0, 0);
+      } else if (activePlan?.startDate) {
+        planStartDate = new Date(activePlan.startDate);
+        planStartDate.setHours(0, 0, 0, 0);
+      }
+      
+      setPlanStartDate(planStartDate);
+      
+      // Use shared utility to calculate plan day (EXACTEMENT la même logique que useNutritionData.loadDayData)
+      const menuDay = calculatePlanDayFromDate(
+        selectedDateObj,
+        planStartDate,
+        activePlan.numDays || 7
+      );
+      
+      setCurrentPlanDay(menuDay);
+      
+      // Use shared utility for consistent menu finding logic (EXACTEMENT la même logique que useNutritionData.loadDayData)
+      let dayMenu = findMenuForPlanDay(activePlan.menus, menuDay);
+      
+      // Final fallback: use first menu (EXACTEMENT la même logique que useNutritionData.loadDayData)
+      if (!dayMenu && activePlan.menus && activePlan.menus.length > 0) {
+        dayMenu = activePlan.menus[0];
+      }
+      
+      if (dayMenu) {
+        const meals = dayMenu.meals || [];
+        setDayMeals(meals);
         
+        // Log pour debug (uniquement en dev)
         if (__DEV__) {
-          console.log('✅ [NutritionCard] Plan sélectionné:', {
-            planId: currentPlan?.id,
-            planName: currentPlan?.name,
-            isActive: currentPlan?.isActive,
-            menusCount: currentPlan?.menus?.length || 0,
+          console.log('🍽️ [NutritionCard] Meals loaded', {
+            menuDay,
+            planStartDate: planStartDate.toISOString().split('T')[0],
+            selectedDate: selectedDateObj.toISOString().split('T')[0],
+            planNumDays: activePlan.numDays || 7,
+            mealsCount: meals.length,
+            breakfastMeal: meals.find(m => m.type === 'breakfast')?.name || 'N/A',
           });
-        }
-        
-        // Fetch completion status for the current plan
-        try {
-          const completionResponse = await nutritionAPI.getCompletionStatus(currentPlan.id);
-          
-          // Extract completion data from response
-          const completionData = completionResponse.success ? completionResponse.data : null;
-          
-          // Calculate completion percentage based on actual completed meals
-          // Handle both 'progress' and 'completionPercentage' fields from API
-          let completionPercentage = 0;
-          if (completionData) {
-            // If API returns completionPercentage, use it
-            if (completionData.completionPercentage !== undefined) {
-              completionPercentage = completionData.completionPercentage;
-            }
-            // If API returns progress, use it but ensure it's based on actual completion
-            else if (completionData.progress !== undefined) {
-              // Only use progress if it's calculated from actual completed meals
-              // Otherwise calculate it ourselves
-              const totalMeals = completionData.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0;
-              const completedMeals = completionData.completedMeals || 0;
-              if (totalMeals > 0) {
-                completionPercentage = Math.round((completedMeals / totalMeals) * 100);
-              } else {
-                completionPercentage = completionData.progress || 0;
-              }
-            }
-            // Calculate from completedMeals and totalMeals if available
-            else {
-              const totalMeals = completionData.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0;
-              const completedMeals = completionData.completedMeals || 0;
-              if (totalMeals > 0) {
-                completionPercentage = Math.round((completedMeals / totalMeals) * 100);
-              }
-            }
-          }
-          
-          const nutritionData = {
-            plan: currentPlan,
-            completionStatus: {
-              totalMeals: completionData?.totalMeals || currentPlan.menus?.[0]?.meals?.length || 0,
-              completedMeals: completionData?.completedMeals || 0,
-              completionPercentage: completionPercentage,
-              pointsEarned: completionData?.pointsEarned || 0,
-              totalPoints: currentPlan.totalPoints || 0,
-            }
-          };
-          
-          setNutritionData(nutritionData);
-          
-          // ✅ NEW: Store plan start date for accurate plan day calculation
-          // Try to get from subscription data, or fallback to today
-          const startDate = subscriptionData?.subscription?.startDate 
-            ? new Date(subscriptionData.subscription.startDate)
-            : currentPlan?.startDate 
-            ? new Date(currentPlan.startDate)
-            : new Date();
-          startDate.setHours(0, 0, 0, 0);
-          setPlanStartDate(startDate);
-          
-          if (__DEV__) {
-            console.log('✅ [NutritionCard] Plan start date set:', {
-              planStartDate: startDate.toDateString(),
-              source: subscriptionData?.subscription?.startDate ? 'subscription' : 
-                      currentPlan?.startDate ? 'plan' : 'today (fallback)'
-            });
-          }
-        } catch (completionError) {
-          // Use plan data without completion status
-          const nutritionData = {
-            plan: currentPlan,
-            completionStatus: {
-              totalMeals: currentPlan.menus?.[0]?.meals?.length || 0,
-              completedMeals: 0,
-              completionPercentage: 0,
-              pointsEarned: 0,
-              totalPoints: currentPlan.totalPoints || 0,
-            }
-          };
-          setNutritionData(nutritionData);
-          
-          // ✅ NEW: Store plan start date even when completion fetch fails
-          const startDate = subscriptionData?.subscription?.startDate 
-            ? new Date(subscriptionData.subscription.startDate)
-            : currentPlan?.startDate 
-            ? new Date(currentPlan.startDate)
-            : new Date();
-          startDate.setHours(0, 0, 0, 0);
-          setPlanStartDate(startDate);
-          
-          if (__DEV__) {
-            console.log('✅ [NutritionCard] NutritionData défini avec succès');
-          }
         }
       } else {
-        // Pas de plans disponibles
-        if (__DEV__) {
-          console.log('⚠️ [NutritionCard] Aucun plan disponible:', {
-            httpStatus,
-            plansCount,
-            hasPlansData: !!plansData,
-          });
-        }
-        setNutritionData(null);
+        setDayMeals([]);
+      }
+      
+      // ✅ Afficher la carte MAINTENANT (ne pas attendre completion status)
+      setLoading(false);
+      
+      // 3. Charger completion status en arrière-plan (non bloquant)
+      try {
+        const completionResponse = await nutritionAPI.getCompletionStatus(activePlan.id);
+        const completionData = completionResponse.success ? completionResponse.data : null;
+        setCompletionStatus(completionData);
+        setFreshCompletionData(completionData);
+      } catch (completionError: any) {
+        // Erreur non bloquante - initialiser avec valeurs par défaut
+        const totalMeals = activePlan?.menus?.reduce((sum: number, menu: any) => {
+          return sum + (menu.meals?.length || 0);
+        }, 0) || 0;
+        
+        const defaultCompletionData = {
+          planId: activePlan.id,
+          progress: {
+            percentage: 0,
+            completedMeals: 0,
+            totalMeals: totalMeals,
+            remainingMeals: totalMeals,
+          },
+          completionsByDay: {},
+          allCompletions: [],
+          dayProgress: {
+            completedMealIds: [],
+          },
+          mealStatus: {},
+        };
+        
+        setCompletionStatus(defaultCompletionData);
+        setFreshCompletionData(defaultCompletionData);
       }
     } catch (error) {
-      console.error('❌ [NutritionCard] Erreur lors du chargement des plans:', error);
-      // Ne pas utiliser mock data en production - retourner null
-      setNutritionData(null);
-    } finally {
+      console.error('❌ [NutritionCard] Erreur lors du chargement:', error);
+      setCurrentPlan(null);
       setLoading(false);
     }
-  }, []);
+  }, [subscriptionData, usePropsData, propsDayMeals]);
 
-  // Fetch data on mount
+  // Charger les données au montage et quand subscriptionData change
+  // ⚠️ NE CHARGER QUE SI LES DONNÉES NE SONT PAS FOURNIES EN PROPS
   useEffect(() => {
-    fetchNutritionData();
-  }, [fetchNutritionData]);
+    // Si les données sont fournies via props, ne pas charger
+    if (usePropsData && propsDayMeals && propsDayMeals.length > 0) {
+      return;
+    }
+    
+    // Attendre que subscriptionData soit disponible avant de charger
+    if (subscriptionData !== undefined) {
+      fetchQuickData();
+    }
+  }, [fetchQuickData, subscriptionData, usePropsData, propsDayMeals]);
 
-  // Refresh data when screen comes into focus (e.g., after completing a meal)
   useFocusEffect(
-    React.useCallback(() => {
-      fetchNutritionData();
-    }, [fetchNutritionData])
+    useCallback(() => {
+      // Si les données sont fournies via props, ne pas recharger
+      if (usePropsData && propsDayMeals && propsDayMeals.length > 0) {
+        return;
+      }
+      
+      // Toujours recharger quand l'écran est focusé pour avoir les dernières données
+      if (subscriptionData !== undefined) {
+        fetchQuickData();
+      }
+    }, [fetchQuickData, subscriptionData, usePropsData, propsDayMeals])
   );
 
-  const getMealTypeIcon = (type) => {
-    // Utiliser les emojis de mealTypeMap comme dans NutritionScreen
-    const mealType = mealTypeMap[type] || mealTypeMap['snack']; // fallback sur snack si type inconnu
-    return mealType?.icon || '🍽️';
-  };
-
-  const getMealTypeColor = (type) => {
-    switch (type) {
-      case 'breakfast':
-        return '#E8F5E8';
-      case 'lunch':
-        return '#FFF3E0';
-      case 'dinner':
-        return '#E3F2FD';
-      case 'bonus':
-        return '#FFFDE7';
-      default:
-        return '#F5F5F5';
+  // ✅ Trouver le premier repas non complété (simplifié et rapide)
+  const nextMealToComplete = useMemo(() => {
+    // Si pas de repas, retourner null
+    if (!dayMeals.length) {
+      return null;
     }
-  };
 
-  const getMealTypeTitle = (type) => {
-    switch (type) {
+    // Ordre des repas
+    const mealOrder = { 
+      'breakfast': 1, 
+      'lunch': 2, 
+      'snack': 3,
+      'dinner': 4,
+      'bonus': 3
+    };
+
+    const sortedMeals = [...dayMeals].sort((a, b) => {
+      const orderA = mealOrder[a.type] || 999;
+      const orderB = mealOrder[b.type] || 999;
+      return orderA - orderB;
+    });
+
+    // Si pas encore de completion status, retourner le premier repas
+    const completionDataToUse = freshCompletionData || completionStatus;
+    if (!completionDataToUse || currentPlanDay === undefined) {
+      return sortedMeals[0] || null;
+    }
+    
+    // Sinon, chercher le premier non complété
+    for (const meal of sortedMeals) {
+      const isCompleted = isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
+      if (!isCompleted) {
+        return meal;
+      }
+    }
+
+    return null; // Tous complétés
+  }, [dayMeals, currentPlanDay, freshCompletionData, completionStatus, isMealCompleted]);
+
+  // ✅ Calculer si l'heure recommandée est passée
+  const isTimePassed = useMemo(() => {
+    if (!nextMealToComplete) return false;
+    
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    switch (nextMealToComplete.type) {
       case 'breakfast':
-        return 'Petit-Déj';
+        return currentHour > 9 || (currentHour === 9 && currentMinute > 0);
       case 'lunch':
-        return 'Dejeuner';
-      case 'dinner':
-        return 'Souper';
+        return currentHour > 14 || (currentHour === 14 && currentMinute > 0);
       case 'snack':
-        return 'Collation';
-      case 'bonus':
-        return 'Collation'; // Fallback pour bonus
-      default:
-        return type;
-    }
-  };
-
-  const getMealTimeRange = (type) => {
-    switch (type) {
-      case 'breakfast':
-        return 'entre 7h30-9h00';
-      case 'lunch':
-        return 'entre 12h00-14h00';
-      case 'snack':
-        return 'à 16h';
+        return currentHour > 16 || (currentHour === 16 && currentMinute > 0);
       case 'dinner':
-        return 'entre 18h00-20h00';
+        return currentHour > 20 || (currentHour === 20 && currentMinute > 0);
       default:
-        return '';
+        return false;
     }
-  };
+  }, [nextMealToComplete]);
 
-  const formatDate = (date) => {
-    const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-    return `${date.getDate()} ${days[date.getDay()]}`;
-  };
+  // ✅ Compléter un repas (simplifié)
+  const handleMealComplete = useCallback(async (mealId: string) => {
+    // Utiliser les données de props si disponibles
+    const planToUse = propsCurrentPlan || currentPlan;
+    const planDayToUse = propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay;
+    
+    if (!planToUse?.id || planDayToUse === undefined) {
+      return;
+    }
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-          <Text style={styles.title}>Menu du jour</Text>
-          <Text style={styles.date}>{selectedDate.toLocaleDateString('fr-FR', { 
-            weekday: 'long', 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
-          })}</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <View style={styles.mealShimmerCard}>
-            <Shimmer width={80} height={80} borderRadius={0} style={{ marginRight: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Shimmer width="60%" height={18} style={{ marginBottom: 8 }} />
-              <Shimmer width="100%" height={16} style={{ marginBottom: 6 }} />
-              <Shimmer width="40%" height={14} />
-            </View>
-          </View>
-          <View style={styles.mealShimmerCard}>
-            <Shimmer width={80} height={80} borderRadius={0} style={{ marginRight: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Shimmer width="60%" height={18} style={{ marginBottom: 8 }} />
-              <Shimmer width="100%" height={16} style={{ marginBottom: 6 }} />
-              <Shimmer width="40%" height={14} />
-            </View>
-          </View>
-        </View>
-      </View>
-    );
-  }
+    try {
+      const selectedDateObj = new Date();
+      selectedDateObj.setHours(0, 0, 0, 0);
+      const completionDateISO = selectedDateObj.toISOString().split('T')[0] + 'T00:00:00.000Z';
+      
+      await nutritionAPI.completeMeal(mealId, {
+        planId: planToUse.id,
+        planDay: planDayToUse,
+        completionDate: completionDateISO,
+      });
+
+      // Rafraîchir le statut en arrière-plan
+      try {
+        const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+        const globalCompletionData = apiResponse?.data || apiResponse;
+        setCompletionStatus(globalCompletionData);
+        setFreshCompletionData(globalCompletionData);
+      } catch (refreshError) {
+        // Erreur non bloquante
+        console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut:', refreshError);
+      }
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Repas complété !',
+        text2: 'Vous avez gagné 25 points',
+        visibilityTime: 2000,
+      });
+    } catch (error: any) {
+      console.error('❌ [NutritionCard] Erreur complétion repas:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de compléter le repas',
+        visibilityTime: 2000,
+      });
+    }
+  }, [propsCurrentPlan, currentPlan, propsCurrentPlanDay, currentPlanDay]);
 
   // ✅ ANDROID: Bloquer l'accès si pas d'abonnement actif
-  // ✅ iOS: Laisser l'accès (mode compagnon)
   const hasActiveSubscription = isIOS || 
     subscriptionData?.status === 'ACTIVE' || 
     subscriptionData?.hasActiveSubscription === true ||
     (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
   
-  // Sur Android, si pas d'abonnement, afficher la carte verrouillée
   if (Platform.OS === 'android' && !hasActiveSubscription) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-          <Text style={styles.title}>Menu du jour</Text>
-          <Text style={styles.date}>{selectedDate.toLocaleDateString('fr-FR', { 
-            weekday: 'long', 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
-          })}</Text>
-        </View>
         <View style={styles.lockedContainer}>
           <View style={styles.lockIconContainer}>
             <Ionicons name="lock-closed" size={48} color="#FF9800" />
           </View>
           <Text style={styles.lockedTitle}>Menu du jour verrouillé</Text>
           <Text style={styles.lockedMessage}>
-            Abonnez-vous pour accéder au menu du jour et débloquer tous les plans nutritionnels
+            Abonnez-vous pour accéder au menu du jour
           </Text>
           <TouchableOpacity 
             style={styles.subscribeButton}
             onPress={() => {
-              console.log('🔘 [NutritionCard] Bouton "Voir les plans d\'abonnement" cliqué');
-              console.log('🔘 [NutritionCard] onSubscriptionPress:', onSubscriptionPress);
-              console.log('🔘 [NutritionCard] onPress:', onPress);
               if (onSubscriptionPress) {
-                console.log('✅ [NutritionCard] Appel de onSubscriptionPress()');
                 onSubscriptionPress();
               } else if (onPress) {
-                console.log('⚠️ [NutritionCard] Appel de onPress() (fallback)');
                 onPress();
-              } else {
-                console.error('❌ [NutritionCard] Aucune fonction de callback disponible');
               }
             }}
             activeOpacity={0.7}
@@ -538,562 +449,401 @@ const NutritionCard = ({ onPress, onMealPress, subscriptionData, onSubscriptionP
       </View>
     );
   }
-  
-  // Si pas de nutritionData, ne rien afficher
-  if (!nutritionData || !nutritionData.plan || !nutritionData.plan.menus || nutritionData.plan.menus.length === 0) {
-    return null;
+
+  // ✅ Ne pas afficher le loading si les données sont déjà fournies via props
+  if (loading && !usePropsData) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.card}>
+          <View style={styles.shimmerContainer}>
+            <Shimmer width={80} height={80} borderRadius={12} style={{ marginRight: 16 }} />
+            <View style={{ flex: 1 }}>
+              <Shimmer width="70%" height={20} style={{ marginBottom: 8 }} />
+              <Shimmer width="50%" height={16} style={{ marginBottom: 12 }} />
+              <Shimmer width="60%" height={14} />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
   }
 
-  // ✅ NEW: Calculate actual plan day from selected calendar date
-  // This ensures NutritionCard shows the same meals as NutritionScreen
-  const selectedDateObj = weekDates[selectedDay - 1]; // selectedDay is 1-based
-  
-  // Use shared utility to calculate plan day (handles all plan lengths)
-  const menuDay = planStartDate && nutritionData.plan?.numDays
-    ? calculatePlanDayFromDate(
-        selectedDateObj,
-        planStartDate,
-        nutritionData.plan.numDays
-      )
-    : selectedDay; // Fallback to simple day index if no plan info
-  
-  // Use shared utility to find menu (consistent with NutritionScreen)
-  const currentMenu = findMenuForPlanDay(nutritionData.plan.menus, menuDay) || nutritionData.plan.menus[0];
-  
-  // Get plan progress information for potential display
-  const planProgress = planStartDate && nutritionData.plan?.numDays
-    ? getPlanProgress(
-        selectedDateObj,
-        planStartDate,
-        nutritionData.plan.numDays
-      )
-    : null;
-  
-  if (__DEV__) {
-    console.log('🍽️ [NutritionCard] Menu selection', {
-      selectedDay,
-      selectedDate: selectedDateObj?.toDateString(),
-      planStartDate: planStartDate?.toDateString(),
-      planNumDays: nutritionData.plan?.numDays,
-      calculatedMenuDay: menuDay,
-      foundMenuDay: currentMenu?.day,
-      isExactMatch: currentMenu?.day === menuDay,
-      planProgress: planProgress ? {
-        daysElapsed: planProgress.daysElapsed,
-        cycleNumber: planProgress.cycleNumber,
-        progressInCycle: `${planProgress.progressInCycle}%`
-      } : 'N/A'
-    });
+  if (!nextMealToComplete) {
+    return (
+      <TouchableOpacity 
+        style={styles.container}
+        onPress={() => {
+          if (onTabPress) {
+            onTabPress('nutrition');
+          } else if (onPress) {
+            onPress();
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.card, styles.completedCard]}>
+          <View style={styles.completedContent}>
+            <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
+            <Text style={styles.completedTitle}>Tous les repas complétés !</Text>
+            <Text style={styles.completedSubtitle}>Bravo pour votre journée 🎉</Text>
+            <View style={styles.viewAllButton}>
+              <Text style={styles.viewAllButtonText}>Voir le menu complet</Text>
+              <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} />
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   }
 
-  const { completionStatus } = nutritionData;
+  const mealType = mealTypeMap[nextMealToComplete.type] || mealTypeMap['snack'];
+  const mealIcon = mealType.icon || '🍽️';
+  const mealTime = mealType.time || '';
+  const mealTitle = mealType.title || nextMealToComplete.type;
 
-  // Check if selected date is today (selectedDateObj already declared above)
-  const today = new Date();
-  const isToday = selectedDateObj && 
-    selectedDateObj.getDate() === today.getDate() &&
-    selectedDateObj.getMonth() === today.getMonth() &&
-    selectedDateObj.getFullYear() === today.getFullYear();
+  const formattedDate = today.toLocaleDateString('fr-FR', { 
+    weekday: 'long', 
+    day: 'numeric', 
+    month: 'long', 
+    year: 'numeric' 
+  });
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
-        <Text style={styles.title}>Menu du jour</Text>
-        {planProgress && nutritionData.plan.numDays > 7 && (
-          <View style={styles.planDayBadge}>
-            <Text style={styles.planDayBadgeText}>
-              Jour {menuDay}/{nutritionData.plan.numDays}
+      <View style={styles.card}>
+        {/* Header avec titre et date */}
+        <View style={styles.header}>
+          <View style={styles.headerTitleRow}>
+            <Ionicons name="restaurant" size={20} color={theme.colors.text.primary} />
+            <Text style={styles.title}>Menu du jour</Text>
+            <Text style={styles.date}>{formattedDate}</Text>
+          </View>
+        </View>
+
+        {/* Meal type avec heure */}
+        <View style={styles.mealTypeRow}>
+          <Text style={styles.mealTypeText}>
+            {mealTitle} ({mealTime})
+          </Text>
+        </View>
+
+        {/* Image avec timer */}
+        <View style={styles.mealImageContainer}>
+          <ImagePersistent
+            source={{ uri: nextMealToComplete.imageUrl }}
+            style={styles.mealImage}
+          />
+          {/* Timer overlay */}
+          <View style={[styles.timerOverlay, isTimePassed && styles.timerOverlayUrgent]}>
+            <Ionicons 
+              name={isTimePassed ? "time" : "time-outline"} 
+              size={24} 
+              color={isTimePassed ? "#FFFFFF" : theme.colors.text.primary} 
+            />
+            <Text style={[styles.timerText, isTimePassed && styles.timerTextUrgent]}>
+              {isTimePassed ? "À compléter d'urgence" : mealTime}
             </Text>
           </View>
-        )}
-        <Text style={styles.date}>{selectedDate.toLocaleDateString('fr-FR', { 
-          weekday: 'long', 
-          day: 'numeric', 
-          month: 'long', 
-          year: 'numeric' 
-        })}</Text>
+        </View>
+
+        {/* Nutrition info */}
+        <View style={styles.nutritionInfo}>
+          {nextMealToComplete.calories && (
+            <View style={styles.nutritionItem}>
+              <Ionicons name="flame" size={14} color="#FF6B6B" />
+              <Text style={styles.nutritionText}>{nextMealToComplete.calories} kcal</Text>
+            </View>
+          )}
+          {nextMealToComplete.proteins !== undefined && (
+            <View style={styles.nutritionItem}>
+              <Ionicons name="fitness" size={14} color="#4ECDC4" />
+              <Text style={styles.nutritionText}>{nextMealToComplete.proteins}g protéines</Text>
+            </View>
+          )}
+          {nextMealToComplete.carbs !== undefined && (
+            <View style={styles.nutritionItem}>
+              <Ionicons name="leaf" size={14} color="#95E1D3" />
+              <Text style={styles.nutritionText}>{nextMealToComplete.carbs}g glucides</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Nom du repas */}
+        <Text style={styles.mealName} numberOfLines={2}>
+          {nextMealToComplete.name}
+        </Text>
+
+        {/* Actions buttons */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity 
+            style={styles.viewMoreButton}
+            onPress={() => {
+              if (onTabPress) {
+                onTabPress('nutrition');
+              } else if (onPress) {
+                onPress();
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="eye-outline" size={18} color={theme.colors.primary} />
+            <Text style={styles.viewMoreText}>Voir +</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.actionButton, isTimePassed && styles.actionButtonUrgent]}
+            onPress={() => {
+              // ✅ Ouvrir le modal de détails du repas (comme dans NutritionScreen)
+              setShowMealDetailModal(true);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.actionButtonText}>Compléter ce repas</Text>
+            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Date Navigation */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.dateNavigation}
-        contentContainerStyle={styles.dateNavigationContent}
-      >
-        {weekDates.map((date, index) => {
-          const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-          
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.dateButton,
-                selectedDay === index + 1 && styles.dateButtonActive,
-                isWeekend && !(selectedDay === index + 1) && styles.dateButtonWeekend
-              ]}
-              onPress={() => {
-                setSelectedDay(index + 1);
-              }}
-            >
-              <Text style={[
-                styles.dateButtonText,
-                selectedDay === index + 1 && styles.dateButtonTextActive,
-                isWeekend && !(selectedDay === index + 1) && styles.dateButtonTextWeekend
-              ]}>
-                {formatDate(date)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Meals */}
-      <View style={styles.mealsContainer}>
-        {currentMenu?.meals
-          .sort((a, b) => {
-            // Ordre correct : Petit-Déj, Dejeuner, Collation, Souper
-            const order = { 
-              'breakfast': 1, 
-              'lunch': 2, 
-              'snack': 3,
-              'dinner': 4,
-              'bonus': 3 // bonus = snack
-            };
-            const orderA = order[a.type] || 999;
-            const orderB = order[b.type] || 999;
-            return orderA - orderB;
-          })
-          .map((meal, index) => {
-            const iconEmoji = getMealTypeIcon(meal.type);
-            const backgroundColor = getMealTypeColor(meal.type);
-            
-            // Précharger l'image du repas si elle existe
-            if (meal.imageUrl) {
-              imageCache.preloadRemoteImage(meal.imageUrl).catch(() => {
-                // Ignore les erreurs de préchargement
-              });
+      {/* ✅ MealDetailModal - Même que NutritionScreen quand on clique sur un repas */}
+      {nextMealToComplete && (
+        <MealDetailModal
+          visible={showMealDetailModal}
+          onClose={() => {
+            setShowMealDetailModal(false);
+            setCompletingMealInModal(null);
+          }}
+          meal={nextMealToComplete}
+          isCompleted={isMealCompleted(
+            nextMealToComplete.id, 
+            propsCompletionData || freshCompletionData || completionStatus, 
+            propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay
+          )}
+          isCompleting={completingMealInModal === nextMealToComplete.id}
+          onComplete={async () => {
+            if (!nextMealToComplete) return;
+            setCompletingMealInModal(nextMealToComplete.id);
+            try {
+              await handleMealComplete(nextMealToComplete.id);
+              // Rafraîchir le statut après complétion
+              const planToUse = propsCurrentPlan || currentPlan;
+              if (planToUse?.id) {
+                try {
+                  const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+                  const globalCompletionData = apiResponse?.data || apiResponse;
+                  setFreshCompletionData(globalCompletionData);
+                  setCompletionStatus(globalCompletionData);
+                } catch (error) {
+                  console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut:', error);
+                }
+              }
+            } finally {
+              setCompletingMealInModal(null);
             }
-            
-            return (
-              <TouchableOpacity 
-                key={meal.id} 
-                style={[styles.mealCard, { backgroundColor }]}
-                onPress={() => {
-                  if (onMealPress) {
-                    onMealPress(meal);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                {/* Content area with image and text */}
-                <View style={styles.mealContent}>
-                  {/* Image on the left - avec container comme dans NutritionScreen */}
-                  <View style={styles.mealImageContainer}>
-                    <ImagePersistent
-                      source={{ uri: meal.imageUrl }} 
-                      style={styles.mealImage}
-                      resizeMode="cover"
-                      onError={(error) => {
-                      }}
-                      fallbackSource={{ uri: 'https://via.placeholder.com/80x80/CCCCCC/666666?text=Meal' }}
-                    />
-                  </View>
-                  
-                  {/* Text content on the right */}
-                  <View style={styles.mealInfo}>
-                    {/* Header with title and icon - structure comme dans NutritionScreen */}
-                    <View style={styles.mealHeader}>
-                      <Text style={styles.mealTypeTitle}>{getMealTypeTitle(meal.type)}</Text>
-                      <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
-                      {getMealTimeRange(meal.type) && (
-                        <Text style={styles.mealTime}>{getMealTimeRange(meal.type)}</Text>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Icon and Status - Right */}
-                  <View style={styles.mealRightSection}>
-                    <Text style={styles.mealIconEmoji}>{iconEmoji}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-      </View>
-
+          }}
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 16,
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 0, // Pas de margin horizontal, le padding sera géré par le contenu
-    marginBottom: 20,
-    borderRadius: 0, // Pas de border radius sur le container principal
-    padding: 0, // Pas de padding sur le container, on le met sur les sections internes
-    borderWidth: 0, // Pas de border sur le container
-    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   header: {
+    marginBottom: 16,
+  },
+  headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, // Padding horizontal pour le header
-    paddingTop: 20,
-    paddingBottom: 16,
-    marginBottom: 0,
+    flexWrap: 'wrap',
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: theme.colors.text.primary,
-    flex: 1,
     marginLeft: 8,
+    marginRight: 8,
   },
   date: {
     fontSize: 14,
     color: theme.colors.text.secondary,
+    marginLeft: 'auto',
   },
-  planDayBadge: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginHorizontal: 8,
-  },
-  planDayBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1976D2',
-  },
-  phaseBanner: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  phaseText: {
-    fontSize: 14,
-    color: '#1976D2',
-    fontWeight: '500',
-  },
-  dateNavigation: {
-    marginBottom: 16,
-    paddingHorizontal: 20, // Padding horizontal pour la navigation des dates
-  },
-  dateNavigationContent: {
-    paddingHorizontal: 0, // Pas de padding supplémentaire
-    justifyContent: 'center',
-    flexGrow: 1,
-  },
-  dateButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#F5F5F5',
-    marginRight: 8,
-  },
-  dateButtonActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  dateButtonText: {
-    fontSize: 14,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
-  },
-  dateButtonTextActive: {
-    color: '#FFFFFF',
-  },
-  dateButtonWeekend: {
-    backgroundColor: '#FFF5F5',
-  },
-  dateButtonTextWeekend: {
-    color: '#FF6B6B',
-  },
-  mealsContainer: {
-    paddingHorizontal: 20, // Padding horizontal pour les repas
-    paddingBottom: 24, // Padding bottom comme dans NutritionScreen
-    marginBottom: 0,
-  },
-  mealCard: {
-    borderRadius: 12,
+  mealTypeRow: {
     marginBottom: 12,
-    overflow: 'hidden', // Ensure the image doesn't overflow the rounded corners
-    borderWidth: 1,
-    borderColor: '#E0E0E0', // Border comme dans NutritionScreen
   },
-  mealContent: {
-    flexDirection: 'row',
-    height: 80, // Fixed height for the content area
+  mealTypeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
   },
   mealImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    margin: 0,
-    overflow: 'hidden',
-  },
-  mealImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-  },
-  mealInfo: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    justifyContent: 'space-between', // Distribute content evenly
-  },
-  mealHeader: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  mealRightSection: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingRight: 16,
-  },
-  mealIconEmoji: {
-    fontSize: 20,
-  },
-  mealTypeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  mealTypeTitle: {
-    fontSize: 16,
-    fontWeight: 'normal',
-    color: '#333333', // Comme dans NutritionScreen
-    marginBottom: 4,
-  },
-  mealName: {
-    fontSize: 14,
-    color: '#000000', // Comme dans NutritionScreen
-    fontWeight: 'normal',
-    marginBottom: 4,
-  },
-  mealTime: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-    fontWeight: 'normal',
-  },
-  summaryContainer: {
-    marginBottom: 20,
-  },
-  summaryItem: {
-    marginBottom: 16,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontSize: 16,
-    color: theme.colors.text.primary,
-    fontWeight: '500',
-  },
-  pointsDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  pointsText: {
-    fontSize: 16,
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  progressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.colors.primary,
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-  },
-  completeButton: {
-    backgroundColor: theme.colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-  },
-  completeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  loadingContainer: {
-    paddingVertical: 20,
-  },
-  mealShimmerCard: {
-    flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 0,
-    overflow: 'hidden',
-    height: 80,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 8,
-  },
-  // Locked Menu Styles
-  lockedContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-  // iOS Locked Card Styles (remplace la carte Android)
-  iosLockedContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-    minHeight: 200, // Assure une hauteur minimale similaire à la carte Android
-  },
-  iosCheckStatusContainer: {
     width: '100%',
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  plateIconContainer: {
-    marginBottom: 24,
-  },
-  plateIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F3E5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    height: 200,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
     position: 'relative',
   },
-  forkIcon: {
-    position: 'absolute',
-    left: -8,
-    top: '50%',
-    transform: [{ translateY: -8 }],
-  },
-  knifeIcon: {
-    position: 'absolute',
-    right: -8,
-    top: '50%',
-    transform: [{ translateY: -8 }],
-  },
-  lockedTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: theme.colors.text.primary,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  lockedDescription: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  websiteHighlight: {
-    color: '#10B981', // Vert
-    fontStyle: 'italic',
-    fontWeight: '600',
-  },
-  lasocoachHighlight: {
-    color: '#10B981', // Vert
-    fontStyle: 'italic',
-    fontWeight: '600',
-  },
-  subscriptionButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
+  mealImage: {
     width: '100%',
-    marginBottom: 16,
+    height: '100%',
+    resizeMode: 'cover',
   },
-  subscriptionButtonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+  timerOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  subscriptionButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  timerOverlayUrgent: {
+    backgroundColor: '#FF4444',
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginLeft: 6,
+  },
+  timerTextUrgent: {
     color: '#FFFFFF',
   },
-  freeTrialLink: {
+  nutritionInfo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    gap: 8,
+  },
+  nutritionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 4,
+  },
+  nutritionText: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  mealName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+    lineHeight: 24,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  viewMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    backgroundColor: 'transparent',
+  },
+  viewMoreText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginLeft: 6,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  actionButtonUrgent: {
+    backgroundColor: '#FF4444',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  // Completed state
+  completedCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  completedContent: {
+    alignItems: 'center',
+  },
+  completedTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginTop: 16,
     marginBottom: 8,
   },
-  freeTrialText: {
+  completedSubtitle: {
     fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  freeTrialDescription: {
-    fontSize: 12,
     color: theme.colors.text.secondary,
-    textAlign: 'center',
-    marginTop: 4,
+    marginBottom: 20,
   },
-  // Styles pour la carte verrouillée (Android sans abonnement)
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  viewAllButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    marginRight: 4,
+  },
+  // Locked state
   lockedContainer: {
-    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 200,
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
   lockIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF3E0',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 16,
   },
   lockedTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: theme.colors.text.primary,
     marginBottom: 8,
     textAlign: 'center',
@@ -1102,23 +852,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 20,
+    marginBottom: 24,
   },
   subscribeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF9800',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderRadius: 12,
-    gap: 8,
   },
   subscribeButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  // Shimmer
+  shimmerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

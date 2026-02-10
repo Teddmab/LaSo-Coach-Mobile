@@ -526,7 +526,8 @@ export default function SubscriptionPaymentFlowImproved({
                 console.log('✅ [PaymentFlow] Plan gratuit activé avec succès:', subscriptionData);
                 
                 setSuccess(true);
-                setCurrentStep(4); // Passer directement à l'étape 4 (Confirmation)
+                setPaymentStatus('completed');
+                setCurrentStep(4); // ✅ OBLIGATOIRE : Passer directement à l'étape 4 (Confirmation) pour TOUS les plans
                 
                 // ✅ Appeler onSuccess immédiatement pour rafraîchir les données et débloquer les pages
                 if (onSuccess) {
@@ -545,10 +546,11 @@ export default function SubscriptionPaymentFlowImproved({
                     visibilityTime: 3000,
                 });
                 
-                // Fermer automatiquement le modal après 2 secondes
+                // ✅ MODIFICATION : Augmenter le délai de fermeture automatique pour permettre à l'utilisateur de voir la confirmation
+                // Fermer automatiquement le modal après 5 secondes (au lieu de 2) pour laisser le temps de voir la confirmation
                 setTimeout(() => {
                     handleClose();
-                }, 2000);
+                }, 5000);
             } catch (error: any) {
                 // ✅ Extraire correctement les données d'erreur selon la structure fetch/axios
                 const errorStatus = error?.response?.status || error?.status || (error?.message?.includes('400') ? 400 : undefined);
@@ -1446,12 +1448,18 @@ export default function SubscriptionPaymentFlowImproved({
                     </View>
 
                     <Text style={styles.resultTitle}>
-                        {isSuccess ? 'Paiement effectué avec succès !' : isCancelled ? 'Paiement annulé' : 'Erreur de paiement'}
+                        {isSuccess 
+                            ? (isFreePlan ? 'Abonnement activé avec succès !' : 'Paiement effectué avec succès !')
+                            : isCancelled 
+                                ? 'Paiement annulé' 
+                                : 'Erreur de paiement'}
                     </Text>
 
                     <Text style={styles.resultMessage}>
                         {isSuccess
-                            ? 'Votre abonnement est maintenant actif. Profitez de tous les avantages !'
+                            ? (isFreePlan 
+                                ? 'Votre plan gratuit est maintenant actif. Profitez de tous les avantages !'
+                                : 'Votre abonnement est maintenant actif. Profitez de tous les avantages !')
                             : isCancelled
                                 ? 'Vous avez annulé le paiement. Vous pouvez réessayer quand vous êtes prêt.'
                                 : error || 'Une erreur est survenue lors du paiement. Veuillez réessayer.'}

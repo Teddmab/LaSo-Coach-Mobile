@@ -23,6 +23,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   activeTab = 'home',
   showBackButton = false,
   onBackPress,
+  onRefresh, // ✅ Callback optionnel pour rafraîchir le dashboard
 }) => {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
@@ -46,7 +47,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     handlePaymentError,
     handleViewInvoices,
     isPlanClickable,
-  } = useSubscriptionScreen(navigation, refreshProfile);
+  } = useSubscriptionScreen(navigation, refreshProfile, onRefresh); // ✅ Passer onRefresh au hook
 
   const handleFAQPress = () => {
     if (onTabPress) {

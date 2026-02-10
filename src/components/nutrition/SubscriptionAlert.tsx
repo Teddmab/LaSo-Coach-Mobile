@@ -21,7 +21,7 @@ const SubscriptionAlert: React.FC<SubscriptionAlertProps> = ({ subscription, onR
   const isExpiringSoon = !isFreeTrial && 
                          subscription?.status !== 'EXPIRED' && 
                          subscription?.daysRemaining > 0 && 
-                         subscription?.daysRemaining <= 7;
+                         subscription?.daysRemaining <= 3;
 
   // For free trial, show alert if trial is ending soon (within 1 day)
   const isTrialEndingSoon = isFreeTrial && 

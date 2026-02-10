@@ -236,7 +236,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       console.log('✅ [NotificationProvider] Push token successfully registered with backend');
     } catch (error: any) {
-      console.error('❌ [NotificationProvider] Failed to register push token:', error);
+      // Pour les erreurs 502 (Bad Gateway), réduire le niveau de log
+      const is502Error = error.response?.status === 502 || error.status === 502;
+      
+      if (is502Error) {
+        // Erreur 502 souvent temporaire - log silencieux
+        if (__DEV__) {
+          console.warn('⚠️ [NotificationProvider] Serveur temporairement indisponible (502) - Réessayez dans quelques minutes');
+        }
+      } else {
+        console.error('❌ [NotificationProvider] Failed to register push token:', error);
+      }
       // Don't throw - allow app to continue even if token registration fails
     }
   };
@@ -624,8 +634,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     try {
       await showLocalNotification({
         id: 'test-' + Date.now(),
-        title: 'Test Notification',
-        message: 'This is a test notification from LaSo Coach',
+        title: 'Notification de test',
+        message: 'Ceci est une notification de test de LaSo Coach',
         data: { test: true }
       });
     } catch (error: any) {

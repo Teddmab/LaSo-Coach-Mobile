@@ -14,12 +14,16 @@ import { useDashboardNavigation } from './dashboard/hooks/useDashboardNavigation
 import { useAchievements } from './dashboard/hooks/useAchievements';
 import { useAgenda } from './dashboard/hooks/useAgenda';
 import { useCommunity } from './dashboard/hooks/useCommunity';
+import { useNutritionData } from './nutrition/hooks/useNutritionData';
+import { useNutritionDate } from './nutrition/hooks/useNutritionDate';
+import { useCompletionStatus } from './nutrition/hooks/useCompletionStatus';
 import { AgendaApi } from '../services/agendaApi';
 import { ProfileApi } from '../services/profileApi';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
+import NewsDetailBottomSheet from '../components/dashboard/NewsDetailBottomSheet';
 import type { DashboardScreenProps } from './dashboard/types';
 import type { Meal } from './nutrition/types';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -102,6 +106,68 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   
   // ✅ PHASE 1: Test companion mode hook
   const companionMode = useCompanionMode();
+
+  // ✅ Nutrition data hooks - Utiliser les mêmes hooks que NutritionScreen pour garantir la cohérence
+  const [nutritionSubscriptionData, setNutritionSubscriptionData] = useState<any>(subscriptionData);
+  const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<any>(null);
+
+  // Date management pour nutrition
+  const {
+    today: nutritionToday,
+    selectedDate: nutritionSelectedDate,
+    currentPlanDay,
+    weekDays,
+    calculateNutritionPlanDay,
+  } = useNutritionDate(nutritionSubscriptionData, plansResponseStatus, currentPlan);
+
+  // Completion status hook
+  const completionStatusHook = useCompletionStatus(
+    currentPlan,
+    nutritionSubscriptionData,
+    null,
+    nutritionSelectedDate,
+    [],
+    calculateNutritionPlanDay,
+    undefined,
+    false
+  );
+
+  // Nutrition data hook - MÊME logique que NutritionScreen
+  const nutritionDataHook = useNutritionData(
+    nutritionSubscriptionData,
+    setNutritionSubscriptionData,
+    weekDays,
+    nutritionSelectedDate,
+    completionStatusHook.fetchCompletionStatus
+  );
+
+  // Update plansResponseStatus and currentPlan from nutritionDataHook
+  useEffect(() => {
+    setPlansResponseStatus(nutritionDataHook.plansResponseStatus);
+    setCurrentPlan(nutritionDataHook.currentPlan);
+  }, [nutritionDataHook.plansResponseStatus, nutritionDataHook.currentPlan]);
+
+  // Sync nutritionSubscriptionData with subscriptionData
+  useEffect(() => {
+    if (subscriptionData) {
+      setNutritionSubscriptionData(subscriptionData);
+    }
+  }, [subscriptionData]);
+
+  // ✅ Charger automatiquement les données nutrition au montage (comme NutritionScreen)
+  useEffect(() => {
+    if (subscriptionData && weekDays && weekDays.length > 0) {
+      nutritionDataHook.fetchAllData();
+    }
+  }, [subscriptionData, weekDays?.length]);
+
+  // ✅ Charger les données du jour quand le plan est disponible
+  useEffect(() => {
+    if (nutritionDataHook.currentPlan?.id && weekDays && weekDays.length > 0 && nutritionDataHook.dayMeals.length === 0) {
+      nutritionDataHook.loadDayData();
+    }
+  }, [nutritionDataHook.currentPlan?.id, weekDays?.length, nutritionDataHook.dayMeals.length]);
   
   // Local state
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -118,6 +184,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [youtubePlaying, setYoutubePlaying] = useState<boolean>(false);
   const [mealModalTab, setMealModalTab] = useState<'recipe' | 'ingredients'>('recipe');
+  
+  // ✅ News detail bottom sheet state
+  const [selectedNews, setSelectedNews] = useState<any | null>(null);
+  const [showNewsBottomSheet, setShowNewsBottomSheet] = useState<boolean>(false);
   
   // BackHandler: gestion du bouton retour Android
   const backHandlerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -497,9 +567,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   };
 
   const handlePostPress = (post: any): void => {
-    // Set selected post ID if post exists, otherwise null
+    // ✅ Si c'est une news (type === 'content'), ouvrir la bottomsheet au lieu de rediriger vers l'agora
+    if (post?.type === 'content') {
+      setSelectedNews(post);
+      setShowNewsBottomSheet(true);
+      return;
+    }
+    
+    // Pour les autres types (posts de communauté), rediriger vers Community
     setSelectedPostId(post?.id || null);
-    // Always navigate to Community screen
     navigateOverlay('Community');
   };
 
@@ -757,6 +833,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         onCommentPress={handleCommentPress}
         onMarkContentComplete={handleMarkContentComplete}
         onCompleteDayPress={() => setShowCompleteDayModal(true)}
+        // ✅ Passer les données nutrition de NutritionScreen
+        nutritionDayMeals={nutritionDataHook.dayMeals}
+        nutritionCurrentPlanDay={currentPlanDay}
+        nutritionCompletionData={completionStatusHook.freshCompletionData || completionStatusHook.completionStatus}
+        nutritionCurrentPlan={currentPlan}
       />
 
       {/* Meal Details Modal */}
@@ -967,6 +1048,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           </View>
         </View>
       </Modal>
+
+      {/* News Detail Bottom Sheet */}
+      <NewsDetailBottomSheet
+        visible={showNewsBottomSheet}
+        news={selectedNews}
+        onClose={() => {
+          setShowNewsBottomSheet(false);
+          setSelectedNews(null);
+        }}
+        onMarkComplete={handleMarkContentComplete}
+      />
 
     </>
   );

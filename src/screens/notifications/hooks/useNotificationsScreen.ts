@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Alert } from 'react-native';
 import Toast from 'react-native-toast-message';
 import notificationsAPI from '../../../services/notificationsApi';
@@ -67,10 +67,35 @@ export const useNotificationsScreen = (selectedTab: NotificationTab) => {
       if (response?.status === 'success') {
         const newNotifications = response?.data?.notifications || [];
         
+        // ✅ Trier les notifications de manière stable (par date de création, plus récentes en premier)
+        // Utiliser l'ID comme critère secondaire pour garantir un ordre stable même si les dates sont identiques
+        const sortedNotifications = [...newNotifications].sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (dateB !== dateA) {
+            return dateB - dateA; // Plus récentes en premier
+          }
+          // Si même date, utiliser l'ID pour un tri stable
+          return a.id.localeCompare(b.id);
+        });
+        
         if (refresh || page === 1) {
-          setNotifications(newNotifications);
+          setNotifications(sortedNotifications);
         } else {
-          setNotifications(prev => [...prev, ...newNotifications]);
+          // ✅ Maintenir l'ordre lors de l'ajout de nouvelles notifications
+          setNotifications(prev => {
+            const combined = [...prev, ...sortedNotifications];
+            // Re-trier pour maintenir l'ordre chronologique stable
+            return combined.sort((a, b) => {
+              const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              if (dateB !== dateA) {
+                return dateB - dateA;
+              }
+              // Si même date, utiliser l'ID pour un tri stable
+              return a.id.localeCompare(b.id);
+            });
+          });
         }
 
         setPagination(prev => ({
@@ -182,22 +207,42 @@ export const useNotificationsScreen = (selectedTab: NotificationTab) => {
     }
   };
 
-  const getFilteredNotifications = (): Notification[] => {
+  // ✅ Utiliser useMemo pour mémoriser la liste filtrée et triée de manière stable
+  const filteredNotifications = useMemo((): Notification[] => {
+    let filtered: Notification[] = [];
+    
     switch (selectedTab) {
       case 'unread':
-        return notifications.filter(n => !n.read);
+        filtered = notifications.filter(n => !n.read);
+        break;
       case 'content':
-        return notifications.filter(n => n.type === 'content_assigned');
+        filtered = notifications.filter(n => n.type === 'content_assigned');
+        break;
       case 'system':
-        return notifications.filter(n => n.type === 'system');
+        filtered = notifications.filter(n => n.type === 'system');
+        break;
       case 'messages':
-        return notifications.filter(n => n.type === 'chat_message');
+        filtered = notifications.filter(n => n.type === 'chat_message');
+        break;
       case 'payments':
-        return notifications.filter(n => n.type === 'payment');
+        filtered = notifications.filter(n => n.type === 'payment');
+        break;
       default:
-        return notifications;
+        filtered = notifications;
     }
-  };
+    
+    // ✅ Trier de manière stable pour maintenir l'ordre même après refresh
+    // Utiliser une copie pour éviter de muter le tableau original
+    return [...filtered].sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      // Si même date, utiliser l'ID pour un tri stable
+      if (dateA === dateB) {
+        return a.id.localeCompare(b.id);
+      }
+      return dateB - dateA; // Plus récentes en premier
+    });
+  }, [notifications, selectedTab]);
 
   const togglePreference = (type: keyof NotificationPreferences): void => {
     setPreferences(prev => ({
@@ -213,7 +258,7 @@ export const useNotificationsScreen = (selectedTab: NotificationTab) => {
   };
 
   return {
-    notifications: getFilteredNotifications(),
+    notifications: filteredNotifications,
     loading,
     refreshing,
     profileData,

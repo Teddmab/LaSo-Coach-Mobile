@@ -40,8 +40,19 @@ class EntitlementsApi {
     try {
       const response = await api.get<Entitlements>('/entitlements');
       return response.data;
-    } catch (error) {
-      console.warn('⚠️ [Entitlements] Failed to fetch entitlements:', error);
+    } catch (error: any) {
+      // Pour les erreurs 502 (Bad Gateway), réduire le niveau de log
+      const is502Error = error.response?.status === 502 || error.status === 502;
+      
+      if (is502Error) {
+        // Erreur 502 souvent temporaire - log silencieux
+        if (__DEV__) {
+          console.warn('⚠️ [Entitlements] Serveur temporairement indisponible (502)');
+        }
+      } else {
+        console.warn('⚠️ [Entitlements] Failed to fetch entitlements:', error);
+      }
+      
       // Return minimal entitlements if fetch fails
       return this.getDefaultEntitlements();
     }

@@ -37,6 +37,11 @@ interface DashboardContentProps {
   onCommentPress: (postId: string) => void;
   onMarkContentComplete: (contentId: string) => Promise<void>;
   onCompleteDayPress: () => void;
+  // ✅ Nutrition data from NutritionScreen hooks
+  nutritionDayMeals?: any[];
+  nutritionCurrentPlanDay?: number;
+  nutritionCompletionData?: any;
+  nutritionCurrentPlan?: any;
 }
 
 const DashboardContent: React.FC<DashboardContentProps> = ({
@@ -63,6 +68,10 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   onCommentPress,
   onMarkContentComplete,
   onCompleteDayPress,
+  nutritionDayMeals,
+  nutritionCurrentPlanDay,
+  nutritionCompletionData,
+  nutritionCurrentPlan,
 }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
@@ -186,7 +195,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onSubscriptionRenew={onSubscriptionRenew}
       />
 
-      {/* Nutrition Card */}
+      {/* Nutrition Card - Utilise les données de NutritionScreen */}
       <NutritionCard
         onPress={() => {
           if (shouldBlurOnIOS) {
@@ -197,6 +206,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             onCompleteDayPress();
           }
         }}
+        onTabPress={onTabPress}
         onMealPress={(meal: any) => {
           if (!shouldBlurOnIOS) {
             onMealPress(meal);
@@ -204,11 +214,34 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         }}
         subscriptionData={subscriptionData}
         onSubscriptionPress={onSubscriptionRenew}
+        // ✅ Passer les données de NutritionScreen pour garantir la cohérence
+        dayMeals={nutritionDayMeals}
+        currentPlanDay={nutritionCurrentPlanDay}
+        completionData={nutritionCompletionData}
+        currentPlan={nutritionCurrentPlan}
       />
 
       {/* News Card */}
       <NewsCard
-        news={agendaData?.filter((item: any) => item.type === 'content') || []}
+        news={(() => {
+          // ✅ Filtrer uniquement les items de type 'content' (exclure les rendezvous)
+          const newsItems = agendaData?.filter((item: any) => item.type === 'content') || [];
+          
+          if (__DEV__) {
+            console.log('📰 [DashboardContent] News items filtrés:', {
+              totalAgendaItems: agendaData?.length || 0,
+              newsItemsCount: newsItems.length,
+              newsItems: newsItems.map((item: any) => ({
+                id: item.id,
+                type: item.type,
+                title: item.title || item.content?.title,
+                hasThumbnail: !!(item.thumbnailUrl || item.content?.thumbnailUrl),
+              })),
+            });
+          }
+          
+          return newsItems;
+        })()}
         loading={agendaLoading}
         onNewsPress={(news: any) => {
           onPostPress(news);

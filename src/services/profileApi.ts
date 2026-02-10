@@ -37,7 +37,10 @@ export class ProfileApi {
       return profileData;
     } catch (error: any) {
       // Log detailed error information for debugging
-      if (__DEV__) {
+      // Pour les erreurs 502 (Bad Gateway), réduire le niveau de log car c'est souvent temporaire
+      const is502Error = error.response?.status === 502 || error.status === 502;
+      
+      if (__DEV__ && !is502Error) {
         console.error('❌ [ProfileApi] Error fetching profile:', {
           status: error.response?.status,
           statusText: error.response?.statusText,
@@ -45,6 +48,9 @@ export class ProfileApi {
           data: error.response?.data,
           url: error.config?.url,
         });
+      } else if (is502Error) {
+        // Pour les erreurs 502, logger seulement en mode debug avec un niveau moins élevé
+        console.warn('⚠️ [ProfileApi] Serveur temporairement indisponible (502) - Réessayez dans quelques minutes');
       }
       
       // Handle specific Prisma database errors

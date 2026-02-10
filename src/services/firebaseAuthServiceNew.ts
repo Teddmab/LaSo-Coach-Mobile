@@ -533,10 +533,39 @@ class FirebaseAuthService {
     }
 
     try {
+      // Vérifier si on est dans Expo Go (qui ne supporte pas les modules natifs)
+      // Expo Go a une structure différente, on peut détecter cela
+      const isExpoGo = !__DEV__ || (typeof require.ensure === 'undefined' && !require.extensions);
+      
+      if (isExpoGo) {
+        // Dans Expo Go, le module natif n'est jamais disponible - skip silencieusement
+        return null;
+      }
+
       // Utiliser une fonction interne pour charger le module de manière sécurisée
       const loadModule = () => {
         try {
-          return require('@react-native-google-signin/google-signin');
+          // Supprimer temporairement les handlers d'erreur pour éviter le spam
+          const originalError = console.error;
+          const originalWarn = console.warn;
+          
+          // Supprimer temporairement les logs d'erreur
+          console.error = () => {};
+          console.warn = () => {};
+          
+          let module = null;
+          try {
+            module = require('@react-native-google-signin/google-signin');
+          } catch (e) {
+            // Erreur silencieuse - c'est normal si le module n'est pas disponible
+            module = null;
+          }
+          
+          // Restaurer les handlers d'erreur
+          console.error = originalError;
+          console.warn = originalWarn;
+          
+          return module;
         } catch (e) {
           return null;
         }
@@ -546,6 +575,7 @@ class FirebaseAuthService {
       return googleSignInModule?.GoogleSignin || null;
     } catch (error) {
       // Ne pas logger l'erreur pour éviter le spam dans les logs
+      // C'est normal si le module n'est pas disponible (Expo Go, module non lié, etc.)
       return null;
     }
   }

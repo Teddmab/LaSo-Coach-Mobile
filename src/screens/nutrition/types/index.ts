@@ -97,11 +97,6 @@ export interface CompletionStatus {
   dayProgress?: {
     completedMealIds?: string[];
   };
-  mealStatus?: {
-    [mealId: string]: {
-      completed?: boolean;
-    };
-  };
 }
 
 export interface WeekDay {

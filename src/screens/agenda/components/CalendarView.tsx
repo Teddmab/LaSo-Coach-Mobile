@@ -12,6 +12,7 @@ interface CalendarViewProps {
   selectedDate: number;
   onYearChange: (year: number) => void;
   onDateSelect: (date: number) => void;
+  agendaItems?: any[]; // ✅ NOUVEAU: Items d'agenda pour marquer les dates avec programme
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
@@ -20,6 +21,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   selectedDate,
   onYearChange,
   onDateSelect,
+  agendaItems = [],
 }) => {
   const getDaysInMonth = (month: number, year: number): number => {
     return new Date(year, month, 0).getDate();
@@ -39,10 +41,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     days.push(<View key={`empty-${i}`} style={styles.emptyDay} />);
   }
 
+  // ✅ Fonction pour vérifier si une date a un programme assigné
+  const hasProgramForDate = (day: number): boolean => {
+    if (!agendaItems || agendaItems.length === 0) return false;
+    
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    return agendaItems.some(item => {
+      if (!item.assignedDate) return false;
+      const itemDate = new Date(item.assignedDate);
+      const itemDateStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
+      return itemDateStr === dateStr;
+    });
+  };
+
   // Add days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     const isToday = day === selectedDate;
     const isWeekend = (firstDay + day - 2) % 7 >= 5;
+    const hasProgram = hasProgramForDate(day);
     
     days.push(
       <TouchableOpacity
@@ -51,6 +68,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           styles.calendarDay,
           isToday && styles.todayDay,
           isWeekend && styles.weekendDay,
+          hasProgram && !isToday && styles.programDay,
         ]}
         onPress={() => onDateSelect(day)}
       >
@@ -58,9 +76,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           styles.dayText,
           isToday && styles.todayText,
           isWeekend && styles.weekendText,
+          hasProgram && !isToday && styles.programText,
         ]}>
           {day}
         </Text>
+        {hasProgram && !isToday && (
+          <View style={styles.programDot} />
+        )}
       </TouchableOpacity>
     );
   }
@@ -191,6 +213,24 @@ const styles = StyleSheet.create({
   weekendText: {
     color: theme.colors.primary,
     fontWeight: '600',
+  },
+  // ✅ NOUVEAU: Styles pour les dates avec programme assigné
+  programDay: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 20,
+    position: 'relative',
+  },
+  programText: {
+    color: '#2E7D32',
+    fontWeight: '600',
+  },
+  programDot: {
+    position: 'absolute',
+    bottom: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#4CAF50',
   },
 });
 

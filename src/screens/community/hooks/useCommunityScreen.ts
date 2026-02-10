@@ -333,7 +333,17 @@ export const useCommunityScreen = (
       } else if (error.response?.status === 404) {
         console.warn('⚠️ [useCommunityScreen] Posts endpoint not found (404) - returning empty list');
       } else {
-        console.error('❌ [useCommunityScreen] Erreur lors de la récupération des posts:', error.message || error);
+        // Pour les autres erreurs, logger seulement si ce n'est pas une erreur 502 (Bad Gateway)
+        const is502Error = error.response?.status === 502 || error.status === 502;
+        
+        if (is502Error) {
+          // Erreur 502 souvent temporaire - log silencieux
+          if (__DEV__) {
+            console.warn('⚠️ [useCommunityScreen] Serveur temporairement indisponible (502) - Réessayez dans quelques minutes');
+          }
+        } else {
+          console.error('❌ [useCommunityScreen] Erreur lors de la récupération des posts:', error.message || error);
+        }
       }
       // Set empty array to prevent crashes
       setCommunityPosts([]);

@@ -149,6 +149,7 @@ const AgendaScreen: React.FC<AgendaScreenProps> = ({
           selectedDate={selectedDate}
           onYearChange={setSelectedYear}
           onDateSelect={setSelectedDate}
+          agendaItems={agendaItems} // ✅ Passer les items d'agenda pour marquer les dates avec programme
         />
 
         {/* Program Sessions */}

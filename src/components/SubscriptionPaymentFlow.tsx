@@ -270,7 +270,7 @@ export default function SubscriptionPaymentFlow({
       });
       
       setSuccess(true);
-      setCurrentStep(4); // Étape 4 = page de confirmation
+      setCurrentStep(4); // ✅ OBLIGATOIRE : Étape 4 = page de confirmation pour TOUS les plans (gratuits et payants)
       
       if (onSuccess) {
         onSuccess({

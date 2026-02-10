@@ -75,16 +75,27 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               fallbackSource={LOGO_SOURCE}
             />
           ) : (
-            <Text 
-              style={[
-                styles.headerTitle,
-                title.length > 20 && styles.headerTitleLong // Réduire la taille si le titre est trop long
-              ]}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {title}
-            </Text>
+            <View style={styles.titleWithIcon}>
+              {/* ✅ Icône pour "Notifications" */}
+              {title === 'Notifications' && (
+                <Ionicons 
+                  name="notifications" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIcon}
+                />
+              )}
+              <Text 
+                style={[
+                  styles.headerTitle,
+                  title.length > 20 && styles.headerTitleLong // Réduire la taille si le titre est trop long
+                ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {title}
+              </Text>
+            </View>
           )}
           {/* Message d'abonnement expiré sur iOS (sans bouton) */}
           {subscriptionMessage && isIOS && (
@@ -167,6 +178,14 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
     justifyContent: 'center',
+  },
+  titleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  titleIcon: {
+    marginRight: 2,
   },
   headerTitle: {
     fontSize: 20,

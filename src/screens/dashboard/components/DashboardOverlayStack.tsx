@@ -600,6 +600,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
         }
         return (
           <SubscriptionScreen
+            onRefresh={onRefresh} // ✅ Passer onRefresh pour rafraîchir le dashboard après activation
             navigation={navigation}
             onClose={() => stackNavigation.goBack()}
             onTabPress={onTabPress}

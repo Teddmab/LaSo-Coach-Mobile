@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import Toast from 'react-native-toast-message';
 import { Meal, CompletionStatus } from '../../screens/nutrition/types';
+import { translateErrorMessage } from '../../utils/errorTranslator';
 
 interface CompleteMealsBottomSheetProps {
   visible: boolean;
@@ -417,10 +418,15 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       
     } catch (error: any) {
       console.error('❌ [CompleteMealsBottomSheet] Erreur lors de la complétion:', error);
+      
+      // ✅ Traduire les messages d'erreur en anglais en français
+      const rawErrorMessage = error?.message || 'Impossible de compléter le repas';
+      const errorMessage = translateErrorMessage(rawErrorMessage);
+      
       Toast.show({
         type: 'error',
         text1: 'Erreur',
-        text2: error?.message || 'Impossible de compléter le repas',
+        text2: errorMessage,
       });
     } finally {
       setCompletingMealIds(prev => {

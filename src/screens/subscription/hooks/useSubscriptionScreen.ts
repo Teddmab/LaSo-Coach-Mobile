@@ -8,7 +8,8 @@ import Toast from 'react-native-toast-message';
 
 export const useSubscriptionScreen = (
   navigation?: NavigationProp<any>,
-  refreshProfile?: () => Promise<void>
+  refreshProfile?: () => Promise<void>,
+  onDashboardRefresh?: () => void | Promise<void> // ✅ Callback pour rafraîchir le dashboard
 ) => {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -247,6 +248,18 @@ export const useSubscriptionScreen = (
       const status = await SubscriptionService.getSubscriptionStatus();
       await loadPlans(status);
       
+      // ✅ MODIFICATION : Rafraîchir le dashboard après activation (surtout pour les plans gratuits)
+      if (onDashboardRefresh) {
+        console.log('🔄 [SubscriptionScreen] Refreshing dashboard after subscription activation...');
+        try {
+          await onDashboardRefresh();
+          console.log('✅ [SubscriptionScreen] Dashboard refreshed successfully');
+        } catch (refreshError) {
+          console.error('❌ [SubscriptionScreen] Error refreshing dashboard:', refreshError);
+          // Ne pas bloquer le flux en cas d'erreur de rafraîchissement
+        }
+      }
+      
       // Ne pas afficher de toast ici pour les plans gratuits (déjà affiché dans le flow)
       // Seulement pour les plans payants
       if (paymentData?.paymentMethod !== 'free') {
@@ -261,7 +274,7 @@ export const useSubscriptionScreen = (
     } catch (error) {
       console.error('❌ [SubscriptionScreen] Error after payment success:', error);
     }
-  }, [refreshProfile, loadSubscriptionStatus, loadPlans]);
+  }, [refreshProfile, loadSubscriptionStatus, loadPlans, onDashboardRefresh]);
 
   const handlePaymentError = useCallback((error: any) => {
     setShowPaymentFlow(false);

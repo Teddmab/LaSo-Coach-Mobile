@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import Toast from 'react-native-toast-message';
 import { Meal, CompletionStatus } from '../../screens/nutrition/types';
+import { translateErrorMessage } from '../../utils/errorTranslator';
 
 interface PastMeal {
   meal: Meal;
@@ -29,6 +30,7 @@ interface PastMealsBottomSheetProps {
   onMealComplete: (mealId: string, planDay: number) => Promise<void>;
   completionStatus?: CompletionStatus | null;
   freshCompletionData?: any;
+  onUpdateCompletionData?: (data: any) => void;
   isIOS?: boolean;
 }
 
@@ -77,6 +79,7 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
   onMealComplete,
   completionStatus,
   freshCompletionData,
+  onUpdateCompletionData,
   isIOS = false,
 }) => {
   const insets = useSafeAreaInsets();
@@ -84,31 +87,77 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
   const [completedMealIds, setCompletedMealIds] = useState<Set<string>>(new Set());
   const [localCompletionData, setLocalCompletionData] = useState<any>(null);
 
-  // Réinitialiser les états quand le bottomsheet se ferme
+  // ✅ NE PAS réinitialiser localCompletionData à la fermeture pour persister les données
+  // Seulement réinitialiser completedMealIds (pour les mises à jour optimistes)
   useEffect(() => {
     if (!visible) {
       setCompletedMealIds(new Set());
-      setLocalCompletionData(null);
+      // ✅ NE PAS réinitialiser localCompletionData pour persister les données après fermeture
+      // Cela permet de garder les données mises à jour même après fermeture/réouverture
     }
   }, [visible]);
 
-  // Mettre à jour localCompletionData quand freshCompletionData change ou quand le bottomsheet s'ouvre
+  // ✅ Même logique que CompleteMealsBottomSheet : mettre à jour localCompletionData quand freshCompletionData change
+  // ✅ IMPORTANT: Synchroniser TOUJOURS (même si le bottomsheet est fermé) pour que les données soient à jour à l'ouverture
   useEffect(() => {
-    if (visible) {
-      const dataToUse = freshCompletionData || completionStatus;
-      if (dataToUse) {
-        setLocalCompletionData(dataToUse);
+    // ✅ Synchroniser quand freshCompletionData change (après complétion) OU quand completionStatus change
+    // Utiliser freshCompletionData en PRIORITÉ (données les plus récentes et persistantes)
+    const dataToUse = freshCompletionData || completionStatus;
+    if (dataToUse) {
+      // ✅ Créer une copie profonde pour éviter les mutations (comme CompleteMealsBottomSheet)
+      const dataCopy = JSON.parse(JSON.stringify(dataToUse));
+      setLocalCompletionData(dataCopy);
+      
+      if (__DEV__) {
+        // Log détaillé pour voir les données reçues
+        const allCompletedMealIds = new Set<string>();
+        if (dataCopy?.completionsByDay) {
+          Object.values(dataCopy.completionsByDay).forEach((dayCompletions: any) => {
+            if (Array.isArray(dayCompletions)) {
+              dayCompletions.forEach((completion: any) => {
+                if (completion?.mealId) {
+                  allCompletedMealIds.add(completion.mealId);
+                }
+              });
+            }
+          });
+        }
+        
+        console.log('🔄 [PastMealsBottomSheet] Synchronisation localCompletionData avec données du parent:', {
+          visible,
+          hasFreshData: !!freshCompletionData,
+          hasCompletionStatus: !!completionStatus,
+          usingFreshData: !!freshCompletionData,
+          hasCompletionsByDay: !!dataCopy?.completionsByDay,
+          completionsByDayKeys: dataCopy?.completionsByDay ? Object.keys(dataCopy.completionsByDay) : [],
+          totalCompletions: dataCopy?.completionsByDay ? Object.values(dataCopy.completionsByDay).reduce((total: number, dayCompletions: any) => {
+            return total + (Array.isArray(dayCompletions) ? dayCompletions.length : 0);
+          }, 0) : 0,
+          allCompletedMealIds: Array.from(allCompletedMealIds),
+          pastMealsReceived: pastMeals.length,
+          hasProgress: !!dataCopy?.progress,
+          progressPercentage: dataCopy?.progress?.percentage,
+          progressCompletedMeals: dataCopy?.progress?.completedMeals,
+          note: 'localCompletionData synchronisé avec freshCompletionData (persistant) - MÊME LOGIQUE que pastIncompleteMeals',
+        });
+      }
+    } else {
+      if (__DEV__) {
+        console.warn('⚠️ [PastMealsBottomSheet] Aucune donnée de complétion disponible pour synchronisation');
       }
     }
-  }, [visible, freshCompletionData, completionStatus]);
+  }, [freshCompletionData, completionStatus, pastMeals.length, visible]);
 
   // Fonction helper pour vérifier si un repas est complété
+  // ✅ MÊME LOGIQUE EXACTE que NutritionScreen.isMealCompleted avec planDay
   const isMealCompleted = (mealId: string, planDay: number, completionData: any): boolean => {
     if (!completionData) {
       return false;
     }
 
-    // Vérifier UNIQUEMENT dans completionsByDay pour le jour spécifique
+    // ✅ IMPORTANT: Vérifier UNIQUEMENT dans completionsByDay pour le jour spécifique (planDay)
+    // Ne pas utiliser les sources globales (allCompletions, mealStatus) car elles contiennent
+    // les complétions de TOUS les jours, ce qui causerait des faux positifs
     if (completionData?.completionsByDay) {
       const dayKey = String(planDay);
       const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDay];
@@ -123,21 +172,49 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       }
     }
     
+    // ✅ Si planDay est fourni, on ne vérifie QUE ce jour - retourner false si pas trouvé
+    // (MÊME LOGIQUE que NutritionScreen.isMealCompleted)
     return false;
   };
 
   // Grouper les plats par jour et trier par ancienneté (plus ancien en premier)
-  // ✅ Filtrer uniquement les plats complétés dans cette session (les autres sont déjà filtrés dans pastIncompleteMeals)
+  // ✅ IMPORTANT: pastMeals passé au bottomsheet est DÉJÀ filtré dans pastIncompleteMeals (ne contient QUE les plats non complétés)
+  // On refiltre uniquement pour gérer les mises à jour optimistes (plats complétés dans cette session)
+  // ✅ MÊME LOGIQUE que NutritionScreen.pastIncompleteMeals
   const groupedMeals = useMemo(() => {
-    // Logs de débogage pour iOS
+    // ✅ Utiliser freshCompletionData en PRIORITÉ (données les plus récentes et persistantes du parent après complétion)
+    // Puis completionStatus (données du serveur)
+    // MÊME PRIORITÉ que NutritionScreen.pastIncompleteMeals (pas localCompletionData car il peut être obsolète)
+    // ✅ IMPORTANT: Utiliser les mêmes données que pastIncompleteMeals pour garantir la cohérence
+    const completionDataToUse = freshCompletionData || completionStatus;
+    
+    // Logs de débogage (comme CompleteMealsBottomSheet)
     if (__DEV__) {
-      console.log('🔍 [PastMealsBottomSheet] Calcul de groupedMeals:', {
+      // Calculer tous les mealIds complétés pour le log
+      const allCompletedMealIds = new Set<string>();
+      if (completionDataToUse?.completionsByDay) {
+        Object.values(completionDataToUse.completionsByDay).forEach((dayCompletions: any) => {
+          if (Array.isArray(dayCompletions)) {
+            dayCompletions.forEach((completion: any) => {
+              if (completion?.mealId) {
+                allCompletedMealIds.add(completion.mealId);
+              }
+            });
+          }
+        });
+      }
+      
+      console.log('🔍 [PastMealsBottomSheet] Calcul de groupedMeals (comme CompleteMealsBottomSheet):', {
         platform: isIOS ? 'iOS' : 'Android',
         pastMealsCount: pastMeals.length,
         hasCompletionStatus: !!completionStatus,
         hasFreshCompletionData: !!freshCompletionData,
-        hasLocalCompletionData: !!localCompletionData,
+        usingData: freshCompletionData ? 'freshCompletionData' : completionStatus ? 'completionStatus' : 'none',
+        note: 'Utiliser freshCompletionData || completionStatus (MÊME LOGIQUE que pastIncompleteMeals)',
         completedMealIdsCount: completedMealIds.size,
+        hasCompletionsByDay: !!completionDataToUse?.completionsByDay,
+        completionsByDayKeys: completionDataToUse?.completionsByDay ? Object.keys(completionDataToUse.completionsByDay) : [],
+        allCompletedMealIds: Array.from(allCompletedMealIds),
         pastMeals: pastMeals.map(p => ({
           mealId: p.meal.id,
           mealName: p.meal.name,
@@ -147,19 +224,58 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       });
     }
 
-    // ✅ IMPORTANT: Les plats passés sont DÉJÀ filtrés dans pastIncompleteMeals
-    // On ne filtre ici QUE les plats complétés dans cette session (optimiste)
+    // ✅ IMPORTANT: pastMeals passé au bottomsheet est DÉJÀ filtré dans pastIncompleteMeals (ne contient QUE les plats non complétés)
+    // On refiltre UNIQUEMENT pour gérer les mises à jour optimistes (plats complétés dans cette session)
+    // ✅ MÊME LOGIQUE EXACTE que NutritionScreen.pastIncompleteMeals (utiliser freshCompletionData || completionStatus)
+    // ✅ IMPORTANT: Vérifier pour chaque planDay spécifique (un plat complété pour day1 ne doit pas apparaître pour day1, mais peut apparaître pour day3 s'il n'est pas complété pour day3)
     const incompleteMeals = pastMeals.filter((pastMeal) => {
-      // Si le plat a déjà été complété dans cette session, le masquer immédiatement
+      // ✅ Si le plat a déjà été complété dans cette session, le masquer immédiatement (feedback optimiste)
       if (completedMealIds.has(pastMeal.meal.id)) {
         if (__DEV__) {
-          console.log(`🚫 [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) masqué car complété dans cette session`);
+          console.log(`🚫 [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) masqué car complété dans cette session (optimiste) pour planDay ${pastMeal.planDay}`);
         }
         return false;
       }
 
-      // ✅ Ne pas refiltrer avec completionStatus car les plats sont déjà filtrés
-      // dans pastIncompleteMeals. On fait confiance à cette liste.
+      // ✅ Vérifier dans la source de données la plus récente disponible (MÊME LOGIQUE que NutritionScreen.isMealCompleted)
+      // Utiliser freshCompletionData en priorité (données les plus récentes après complétion)
+      // ✅ IMPORTANT: Utiliser les mêmes données que pastIncompleteMeals pour garantir la cohérence
+      // ✅ CRITIQUE: Vérifier UNIQUEMENT pour le planDay spécifique (pastMeal.planDay)
+      // Un plat complété pour day1 ne doit PAS apparaître pour day1, mais peut apparaître pour day3 s'il n'est pas complété pour day3
+      if (completionDataToUse) {
+        // ✅ Vérifier UNIQUEMENT dans completionsByDay pour le planDay spécifique (comme dans NutritionScreen)
+        const isCompleted = isMealCompleted(pastMeal.meal.id, pastMeal.planDay, completionDataToUse);
+        
+        if (__DEV__) {
+          const dayKey = String(pastMeal.planDay);
+          const dayCompletions = completionDataToUse?.completionsByDay?.[dayKey] || completionDataToUse?.completionsByDay?.[pastMeal.planDay] || [];
+          const mealIdInCompletions = Array.isArray(dayCompletions) ? dayCompletions.some((c: any) => c.mealId === pastMeal.meal.id) : false;
+          
+          console.log(`🔍 [PastMealsBottomSheet] Vérification plat ${pastMeal.meal.name} (${pastMeal.meal.id}) pour planDay ${pastMeal.planDay}:`, {
+            planDay: pastMeal.planDay,
+            dayKey,
+            isCompleted,
+            mealIdInCompletions,
+            dayCompletionsCount: Array.isArray(dayCompletions) ? dayCompletions.length : 0,
+            dayCompletionsMealIds: Array.isArray(dayCompletions) ? dayCompletions.map((c: any) => c.mealId) : [],
+            usingData: freshCompletionData ? 'freshCompletionData' : completionStatus ? 'completionStatus' : 'none',
+            note: 'Vérification pour ce planDay spécifique uniquement',
+          });
+        }
+        
+        if (isCompleted) {
+          if (__DEV__) {
+            console.log(`🚫 [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) masqué car déjà complété pour planDay ${pastMeal.planDay}`);
+          }
+          return false;
+        }
+      }
+      
+      // ✅ Si aucune donnée n'est disponible, on considère le plat comme non complété (par sécurité)
+      // pastMeals est déjà filtré, donc normalement tous les plats devraient passer ce filtre
+      if (__DEV__) {
+        console.log(`✅ [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) conservé car NON complété pour planDay ${pastMeal.planDay}`);
+      }
       return true;
     });
 
@@ -197,40 +313,66 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       .sort((a, b) => a.date.getTime() - b.date.getTime()); // Plus ancien en premier
 
     return sortedGroups;
-  }, [pastMeals, completedMealIds, localCompletionData, freshCompletionData, completionStatus]);
+  }, [pastMeals, completedMealIds, freshCompletionData, completionStatus]);
 
   const handleCompleteMeal = async (mealId: string, planDay: number) => {
+    // Éviter les doubles clics
+    if (completingMealId === mealId) {
+      return;
+    }
+
+    // Vérifier AVANT d'appeler l'API si le repas est déjà complété (comme CompleteMealsBottomSheet)
+    const completionDataToCheck = localCompletionData || freshCompletionData || completionStatus;
+    
+    if (__DEV__) {
+      console.log('🔍 [PastMealsBottomSheet] Vérification avant complétion:', {
+        mealId,
+        planDay,
+        hasLocalData: !!localCompletionData,
+        hasFreshData: !!freshCompletionData,
+        hasCompletionStatus: !!completionStatus,
+        hasCompletionsByDay: !!completionDataToCheck?.completionsByDay,
+        completionsByDayKeys: completionDataToCheck?.completionsByDay ? Object.keys(completionDataToCheck.completionsByDay) : [],
+      });
+    }
+    
+    if (isMealCompleted(mealId, planDay, completionDataToCheck)) {
+      console.log('⚠️ [PastMealsBottomSheet] Repas déjà complété, ignoré:', mealId);
+      Toast.show({
+        type: 'info',
+        text1: 'Repas déjà complété',
+        text2: 'Ce repas a déjà été marqué comme complété',
+        visibilityTime: 2000,
+      });
+      // ✅ Rafraîchir les données pour mettre à jour l'affichage (comme CompleteMealsBottomSheet)
+      // Le useEffect va synchroniser localCompletionData avec freshCompletionData automatiquement
+      return;
+    }
+
     setCompletingMealId(mealId);
     try {
-      await onMealComplete(mealId, planDay);
-      
-      // ✅ Ajouter le plat à l'ensemble des plats complétés pour le masquer immédiatement
+      // ✅ Marquer le repas comme complété pour le retirer de la liste immédiatement (feedback optimiste)
       setCompletedMealIds((prev) => {
         const newSet = new Set(prev);
         newSet.add(mealId);
         return newSet;
       });
       
-      // ✅ Mettre à jour localCompletionData pour refléter la complétion
-      if (localCompletionData) {
-        const updatedData = { ...localCompletionData };
-        const dayKey = String(planDay);
-        if (!updatedData.completionsByDay) {
-          updatedData.completionsByDay = {};
-        }
-        if (!updatedData.completionsByDay[dayKey]) {
-          updatedData.completionsByDay[dayKey] = [];
-        }
-        // Ajouter la complétion si elle n'existe pas déjà
-        const dayCompletions = updatedData.completionsByDay[dayKey];
-        if (!dayCompletions.some((c: any) => c.mealId === mealId)) {
-          dayCompletions.push({
-            mealId,
-            completionDate: new Date().toISOString().split('T')[0] + 'T00:00:00.000Z',
-            completedAt: new Date().toISOString(),
-          });
-        }
-        setLocalCompletionData(updatedData);
+      // ✅ Appeler onMealComplete qui va mettre à jour freshCompletionData avec les données du serveur
+      // handleMealComplete dans le parent fait un appel API et met à jour freshCompletionData avec les données du serveur
+      await onMealComplete(mealId, planDay);
+      
+      // ✅ IMPORTANT: Ne PAS mettre à jour localCompletionData ici avec des données locales
+      // handleMealComplete dans le parent met déjà à jour freshCompletionData avec les données du serveur
+      // Le useEffect va synchroniser localCompletionData avec freshCompletionData automatiquement
+      // Cela garantit que les données sont toujours synchronisées avec le serveur et persistent correctement
+      
+      if (__DEV__) {
+        console.log('✅ [PastMealsBottomSheet] Complétion réussie, freshCompletionData mis à jour par le parent:', {
+          mealId,
+          planDay,
+          note: 'Le useEffect va synchroniser localCompletionData avec freshCompletionData automatiquement',
+        });
       }
       
       Toast.show({
@@ -240,11 +382,37 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
         visibilityTime: 2000,
       });
     } catch (error: any) {
-      console.error('Error completing meal:', error);
+      console.error('❌ [PastMealsBottomSheet] Erreur lors de la complétion:', error);
+      
+      // ✅ Retirer le mealId de completedMealIds en cas d'erreur (comme CompleteMealsBottomSheet)
+      setCompletedMealIds((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(mealId);
+        return newSet;
+      });
+      
+      // ✅ Traduire les messages d'erreur en anglais en français (comme CompleteMealsBottomSheet)
+      const rawErrorMessage = error?.message || 'Impossible de compléter le repas';
+      const errorMessage = translateErrorMessage(rawErrorMessage);
+      
+      // ✅ Si l'erreur est "already completed", afficher un message info et rafraîchir (comme CompleteMealsBottomSheet)
+      const errorLower = rawErrorMessage.toLowerCase();
+      if (errorLower.includes('already completed') || errorLower.includes('déjà complété')) {
+        Toast.show({
+          type: 'info',
+          text1: isIOS ? 'Plat déjà complété' : 'Repas déjà complété',
+          text2: 'Ce repas a déjà été marqué comme complété',
+          visibilityTime: 2000,
+        });
+        // ✅ Rafraîchir les données pour mettre à jour l'affichage
+        // Le useEffect va synchroniser localCompletionData avec freshCompletionData automatiquement
+        return;
+      }
+      
       Toast.show({
         type: 'error',
         text1: 'Erreur',
-        text2: error?.message || 'Impossible de compléter le repas. Veuillez réessayer.',
+        text2: errorMessage,
         visibilityTime: 3000,
       });
     } finally {
@@ -648,4 +816,5 @@ const styles = StyleSheet.create({
 });
 
 export default PastMealsBottomSheet;
+
 

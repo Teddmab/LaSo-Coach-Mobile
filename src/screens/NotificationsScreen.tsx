@@ -68,25 +68,24 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   return (
     <>
       <View style={styles.content}>
-        {/* Header */}
+        {/* ✅ Header modernisé - Une seule ligne avec les deux boutons */}
         <View style={styles.header}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.subtitle}>Gérez vos notifications et préférences</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.preferencesIconButton}
+            onPress={() => setShowPreferencesModal(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.colors.text.primary} />
+          </TouchableOpacity>
           
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.preferencesButton}
-              onPress={() => setShowPreferencesModal(true)}
-            >
-              <Ionicons name="settings-outline" size={16} color="#666" />
-              <Text style={styles.preferencesText}>Préférences</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.markAllButton} onPress={markAllAsRead}>
-              <Text style={styles.markAllText}>Tout marquer comme lu</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.markAllButton} 
+            onPress={markAllAsRead}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="checkmark-done-outline" size={16} color="#FFFFFF" />
+            <Text style={styles.markAllText}>Tout marquer comme lu</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs */}
@@ -171,46 +170,51 @@ const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 const styles = StyleSheet.create({
   content: {
     flex: 1,
+    backgroundColor: '#F8F9FA',
   },
+  // ✅ Header modernisé - Une seule ligne avec les deux boutons
   header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  headerInfo: {
-    marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-  },
-  headerButtons: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  preferencesButton: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    gap: 6,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  preferencesText: {
-    fontSize: 14,
-    color: '#666',
+  preferencesIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   markAllButton: {
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: theme.colors.primary,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   markAllText: {
-    fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   list: {
     flex: 1,

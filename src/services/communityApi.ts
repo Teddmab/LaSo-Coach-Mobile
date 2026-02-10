@@ -80,11 +80,16 @@ class CommunityApi {
                           errorMessage.toLowerCase().includes('community');
         
         if (isUgcError) {
-          console.warn('⚠️ [CommunityApi] 403 Forbidden - UGC terms not accepted on backend');
+          // Log silencieux pour les erreurs UGC - c'est géré par le hook useCommunityScreen
+          // Le hook affichera le modal UGC et gérera la synchronisation
+          if (__DEV__) {
+            console.warn('⚠️ [CommunityApi] 403 Forbidden - UGC terms not accepted on backend');
+          }
           // Throw error so caller can handle it (e.g., show UGC modal)
           // Don't return empty result - let the caller decide what to do
           apiError.userMessage = 'Vous devez accepter les règles de la communauté pour accéder aux posts.';
         } else {
+          // Pour les erreurs 403 non-UGC, logger normalement
           console.warn('⚠️ [CommunityApi] 403 Forbidden - access denied (not UGC related)');
           apiError.userMessage = apiError.response?.data?.message || 'Accès refusé.';
         }
