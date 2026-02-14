@@ -28,6 +28,7 @@ import type { DashboardScreenProps } from './dashboard/types';
 import type { Meal } from './nutrition/types';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DashboardOverlayStackParamList } from '../types/navigation';
+import { nutritionSync } from '../utils/nutritionSync';
 
 // ✅ PHASE 1: Import feature flags for testing
 import useCompanionMode from '../hooks/useCompanionMode';
@@ -162,12 +163,98 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }
   }, [subscriptionData, weekDays?.length]);
 
-  // ✅ Charger les données du jour quand le plan est disponible
+  // Ref pour tracker le dernier currentPlanDay chargé pour éviter les boucles
+  const lastLoadedPlanDayRef = useRef<number | undefined>(undefined);
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
+
+  // ✅ Recharger les données du jour avec le currentPlanDay calculé automatiquement
+  // Cela garantit que le bon jour est affiché dès le chargement initial
   useEffect(() => {
-    if (nutritionDataHook.currentPlan?.id && weekDays && weekDays.length > 0 && nutritionDataHook.dayMeals.length === 0) {
-      nutritionDataHook.loadDayData();
+    const planId = nutritionDataHook.currentPlan?.id;
+    const shouldLoad = 
+      planId && 
+      currentPlanDay !== undefined && 
+      weekDays && 
+      weekDays.length > 0 &&
+      !nutritionDataHook.isLoadingDayData &&
+      (lastLoadedPlanDayRef.current !== currentPlanDay || lastLoadedPlanIdRef.current !== planId);
+    
+    if (shouldLoad) {
+      if (__DEV__) {
+        console.log('📅 [DashboardScreen] Chargement des données avec currentPlanDay:', {
+          currentPlanDay,
+          planId,
+          lastLoadedPlanDay: lastLoadedPlanDayRef.current,
+          lastLoadedPlanId: lastLoadedPlanIdRef.current,
+        });
+      }
+      lastLoadedPlanDayRef.current = currentPlanDay;
+      lastLoadedPlanIdRef.current = planId;
+      nutritionDataHook.loadDayData(nutritionDataHook.currentPlan, currentPlanDay);
     }
-  }, [nutritionDataHook.currentPlan?.id, weekDays?.length, nutritionDataHook.dayMeals.length]);
+    // ✅ Ne pas inclure isLoadingDayData dans les dépendances pour éviter les boucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlanDay, nutritionDataHook.currentPlan?.id, weekDays?.length]);
+
+  // ✅ Callback pour compléter un repas depuis NutritionCard (utilise les hooks de NutritionScreen)
+  const handleNutritionMealComplete = useCallback(async (mealId: string, planDayOverride?: number) => {
+    if (!currentPlan) return;
+    
+    try {
+      // Utiliser le hook de complétion (même logique que NutritionScreen)
+      await completionStatusHook.handleMealComplete(mealId, planDayOverride);
+      
+      // Rafraîchir le statut de complétion
+      if (currentPlan.id) {
+        await completionStatusHook.fetchCompletionStatus(currentPlan.id);
+      }
+      
+      // Rafraîchir les données du jour pour mettre à jour la liste des repas
+      if (nutritionDataHook.currentPlan?.id) {
+        await nutritionDataHook.loadDayData();
+      }
+      
+      // ✅ Notifier les autres écrans (NutritionScreen) du changement
+      nutritionSync.emit('meal-completed', { mealId, planDayOverride });
+      nutritionSync.emit('completion-status-updated');
+    } catch (error) {
+      console.error('❌ [DashboardScreen] Erreur lors de la complétion du repas:', error);
+      throw error;
+    }
+  }, [currentPlan, completionStatusHook, nutritionDataHook]);
+  
+  // ✅ Écouter les changements depuis NutritionScreen
+  useEffect(() => {
+    const unsubscribeMealCompleted = nutritionSync.subscribe('meal-completed', async (data: any) => {
+      // Rafraîchir les données quand un repas est complété dans NutritionScreen
+      if (currentPlan?.id) {
+        try {
+          await completionStatusHook.fetchCompletionStatus(currentPlan.id);
+          if (nutritionDataHook.currentPlan?.id) {
+            await nutritionDataHook.loadDayData();
+          }
+        } catch (error) {
+          console.error('❌ [DashboardScreen] Erreur lors du rafraîchissement après complétion:', error);
+        }
+      }
+    });
+    
+    const unsubscribeStatusUpdated = nutritionSync.subscribe('completion-status-updated', async () => {
+      // Rafraîchir le statut de complétion
+      if (currentPlan?.id) {
+        try {
+          await completionStatusHook.fetchCompletionStatus(currentPlan.id);
+        } catch (error) {
+          console.error('❌ [DashboardScreen] Erreur lors du rafraîchissement du statut:', error);
+        }
+      }
+    });
+    
+    return () => {
+      unsubscribeMealCompleted();
+      unsubscribeStatusUpdated();
+    };
+  }, [currentPlan, completionStatusHook, nutritionDataHook]);
   
   // Local state
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -838,6 +925,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         nutritionCurrentPlanDay={currentPlanDay}
         nutritionCompletionData={completionStatusHook.freshCompletionData || completionStatusHook.completionStatus}
         nutritionCurrentPlan={currentPlan}
+        onNutritionMealComplete={handleNutritionMealComplete}
       />
 
       {/* Meal Details Modal */}

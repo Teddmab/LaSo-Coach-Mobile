@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, ScrollView, RefreshControl, Platform, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { ShimmerCard } from '../../../components/Shimmer';
 import MealDetailBottomSheet from '../../../components/nutrition/MealDetailModal';
 import CompleteMealsBottomSheet from '../../../components/nutrition/CompleteMealsBottomSheet';
-import PastMealsBottomSheet from '../../../components/nutrition/PastMealsBottomSheet';
+// ✅ PastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup
 import SubscriptionAlert from '../../../components/nutrition/SubscriptionAlert';
 import { NutritionHeader } from './NutritionHeader';
 import { WeekCalendar } from './WeekCalendar';
@@ -22,6 +22,7 @@ import { Meal, NutritionScreenProps } from '../types';
 import { createLogger } from '../../../utils/logger';
 import nutritionAPI from '../../../services/nutritionApi';
 import Toast from 'react-native-toast-message';
+import { nutritionSync } from '../../../utils/nutritionSync';
 
 const logger = createLogger('NutritionLayout');
 
@@ -43,6 +44,9 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
   // Temporary state for plansResponseStatus and currentPlan
   const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
   const [currentPlan, setCurrentPlan] = useState<any>(null);
+  
+  // ✅ CORRECTION: État local pour profileData (sera mis à jour quand nutritionDataHook est chargé)
+  const [profileData, setProfileData] = useState<any>(null);
 
   // Date management
   const {
@@ -57,11 +61,11 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     isSameDate,
   } = useNutritionDate(subscriptionData, plansResponseStatus, currentPlan);
 
-  // Completion status hook
+  // ✅ CORRECTION: Créer completionStatusHook avec profileData (état local)
   const completionStatusHook = useCompletionStatus(
     currentPlan,
     subscriptionData,
-    null,
+    profileData, // ✅ Utiliser l'état local qui sera mis à jour
     selectedDate,
     [],
     calculateNutritionPlanDay,
@@ -78,6 +82,17 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     completionStatusHook.fetchCompletionStatus
   );
 
+  // ✅ CORRECTION: Mettre à jour profileData quand nutritionDataHook.profileData est disponible
+  useEffect(() => {
+    if (nutritionDataHook.profileData) {
+      setProfileData(nutritionDataHook.profileData);
+    }
+  }, [nutritionDataHook.profileData]);
+
+  // Ref pour tracker le dernier currentPlanDay chargé pour éviter les boucles
+  const lastLoadedPlanDayRef = useRef<number | undefined>(undefined);
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
+
   // Update plansResponseStatus and currentPlan from nutritionDataHook
   useEffect(() => {
     setPlansResponseStatus(nutritionDataHook.plansResponseStatus);
@@ -90,6 +105,35 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       // Re-initialize completion hook with current plan
     }
   }, [nutritionDataHook.currentPlan]);
+
+  // ✅ Recharger les données du jour avec le currentPlanDay calculé automatiquement
+  // Cela garantit que le bon jour est affiché dès le chargement initial
+  useEffect(() => {
+    const planId = nutritionDataHook.currentPlan?.id;
+    const shouldLoad = 
+      planId && 
+      currentPlanDay !== undefined && 
+      weekDays && 
+      weekDays.length > 0 &&
+      !nutritionDataHook.isLoadingDayData &&
+      (lastLoadedPlanDayRef.current !== currentPlanDay || lastLoadedPlanIdRef.current !== planId);
+    
+    if (shouldLoad) {
+      if (__DEV__) {
+        console.log('📅 [NutritionLayout] Chargement des données avec currentPlanDay:', {
+          currentPlanDay,
+          planId,
+          lastLoadedPlanDay: lastLoadedPlanDayRef.current,
+          lastLoadedPlanId: lastLoadedPlanIdRef.current,
+        });
+      }
+      lastLoadedPlanDayRef.current = currentPlanDay;
+      lastLoadedPlanIdRef.current = planId;
+      nutritionDataHook.loadDayData(nutritionDataHook.currentPlan, currentPlanDay);
+    }
+    // ✅ Ne pas inclure isLoadingDayData dans les dépendances pour éviter les boucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlanDay, nutritionDataHook.currentPlan?.id, weekDays?.length]);
 
   // Meal interactions
   const mealInteractionsHook = useMealInteractions(
@@ -104,15 +148,10 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [mealsToComplete, setMealsToComplete] = useState<Meal[]>([]);
-  const [showPastMealsBottomSheet, setShowPastMealsBottomSheet] = useState(false);
+  // ✅ showPastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup
 
-  // Update currentPlanDay when selectedDate changes
-  useEffect(() => {
-    if (nutritionDataHook.currentPlan) {
-      const planDay = calculateNutritionPlanDay(selectedDate);
-      setCurrentPlanDay(planDay);
-    }
-  }, [selectedDate, nutritionDataHook.currentPlan, calculateNutritionPlanDay, setCurrentPlanDay]);
+  // ✅ Ne plus mettre à jour currentPlanDay manuellement ici
+  // useNutritionDate le calcule automatiquement quand currentPlan, selectedDate ou subscriptionData changent
 
   // Initial load
   useEffect(() => {
@@ -134,71 +173,31 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         return;
       }
 
-      if (!nutritionDataHook.dayMeals || nutritionDataHook.dayMeals.length === 0) {
-        if (Platform.OS === 'android') {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              nutritionDataHook.loadDayData();
-            }, 50);
-          });
-        } else {
-          nutritionDataHook.loadDayData();
-        }
-        return;
-      }
+      // ✅ Ne plus charger les données ici sans currentPlanDay
+      // Le useEffect principal (ligne 101) s'occupe de charger avec le bon currentPlanDay calculé automatiquement
+      // On rafraîchit juste le statut de complétion si nécessaire
 
       if (nutritionDataHook.currentPlan?.id) {
         completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
       }
-    }, [])
+      // ✅ Ne pas inclure completionStatusHook dans les dépendances pour éviter les boucles
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [nutritionDataHook.currentPlan?.id, subscriptionData, weekDays?.length])
   );
 
-  // Auto-load day data when plan/subscription/weekDays are available
-  useEffect(() => {
-    if (!nutritionDataHook.hasInitialLoadRef.current) {
-      return;
-    }
-
-    if (!nutritionDataHook.currentPlan?.id || !subscriptionData || !weekDays || weekDays.length === 0) {
-      return;
-    }
-
-    if (nutritionDataHook.isLoadingDayData || nutritionDataHook.isFetchingAllData) {
-      return;
-    }
-
-    const selectedDateKey = selectedDate instanceof Date ? selectedDate.getTime() : selectedDate;
-    const shouldLoad = !nutritionDataHook.dayMeals || nutritionDataHook.dayMeals.length === 0;
-
-    if (shouldLoad) {
-      if (Platform.OS === 'android') {
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            nutritionDataHook.loadDayData();
-          }, 50);
-        });
-      } else {
-        queueMicrotask(() => {
-          nutritionDataHook.loadDayData();
-        });
-      }
-    }
-  }, [nutritionDataHook.currentPlan?.id, subscriptionData, weekDays?.length, selectedDate, nutritionDataHook.dayMeals?.length]);
-
-  // Load day data when selectedDate changes
-  useEffect(() => {
-    if (!nutritionDataHook.hasInitialLoadRef.current || !nutritionDataHook.currentPlan || !subscriptionData || !weekDays || weekDays.length === 0) {
-      return;
-    }
-
-    if (!nutritionDataHook.isLoadingDayData && !nutritionDataHook.isFetchingAllData) {
-      nutritionDataHook.loadDayData();
-    }
-  }, [selectedDate]);
+  // ✅ Ces useEffect sont supprimés car le useEffect principal (ligne 101) gère déjà le chargement
+  // avec le currentPlanDay calculé automatiquement. Cela évite les conflits et garantit le bon jour.
 
   // Handle meal press
   // ✅ CORRECTION: Ouvrir le MealDetailModal (bottomsheet avec détails, ingrédients et bouton compléter)
   const handleMealPress = useCallback((meal: Meal) => {
+    if (__DEV__) {
+      console.log('🎯 [NutritionLayout] handleMealPress called', {
+        mealId: meal.id,
+        mealName: meal.name,
+        hasYoutubeUrl: !!meal.youtubeUrl,
+      });
+    }
     setSelectedMeal(meal);
     if (meal.youtubeUrl) {
       const videoId = getYouTubeVideoId(meal.youtubeUrl);
@@ -209,6 +208,9 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       setYoutubePlaying(false);
     }
     setShowYoutubeModal(true);
+    if (__DEV__) {
+      console.log('✅ [NutritionLayout] showYoutubeModal set to true');
+    }
   }, []);
 
   // Handle date select
@@ -225,9 +227,10 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
 
     const completionDataToUse = completionStatusHook.completionStatus || completionStatusHook.freshCompletionData;
     return nutritionDataHook.dayMeals.some((meal: Meal) => {
+      // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
       return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
     });
-  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted]);
+  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, selectedDate]);
 
   // Handle complete meals button press
   const handleCompleteMealsPress = useCallback(async () => {
@@ -253,6 +256,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
+        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
         return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter);
       });
 
@@ -275,6 +279,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
+        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
         return !completionStatusHook.isMealCompleted(meal.id, completionStatusHook.completionStatus, planDayForFilter);
       });
 
@@ -283,41 +288,86 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     }
   }, [nutritionDataHook.currentPlan, nutritionDataHook.dayMeals, selectedDate, today, calculateNutritionPlanDay, completionStatusHook]);
 
-  // Handle past meals button press
+  // ✅ Handle past meals button press - Compléter TOUS les plats passés non complétés d'un coup
   const handlePastMealsPress = useCallback(async () => {
     if (!nutritionDataHook.currentPlan?.id) {
-      setShowPastMealsBottomSheet(true);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de compléter les repas passés',
+      });
+      return;
+    }
+
+    const pastMeals = completionStatusHook.pastIncompleteMeals;
+    if (!pastMeals || pastMeals.length === 0) {
+      Toast.show({
+        type: 'info',
+        text1: 'Aucun repas à compléter',
+        text2: 'Tous les repas passés sont déjà complétés',
+      });
       return;
     }
 
     try {
-      const apiResponse = await nutritionAPI.getCompletionStatus(nutritionDataHook.currentPlan.id);
-      const globalCompletionData = apiResponse?.data || apiResponse;
-      const newFreshData = JSON.parse(JSON.stringify(globalCompletionData));
-      
-      completionStatusHook.setCompletionStatus(prevStatus => ({
-        ...prevStatus,
-        ...newFreshData,
-        progress: newFreshData?.progress || prevStatus?.progress,
-        allCompletions: newFreshData?.allCompletions || prevStatus?.allCompletions,
-        dayProgress: newFreshData?.dayProgress || prevStatus?.dayProgress,
-        mealStatus: newFreshData?.mealStatus || prevStatus?.mealStatus,
-        completionsByDay: newFreshData?.completionsByDay || prevStatus?.completionsByDay,
-      }));
-      
-      completionStatusHook.setFreshCompletionData(newFreshData);
-      
-      await new Promise(resolve => {
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            setShowPastMealsBottomSheet(true);
-            resolve(undefined);
-          }, 100);
-        });
+      // Afficher un toast de chargement
+      Toast.show({
+        type: 'info',
+        text1: 'Complétion en cours...',
+        text2: `Complétion de ${pastMeals.length} repas passés`,
+        visibilityTime: 2000,
       });
+
+      // ✅ CORRECTION: Compléter tous les pastMeals un par un avec les bonnes dates
+      let completedCount = 0;
+      let errorCount = 0;
+
+      for (const pastMeal of pastMeals) {
+        try {
+          // ✅ CORRECTION: Passer la date du past meal pour que la complétion soit enregistrée avec la bonne date
+          await completionStatusHook.handleMealComplete(
+            pastMeal.meal.id, 
+            pastMeal.planDay,
+            pastMeal.date  // ✅ Date du past meal (pas aujourd'hui!)
+          );
+          completedCount++;
+        } catch (error) {
+          console.error(`❌ [PAST MEALS] Erreur lors de la complétion du repas ${pastMeal.meal.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      // Rafraîchir le statut de complétion après toutes les complétions
+      if (nutritionDataHook.currentPlan?.id) {
+        await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+      }
+
+      // Afficher un message de succès
+      if (completedCount > 0) {
+        Toast.show({
+          type: 'success',
+          text1: 'Repas complétés !',
+          text2: `${completedCount} repas passé${completedCount > 1 ? 's' : ''} complété${completedCount > 1 ? 's' : ''}${errorCount > 0 ? ` (${errorCount} erreur${errorCount > 1 ? 's' : ''})` : ''}`,
+          visibilityTime: 3000,
+        });
+      }
+
+      if (errorCount > 0 && completedCount === 0) {
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: `Impossible de compléter les repas (${errorCount} erreur${errorCount > 1 ? 's' : ''})`,
+          visibilityTime: 3000,
+        });
+      }
     } catch (error) {
-      console.error('❌ [PAST MEALS] Erreur lors du rafraîchissement du statut:', error);
-      setShowPastMealsBottomSheet(true);
+      console.error('❌ [PAST MEALS] Erreur lors de la complétion des repas passés:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de compléter les repas passés',
+        visibilityTime: 3000,
+      });
     }
   }, [nutritionDataHook.currentPlan, completionStatusHook]);
 
@@ -329,7 +379,44 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     if (nutritionDataHook.currentPlan.id) {
       await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
     }
+    
+    // ✅ Notifier les autres écrans (DashboardScreen) du changement
+    nutritionSync.emit('meal-completed', { mealId, planDayOverride });
+    nutritionSync.emit('completion-status-updated');
   }, [nutritionDataHook.currentPlan, completionStatusHook]);
+  
+  // ✅ Écouter les changements depuis DashboardScreen (NutritionCard)
+  useEffect(() => {
+    const unsubscribeMealCompleted = nutritionSync.subscribe('meal-completed', async (data: any) => {
+      // Rafraîchir les données quand un repas est complété dans DashboardScreen
+      if (nutritionDataHook.currentPlan?.id) {
+        try {
+          await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+          await nutritionDataHook.loadDayData();
+        } catch (error) {
+          console.error('❌ [NutritionLayout] Erreur lors du rafraîchissement après complétion:', error);
+        }
+      }
+    });
+    
+    const unsubscribeStatusUpdated = nutritionSync.subscribe('completion-status-updated', async () => {
+      // Rafraîchir le statut de complétion
+      if (nutritionDataHook.currentPlan?.id) {
+        try {
+          await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+        } catch (error) {
+          console.error('❌ [NutritionLayout] Erreur lors du rafraîchissement du statut:', error);
+        }
+      }
+    });
+    
+    return () => {
+      unsubscribeMealCompleted();
+      unsubscribeStatusUpdated();
+    };
+    // ✅ Ne pas inclure completionStatusHook et nutritionDataHook dans les dépendances pour éviter les boucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nutritionDataHook.currentPlan?.id]);
 
   if (nutritionDataHook.loading) {
     return (
@@ -428,14 +515,20 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           />
         )}
 
+        {/* ✅ Bouton "Compléter des repas" - Monté juste après le calendrier */}
+        {nutritionDataHook.currentPlan && nutritionDataHook.dayMeals.length > 0 && hasIncompleteMeals && (
+          <CompleteMealsButton onPress={handleCompleteMealsPress} />
+        )}
+
         {(nutritionDataHook.plansResponseStatus === 200 || (nutritionDataHook.currentPlan && hasActiveSubscription) || nutritionDataHook.dayMeals.length > 0) && (
           <View style={styles.mealsContainer}>
-            {completionStatusHook.totalPastIncompleteMeals > 0 && (
+            {/* ✅ PastMealsButton caché */}
+            {/* {completionStatusHook.totalPastIncompleteMeals > 0 && (
               <PastMealsButton
                 totalPastIncompleteMeals={completionStatusHook.totalPastIncompleteMeals}
                 onPress={handlePastMealsPress}
               />
-            )}
+            )} */}
 
             <MealsList
               meals={nutritionDataHook.dayMeals}
@@ -453,17 +546,14 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           </View>
         )}
 
-        {nutritionDataHook.currentPlan && (
+        {/* ✅ ProgressCard caché */}
+        {/* {nutritionDataHook.currentPlan && (
           <ProgressCard
             completedMeals={completionStatusHook.getCompletedMealsCount()}
             totalMeals={completionStatusHook.getTotalMealsCount(nutritionDataHook.dayMeals)}
             progressPercentage={completionStatusHook.getCompletionProgress()}
           />
-        )}
-
-        {nutritionDataHook.currentPlan && nutritionDataHook.dayMeals.length > 0 && hasIncompleteMeals && (
-          <CompleteMealsButton onPress={handleCompleteMealsPress} />
-        )}
+        )} */}
       </ScrollView>
 
       {/* Modals and Bottom Sheets */}
@@ -471,6 +561,9 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         <MealDetailBottomSheet
           visible={showYoutubeModal}
           onClose={() => {
+            if (__DEV__) {
+              console.log('🔴 [NutritionLayout] Closing modal');
+            }
             setShowYoutubeModal(false);
             setYoutubePlaying(false);
             setSelectedMeal(null);
@@ -493,32 +586,18 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         visible={showCompletionModal}
         onClose={() => setShowCompletionModal(false)}
         meals={mealsToComplete}
-        currentPlan={nutritionDataHook.currentPlan}
-        selectedDate={selectedDate}
+        planDay={currentPlanDay}
         completionStatus={completionStatusHook.completionStatus}
         freshCompletionData={completionStatusHook.freshCompletionData}
         onMealComplete={handleMealComplete}
-        onRefreshCompletionStatus={async () => {
+        onRefresh={async () => {
           if (nutritionDataHook.currentPlan?.id) {
             await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
           }
         }}
       />
 
-      <PastMealsBottomSheet
-        visible={showPastMealsBottomSheet}
-        onClose={() => setShowPastMealsBottomSheet(false)}
-        pastMeals={completionStatusHook.pastIncompleteMeals}
-        currentPlan={nutritionDataHook.currentPlan}
-        completionStatus={completionStatusHook.completionStatus}
-        freshCompletionData={completionStatusHook.freshCompletionData}
-        onMealComplete={handleMealComplete}
-        onRefreshCompletionStatus={async () => {
-          if (nutritionDataHook.currentPlan?.id) {
-            await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
-          }
-        }}
-      />
+      {/* ✅ PastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup */}
     </>
   );
 };

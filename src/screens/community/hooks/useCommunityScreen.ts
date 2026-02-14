@@ -406,20 +406,27 @@ export const useCommunityScreen = (
               ? Math.max(0, currentLikesCount - 1) 
               : currentLikesCount + 1;
             
-            // Mettre à jour les likes
+            // ✅ Mettre à jour les likes avec vérification stricte
+            const currentUserIdStr = String(currentUser?.id || '');
             const updatedLikes = wasLiked
-              ? (p.likes || []).filter(like => 
-                  like.userId !== currentUser?.id && like.user?.id !== currentUser?.id
-                )
+              ? (p.likes || []).filter(like => {
+                  const likeUserId = String(like.userId || like.user?.id || '');
+                  return likeUserId !== currentUserIdStr;
+                })
               : [
                   ...(p.likes || []),
-                  { userId: currentUser?.id, user: { id: currentUser?.id } }
+                  { 
+                    userId: currentUser?.id, 
+                    user: { id: currentUser?.id },
+                    // ✅ S'assurer que les IDs sont bien des strings pour la comparaison
+                  }
                 ];
             
             return {
               ...p,
               likes: updatedLikes,
               _count: {
+                ...p._count,
                 likes: newLikesCount,
                 comments: p._count?.comments ?? 0, // Préserver le nombre de commentaires
               },
@@ -452,9 +459,13 @@ export const useCommunityScreen = (
             avatar: userData.avatar || userData.profilePicture || userData.profile_picture || rawUpdatedPost.userAvatar || undefined,
           };
           
-          // Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
+          // ✅ Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
           const likes = rawUpdatedPost.Like || rawUpdatedPost.likes || [];
-          const normalizedLikes = Array.isArray(likes) ? likes : [];
+          const normalizedLikes = Array.isArray(likes) ? likes.map((like: any) => ({
+            ...like,
+            userId: like.userId || like.user?.id || like.UserId,
+            user: like.user || { id: like.userId || like.user?.id || like.UserId },
+          })) : [];
           
           // Normaliser les commentaires (le backend peut retourner Comment avec majuscule ou comments avec minuscule)
           const comments = rawUpdatedPost.Comment || rawUpdatedPost.comments || [];
@@ -811,9 +822,11 @@ export const useCommunityScreen = (
 
   const isPostLiked = (post: Post): boolean => {
     if (!currentUser?.id) return false;
-    return post.likes?.some(like => 
-      like.userId === currentUser.id || like.user?.id === currentUser.id
-    ) || false;
+    const currentUserIdStr = String(currentUser.id);
+    return post.likes?.some(like => {
+      const likeUserId = String(like.userId || like.user?.id || '');
+      return likeUserId === currentUserIdStr;
+    }) || false;
   };
 
   const handleReport = (postId: string): void => {

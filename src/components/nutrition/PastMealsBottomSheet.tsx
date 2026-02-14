@@ -27,10 +27,11 @@ interface PastMealsBottomSheetProps {
   visible: boolean;
   onClose: () => void;
   pastMeals: PastMeal[];
-  onMealComplete: (mealId: string, planDay: number) => Promise<void>;
+  onMealComplete: (mealId: string, planDay: number, completionDate?: Date) => Promise<void>; // ✅ Ajout de completionDate pour past meals
   completionStatus?: CompletionStatus | null;
   freshCompletionData?: any;
   onUpdateCompletionData?: (data: any) => void;
+  isMealCompletedForDate?: (mealId: string, completionData: any, targetDate: Date, planDay: number) => boolean; // ✅ Fonction pour vérifier par date
   isIOS?: boolean;
 }
 
@@ -80,6 +81,7 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
   completionStatus,
   freshCompletionData,
   onUpdateCompletionData,
+  isMealCompletedForDate, // ✅ Fonction pour vérifier par date
   isIOS = false,
 }) => {
   const insets = useSafeAreaInsets();
@@ -146,25 +148,42 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
         console.warn('⚠️ [PastMealsBottomSheet] Aucune donnée de complétion disponible pour synchronisation');
       }
     }
-  }, [freshCompletionData, completionStatus, pastMeals.length, visible]);
+  }, [freshCompletionData, completionStatus, visible]); // ✅ Retirer pastMeals.length pour éviter les boucles
 
-  // Fonction helper pour vérifier si un repas est complété
-  // ✅ MÊME LOGIQUE EXACTE que NutritionScreen.isMealCompleted avec planDay
-  const isMealCompleted = (mealId: string, planDay: number, completionData: any): boolean => {
+  // ✅ Utiliser isMealCompletedForDate si fournie (vérifie par date réelle), sinon fallback sur isMealCompleted locale
+  const checkMealCompleted = (mealId: string, planDay: number, targetDate: Date, completionData: any): boolean => {
+    // Si isMealCompletedForDate est fournie, l'utiliser (vérifie par date réelle)
+    if (isMealCompletedForDate) {
+      return isMealCompletedForDate(mealId, completionData, targetDate, planDay);
+    }
+    
+    // Fallback : fonction locale pour compatibilité (vérifie seulement par planDay)
     if (!completionData) {
       return false;
     }
 
-    // ✅ IMPORTANT: Vérifier UNIQUEMENT dans completionsByDay pour le jour spécifique (planDay)
-    // Ne pas utiliser les sources globales (allCompletions, mealStatus) car elles contiennent
-    // les complétions de TOUS les jours, ce qui causerait des faux positifs
     if (completionData?.completionsByDay) {
-      const dayKey = String(planDay);
-      const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDay];
+      const dayKeyString = String(planDay);
+      const dayKeyNumber = planDay;
+      
+      const dayCompletions = completionData.completionsByDay[dayKeyString] || 
+                            completionData.completionsByDay[dayKeyNumber];
       
       if (Array.isArray(dayCompletions)) {
         const found = dayCompletions.some(
-          (completion: any) => completion?.mealId === mealId && completion?.completedAt
+          (completion: any) => {
+            const mealMatches = completion?.mealId === mealId;
+            const hasCompletedAt = !!completion?.completedAt;
+            
+            if (completion?.planDay !== undefined) {
+              const dayMatches = completion.planDay === planDay || 
+                                completion.planDay === dayKeyString ||
+                                String(completion.planDay) === dayKeyString;
+              return mealMatches && dayMatches && hasCompletedAt;
+            }
+            
+            return mealMatches && hasCompletedAt;
+          }
         );
         if (found) {
           return true;
@@ -172,8 +191,6 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       }
     }
     
-    // ✅ Si planDay est fourni, on ne vérifie QUE ce jour - retourner false si pas trouvé
-    // (MÊME LOGIQUE que NutritionScreen.isMealCompleted)
     return false;
   };
 
@@ -188,41 +205,7 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
     // ✅ IMPORTANT: Utiliser les mêmes données que pastIncompleteMeals pour garantir la cohérence
     const completionDataToUse = freshCompletionData || completionStatus;
     
-    // Logs de débogage (comme CompleteMealsBottomSheet)
-    if (__DEV__) {
-      // Calculer tous les mealIds complétés pour le log
-      const allCompletedMealIds = new Set<string>();
-      if (completionDataToUse?.completionsByDay) {
-        Object.values(completionDataToUse.completionsByDay).forEach((dayCompletions: any) => {
-          if (Array.isArray(dayCompletions)) {
-            dayCompletions.forEach((completion: any) => {
-              if (completion?.mealId) {
-                allCompletedMealIds.add(completion.mealId);
-              }
-            });
-          }
-        });
-      }
-      
-      console.log('🔍 [PastMealsBottomSheet] Calcul de groupedMeals (comme CompleteMealsBottomSheet):', {
-        platform: isIOS ? 'iOS' : 'Android',
-        pastMealsCount: pastMeals.length,
-        hasCompletionStatus: !!completionStatus,
-        hasFreshCompletionData: !!freshCompletionData,
-        usingData: freshCompletionData ? 'freshCompletionData' : completionStatus ? 'completionStatus' : 'none',
-        note: 'Utiliser freshCompletionData || completionStatus (MÊME LOGIQUE que pastIncompleteMeals)',
-        completedMealIdsCount: completedMealIds.size,
-        hasCompletionsByDay: !!completionDataToUse?.completionsByDay,
-        completionsByDayKeys: completionDataToUse?.completionsByDay ? Object.keys(completionDataToUse.completionsByDay) : [],
-        allCompletedMealIds: Array.from(allCompletedMealIds),
-        pastMeals: pastMeals.map(p => ({
-          mealId: p.meal.id,
-          mealName: p.meal.name,
-          planDay: p.planDay,
-          date: p.date.toDateString(),
-        })),
-      });
-    }
+    // ✅ Logs de débogage réduits pour éviter les boucles
 
     // ✅ IMPORTANT: pastMeals passé au bottomsheet est DÉJÀ filtré dans pastIncompleteMeals (ne contient QUE les plats non complétés)
     // On refiltre UNIQUEMENT pour gérer les mises à jour optimistes (plats complétés dans cette session)
@@ -232,7 +215,7 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       // ✅ Si le plat a déjà été complété dans cette session, le masquer immédiatement (feedback optimiste)
       if (completedMealIds.has(pastMeal.meal.id)) {
         if (__DEV__) {
-          console.log(`🚫 [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) masqué car complété dans cette session (optimiste) pour planDay ${pastMeal.planDay}`);
+          console.log(`🚫 [PastMealsBottomSheet] Repas ${pastMeal.meal.name} (${pastMeal.meal.id}) EXCLU - complété dans cette session (optimiste) pour planDay ${pastMeal.planDay}`);
         }
         return false;
       }
@@ -240,53 +223,34 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       // ✅ Vérifier dans la source de données la plus récente disponible (MÊME LOGIQUE que NutritionScreen.isMealCompleted)
       // Utiliser freshCompletionData en priorité (données les plus récentes après complétion)
       // ✅ IMPORTANT: Utiliser les mêmes données que pastIncompleteMeals pour garantir la cohérence
-      // ✅ CRITIQUE: Vérifier UNIQUEMENT pour le planDay spécifique (pastMeal.planDay)
-      // Un plat complété pour day1 ne doit PAS apparaître pour day1, mais peut apparaître pour day3 s'il n'est pas complété pour day3
+      // ✅ CRITIQUE: Vérifier si le repas est complété pour cette DATE SPÉCIFIQUE (pas seulement le planDay)
+      // Utiliser isMealCompletedForDate si disponible pour vérifier par date réelle
       if (completionDataToUse) {
-        // ✅ Vérifier UNIQUEMENT dans completionsByDay pour le planDay spécifique (comme dans NutritionScreen)
-        const isCompleted = isMealCompleted(pastMeal.meal.id, pastMeal.planDay, completionDataToUse);
-        
-        if (__DEV__) {
-          const dayKey = String(pastMeal.planDay);
-          const dayCompletions = completionDataToUse?.completionsByDay?.[dayKey] || completionDataToUse?.completionsByDay?.[pastMeal.planDay] || [];
-          const mealIdInCompletions = Array.isArray(dayCompletions) ? dayCompletions.some((c: any) => c.mealId === pastMeal.meal.id) : false;
-          
-          console.log(`🔍 [PastMealsBottomSheet] Vérification plat ${pastMeal.meal.name} (${pastMeal.meal.id}) pour planDay ${pastMeal.planDay}:`, {
-            planDay: pastMeal.planDay,
-            dayKey,
-            isCompleted,
-            mealIdInCompletions,
-            dayCompletionsCount: Array.isArray(dayCompletions) ? dayCompletions.length : 0,
-            dayCompletionsMealIds: Array.isArray(dayCompletions) ? dayCompletions.map((c: any) => c.mealId) : [],
-            usingData: freshCompletionData ? 'freshCompletionData' : completionStatus ? 'completionStatus' : 'none',
-            note: 'Vérification pour ce planDay spécifique uniquement',
-          });
-        }
+        // ✅ Vérifier par DATE RÉELLE (pastMeal.date) et planDay
+        const isCompleted = checkMealCompleted(pastMeal.meal.id, pastMeal.planDay, pastMeal.date, completionDataToUse);
         
         if (isCompleted) {
           if (__DEV__) {
-            console.log(`🚫 [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) masqué car déjà complété pour planDay ${pastMeal.planDay}`);
+            console.log(`🚫 [PastMealsBottomSheet] Repas ${pastMeal.meal.name} (${pastMeal.meal.id}) EXCLU - déjà complété pour date ${pastMeal.date.toISOString().split('T')[0]} (planDay ${pastMeal.planDay})`);
           }
           return false;
         }
       }
       
-      // ✅ Si aucune donnée n'est disponible, on considère le plat comme non complété (par sécurité)
-      // pastMeals est déjà filtré, donc normalement tous les plats devraient passer ce filtre
       if (__DEV__) {
-        console.log(`✅ [PastMealsBottomSheet] Plat ${pastMeal.meal.name} (${pastMeal.meal.id}) conservé car NON complété pour planDay ${pastMeal.planDay}`);
+        console.log(`✅ [PastMealsBottomSheet] Repas ${pastMeal.meal.name} (${pastMeal.meal.id}) INCLUS - NON complété pour date ${pastMeal.date.toISOString().split('T')[0]} (planDay ${pastMeal.planDay})`);
       }
       return true;
     });
-
+    
     if (__DEV__) {
-      console.log('🔍 [PastMealsBottomSheet] Résultat du filtrage:', {
-        totalPastMeals: pastMeals.length,
-        incompleteMealsCount: incompleteMeals.length,
-        filteredOut: pastMeals.length - incompleteMeals.length,
-        platform: isIOS ? 'iOS' : 'Android',
+      console.log(`📊 [PastMealsBottomSheet] Filtrage: ${pastMeals.length} repas reçus → ${incompleteMeals.length} repas non complétés affichés`, {
+        excludedByOptimistic: Array.from(completedMealIds).length,
+        excludedByCompletion: pastMeals.length - incompleteMeals.length - Array.from(completedMealIds).length,
       });
     }
+
+    // ✅ Logs de débogage réduits pour éviter les boucles
 
     const grouped: { [key: string]: PastMeal[] } = {};
     
@@ -313,7 +277,7 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       .sort((a, b) => a.date.getTime() - b.date.getTime()); // Plus ancien en premier
 
     return sortedGroups;
-  }, [pastMeals, completedMealIds, freshCompletionData, completionStatus]);
+  }, [pastMeals, completedMealIds, freshCompletionData, completionStatus, isMealCompletedForDate]); // ✅ Ajouter isMealCompletedForDate aux dépendances
 
   const handleCompleteMeal = async (mealId: string, planDay: number) => {
     // Éviter les doubles clics
@@ -336,7 +300,11 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
       });
     }
     
-    if (isMealCompleted(mealId, planDay, completionDataToCheck)) {
+    // ✅ Vérifier par date réelle si possible (trouver la date du pastMeal correspondant)
+    const pastMeal = pastMeals.find(pm => pm.meal.id === mealId && pm.planDay === planDay);
+    const targetDate = pastMeal ? pastMeal.date : new Date(); // Utiliser la date du pastMeal si trouvé
+    
+    if (checkMealCompleted(mealId, planDay, targetDate, completionDataToCheck)) {
       console.log('⚠️ [PastMealsBottomSheet] Repas déjà complété, ignoré:', mealId);
       Toast.show({
         type: 'info',
@@ -358,9 +326,9 @@ const PastMealsBottomSheet: React.FC<PastMealsBottomSheetProps> = ({
         return newSet;
       });
       
-      // ✅ Appeler onMealComplete qui va mettre à jour freshCompletionData avec les données du serveur
+      // ✅ CORRECTION: Appeler onMealComplete avec la date du past meal pour que la complétion soit enregistrée avec la bonne date
       // handleMealComplete dans le parent fait un appel API et met à jour freshCompletionData avec les données du serveur
-      await onMealComplete(mealId, planDay);
+      await onMealComplete(mealId, planDay, targetDate); // ✅ Passer targetDate (date du past meal)
       
       // ✅ IMPORTANT: Ne PAS mettre à jour localCompletionData ici avec des données locales
       // handleMealComplete dans le parent met déjà à jour freshCompletionData avec les données du serveur

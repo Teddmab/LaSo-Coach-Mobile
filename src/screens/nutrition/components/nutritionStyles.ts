@@ -299,11 +299,12 @@ export const nutritionStyles = StyleSheet.create({
     backgroundColor: '#FF9800',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center', // ✅ Centrer le contenu
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 12,
     marginBottom: 16,
+    gap: 8, // ✅ Espacement entre les icônes et le texte
   },
   pastMealsButtonText: {
     color: '#FFFFFF',

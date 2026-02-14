@@ -21,7 +21,7 @@ const mealTypeMap = {
   },
   snack: { 
     title: 'Collation', 
-    icon: '🥗', 
+    icon: '🥤', 
     bg: '#E8F5E9',
     time: 'à 16h'
   },

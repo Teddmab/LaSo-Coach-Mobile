@@ -42,6 +42,7 @@ interface DashboardContentProps {
   nutritionCurrentPlanDay?: number;
   nutritionCompletionData?: any;
   nutritionCurrentPlan?: any;
+  onNutritionMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
 }
 
 const DashboardContent: React.FC<DashboardContentProps> = ({
@@ -72,6 +73,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   nutritionCurrentPlanDay,
   nutritionCompletionData,
   nutritionCurrentPlan,
+  onNutritionMealComplete,
 }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
@@ -219,6 +221,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         currentPlanDay={nutritionCurrentPlanDay}
         completionData={nutritionCompletionData}
         currentPlan={nutritionCurrentPlan}
+        onMealComplete={onNutritionMealComplete}
       />
 
       {/* News Card */}

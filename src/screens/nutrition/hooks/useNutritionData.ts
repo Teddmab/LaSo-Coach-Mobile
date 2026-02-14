@@ -248,24 +248,13 @@ export const useNutritionData = (
         platform: Platform.OS
       });
       
-      // ✅ Appeler loadDayData avec loadedPlan
-      if (loadedPlan?.id) {
-        if (Platform.OS === 'android') {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              loadDayData(loadedPlan);
-            }, 150);
-          });
-        } else {
-          setTimeout(() => {
-            loadDayData(loadedPlan);
-          }, 50);
-        }
-      }
+      // ✅ Ne plus appeler loadDayData ici
+      // Le useEffect dans NutritionLayout/DashboardScreen appellera loadDayData avec le currentPlanDay calculé automatiquement
+      // Cela garantit que le bon jour est utilisé dès le chargement initial
     }
   }, [isFetchingAllData, isCompanionMode, isIOS, setSubscriptionData, onCompletionStatusFetch]);
 
-  const loadDayData = useCallback(async (planToUse?: NutritionPlan | null) => {
+  const loadDayData = useCallback(async (planToUse?: NutritionPlan | null, planDayOverride?: number) => {
     const plan = planToUse || currentPlan;
     
     if (!plan?.id) {
@@ -275,6 +264,12 @@ export const useNutritionData = (
     
     if (!weekDays || weekDays.length === 0) {
       logger.debug('weekDays not yet available, skipping loadDayData');
+      return;
+    }
+    
+    // ✅ Protection contre les appels multiples simultanés
+    if (isLoadingDayData) {
+      logger.debug('loadDayData already in progress, skipping...');
       return;
     }
     
@@ -288,22 +283,29 @@ export const useNutritionData = (
       const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
       selectedDateObj.setHours(0, 0, 0, 0);
       
-      // Determine plan start date
-      let planStartDate = today;
-      if (subscriptionData?.subscription?.startDate) {
-        planStartDate = new Date(subscriptionData.subscription.startDate);
-        planStartDate.setHours(0, 0, 0, 0);
-      } else if (plan?.startDate) {
-        planStartDate = new Date(plan.startDate);
-        planStartDate.setHours(0, 0, 0, 0);
+      // ✅ Utiliser planDayOverride si fourni (calculé automatiquement), sinon calculer
+      let menuDay: number;
+      if (planDayOverride !== undefined) {
+        menuDay = planDayOverride;
+        logger.debug('Using provided planDay:', menuDay);
+      } else {
+        // Determine plan start date
+        let planStartDate = today;
+        if (subscriptionData?.subscription?.startDate) {
+          planStartDate = new Date(subscriptionData.subscription.startDate);
+          planStartDate.setHours(0, 0, 0, 0);
+        } else if (plan?.startDate) {
+          planStartDate = new Date(plan.startDate);
+          planStartDate.setHours(0, 0, 0, 0);
+        }
+        
+        // Use shared utility to calculate plan day
+        menuDay = calculatePlanDayFromDate(
+          selectedDateObj,
+          planStartDate,
+          plan.numDays || 7
+        );
       }
-      
-      // Use shared utility to calculate plan day
-      const menuDay = calculatePlanDayFromDate(
-        selectedDateObj,
-        planStartDate,
-        plan.numDays || 7
-      );
       
       // Use shared utility for consistent menu finding logic
       let dayMenu = findMenuForPlanDay(plan.menus, menuDay);

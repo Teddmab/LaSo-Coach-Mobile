@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   View, 
   Text, 
   StyleSheet, 
   TouchableOpacity,
-  Platform
+  Platform,
+  Animated,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
@@ -17,8 +20,9 @@ import ImagePersistent from '../ImagePersistent';
 import { mealTypeMap } from '../../screens/nutrition/utils/nutritionUtils';
 import { calculatePlanDayFromDate, findMenuForPlanDay, getPlanProgress } from '../../screens/nutrition/utils/dateCalculations';
 import { Meal, NutritionPlan, CompletionStatus } from '../../screens/nutrition/types';
-import MealDetailModal from '../nutrition/MealDetailModal';
+// ✅ MealDetailModal retiré - On complète directement sans modal
 import Toast from 'react-native-toast-message';
+import { nutritionSync } from '../../utils/nutritionSync';
 
 interface NutritionCardProps {
   onPress?: () => void;
@@ -30,6 +34,8 @@ interface NutritionCardProps {
   currentPlanDay?: number;
   completionData?: any;
   currentPlan?: any;
+  // ✅ Callback pour compléter un repas (utilise les hooks de NutritionScreen)
+  onMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
 }
 
 const NutritionCard: React.FC<NutritionCardProps> = ({ 
@@ -41,6 +47,7 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   currentPlanDay: propsCurrentPlanDay,
   completionData: propsCompletionData,
   currentPlan: propsCurrentPlan,
+  onMealComplete: propsOnMealComplete,
 }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
@@ -56,8 +63,21 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   const [planStartDate, setPlanStartDate] = useState<Date | null>(null);
   const [currentPlanDay, setCurrentPlanDay] = useState<number | undefined>(propsCurrentPlanDay);
   const [dayMeals, setDayMeals] = useState<Meal[]>(propsDayMeals || []);
-  const [showMealDetailModal, setShowMealDetailModal] = useState(false);
-  const [completingMealInModal, setCompletingMealInModal] = useState<string | null>(null);
+  // ✅ showMealDetailModal et completingMealInModal retirés - On complète directement
+  const [showVideoInCard, setShowVideoInCard] = useState(false);
+  const [youtubePlaying, setYoutubePlaying] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const buttonPulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -95,6 +115,44 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       setCurrentPlan(propsCurrentPlan);
     }
   }, [propsCurrentPlan]);
+  
+  // ✅ Écouter les changements depuis NutritionScreen pour synchronisation en temps réel
+  useEffect(() => {
+    const unsubscribeMealCompleted = nutritionSync.subscribe('meal-completed', async (data: any) => {
+      // Rafraîchir les données quand un repas est complété dans NutritionScreen
+      const planToUse = propsCurrentPlan || currentPlan;
+      if (planToUse?.id) {
+        try {
+          const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+          const globalCompletionData = apiResponse?.data || apiResponse;
+          setFreshCompletionData(globalCompletionData);
+          setCompletionStatus(globalCompletionData);
+        } catch (error) {
+          console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut après complétion NutritionScreen:', error);
+        }
+      }
+    });
+    
+    const unsubscribeStatusUpdated = nutritionSync.subscribe('completion-status-updated', async () => {
+      // Rafraîchir le statut de complétion
+      const planToUse = propsCurrentPlan || currentPlan;
+      if (planToUse?.id) {
+        try {
+          const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+          const globalCompletionData = apiResponse?.data || apiResponse;
+          setFreshCompletionData(globalCompletionData);
+          setCompletionStatus(globalCompletionData);
+        } catch (error) {
+          console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut:', error);
+        }
+      }
+    });
+    
+    return () => {
+      unsubscribeMealCompleted();
+      unsubscribeStatusUpdated();
+    };
+  }, [propsCurrentPlan, currentPlan]);
 
   // ✅ Même logique que NutritionScreen pour vérifier si un repas est complété
   const isMealCompleted = useCallback((mealId: string, completionData: any, planDayToCheck?: number): boolean => {
@@ -343,39 +401,117 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
     return null; // Tous complétés
   }, [dayMeals, currentPlanDay, freshCompletionData, completionStatus, isMealCompleted]);
 
-  // ✅ Calculer si l'heure recommandée est passée
-  const isTimePassed = useMemo(() => {
-    if (!nextMealToComplete) return false;
-    
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    
-    switch (nextMealToComplete.type) {
-      case 'breakfast':
-        return currentHour > 9 || (currentHour === 9 && currentMinute > 0);
-      case 'lunch':
-        return currentHour > 14 || (currentHour === 14 && currentMinute > 0);
-      case 'snack':
-        return currentHour > 16 || (currentHour === 16 && currentMinute > 0);
-      case 'dinner':
-        return currentHour > 20 || (currentHour === 20 && currentMinute > 0);
-      default:
-        return false;
-    }
-  }, [nextMealToComplete]);
+  // ✅ Calculer youtubeVideoId et hasVideo AVANT le return null pour éviter l'erreur "rendered more hooks"
+  // Toujours calculer même si nextMealToComplete est null pour maintenir l'ordre des hooks
+  const youtubeVideoId = nextMealToComplete?.youtubeUrl ? getYouTubeVideoId(nextMealToComplete.youtubeUrl) : null;
+  const hasVideo = !!youtubeVideoId;
 
-  // ✅ Compléter un repas (simplifié)
+  // Animation du bouton clignotant - TOUJOURS appelé (même si hasVideo est false)
+  useEffect(() => {
+    if (hasVideo && !showVideoInCard) {
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(buttonPulseAnim, {
+            toValue: 1.15,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(buttonPulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+      return () => pulseAnimation.stop();
+    }
+  }, [hasVideo, showVideoInCard, buttonPulseAnim]);
+
+  // Animation fluide lors du remplacement de l'image par la vidéo - TOUJOURS appelé
+  useEffect(() => {
+    if (showVideoInCard) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      // ✅ Forcer le démarrage de la vidéo avec un petit délai pour laisser le composant se charger
+      setTimeout(() => {
+        setYoutubePlaying(true);
+        if (__DEV__) {
+          console.log('🎬 [NutritionCard] Video should start playing now');
+        }
+      }, 300);
+    } else {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(1);
+      setYoutubePlaying(false);
+    }
+  }, [showVideoInCard, fadeAnim, scaleAnim]);
+
+  const handleVideoButtonPress = () => {
+    if (__DEV__) {
+      console.log('🎬 [NutritionCard] Video button pressed, launching video immediately');
+    }
+    // ✅ D'abord afficher la vidéo, puis la lancer
+    setShowVideoInCard(true);
+    // Le useEffect ci-dessus va automatiquement mettre youtubePlaying à true
+  };
+
+  // ✅ isTimePassed retiré - On n'affiche plus l'urgence, juste l'heure
+
+  // ✅ Compléter un repas - Utiliser le callback de DashboardScreen si disponible (même logique que NutritionScreen)
   const handleMealComplete = useCallback(async (mealId: string) => {
-    // Utiliser les données de props si disponibles
-    const planToUse = propsCurrentPlan || currentPlan;
-    const planDayToUse = propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay;
+    // ✅ Démarrer l'animation de loader
+    setIsCompleting(true);
     
-    if (!planToUse?.id || planDayToUse === undefined) {
-      return;
-    }
-
     try {
+      // Si un callback est fourni (depuis DashboardScreen), l'utiliser pour garantir la cohérence
+      if (propsOnMealComplete) {
+        try {
+          const planDayToUse = propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay;
+          await propsOnMealComplete(mealId, planDayToUse);
+          
+          // Le callback gère déjà le rafraîchissement des données dans DashboardScreen
+          // Les props seront automatiquement mises à jour
+          Toast.show({
+            type: 'success',
+            text1: 'Repas complété ! ✅',
+            text2: 'Vous avez gagné 25 points. Passage au repas suivant...',
+            visibilityTime: 2500,
+          });
+        } catch (error: any) {
+          console.error('❌ [NutritionCard] Erreur complétion repas:', error);
+          Toast.show({
+            type: 'error',
+            text1: 'Erreur',
+            text2: error?.message || 'Impossible de compléter le repas',
+            visibilityTime: 2000,
+          });
+        } finally {
+          setIsCompleting(false);
+        }
+        return;
+      }
+
+      // Fallback: logique locale si pas de callback (pour compatibilité)
+      const planToUse = propsCurrentPlan || currentPlan;
+      const planDayToUse = propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay;
+      
+      if (!planToUse?.id || planDayToUse === undefined) {
+        setIsCompleting(false);
+        return;
+      }
+
       const selectedDateObj = new Date();
       selectedDateObj.setHours(0, 0, 0, 0);
       const completionDateISO = selectedDateObj.toISOString().split('T')[0] + 'T00:00:00.000Z';
@@ -399,9 +535,9 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       
       Toast.show({
         type: 'success',
-        text1: 'Repas complété !',
-        text2: 'Vous avez gagné 25 points',
-        visibilityTime: 2000,
+        text1: 'Repas complété ! ✅',
+        text2: 'Vous avez gagné 25 points. Passage au repas suivant...',
+        visibilityTime: 2500,
       });
     } catch (error: any) {
       console.error('❌ [NutritionCard] Erreur complétion repas:', error);
@@ -411,8 +547,11 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         text2: 'Impossible de compléter le repas',
         visibilityTime: 2000,
       });
+    } finally {
+      // ✅ Arrêter l'animation de loader
+      setIsCompleting(false);
     }
-  }, [propsCurrentPlan, currentPlan, propsCurrentPlanDay, currentPlanDay]);
+  }, [propsOnMealComplete, propsCurrentPlan, currentPlan, propsCurrentPlanDay, currentPlanDay]);
 
   // ✅ ANDROID: Bloquer l'accès si pas d'abonnement actif
   const hasActiveSubscription = isIOS || 
@@ -520,50 +659,95 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
           </View>
         </View>
 
-        {/* Meal type avec heure */}
+        {/* Meal type avec icône */}
         <View style={styles.mealTypeRow}>
           <Text style={styles.mealTypeText}>
-            {mealTitle} ({mealTime})
+            {mealTitle} {mealIcon}
           </Text>
         </View>
 
-        {/* Image avec timer */}
+        {/* Image/Video avec timer */}
         <View style={styles.mealImageContainer}>
-          <ImagePersistent
-            source={{ uri: nextMealToComplete.imageUrl }}
-            style={styles.mealImage}
-          />
-          {/* Timer overlay */}
-          <View style={[styles.timerOverlay, isTimePassed && styles.timerOverlayUrgent]}>
-            <Ionicons 
-              name={isTimePassed ? "time" : "time-outline"} 
-              size={24} 
-              color={isTimePassed ? "#FFFFFF" : theme.colors.text.primary} 
-            />
-            <Text style={[styles.timerText, isTimePassed && styles.timerTextUrgent]}>
-              {isTimePassed ? "À compléter d'urgence" : mealTime}
-            </Text>
-          </View>
-        </View>
-
-        {/* Nutrition info */}
-        <View style={styles.nutritionInfo}>
-          {nextMealToComplete.calories && (
-            <View style={styles.nutritionItem}>
-              <Ionicons name="flame" size={14} color="#FF6B6B" />
-              <Text style={styles.nutritionText}>{nextMealToComplete.calories} kcal</Text>
-            </View>
+          {showVideoInCard && youtubeVideoId ? (
+            <Animated.View
+              style={[
+                {
+                  width: '100%',
+                  height: '100%',
+                  opacity: fadeAnim,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <YoutubePlayer
+                height={200}
+                width={Dimensions.get('window').width - 32}
+                videoId={youtubeVideoId}
+                play={youtubePlaying} // ✅ Démarre automatiquement car youtubePlaying est true
+                onChangeState={(event: string) => {
+                  if (event === 'playing') {
+                    setYoutubePlaying(true);
+                  } else if (event === 'paused' || event === 'ended') {
+                    setYoutubePlaying(false);
+                  }
+                }}
+                webViewStyle={{ 
+                  opacity: 0.99,
+                  borderRadius: 12,
+                }}
+                initialPlayerParams={{
+                  autoplay: 1, // ✅ Autoplay activé (1 = true)
+                  playsinline: 1, // ✅ Lecture en ligne (iOS)
+                }}
+              />
+            </Animated.View>
+          ) : (
+            <>
+              {nextMealToComplete.imageUrl ? (
+                <ImagePersistent
+                  source={{ uri: nextMealToComplete.imageUrl }}
+                  style={styles.mealImage}
+                />
+              ) : (
+                <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
+                  <Text style={styles.mealImagePlaceholderText}>{mealIcon}</Text>
+                </View>
+              )}
+              
+              {/* Bouton vidéo clignotant si vidéo disponible */}
+              {hasVideo && (
+                <TouchableOpacity
+                  style={styles.videoButtonOverlay}
+                  onPress={handleVideoButtonPress}
+                  activeOpacity={0.8}
+                >
+                  <Animated.View
+                    style={[
+                      styles.videoButtonBadge,
+                      {
+                        transform: [{ scale: buttonPulseAnim }],
+                      },
+                    ]}
+                  >
+                    <Ionicons name="play-circle" size={28} color="#FFFFFF" />
+                    <Text style={styles.videoButtonText}>Voir la vidéo</Text>
+                  </Animated.View>
+                </TouchableOpacity>
+              )}
+            </>
           )}
-          {nextMealToComplete.proteins !== undefined && (
-            <View style={styles.nutritionItem}>
-              <Ionicons name="fitness" size={14} color="#4ECDC4" />
-              <Text style={styles.nutritionText}>{nextMealToComplete.proteins}g protéines</Text>
-            </View>
-          )}
-          {nextMealToComplete.carbs !== undefined && (
-            <View style={styles.nutritionItem}>
-              <Ionicons name="leaf" size={14} color="#95E1D3" />
-              <Text style={styles.nutritionText}>{nextMealToComplete.carbs}g glucides</Text>
+          
+          {/* Timer overlay - Afficher uniquement l'heure, sans urgence */}
+          {!showVideoInCard && (
+            <View style={styles.timerOverlay}>
+              <Ionicons 
+                name="time-outline" 
+                size={24} 
+                color={theme.colors.text.primary} 
+              />
+              <Text style={styles.timerText}>
+                {mealTime}
+              </Text>
             </View>
           )}
         </View>
@@ -591,57 +775,33 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.actionButton, isTimePassed && styles.actionButtonUrgent]}
-            onPress={() => {
-              // ✅ Ouvrir le modal de détails du repas (comme dans NutritionScreen)
-              setShowMealDetailModal(true);
+            style={[styles.actionButton, isCompleting && styles.actionButtonDisabled]}
+            onPress={async () => {
+              // ✅ Compléter directement le repas sans ouvrir le modal
+              if (nextMealToComplete && !isCompleting) {
+                await handleMealComplete(nextMealToComplete.id);
+                // Le repas suivant s'affichera automatiquement grâce au useMemo de nextMealToComplete
+              }
             }}
             activeOpacity={0.7}
+            disabled={isCompleting}
           >
-            <Text style={styles.actionButtonText}>Compléter ce repas</Text>
-            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+            {isCompleting ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.actionButtonText}>Complétion...</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.actionButtonText}>Compléter ce repas</Text>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ✅ MealDetailModal - Même que NutritionScreen quand on clique sur un repas */}
-      {nextMealToComplete && (
-        <MealDetailModal
-          visible={showMealDetailModal}
-          onClose={() => {
-            setShowMealDetailModal(false);
-            setCompletingMealInModal(null);
-          }}
-          meal={nextMealToComplete}
-          isCompleted={isMealCompleted(
-            nextMealToComplete.id, 
-            propsCompletionData || freshCompletionData || completionStatus, 
-            propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay
-          )}
-          isCompleting={completingMealInModal === nextMealToComplete.id}
-          onComplete={async () => {
-            if (!nextMealToComplete) return;
-            setCompletingMealInModal(nextMealToComplete.id);
-            try {
-              await handleMealComplete(nextMealToComplete.id);
-              // Rafraîchir le statut après complétion
-              const planToUse = propsCurrentPlan || currentPlan;
-              if (planToUse?.id) {
-                try {
-                  const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
-                  const globalCompletionData = apiResponse?.data || apiResponse;
-                  setFreshCompletionData(globalCompletionData);
-                  setCompletionStatus(globalCompletionData);
-                } catch (error) {
-                  console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut:', error);
-                }
-              }
-            } finally {
-              setCompletingMealInModal(null);
-            }
-          }}
-        />
-      )}
+      {/* ✅ MealDetailModal retiré - On complète directement sans ouvrir le modal */}
     </View>
   );
 };
@@ -702,6 +862,42 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
+  mealImagePlaceholder: {
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mealImagePlaceholderText: {
+    fontSize: 64,
+  },
+  videoButtonOverlay: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  videoButtonBadge: {
+    backgroundColor: '#FF0000', // ✅ Rouge YouTube
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  videoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   timerOverlay: {
     position: 'absolute',
     top: 12,
@@ -718,38 +914,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  timerOverlayUrgent: {
-    backgroundColor: '#FF4444',
-  },
   timerText: {
     fontSize: 12,
     fontWeight: '600',
     color: theme.colors.text.primary,
     marginLeft: 6,
-  },
-  timerTextUrgent: {
-    color: '#FFFFFF',
-  },
-  nutritionInfo: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12,
-    gap: 8,
-  },
-  nutritionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 4,
-  },
-  nutritionText: {
-    fontSize: 11,
-    color: theme.colors.text.secondary,
-    marginLeft: 4,
-    fontWeight: '500',
   },
   mealName: {
     fontSize: 18,
@@ -789,8 +958,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 10,
   },
-  actionButtonUrgent: {
-    backgroundColor: '#FF4444',
+  actionButtonDisabled: {
+    opacity: 0.7,
   },
   actionButtonText: {
     color: '#FFFFFF',

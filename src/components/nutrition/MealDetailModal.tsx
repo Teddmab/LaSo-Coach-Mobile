@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,6 +46,10 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   const insets = useSafeAreaInsets();
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [youtubeModalTab, setYoutubeModalTab] = useState<'recipe' | 'ingredients'>('recipe');
+  const [showVideoInHeader, setShowVideoInHeader] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
   // Extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string | null | undefined): string | null => {
@@ -61,10 +66,78 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
     if (visible) {
       setYoutubeModalTab('recipe');
       setYoutubePlaying(false);
+      setShowVideoInHeader(false); // Réinitialiser l'affichage vidéo
     }
   }, [visible]);
 
-  if (!meal) return null;
+  // Animation du bouton vidéo clignotant
+  useEffect(() => {
+    if (youtubeVideoId && !showVideoInHeader) {
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(buttonPulseAnim, {
+            toValue: 1.15,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(buttonPulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+      return () => pulseAnimation.stop();
+    }
+  }, [youtubeVideoId, showVideoInHeader, buttonPulseAnim]);
+
+  // Animation fluide lors du remplacement de l'image par la vidéo
+  useEffect(() => {
+    if (showVideoInHeader) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(1);
+    }
+  }, [showVideoInHeader, fadeAnim, scaleAnim]);
+
+  const handleVideoButtonPress = () => {
+    setShowVideoInHeader(true);
+    setYoutubePlaying(true); // ✅ Lancer directement la vidéo
+    if (__DEV__) {
+      console.log('🎬 [MealDetailModal] Video button pressed, replacing image with video and launching immediately');
+    }
+  };
+
+  if (!meal) {
+    if (__DEV__) {
+      console.warn('⚠️ [MealDetailModal] meal is null, modal will not render');
+    }
+    return null;
+  }
+  
+  if (__DEV__) {
+    console.log('✅ [MealDetailModal] Rendering modal', {
+      visible,
+      mealId: meal.id,
+      mealName: meal.name,
+      isCompleted,
+      hasYoutubeUrl: !!meal.youtubeUrl,
+    });
+  }
 
   const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
 
@@ -98,18 +171,82 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
             <View style={styles.content}>
             {/* Header avec grande image et badge */}
             <View style={styles.header}>
-              {/* Image container avec overlay badge + pouces + close */}
+              {/* Image/Video container avec overlay badge + pouces + close */}
               <View style={styles.imageContainer}>
-                {meal.imageUrl ? (
-                  <Image
-                    source={{ uri: meal.imageUrl }}
-                    style={styles.headerImage}
-                    resizeMode="cover"
-                  />
+                {showVideoInHeader && youtubeVideoId ? (
+                  <Animated.View
+                    style={[
+                      {
+                        width: '100%',
+                        height: '100%',
+                        opacity: fadeAnim,
+                        transform: [{ scale: scaleAnim }],
+                      },
+                    ]}
+                  >
+                    <YoutubePlayer
+                      height={220}
+                      width={Dimensions.get('window').width}
+                      videoId={youtubeVideoId}
+                      play={youtubePlaying} // ✅ Démarre automatiquement car youtubePlaying est true
+                      onChangeState={(event: string) => {
+                        if (event === 'playing') {
+                          setYoutubePlaying(true);
+                        } else if (event === 'paused' || event === 'ended') {
+                          setYoutubePlaying(false);
+                        }
+                      }}
+                      onError={(error: any) => {
+                        Toast.show({
+                          type: 'error',
+                          text1: 'Erreur',
+                          text2: 'Impossible de charger la vidéo'
+                        });
+                      }}
+                      webViewStyle={{ 
+                        opacity: 0.99,
+                        borderRadius: 0,
+                      }}
+                      initialPlayerParams={{
+                        autoplay: true, // ✅ Autoplay activé
+                      }}
+                    />
+                  </Animated.View>
                 ) : (
-                  <View style={styles.placeholderImage}>
-                    <Text style={styles.placeholderText}>🍽️</Text>
-                  </View>
+                  <>
+                    {meal.imageUrl ? (
+                      <Image
+                        source={{ uri: meal.imageUrl }}
+                        style={styles.headerImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.placeholderImage}>
+                        <Text style={styles.placeholderText}>🍽️</Text>
+                      </View>
+                    )}
+                    
+                    {/* Bouton vidéo clignotant si vidéo disponible */}
+                    {youtubeVideoId && (
+                      <TouchableOpacity
+                        style={styles.videoButtonOverlay}
+                        onPress={handleVideoButtonPress}
+                        activeOpacity={0.8}
+                      >
+                        <Animated.View
+                          style={[
+                            styles.videoButtonBadge,
+                            {
+                              transform: [{ scale: buttonPulseAnim }],
+                            },
+                          ]}
+                        >
+                          <Ionicons name="play-circle" size={24} color="#FFFFFF" />
+                          <Text style={styles.videoButtonText}>Voir la vidéo</Text>
+                        </Animated.View>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
                 
                 {/* Overlay: Badge + Pouces à gauche, Close button à droite */}
@@ -178,40 +315,9 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
               </View>
             </View>
             
-            {/* Contenu avec vidéo YouTube et tabs fixes */}
+            {/* Contenu avec tabs fixes */}
             <View style={styles.bodyContainer}>
-              {/* YouTube Video - Fixe, ne scroll pas */}
-              {youtubeVideoId && (() => {
-                const screenWidth = Dimensions.get('window').width;
-                const videoWidth = screenWidth - 32;
-                const videoHeight = Math.round((videoWidth * 9) / 16);
-                
-                return (
-                  <View style={[styles.youtubePlayerContainer, { width: videoWidth, alignSelf: 'center', marginTop: 16, marginBottom: 0 }]}>
-                    <YoutubePlayer
-                      height={videoHeight}
-                      width={videoWidth}
-                      videoId={youtubeVideoId}
-                      play={youtubePlaying}
-                      onChangeState={(event: string) => {
-                        if (event === 'playing') {
-                          setYoutubePlaying(true);
-                        } else if (event === 'paused' || event === 'ended') {
-                          setYoutubePlaying(false);
-                        }
-                      }}
-                      onError={(error: any) => {
-                        Toast.show({
-                          type: 'error',
-                          text1: 'Erreur',
-                          text2: 'Impossible de charger la vidéo'
-                        });
-                      }}
-                      webViewStyle={{ opacity: 0.99 }}
-                    />
-                  </View>
-                );
-              })()}
+              {/* ✅ Vidéo retirée du bas - elle est maintenant dans le header à la place de l'image */}
               
               {/* Navigation Tabs - Fixes, ne scrollent pas */}
               <View style={styles.tabsContainer}>
@@ -341,16 +447,11 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                 style={[
                   styles.completeButton, 
                   isCompleted && styles.completeButtonCompleted,
-                  isCompleting && styles.completeButtonDisabled
+                  (isCompleting || isCompleted) && styles.completeButtonDisabled
                 ]}
                 onPress={async () => {
                   if (isCompleted) {
-                    Toast.show({
-                      type: 'info',
-                      text1: 'Repas déjà complété',
-                      text2: 'Ce repas a déjà été marqué comme complété',
-                      visibilityTime: 2000,
-                    });
+                    // ✅ Ne plus afficher de Toast, le bouton est désactivé
                     return;
                   }
                   
@@ -368,7 +469,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                     });
                   }
                 }}
-                disabled={isCompleting}
+                disabled={isCompleted || isCompleting}
               >
                 {isCompleting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
@@ -376,7 +477,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                   <>
                     <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
                     <Text style={styles.completeButtonText}>
-                      Repas complété
+                      Ce repas est complété
                     </Text>
                   </>
                 ) : (
@@ -461,6 +562,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  videoButtonOverlay: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  videoButtonBadge: {
+    backgroundColor: '#FF0000', // ✅ Rouge YouTube
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  videoButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   imageContainer: {
     width: '100%',
@@ -677,10 +806,10 @@ const styles = StyleSheet.create({
     marginBottom: 4, // Réduit de 8 à 4 pour rapprocher du logo
   },
   completeButtonCompleted: {
-    backgroundColor: '#FFA500', // Orange/Jaune pour "Repas complété" (comme dans le backup)
+    backgroundColor: '#FFA500', // Orange pour "Ce repas est complété"
   },
   completeButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7, // ✅ Légèrement plus visible pour le bouton complété (orange)
   },
   completeButtonText: {
     color: '#FFFFFF',

@@ -28,17 +28,50 @@ const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, on
     const uniqueAvatars = [];
     const seenUserIds = new Set();
     
+    if (__DEV__) {
+      console.log('🔍 [LAgoraCard] Posts data:', {
+        postsCount: posts.length,
+        firstPost: posts[0] ? {
+          id: posts[0].id,
+          userId: posts[0].userId,
+          user: posts[0].user,
+          hasUser: !!posts[0].user,
+          userKeys: posts[0].user ? Object.keys(posts[0].user) : [],
+        } : null,
+      });
+    }
+    
     for (const post of posts) {
       const userId = post.user?.id || post.userId;
-      const avatar = post.user?.avatar;
+      // ✅ Vérifier plusieurs chemins possibles pour l'avatar
+      const avatar = post.user?.avatar || post.user?.profilePicture || post.user?.imageUrl || post.user?.avatarUrl;
+      
+      if (__DEV__ && userId && !avatar) {
+        console.warn('⚠️ [LAgoraCard] Post without avatar:', {
+          postId: post.id,
+          userId,
+          user: post.user,
+        });
+      }
       
       if (userId && avatar && !seenUserIds.has(userId) && uniqueAvatars.length < 5) {
-        uniqueAvatars.push(avatar);
+        uniqueAvatars.push({
+          id: userId,
+          avatar: avatar
+        });
         seenUserIds.add(userId);
       }
     }
     
-    return uniqueAvatars;
+    if (__DEV__) {
+      console.log('✅ [LAgoraCard] Extracted avatars:', {
+        count: uniqueAvatars.length,
+        avatars: uniqueAvatars.map(a => a.avatar),
+      });
+    }
+    
+    // ✅ Retourner seulement les URLs des avatars pour l'affichage
+    return uniqueAvatars.map(item => item.avatar);
   }, [posts]);
 
   const handleCardPress = () => {
@@ -94,25 +127,35 @@ const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, on
               </View>
             </View>
 
-            {/* Photos de profil empilées (max 5) */}
-            {userAvatars.length > 0 ? (
-              <View style={styles.avatarsContainer}>
-                {userAvatars.map((avatar, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri: avatar }}
-                    style={styles.avatar}
-                  />
-                ))}
-                {posts && posts.length > 5 && (
-                  <View style={styles.moreAvatars}>
-                    <Text style={styles.moreAvatarsText}>+{posts.length - 5}</Text>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>Rejoignez la communauté</Text>
-            )}
+            {/* Photos de profil empilées (max 5) - Toujours afficher en bas */}
+            <View style={styles.avatarsSection}>
+              <Text style={styles.joinText}>Rejoignez la communauté</Text>
+              {userAvatars.length > 0 ? (
+                <View style={styles.avatarsContainer}>
+                  {userAvatars.map((avatar, index) => (
+                    <Image
+                      key={index}
+                      source={{ uri: avatar }}
+                      style={[
+                        styles.avatar,
+                        { marginLeft: index > 0 ? -12 : 0 } // Empiler les avatars avec chevauchement
+                      ]}
+                    />
+                  ))}
+                  {posts && posts.length > 5 && (
+                    <View style={[styles.moreAvatars, { marginLeft: -12 }]}>
+                      <Text style={styles.moreAvatarsText}>+{posts.length - 5}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.placeholderAvatars}>
+                  <View style={styles.placeholderAvatar} />
+                  <View style={styles.placeholderAvatar} />
+                  <View style={styles.placeholderAvatar} />
+                </View>
+              )}
+            </View>
           </>
         )}
       </View>
@@ -184,41 +227,58 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
   },
+  avatarsSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  joinText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 12,
+  },
   avatarsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
-    gap: 8, // Espacement entre les avatars alignés
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#E8E8E8',
+    borderColor: '#FFFFFF',
     backgroundColor: '#F0F0F0',
   },
   moreAvatars: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: theme.colors.primary + '20',
     borderWidth: 2,
-    borderColor: '#E8E8E8',
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   moreAvatarsText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: theme.colors.primary,
   },
-  emptyText: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    fontStyle: 'italic',
-    marginTop: 8,
+  placeholderAvatars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  placeholderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8E8E8',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   loadingContainer: {
     alignItems: 'center',

@@ -11,7 +11,7 @@ interface MealsListProps {
   today: Date;
   formatDate: (date: Date) => string;
   isSameDate: (date1: Date, date2: Date) => boolean;
-  isMealCompleted: (mealId: string, completionData: any, planDay?: number) => boolean;
+  isMealCompleted: (mealId: string, completionData: any, planDay?: number, targetDate?: Date) => boolean;
   completionData: any;
   currentPlanDay?: number;
   selectedMeal: Meal | null;
@@ -55,6 +55,8 @@ export const MealsList: React.FC<MealsListProps> = ({
         <Text style={nutritionStyles.mealsSectionTitle}>{dayLabel}</Text>
       </View>
       {sortMealsByType(meals).map((meal: Meal) => {
+        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
+        // La vérification de date exacte est réservée à isMealCompletedForDate (pour les past meals)
         const isCompleted = isMealCompleted(meal.id, completionData, currentPlanDay);
         const isSelected = selectedMeal?.id === meal.id;
         

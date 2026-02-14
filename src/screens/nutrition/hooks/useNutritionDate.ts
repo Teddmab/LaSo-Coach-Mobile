@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { WeekDay, SubscriptionData, NutritionPlan } from '../types';
 import { calculatePlanDayFromDate } from '../utils/dateCalculations';
 
@@ -120,6 +120,64 @@ export const useNutritionDate = (
     
     return planDay;
   }, [currentPlan, subscriptionData]);
+
+  // ✅ CORRECTION: Ne plus réinitialiser automatiquement selectedDate
+  // L'utilisateur doit pouvoir naviguer librement dans le calendrier
+  // On ne réinitialise que si la date sélectionnée est dans le passé (passé minuit)
+  // et seulement si l'utilisateur n'a pas sélectionné manuellement une date future
+  useEffect(() => {
+    const checkDateChange = () => {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      
+      const selectedDateNormalized = new Date(selectedDate);
+      selectedDateNormalized.setHours(0, 0, 0, 0);
+      
+      // ✅ CORRECTION: Ne réinitialiser QUE si la date sélectionnée est dans le passé
+      // (c'est-à-dire si on a passé minuit et que la date sélectionnée était hier ou avant)
+      // Mais NE PAS réinitialiser si l'utilisateur a sélectionné une date future
+      if (selectedDateNormalized < now) {
+        // La date sélectionnée est dans le passé, on peut la mettre à jour
+        if (__DEV__) {
+          console.log('📅 [useNutritionDate] Date dans le passé, mise à jour automatique:', {
+            oldDate: selectedDateNormalized.toISOString().split('T')[0],
+            newDate: now.toISOString().split('T')[0],
+          });
+        }
+        setSelectedDate(now);
+      }
+      // ✅ Si selectedDate est aujourd'hui ou dans le futur, on ne fait rien
+      // L'utilisateur peut naviguer librement dans le calendrier
+    };
+    
+    // Vérifier toutes les minutes pour détecter le changement de jour
+    const interval = setInterval(checkDateChange, 60000); // Toutes les minutes
+    
+    return () => clearInterval(interval);
+    // ✅ CORRECTION: Ne pas inclure selectedDate dans les dépendances pour éviter les boucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ✅ Calculer automatiquement currentPlanDay quand currentPlan, selectedDate ou subscriptionData changent
+  useEffect(() => {
+    if (currentPlan && selectedDate) {
+      const calculatedDay = calculateNutritionPlanDay(selectedDate);
+      // Toujours mettre à jour pour garantir que le bon jour est calculé dès que currentPlan est disponible
+      setCurrentPlanDay(calculatedDay);
+      if (__DEV__) {
+        console.log('📅 [useNutritionDate] currentPlanDay calculé automatiquement:', {
+          calculatedDay,
+          selectedDate: selectedDate.toISOString().split('T')[0],
+          planStartDate: subscriptionData?.subscription?.startDate || currentPlan?.startDate,
+          planNumDays: currentPlan.numDays,
+          currentPlanId: currentPlan.id,
+        });
+      }
+    } else if (!currentPlan && currentPlanDay !== undefined) {
+      // Réinitialiser si le plan n'est plus disponible
+      setCurrentPlanDay(undefined);
+    }
+  }, [currentPlan, selectedDate, subscriptionData, calculateNutritionPlanDay]);
 
   // Format date helper
   const formatDate = useCallback((date: Date): string => {

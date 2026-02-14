@@ -46,6 +46,7 @@ interface DashboardLayoutProps {
   nutritionCurrentPlanDay?: number;
   nutritionCompletionData?: any;
   nutritionCurrentPlan?: any;
+  onNutritionMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -84,6 +85,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   nutritionCurrentPlanDay,
   nutritionCompletionData,
   nutritionCurrentPlan,
+  onNutritionMealComplete,
 }) => {
   const insets = useSafeAreaInsets();
   // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
@@ -144,6 +146,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           nutritionCurrentPlanDay={nutritionCurrentPlanDay}
           nutritionCompletionData={nutritionCompletionData}
           nutritionCurrentPlan={nutritionCurrentPlan}
+          onNutritionMealComplete={onNutritionMealComplete}
         />
       </View>
 
