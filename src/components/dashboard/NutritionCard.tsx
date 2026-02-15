@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Platform,
   Animated,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -23,6 +24,14 @@ import { Meal, NutritionPlan, CompletionStatus } from '../../screens/nutrition/t
 // ✅ MealDetailModal retiré - On complète directement sans modal
 import Toast from 'react-native-toast-message';
 import { nutritionSync } from '../../utils/nutritionSync';
+
+// Haptics is optional
+let Haptics: any = null;
+try {
+  Haptics = require('expo-haptics');
+} catch (e) {
+  // Haptics not available
+}
 
 interface NutritionCardProps {
   onPress?: () => void;
@@ -406,6 +415,48 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   const youtubeVideoId = nextMealToComplete?.youtubeUrl ? getYouTubeVideoId(nextMealToComplete.youtubeUrl) : null;
   const hasVideo = !!youtubeVideoId;
 
+  // ✅ Animations pour la carte de félicitations - DÉPLACÉ ICI pour respecter les règles des hooks
+  // Ces hooks doivent être déclarés AVANT tous les retours conditionnels
+  const celebrationScale = useRef(new Animated.Value(0.8)).current;
+  const celebrationOpacity = useRef(new Animated.Value(0)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
+
+  // ✅ Détecter quand tous les repas sont complétés pour déclencher l'animation
+  const allMealsCompleted = !nextMealToComplete && dayMeals.length > 0;
+  
+  useEffect(() => {
+    if (allMealsCompleted) {
+      // Animation d'entrée avec rebond (sans rotation)
+      Animated.parallel([
+        Animated.spring(celebrationScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(celebrationOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.spring(iconScale, {
+            toValue: 1.2,
+            tension: 100,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+          Animated.spring(iconScale, {
+            toValue: 1,
+            tension: 100,
+            friction: 3,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+    }
+  }, [allMealsCompleted, celebrationScale, celebrationOpacity, iconScale]);
+
   // Animation du bouton clignotant - TOUJOURS appelé (même si hasVideo est false)
   useEffect(() => {
     if (hasVideo && !showVideoInCard) {
@@ -471,6 +522,35 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
 
   // ✅ Compléter un repas - Utiliser le callback de DashboardScreen si disponible (même logique que NutritionScreen)
   const handleMealComplete = useCallback(async (mealId: string) => {
+    // ✅ Vibration progressive avec dégradation
+    if (Haptics) {
+      // Vibration initiale forte
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Puis vibrations progressives avec dégradation
+      for (let i = 1; i < 5; i++) {
+        setTimeout(() => {
+          // Dégradation progressive : Medium -> Light -> Light
+          const intensity = i < 2 
+            ? Haptics.ImpactFeedbackStyle.Medium 
+            : Haptics.ImpactFeedbackStyle.Light;
+          Haptics.impactAsync(intensity);
+        }, i * 60); // Délai progressif
+      }
+    } else if (Platform.OS === 'android') {
+      // Fallback pour Android - vibration progressive
+      const { Vibration } = require('react-native');
+      Vibration.vibrate(120); // Vibration initiale plus longue
+      
+      // Vibrations progressives avec dégradation
+      for (let i = 1; i < 5; i++) {
+        setTimeout(() => {
+          const duration = i < 2 ? 80 - (i * 5) : 60 - (i * 3); // Dégradation progressive
+          Vibration.vibrate(Math.max(30, duration)); // Minimum 30ms
+        }, i * 60);
+      }
+    }
+    
     // ✅ Démarrer l'animation de loader
     setIsCompleting(true);
     
@@ -620,17 +700,63 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         }}
         activeOpacity={0.7}
       >
-        <View style={[styles.card, styles.completedCard]}>
+        <Animated.View 
+          style={[
+            styles.card, 
+            styles.completedCard,
+            {
+              opacity: celebrationOpacity,
+              transform: [{ scale: celebrationScale }],
+            }
+          ]}
+        >
           <View style={styles.completedContent}>
-            <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
-            <Text style={styles.completedTitle}>Tous les repas complétés !</Text>
-            <Text style={styles.completedSubtitle}>Bravo pour votre journée 🎉</Text>
+            {/* ✅ Icône animée sans rotation */}
+            <Animated.View
+              style={{
+                transform: [
+                  { scale: iconScale },
+                ],
+              }}
+            >
+              <View style={styles.celebrationIconContainer}>
+                <Ionicons name="trophy" size={56} color="#FFD700" />
+              </View>
+            </Animated.View>
+            
+            {/* ✅ Titre principal */}
+            <Text style={styles.completedTitle}>
+              Félicitations !
+            </Text>
+            
+            {/* ✅ Sous-titre avec message motivant */}
+            <Text style={styles.completedSubtitle}>
+              Vous avez complété tous les repas de la journée !
+            </Text>
+            <Text style={styles.completedMessage}>
+              Continuez comme ça, vous êtes sur la bonne voie !
+            </Text>
+            
+            {/* ✅ Statistiques du jour */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Ionicons name="restaurant" size={20} color={theme.colors.primary} />
+                <Text style={styles.statText}>{dayMeals.length} repas</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                <Text style={styles.statText}>100% complété</Text>
+              </View>
+            </View>
+            
+            {/* ✅ Bouton pour voir le menu */}
             <View style={styles.viewAllButton}>
               <Text style={styles.viewAllButtonText}>Voir le menu complet</Text>
-              <Ionicons name="arrow-forward" size={16} color={theme.colors.primary} />
+              <Ionicons name="arrow-forward-circle" size={20} color={theme.colors.primary} />
             </View>
           </View>
-        </View>
+        </Animated.View>
       </TouchableOpacity>
     );
   }
@@ -967,38 +1093,91 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginRight: 8,
   },
-  // Completed state
+  // Completed state - Design amélioré avec animations
   completedCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    backgroundColor: '#F8F9FA', // Fond clair et élégant
+    borderWidth: 2,
+    borderColor: '#4CAF50',
   },
   completedContent: {
     alignItems: 'center',
+    width: '100%',
+  },
+  celebrationIconContainer: {
+    position: 'relative',
+    marginBottom: 20,
   },
   completedTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: theme.colors.text.primary,
-    marginTop: 16,
+    marginTop: 8,
     marginBottom: 8,
+    textAlign: 'center',
   },
   completedSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  completedMessage: {
     fontSize: 14,
     color: theme.colors.text.secondary,
-    marginBottom: 20,
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    width: '100%',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: 16,
   },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   viewAllButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.primary,
-    marginRight: 4,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   // Locked state
   lockedContainer: {

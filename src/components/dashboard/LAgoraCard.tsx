@@ -42,15 +42,21 @@ const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, on
     }
     
     for (const post of posts) {
-      const userId = post.user?.id || post.userId;
-      // ✅ Vérifier plusieurs chemins possibles pour l'avatar
-      const avatar = post.user?.avatar || post.user?.profilePicture || post.user?.imageUrl || post.user?.avatarUrl;
+      // ✅ Gérer les deux formats : user (minuscule) et User (majuscule)
+      const userData = post.user || post.User || {};
+      const userId = userData.id || post.userId || post.authorId || post.createdBy;
       
-      if (__DEV__ && userId && !avatar) {
-        console.warn('⚠️ [LAgoraCard] Post without avatar:', {
+      // ✅ Vérifier plusieurs chemins possibles pour l'avatar
+      const avatar = userData.avatar || userData.profilePicture || userData.imageUrl || userData.avatarUrl;
+      
+      // Ne pas logger si le post n'a simplement pas d'avatar (c'est normal pour certains utilisateurs)
+      // Seulement logger si le post a un userId mais pas d'objet user du tout
+      if (__DEV__ && post.userId && !post.user && !post.User) {
+        console.warn('⚠️ [LAgoraCard] Post without user object:', {
           postId: post.id,
-          userId,
-          user: post.user,
+          userId: post.userId,
+          hasUser: !!post.user,
+          hasUserCapital: !!post.User,
         });
       }
       
@@ -109,55 +115,57 @@ const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, on
 
       {/* Body - Grande icône de conversation avec photos de profil empilées */}
       <View style={styles.body}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ShimmerCard />
+        {/* Grande icône de bulle de conversation avec effet de fond */}
+        <View style={styles.iconContainer}>
+          <View style={styles.iconBackground}>
+            {loading ? (
+              <ShimmerCard />
+            ) : (
+              <LottieView
+                source={require('../../../assets/artychat.json')}
+                style={styles.chatAnimation}
+                autoPlay
+                loop
+              />
+            )}
           </View>
-        ) : (
-          <>
-            {/* Grande icône de bulle de conversation avec effet de fond */}
-            <View style={styles.iconContainer}>
-              <View style={styles.iconBackground}>
-                <LottieView
-                  source={require('../../../assets/artychat.json')}
-                  style={styles.chatAnimation}
-                  autoPlay
-                  loop
-                />
-              </View>
-            </View>
+        </View>
 
-            {/* Photos de profil empilées (max 5) - Toujours afficher en bas */}
-            <View style={styles.avatarsSection}>
-              <Text style={styles.joinText}>Rejoignez la communauté</Text>
-              {userAvatars.length > 0 ? (
-                <View style={styles.avatarsContainer}>
-                  {userAvatars.map((avatar, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri: avatar }}
-                      style={[
-                        styles.avatar,
-                        { marginLeft: index > 0 ? -12 : 0 } // Empiler les avatars avec chevauchement
-                      ]}
-                    />
-                  ))}
-                  {posts && posts.length > 5 && (
-                    <View style={[styles.moreAvatars, { marginLeft: -12 }]}>
-                      <Text style={styles.moreAvatarsText}>+{posts.length - 5}</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.placeholderAvatars}>
-                  <View style={styles.placeholderAvatar} />
-                  <View style={styles.placeholderAvatar} />
-                  <View style={styles.placeholderAvatar} />
+        {/* Photos de profil empilées (max 5) - Toujours afficher en bas */}
+        <View style={styles.avatarsSection}>
+          <Text style={styles.joinText}>Rejoignez la communauté</Text>
+          {loading ? (
+            <View style={styles.placeholderAvatars}>
+              <View style={styles.placeholderAvatar} />
+              <View style={styles.placeholderAvatar} />
+              <View style={styles.placeholderAvatar} />
+            </View>
+          ) : userAvatars.length > 0 ? (
+            <View style={styles.avatarsContainer}>
+              {userAvatars.map((avatar, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: avatar }}
+                  style={[
+                    styles.avatar,
+                    { marginLeft: index > 0 ? -12 : 0 } // Empiler les avatars avec chevauchement
+                  ]}
+                />
+              ))}
+              {posts && posts.length > 5 && (
+                <View style={[styles.moreAvatars, { marginLeft: -12 }]}>
+                  <Text style={styles.moreAvatarsText}>+{posts.length - 5}</Text>
                 </View>
               )}
             </View>
-          </>
-        )}
+          ) : (
+            <View style={styles.placeholderAvatars}>
+              <View style={styles.placeholderAvatar} />
+              <View style={styles.placeholderAvatar} />
+              <View style={styles.placeholderAvatar} />
+            </View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );

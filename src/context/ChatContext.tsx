@@ -332,80 +332,85 @@ export const ChatProvider = ({ children }) => {
    * CRITICAL: Never show notifications for messages sent by the current user
    */
   const showMessageNotification = useCallback(async (message, conversation) => {
-    // CRITICAL: Double-check that this message is NOT from the current user
-    // This is a safety check before showing any notification
-    const currentUserId = user?.id || user?.uid;
-    const currentUserEmail = user?.email;
-    const messageSenderId = message.senderId || message.sender?.id || message.sender?.userId;
-    const messageSenderEmail = message.sender?.email;
+    // ✅ Fonction helper pour obtenir l'ID utilisateur actuel
+    const getCurrentUserId = () => {
+      return user?.id || user?.uid || (user as any)?.userId || '';
+    };
     
-    // Convert to strings for comparison
-    const currentUserIdStr = currentUserId ? String(currentUserId) : null;
-    const messageSenderIdStr = messageSenderId ? String(messageSenderId) : null;
+    // ✅ Fonction helper pour obtenir l'ID de l'expéditeur du message
+    // Vérifier TOUS les champs possibles où l'ID peut être stocké
+    const getMessageSenderId = () => {
+      return message.senderId || 
+             message.sender?.id || 
+             message.sender?.userId ||
+             message.userId ||
+             (message.sender as any)?.uid ||
+             '';
+    };
     
-    // Check if sender matches current user
-    const idMatch = currentUserIdStr && messageSenderIdStr && (
-      messageSenderIdStr === currentUserIdStr ||
-      messageSenderIdStr.includes(currentUserIdStr) ||
-      currentUserIdStr.includes(messageSenderIdStr)
-    );
+    // ✅ Obtenir les IDs et emails pour comparaison
+    const currentUserId = getCurrentUserId();
+    const messageSenderId = getMessageSenderId();
+    const currentUserEmail = user?.email?.toLowerCase()?.trim() || '';
+    const messageSenderEmail = message.sender?.email?.toLowerCase()?.trim() || '';
     
+    // ✅ Normaliser en strings pour comparaison
+    const currentUserIdStr = String(currentUserId || '').trim();
+    const messageSenderIdStr = String(messageSenderId || '').trim();
+    
+    // ✅ Comparaison par ID - vérifier TOUTES les combinaisons possibles
+    let idMatch = false;
+    if (currentUserIdStr && messageSenderIdStr) {
+      // Comparaison exacte
+      idMatch = currentUserIdStr === messageSenderIdStr;
+      
+      // Si pas de match exact, vérifier si les IDs sont équivalents même avec des formats différents
+      if (!idMatch && (currentUserIdStr.length > 0 && messageSenderIdStr.length > 0)) {
+        const currentIdNormalized = currentUserIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const senderIdNormalized = messageSenderIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        idMatch = currentIdNormalized === senderIdNormalized && currentIdNormalized.length > 0;
+      }
+    }
+    
+    // ✅ Comparaison par email (exact match uniquement)
     const emailMatch = currentUserEmail && messageSenderEmail && 
-      currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
+      currentUserEmail === messageSenderEmail;
     
-    // If this is our own message, don't show notification
+    // ✅ Si c'est notre propre message, ne pas afficher de notification
     if (idMatch || emailMatch) {
-      return; // Don't show notification for own messages
+      console.log('🔕 [showMessageNotification] Blocked notification for own message:', {
+        messageId: message.id,
+        senderId: messageSenderIdStr,
+        currentUserId: currentUserIdStr,
+        idMatch,
+        emailMatch,
+      });
+      return; // Ne pas afficher de notification pour ses propres messages
     }
     
     try {
-      // CRITICAL: Double-check that this is NOT from the current user
-      // This is a safety check in case the caller didn't check properly
-      const currentUserId = user?.id || user?.uid || user?.userId;
-      const currentUserEmail = user?.email;
-      const messageSenderId = message.senderId || message.sender?.id || message.sender?.userId;
-      const messageSenderEmail = message.sender?.email;
-      
-      // Convert both to strings for comparison
-      const currentUserIdStr = currentUserId ? String(currentUserId) : null;
-      const messageSenderIdStr = messageSenderId ? String(messageSenderId) : null;
-      
-      // Check if sender matches current user
-      const idMatch = currentUserIdStr && messageSenderIdStr && (
-        messageSenderIdStr === currentUserIdStr ||
-        messageSenderIdStr.includes(currentUserIdStr) ||
-        currentUserIdStr.includes(messageSenderIdStr)
-      );
-      
-      const emailMatch = currentUserEmail && messageSenderEmail && 
-        currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
-      
-      const isFromCurrentUser = idMatch || emailMatch;
-      
-      // CRITICAL: Never show notification for own messages
-      if (isFromCurrentUser) {
-        console.log('🔕 [showMessageNotification] Blocked notification for own message:', {
-          messageId: message.id,
-          senderId: messageSenderIdStr,
-          currentUserId: currentUserIdStr,
-        });
-        return; // Don't show notification for own messages
-      }
       
       const senderName = message.sender?.name || 
                         message.sender?.firstName || 
                         conversation?.name || 
-                        'Someone';
-      const messagePreview = message.content?.substring(0, 100) || 'New message';
+                        'Quelqu\'un';
+      const messagePreview = message.content?.substring(0, 100) || 'Nouveau message';
       
+      // ✅ Importer les fonctions de traduction
+      const { translateNotificationTitle, translateNotificationMessage } = require('../screens/notifications/utils/notificationUtils');
       
       const notifications = getNotifications();
       if (!notifications) return;
       
+      // ✅ Traduire le titre et le message en français
+      // Construire le titre en français directement
+      const title = `Nouveau message de ${senderName}`;
+      const body = translateNotificationMessage(messagePreview);
+      
       await notifications.scheduleNotificationAsync({
         content: {
-          title: `New message from ${senderName}`,
-          body: messagePreview,
+          title: title,
+          body: body,
           data: { 
             chatId: message.chatId || message.chat?.id,
             messageId: message.id,
@@ -436,33 +441,83 @@ export const ChatProvider = ({ children }) => {
       return;
     }
 
-    // Get current user ID for comparison - check multiple possible ID fields
-    // Backend might use database user ID (from profile) vs Firebase UID
-    const currentUserId = user?.id || user?.uid || user?.userId;
-    const currentUserEmail = user?.email;
+    // ✅ Fonction helper pour obtenir l'ID utilisateur actuel
+    const getCurrentUserId = () => {
+      return user?.id || user?.uid || (user as any)?.userId || '';
+    };
     
-    // Check multiple possible sender ID fields (backend might use different ID format)
-    // Backend might use database ID (integer) vs Firebase UID (string)
-    const messageSenderId = message.senderId || message.sender?.id || message.sender?.userId;
-    const messageSenderEmail = message.sender?.email;
+    // ✅ Fonction helper pour obtenir l'ID de l'expéditeur du message
+    // Vérifier TOUS les champs possibles où l'ID peut être stocké
+    const getMessageSenderId = () => {
+      // Vérifier dans l'ordre de priorité
+      return message.senderId || 
+             message.sender?.id || 
+             message.sender?.userId ||
+             message.userId ||
+             (message.sender as any)?.uid ||
+             '';
+    };
     
-    // CRITICAL: Comprehensive check - compare by ID (multiple formats) OR by email
-    // Convert both to strings for comparison to handle integer vs string mismatches
-    const currentUserIdStr = currentUserId ? String(currentUserId) : null;
-    const messageSenderIdStr = messageSenderId ? String(messageSenderId) : null;
+    // ✅ Obtenir les IDs et emails pour comparaison
+    const currentUserId = getCurrentUserId();
+    const messageSenderId = getMessageSenderId();
+    const currentUserEmail = user?.email?.toLowerCase()?.trim() || '';
+    const messageSenderEmail = message.sender?.email?.toLowerCase()?.trim() || '';
     
-    // Try multiple ID comparison strategies
-    const idMatch = currentUserIdStr && messageSenderIdStr && (
-      messageSenderIdStr === currentUserIdStr ||
-      // Also check if one is a substring of the other (handles UUID vs short ID)
-      messageSenderIdStr.includes(currentUserIdStr) ||
-      currentUserIdStr.includes(messageSenderIdStr)
-    );
+    // ✅ Normaliser en strings pour comparaison
+    const currentUserIdStr = String(currentUserId || '').trim();
+    const messageSenderIdStr = String(messageSenderId || '').trim();
     
+    // ✅ Comparaison par ID - vérifier TOUTES les combinaisons possibles
+    let idMatch = false;
+    if (currentUserIdStr && messageSenderIdStr) {
+      // Comparaison exacte
+      idMatch = currentUserIdStr === messageSenderIdStr;
+      
+      // Si pas de match exact, vérifier si l'un contient l'autre (pour gérer les formats différents)
+      if (!idMatch && (currentUserIdStr.length > 0 && messageSenderIdStr.length > 0)) {
+        // Vérifier si les IDs sont équivalents même avec des formats différents
+        const currentIdNormalized = currentUserIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const senderIdNormalized = messageSenderIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        idMatch = currentIdNormalized === senderIdNormalized && currentIdNormalized.length > 0;
+      }
+    }
+    
+    // ✅ Comparaison par email (exact match uniquement)
     const emailMatch = currentUserEmail && messageSenderEmail && 
-      currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
+      currentUserEmail === messageSenderEmail;
     
     const isFromCurrentUser = idMatch || emailMatch;
+    
+    // ✅ Log pour debug - TOUJOURS logger pour voir ce qui se passe
+    console.log('🔍 [handleNewMessage] Vérification expéditeur:', {
+      messageId: message.id,
+      currentUserIdStr,
+      messageSenderIdStr,
+      currentUserEmail,
+      messageSenderEmail,
+      idMatch,
+      emailMatch,
+      isFromCurrentUser,
+      user: {
+        id: user?.id,
+        uid: user?.uid,
+        userId: (user as any)?.userId,
+        email: user?.email,
+      },
+      message: {
+        senderId: message.senderId,
+        sender: {
+          id: message.sender?.id,
+          userId: message.sender?.userId,
+          email: message.sender?.email,
+        },
+      },
+    });
+    
+    if (isFromCurrentUser) {
+      console.log('🔕 [handleNewMessage] Message from current user - skipping notification');
+    }
     
     // Enhanced logging to debug ID mismatches
     
@@ -483,9 +538,35 @@ export const ChatProvider = ({ children }) => {
       
       // Check if message already exists (avoid duplicates)
       // Also check if this real message should replace an optimistic one
-      const existingMessageIndex = existingMessages.findIndex(m => m.id === message.id);
+      // ✅ Vérifier par ID ET par contenu + timestamp pour éviter les doublons
+      const existingMessageIndex = existingMessages.findIndex(m => {
+        // Vérifier par ID d'abord (le plus fiable)
+        if (m.id === message.id) {
+          return true;
+        }
+        // Vérifier par contenu + timestamp si les IDs ne correspondent pas (cas de messages optimistes)
+        if (m.content === message.content && 
+            m.chatId === chatId &&
+            Math.abs(new Date(m.createdAt || 0).getTime() - new Date(message.createdAt || 0).getTime()) < 5000) {
+          return true;
+        }
+        return false;
+      });
+      
       if (existingMessageIndex !== -1) {
         messageWasAddedRef.value = false;
+        // ✅ Si le message existe déjà mais avec un ID différent (message optimiste), le remplacer
+        const existingMessage = existingMessages[existingMessageIndex];
+        if (existingMessage._optimistic && message.id && message.id !== existingMessage.id) {
+          // Remplacer le message optimiste par le vrai message
+          const newMessages = [...existingMessages];
+          newMessages[existingMessageIndex] = message;
+          messageWasAddedRef.value = true;
+          return {
+            ...prev,
+            [chatId]: newMessages,
+          };
+        }
         return prev; // Don't update state for duplicates
       }
       
@@ -552,18 +633,24 @@ export const ChatProvider = ({ children }) => {
       }
       
       // This is a NEW message - add it
-      // CRITICAL: If message is from current user but no optimistic message found,
-      // it might be a duplicate or already processed - skip it to prevent duplicates
-      if (isFromCurrentUser) {
-        messageWasAddedRef.value = false;
-        return prev; // Don't add duplicate messages from current user
-      }
+      // ✅ CORRECTION: Ne pas bloquer les messages du current user si c'est vraiment un nouveau message
+      // Le backend peut renvoyer nos propres messages via WebSocket, et on doit les afficher
+      // On vérifie seulement les doublons par ID (déjà fait ci-dessus), pas par sender
       
       // CRITICAL: Force new array reference to ensure FlatList re-renders
       messageWasAddedRef.value = true;
+      const newMessagesArray = [...(prev[chatId] || []), message];
+      
+      // ✅ Trier les messages par createdAt pour garantir l'ordre chronologique
+      newMessagesArray.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateA - dateB;
+      });
+      
       return {
         ...prev,
-        [chatId]: [...(prev[chatId] || []), message], // Force new array reference
+        [chatId]: newMessagesArray, // Force new array reference
       };
     });
 
@@ -695,22 +782,10 @@ export const ChatProvider = ({ children }) => {
     // Backend automatically increments when message is sent
     // We'll refresh unread count from API when needed
     
-    // CRITICAL: Double-check isFromCurrentUser before showing notifications
-    // This is a safety check in case the earlier check didn't work
-    // Re-check sender identification to be absolutely sure (use same logic as above)
-    const finalIdMatch = currentUserIdStr && messageSenderIdStr && (
-      messageSenderIdStr === currentUserIdStr ||
-      messageSenderIdStr.includes(currentUserIdStr) ||
-      currentUserIdStr.includes(messageSenderIdStr)
-    );
-    
-    const finalEmailMatch = currentUserEmail && messageSenderEmail && 
-      currentUserEmail.toLowerCase().trim() === messageSenderEmail.toLowerCase().trim();
-    
-    const finalIsFromCurrentUser = finalIdMatch || finalEmailMatch;
-    
-    if (finalIsFromCurrentUser) {
-      return; // Exit early - don't show notifications for own messages
+    // ✅ Vérification finale avant d'afficher la notification (double-check)
+    // Cette vérification est redondante mais nécessaire pour la sécurité
+    if (isFromCurrentUser) {
+      return; // Sortir tôt - ne pas afficher de notifications pour ses propres messages
     }
     
     // Show local notification if chat is not active (only for NEW messages from OTHER users)
@@ -769,37 +844,43 @@ export const ChatProvider = ({ children }) => {
   const handleChatNotification = useCallback(async (notification) => {
     // Handle chat message notifications
     if (notification.type === 'CHAT_MESSAGE' || notification.type === 'chat_message') {
-      // CRITICAL: Filter out notifications for messages sent by the current user
-      // Get current user ID - check multiple possible ID fields
-      const currentUserId = user?.id || user?.uid;
-      const currentUserEmail = user?.email;
+      // ✅ CRITICAL: Filtrer les notifications pour les messages envoyés par l'utilisateur actuel
+      // ✅ Fonction helper pour obtenir l'ID utilisateur actuel
+      const getCurrentUserId = () => {
+        return user?.id || user?.uid || (user as any)?.userId || '';
+      };
       
-      // Check multiple possible sender ID fields (backend might use different ID format)
-      const senderId = notification.data?.senderId || 
-                       notification.data?.sender?.id || 
-                       notification.data?.sender?.userId;
-      const senderEmail = notification.data?.sender?.email || 
-                          notification.data?.senderEmail;
+      // ✅ Fonction helper pour obtenir l'ID de l'expéditeur
+      const getSenderId = () => {
+        return notification.data?.senderId || 
+               notification.data?.sender?.id || 
+               notification.data?.sender?.userId || '';
+      };
       
-      // Convert both to strings for comparison to handle integer vs string mismatches
-      const currentUserIdStr = currentUserId ? String(currentUserId) : null;
-      const senderIdStr = senderId ? String(senderId) : null;
+      // ✅ Vérification complète : ID et email (comparaison exacte uniquement)
+      const currentUserIdStr = String(getCurrentUserId() || '').trim();
+      const senderIdStr = String(getSenderId() || '').trim();
+      const currentUserEmail = user?.email?.toLowerCase()?.trim() || '';
+      const senderEmail = (notification.data?.sender?.email || 
+                          notification.data?.senderEmail || '').toLowerCase()?.trim() || '';
       
-      // Try multiple ID comparison strategies
-      const idMatch = currentUserIdStr && senderIdStr && (
-        senderIdStr === currentUserIdStr ||
-        // Also check if one is a substring of the other (handles UUID vs short ID)
-        senderIdStr.includes(currentUserIdStr) ||
-        currentUserIdStr.includes(senderIdStr)
-      );
+      // ✅ Comparaison par ID (exact match uniquement)
+      const idMatch = currentUserIdStr && senderIdStr && 
+        currentUserIdStr === senderIdStr;
       
-      // Also check by email as fallback
+      // ✅ Comparaison par email (exact match uniquement)
       const emailMatch = currentUserEmail && senderEmail && 
-        currentUserEmail.toLowerCase().trim() === senderEmail.toLowerCase().trim();
+        currentUserEmail === senderEmail;
       
-      // If sender matches current user, don't process notification
+      // ✅ Si c'est notre propre message, ne pas traiter la notification
       if (idMatch || emailMatch) {
-        return; // Don't process notification for own messages
+        console.log('🔕 [handleChatNotification] Notification filtrée - message de l\'utilisateur actuel:', {
+          currentUserId: currentUserIdStr,
+          senderId: senderIdStr,
+          idMatch,
+          emailMatch,
+        });
+        return; // Ne pas traiter la notification pour ses propres messages
       }
       
       // Per backend guide: chatId is in notification.data.chatId (NOT directly on notification)
@@ -1052,17 +1133,16 @@ export const ChatProvider = ({ children }) => {
       // Join WebSocket room
       chatSocketService.joinChat(chatId);
 
-      // Load messages if not already loaded
-      if (!messages[chatId]) {
-        await loadMessages(chatId);
-      }
+      // ✅ TOUJOURS recharger les messages pour avoir les derniers messages du backend
+      // Cela garantit que les messages de l'admin sont affichés même s'ils sont arrivés pendant que le chat était fermé
+      await loadMessages(chatId);
 
       // Mark chat as read
       await markChatAsRead(chatId);
     } catch (err) {
       setError(err.message || 'Failed to open chat');
     }
-  }, [messages, loadMessages]);
+  }, [loadMessages]);
 
   /**
    * Close a chat (leave room)

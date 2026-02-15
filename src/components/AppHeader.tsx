@@ -76,15 +76,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             />
           ) : (
             <View style={styles.titleWithIcon}>
-              {/* ✅ Icône pour "Notifications" */}
-              {title === 'Notifications' && (
-                <Ionicons 
-                  name="notifications" 
-                  size={22} 
-                  color={theme.colors.primary} 
-                  style={styles.titleIcon}
-                />
-              )}
               <Text 
                 style={[
                   styles.headerTitle,
@@ -95,6 +86,63 @@ const AppHeader: React.FC<AppHeaderProps> = ({
               >
                 {title}
               </Text>
+              {/* ✅ Icônes à droite du titre pour chaque page */}
+              {title === 'Notifications' && (
+                <Ionicons 
+                  name="notifications" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {title === 'Progression' && (
+                <Ionicons 
+                  name="trending-up" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {title === 'Nutrition' && (
+                <Ionicons 
+                  name="restaurant" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {title === 'Réalisations' && (
+                <Ionicons 
+                  name="trophy" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {title === 'Configurations' && (
+                <Ionicons 
+                  name="settings" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {title === 'FAQ' && (
+                <Ionicons 
+                  name="help-circle" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
+              {(title === 'Profil' || title === 'Profile') && (
+                <Ionicons 
+                  name="person" 
+                  size={22} 
+                  color={theme.colors.primary} 
+                  style={styles.titleIconRight}
+                />
+              )}
             </View>
           )}
           {/* Message d'abonnement expiré sur iOS (sans bouton) */}
@@ -187,6 +235,9 @@ const styles = StyleSheet.create({
   titleIcon: {
     marginRight: 2,
   },
+  titleIconRight: {
+    marginLeft: 8,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -219,6 +270,7 @@ const styles = StyleSheet.create({
     height: 35,
   },
   headerRight: {
+    
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

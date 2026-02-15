@@ -13,7 +13,29 @@ export const useCommunity = () => {
       setLoading(true);
       setError(null);
       const response: any = await CommunityApi.getPosts();
-      setCommunityPosts((response.data as any)?.posts || []);
+      const rawPosts = (response.data as any)?.posts || [];
+      
+      // ✅ Normaliser les posts pour garantir qu'ils ont tous un objet user
+      // Le backend peut retourner soit User (majuscule) soit user (minuscule)
+      const normalizedPosts = rawPosts.map((post: any) => {
+        // Normaliser l'objet user (gérer User majuscule et user minuscule)
+        const userData = post.User || post.user || {};
+        const userId = post.userId || post.authorId || post.createdBy || userData.id;
+        
+        // S'assurer que chaque post a un objet user, même minimal
+        return {
+          ...post,
+          userId: userId,
+          user: {
+            id: userId,
+            ...userData,
+            // S'assurer que l'avatar est accessible via plusieurs chemins
+            avatar: userData.avatar || userData.profilePicture || userData.imageUrl || userData.avatarUrl,
+          },
+        };
+      });
+      
+      setCommunityPosts(normalizedPosts);
     } catch (error: any) {
       setError(error.message || 'Erreur lors du chargement des posts');
     } finally {

@@ -1,8 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
 import { Platform, Linking } from 'react-native';
-import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 import { firebaseOAuthClientIds } from '../config/firebaseApp';
 import { useAuth } from '../context/FirebaseAuthContext';
@@ -67,9 +65,8 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
   }, []);
 
   /**
-   * Fonction pour se connecter avec Google via expo-auth-session
-   * Utilise une WebView avec redirect URI direct (comme version web)
-   * Pas de proxy Expo - utilise le custom scheme de l'app
+   * Fonction pour se connecter avec Google via WebBrowser natif
+   * Utilise WebBrowser.openBrowserAsync avec écoute des deep links
    */
   const signInWithGoogle = useCallback(async (): Promise<GoogleAuthResult> => {
     // Vérifier que la configuration est prête
@@ -94,17 +91,11 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
 
       console.log('🚀 Lancement de l\'authentification Google via Firebase Hosting...');
 
-      // ✅ SOLUTION SIMPLE: Ouvrir directement la page Firebase Hosting
-      // La page Firebase Hosting gère tout le flux OAuth et redirige vers l'app via deep link
-      // L'URL est configurable dans src/config/googleAuthHosting.ts
-      const firebaseHostingUrl = getGoogleAuthHostingUrl();
+      // ✅ Utiliser la fonction de configuration qui pointe vers l'URL déjà déployée
+      // Cette page gère le flux OAuth Google directement et redirige vers l'app
+      const firebaseAuthUrl = getGoogleAuthHostingUrl();
       
-      console.log(`🌐 [${Platform.OS}] Ouverture de la page Firebase Hosting:`, firebaseHostingUrl);
-      console.log('✅ La page va gérer le flux OAuth et rediriger vers l\'app');
-
-      // ✅ SOLUTION: Utiliser openBrowserAsync et écouter les deep links manuellement
-      // openAuthSessionAsync ne capture pas correctement les deep links depuis une page web
-      console.log('🌐 [Google Auth] Ouverture de WebBrowser avec URL:', firebaseHostingUrl);
+      console.log(`🌐 [${Platform.OS}] Ouverture de Firebase Hosting:`, firebaseAuthUrl);
       console.log('🔗 [Google Auth] Écoute des deep links: lasocoach://auth');
       
       // Créer une promesse pour attendre le deep link
@@ -128,8 +119,8 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       
       const linkingSubscription = Linking.addEventListener('url', deepLinkHandler);
       
-      // Ouvrir le browser
-      const browserResult = await WebBrowser.openBrowserAsync(firebaseHostingUrl, {
+      // Ouvrir le browser natif
+      const browserResult = await WebBrowser.openBrowserAsync(firebaseAuthUrl, {
         showInRecents: true,
       });
       
@@ -148,7 +139,6 @@ export const useGoogleAuthExpo = (isRegistration: boolean = false): UseGoogleAut
       }
       
       // Attendre le deep link avec un timeout
-      // Le browser reste ouvert, mais on écoute les deep links en arrière-plan
       try {
         const deepLinkUrl = await Promise.race([
           deepLinkPromise,

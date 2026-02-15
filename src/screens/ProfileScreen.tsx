@@ -629,6 +629,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
             } else {
               console.warn('⚠️ Avatar not found in updated user profile - might need another refresh');
             }
+            
+            // ✅ Émettre un événement pour rafraîchir dashboardData dans DashboardScreen
+            try {
+              const { profileSync } = require('../utils/profileSync');
+              profileSync.emit('avatar-updated', { avatarUrl, user: updatedUser });
+              console.log('📢 [ProfileScreen] Avatar update event emitted');
+            } catch (syncError) {
+              console.warn('⚠️ [ProfileScreen] Could not emit profile sync event:', syncError);
+            }
           } else {
             console.warn('⚠️ refreshProfile returned null - profile might not be updated');
           }

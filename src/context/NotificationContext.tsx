@@ -32,6 +32,7 @@ import chatSocketService from '../services/chatSocketService';
 // Removed Firebase import - Expo Push Notifications doesn't require Firebase to be initialized
 // Firebase is only needed for FCM on Android, but Expo handles this internally
 import { useAuth } from './FirebaseAuthContext';
+import { translateNotificationTitle, translateNotificationMessage } from '../screens/notifications/utils/notificationUtils';
 
 interface Notification {
   id: string;
@@ -338,18 +339,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         return; // Don't show notifications if user is not authenticated
       }
 
-      // Get current user ID - check multiple possible ID fields (backend might use different formats)
-      // Priority: backend id > Firebase uid > userId (if exists)
-      const currentUserId = user?.id || user?.uid || (user as any)?.userId;
-      const currentUserEmail = user?.email?.toLowerCase()?.trim();
+      // ✅ Get current user ID - check multiple possible ID fields
+      const currentUserId = user?.id || user?.uid || (user as any)?.userId || '';
+      const currentUserEmail = user?.email?.toLowerCase()?.trim() || '';
       
       if (!currentUserId && !currentUserEmail) {
         console.warn('⚠️ [NotificationContext] Cannot identify current user (no ID or email)');
         return; // Don't show notifications if we can't identify the user
       }
       
-      // Check multiple possible sender ID fields (backend might use different ID format)
-      // Also check directly on notification object (some backends put it there)
+      // ✅ Check multiple possible sender ID fields (backend might use different ID format)
       const notificationAny = notification as any;
       const senderId = notification.data?.senderId || 
                        notification.data?.sender?.id || 
@@ -357,57 +356,56 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
                        notification.data?.userId ||
                        notificationAny.senderId ||
                        notificationAny.sender?.id ||
-                       notificationAny.userId;
-      const senderEmail = notification.data?.sender?.email || 
+                       notificationAny.userId ||
+                       '';
+      const senderEmail = (notification.data?.sender?.email || 
                           notification.data?.senderEmail ||
                           notification.data?.email ||
                           notificationAny.sender?.email ||
                           notificationAny.senderEmail ||
-                          notificationAny.email;
+                          notificationAny.email || '').toLowerCase()?.trim() || '';
       
-      // Normalize sender email for comparison
-      const senderEmailNormalized = senderEmail ? String(senderEmail).toLowerCase().trim() : null;
+      // ✅ Normalize IDs for comparison
+      const currentUserIdStr = String(currentUserId || '').trim();
+      const senderIdStr = String(senderId || '').trim();
       
-      // Convert both to strings for comparison to handle integer vs string mismatches
-      const currentUserIdStr = currentUserId ? String(currentUserId).trim() : null;
-      const senderIdStr = senderId ? String(senderId).trim() : null;
+      // ✅ Comparaison par ID - vérifier TOUTES les combinaisons possibles
+      let idMatch = false;
+      if (currentUserIdStr && senderIdStr) {
+        // Comparaison exacte
+        idMatch = currentUserIdStr === senderIdStr;
+        
+        // Si pas de match exact, vérifier si les IDs sont équivalents même avec des formats différents
+        if (!idMatch && (currentUserIdStr.length > 0 && senderIdStr.length > 0)) {
+          const currentIdNormalized = currentUserIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          const senderIdNormalized = senderIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          idMatch = currentIdNormalized === senderIdNormalized && currentIdNormalized.length > 0;
+        }
+      }
       
-      // Try multiple ID comparison strategies
-      // CRITICAL: Be thorough - check exact match, substring match (for UUID variations), and reverse
-      const idMatch = currentUserIdStr && senderIdStr && (
-        // Exact match (most common case)
-        senderIdStr === currentUserIdStr ||
-        // Substring match (handles UUID vs short ID, or partial matches)
-        senderIdStr.includes(currentUserIdStr) ||
-        currentUserIdStr.includes(senderIdStr) ||
-        // Also check if IDs match when normalized (remove dashes, spaces, etc.)
-        senderIdStr.replace(/[-_\s]/g, '') === currentUserIdStr.replace(/[-_\s]/g, '')
-      );
+      // ✅ Email comparison - exact match uniquement
+      const emailMatch = currentUserEmail && senderEmail && 
+        currentUserEmail === senderEmail;
       
-      // Email comparison - most reliable when IDs don't match
-      const emailMatch = currentUserEmail && senderEmailNormalized && 
-        currentUserEmail === senderEmailNormalized;
-      
-      // CRITICAL: If sender matches current user by ID OR email, don't show notification
-      // This ensures you never see notifications for your own messages
+      // ✅ CRITICAL: Si l'expéditeur correspond à l'utilisateur actuel par ID OU email, ne pas afficher la notification
       if (idMatch || emailMatch) {
         console.log('🔕 [NotificationContext] FILTRÉ - Notification pour votre propre message ignorée', {
           currentUserId: currentUserIdStr,
           currentUserEmail: currentUserEmail,
           senderId: senderIdStr,
-          senderEmail: senderEmailNormalized,
+          senderEmail: senderEmail,
           idMatch,
           emailMatch,
           notificationId: notification.id,
           notificationType: notification.type,
         });
-        return; // CRITICAL: Don't show notification for own messages - exit early
+        return; // ✅ CRITICAL: Ne pas afficher de notification pour ses propres messages - sortir tôt
       }
       
       // DEBUG: Log when notification passes filter (for debugging)
       console.log('✅ [NotificationContext] Notification passée - message d\'un autre utilisateur', {
         senderId: senderIdStr,
-        senderEmail: senderEmailNormalized,
+        senderEmail: senderEmail,
         currentUserId: currentUserIdStr,
         currentUserEmail: currentUserEmail,
         notificationId: notification.id,
@@ -448,10 +446,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const notifications = getNotifications();
       if (!notifications) return;
       
+      // ✅ Traduire le titre et le message en français
+      const translatedTitle = translateNotificationTitle(notification.title);
+      const translatedMessage = translateNotificationMessage(notification.message || '');
+      
       await notifications.scheduleNotificationAsync({
         content: {
-          title: notification.title,
-          body: notification.message || '',
+          title: translatedTitle,
+          body: translatedMessage,
           data: {
             ...notification.data,
             notificationId: notification.id,

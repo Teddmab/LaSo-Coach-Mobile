@@ -90,9 +90,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const insets = useSafeAreaInsets();
   // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
   // This ensures consistent positioning even on first launch
-  const safeBottomInset = insets.bottom > 0 ? Math.max(insets.bottom, 8) : 8;
-  const bottomNavHeight = 12 + 24 + 8 + safeBottomInset;
-  const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
+  const safeBottomInset = insets.bottom > 0 ? Math.max(insets.bottom, 5) : 5;
+  // ✅ PaddingBottom réduit à 38 pour optimiser l'espace
+  const contentBottomPadding = 38;
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -170,14 +170,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   headerContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'white',
     position: 'absolute',
-    top: 0,
+    top: 15,
+    height: 30,
     left: 0,
     right: 0,
     zIndex: 1000,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
     // Pas de paddingTop ici, SafeAreaView le gère déjà
   },
   contentContainer: {

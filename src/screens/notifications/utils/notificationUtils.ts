@@ -58,6 +58,8 @@ export const translateNotificationTitle = (title?: string): string => {
     'plan assigned': 'Plan assigné',
     'new plan assigned': 'Nouveau plan assigné',
     'new message': 'Nouveau message',
+    'new message from': 'Nouveau message de',
+    'new chat started': 'Nouvelle conversation démarrée',
     'new session': 'Nouvelle session',
     'session reminder': 'Rappel de session',
     'payment received': 'Paiement reçu',
@@ -99,6 +101,8 @@ export const translateNotificationTitle = (title?: string): string => {
     { en: /you have been assigned/gi, fr: 'Vous avez été assigné' },
     { en: /plan assigned/gi, fr: 'Plan assigné' },
     { en: /new plan assigned/gi, fr: 'Nouveau plan assigné' },
+    { en: /new chat started/gi, fr: 'Nouvelle conversation démarrée' },
+    { en: /new message from/gi, fr: 'Nouveau message de' },
     { en: /new message/gi, fr: 'Nouveau message' },
     { en: /achievement unlocked/gi, fr: 'Succès débloqué' },
     { en: /goal reached/gi, fr: 'Objectif atteint' },
@@ -199,6 +203,8 @@ export const translateNotificationMessage = (message?: string): string => {
     { en: /you have a new message/gi, fr: 'Vous avez un nouveau message' },
     { en: /new message from/gi, fr: 'Nouveau message de' },
     { en: /sent you a message/gi, fr: 'vous a envoyé un message' },
+    { en: /started a conversation with you/gi, fr: 'a démarré une conversation avec vous' },
+    { en: /new chat started/gi, fr: 'Nouvelle conversation démarrée' },
     
     // Messages de session
     { en: /your session is starting soon/gi, fr: 'Votre session commence bientôt' },

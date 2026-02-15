@@ -35,6 +35,40 @@ export const useCommunityScreen = (
   const scrollViewRef = useRef<any>(null);
   const previousSelectedPostId = useRef<string | null | undefined>(selectedPostId);
 
+  // ✅ Fonction centralisée pour normaliser les likes - GARANTIT la persistance
+  const normalizeLike = (like: any): any => {
+    if (!like) return null;
+    
+    // Extraire le userId de toutes les sources possibles
+    const likeUserId = like.userId || like.user?.id || like.UserId || (like.user as any)?.userId || '';
+    const normalizedUserId = String(likeUserId || '');
+    
+    // Retourner un objet normalisé avec userId TOUJOURS en string
+    return {
+      ...like,
+      userId: normalizedUserId, // ✅ TOUJOURS en string
+      user: {
+        ...(like.user || {}),
+        id: normalizedUserId, // ✅ TOUJOURS en string
+        userId: normalizedUserId, // ✅ TOUJOURS en string
+      },
+    };
+  };
+
+  // ✅ Fonction centralisée pour normaliser un tableau de likes
+  const normalizeLikes = (likes: any[]): any[] => {
+    if (!Array.isArray(likes) || likes.length === 0) return [];
+    return likes.map(normalizeLike).filter(like => like && like.userId);
+  };
+
+  // ✅ Fonction helper pour obtenir l'ID utilisateur (id ou uid)
+  const getCurrentUserId = (): string => {
+    if (!currentUser) return '';
+    // Vérifier id d'abord, puis uid (Firebase utilise uid)
+    const userId = currentUser.id || currentUser.uid || '';
+    return String(userId || '');
+  };
+
   // Fetch profile data
   useEffect(() => {
     const fetchProfile = async (): Promise<void> => {
@@ -137,9 +171,9 @@ export const useCommunityScreen = (
           });
         }
         
-        // Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
+        // ✅ Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
         const likes = post.Like || post.likes || [];
-        const normalizedLikes = Array.isArray(likes) ? likes : [];
+        const normalizedLikes = normalizeLikes(likes);
         
         // Normaliser les commentaires (le backend peut retourner Comment avec majuscule ou comments avec minuscule)
         const comments = post.Comment || post.comments || [];
@@ -291,7 +325,7 @@ export const useCommunityScreen = (
               };
               
               const likes = post.Like || post.likes || [];
-              const normalizedLikes = Array.isArray(likes) ? likes : [];
+              const normalizedLikes = normalizeLikes(likes);
               
               const comments = post.Comment || post.comments || [];
               const normalizedComments = Array.isArray(comments) ? comments : [];
@@ -391,6 +425,23 @@ export const useCommunityScreen = (
 
   const handleLike = async (postId: string): Promise<void> => {
     try {
+      // ✅ DEBUG: Vérifier currentUser
+      const currentUserIdStr = getCurrentUserId();
+      console.log('🔍 [handleLike] Début - currentUser:', {
+        currentUser,
+        hasId: !!currentUser?.id,
+        hasUid: !!currentUser?.uid,
+        id: currentUser?.id,
+        uid: currentUser?.uid,
+        currentUserIdStr,
+      });
+      
+      if (!currentUserIdStr) {
+        console.error('❌ [handleLike] Pas d\'ID utilisateur disponible!', { currentUser });
+        Alert.alert('Erreur', 'Vous devez être connecté pour liker un post');
+        return;
+      }
+      
       // Mettre à jour l'état localement immédiatement pour une meilleure UX
       const post = communityPosts.find(p => p.id === postId);
       if (!post) return;
@@ -398,33 +449,62 @@ export const useCommunityScreen = (
       const wasLiked = isPostLiked(post);
       const currentLikesCount = Number(post._count?.likes || 0);
       
+      console.log('🔍 [handleLike] État initial:', {
+        postId,
+        wasLiked,
+        currentLikesCount,
+        currentLikes: post.likes?.length || 0,
+        currentUserIdStr,
+      });
+      
       // Mise à jour optimiste de l'état local
       setCommunityPosts(prevPosts =>
         prevPosts.map(p => {
           if (p.id === postId) {
+            // ✅ Normaliser les likes existants AVANT de les modifier
+            const currentLikes = normalizeLikes(p.likes || []);
+            
             const newLikesCount = wasLiked 
               ? Math.max(0, currentLikesCount - 1) 
               : currentLikesCount + 1;
             
-            // ✅ Mettre à jour les likes avec vérification stricte
-            const currentUserIdStr = String(currentUser?.id || '');
+            // ✅ Mettre à jour les likes avec normalisation stricte
             const updatedLikes = wasLiked
-              ? (p.likes || []).filter(like => {
-                  const likeUserId = String(like.userId || like.user?.id || '');
-                  return likeUserId !== currentUserIdStr;
+              ? currentLikes.filter(like => {
+                  // ✅ Comparaison stricte avec userId normalisé
+                  const likeUserId = String(like.userId || '');
+                  const shouldKeep = likeUserId !== currentUserIdStr;
+                  console.log('🔍 [handleLike] Filtrage delike:', {
+                    likeUserId,
+                    currentUserIdStr,
+                    shouldKeep,
+                  });
+                  return shouldKeep;
                 })
               : [
-                  ...(p.likes || []),
-                  { 
-                    userId: currentUser?.id, 
-                    user: { id: currentUser?.id },
-                    // ✅ S'assurer que les IDs sont bien des strings pour la comparaison
-                  }
+                  ...currentLikes,
+                  normalizeLike({ 
+                    userId: currentUserIdStr, 
+                    user: { 
+                      id: currentUserIdStr,
+                      userId: currentUserIdStr,
+                    },
+                  })
                 ];
+            
+            console.log('✅ [handleLike] Mise à jour optimiste:', {
+              postId,
+              wasLiked,
+              newLikesCount,
+              updatedLikesCount: updatedLikes.length,
+              updatedLikes: updatedLikes.map((like: any) => ({
+                userId: like.userId,
+              })),
+            });
             
             return {
               ...p,
-              likes: updatedLikes,
+              likes: updatedLikes, // ✅ Likes normalisés et mis à jour
               _count: {
                 ...p._count,
                 likes: newLikesCount,
@@ -461,11 +541,21 @@ export const useCommunityScreen = (
           
           // ✅ Normaliser les likes (le backend peut retourner Like avec majuscule ou likes avec minuscule)
           const likes = rawUpdatedPost.Like || rawUpdatedPost.likes || [];
-          const normalizedLikes = Array.isArray(likes) ? likes.map((like: any) => ({
-            ...like,
-            userId: like.userId || like.user?.id || like.UserId,
-            user: like.user || { id: like.userId || like.user?.id || like.UserId },
-          })) : [];
+          const normalizedLikes = normalizeLikes(likes);
+          
+          // ✅ Log pour debug
+          const currentUserIdStr = getCurrentUserId();
+          console.log('🔍 [handleLike] Likes normalisés:', {
+            postId,
+            rawLikes: likes,
+            normalizedLikes,
+            currentUser,
+            currentUserId: currentUser?.id || currentUser?.uid,
+            currentUserIdStr,
+            hasCurrentUserLike: normalizedLikes.some((like: any) => 
+              String(like.userId || like.user?.id || '') === currentUserIdStr
+            ),
+          });
           
           // Normaliser les commentaires (le backend peut retourner Comment avec majuscule ou comments avec minuscule)
           const comments = rawUpdatedPost.Comment || rawUpdatedPost.comments || [];
@@ -504,13 +594,49 @@ export const useCommunityScreen = (
           setCommunityPosts(prevPosts =>
             prevPosts.map(p => {
               if (p.id === postId) {
+                // ✅ S'assurer que les likes sont bien normalisés avec userId en string
+                const finalLikes = normalizeLikes(updatedPost.likes || normalizedLikes || []);
+                
+                const currentUserIdStr = getCurrentUserId();
+                const finalIsLiked = finalLikes.some((like: any) => 
+                  String(like.userId || '') === currentUserIdStr
+                );
+                
+                console.log('✅ [handleLike] Post mis à jour depuis serveur:', {
+                  postId,
+                  wasLiked,
+                  finalIsLiked,
+                  finalLikesCount: finalLikes.length,
+                  finalLikes: finalLikes.map((like: any) => ({
+                    userId: like.userId,
+                  })),
+                  currentUserIdStr,
+                  preservedCount: preservedCount,
+                });
+                
+                // ✅ VÉRIFICATION FINALE : S'assurer que le like est bien présent
+                if (!wasLiked && !finalIsLiked && currentUserIdStr) {
+                  console.error('❌ [handleLike] ERREUR: Le like n\'a pas été ajouté correctement!', {
+                    postId,
+                    wasLiked,
+                    finalIsLiked,
+                    finalLikes,
+                    currentUser,
+                    currentUserId: currentUser?.id || currentUser?.uid,
+                    currentUserIdStr,
+                  });
+                }
+                
                 return {
                   ...p,
                   ...updatedPost,
-                  // Préserver les données utilisateur, les likes et le _count
+                  // ✅ Préserver les données utilisateur, les likes normalisés et le _count
                   user: updatedPost.user || p.user,
-                  likes: updatedPost.likes || p.likes,
-                  _count: updatedPost._count || p._count,
+                  likes: finalLikes, // ✅ Likes normalisés depuis le serveur
+                  _count: {
+                    ...p._count,
+                    ...preservedCount, // ✅ Utiliser le _count du serveur
+                  },
                 };
               }
               return p;
@@ -777,7 +903,7 @@ export const useCommunityScreen = (
             let mimeType = asset.type || 'image/jpeg';
             if (mimeType === 'image' || !mimeType.includes('/')) {
               const uri = imageUri || '';
-              const fileName = asset.fileName || asset.name || '';
+              const fileName = asset.fileName || '';
               
               if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) {
                 mimeType = 'image/png';
@@ -792,7 +918,7 @@ export const useCommunityScreen = (
             const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
             
             // Préparer le nom de fichier avec la bonne extension
-            const fileName = asset.fileName || asset.name || `post_${Date.now()}.jpg`;
+            const fileName = asset.fileName || `post_${Date.now()}.jpg`;
             const extension = mimeType.includes('png') ? 'png' : 'jpg';
             const finalFileName = fileName.includes('.') 
               ? fileName 
@@ -821,12 +947,29 @@ export const useCommunityScreen = (
   };
 
   const isPostLiked = (post: Post): boolean => {
-    if (!currentUser?.id) return false;
-    const currentUserIdStr = String(currentUser.id);
-    return post.likes?.some(like => {
-      const likeUserId = String(like.userId || like.user?.id || '');
+    const currentUserIdStr = getCurrentUserId();
+    if (!currentUserIdStr) {
+      return false;
+    }
+    
+    // ✅ Vérifier si le post a des likes
+    if (!post.likes || !Array.isArray(post.likes) || post.likes.length === 0) {
+      return false;
+    }
+    
+    // ✅ NORMALISER les likes avant de vérifier - GARANTIT la détection correcte
+    const normalizedLikes = normalizeLikes(post.likes);
+    
+    // ✅ Vérifier si le userId normalisé correspond
+    const hasLike = normalizedLikes.some(like => {
+      if (!like || !like.userId) return false;
+      
+      // Comparaison stricte en string
+      const likeUserId = String(like.userId || '');
       return likeUserId === currentUserIdStr;
-    }) || false;
+    });
+    
+    return hasLike;
   };
 
   const handleReport = (postId: string): void => {

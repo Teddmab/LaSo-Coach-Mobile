@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -93,6 +94,15 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
 
   // Get current step for points display
   const currentStepData = ONBOARDING_STEPS.find(s => s.key === currentStep);
+
+  // ✅ Calculer la largeur pour forcer 2x2 sur tous les écrans (même Z Fold)
+  const screenWidth = Dimensions.get('window').width;
+  const containerMargin = 32; // marginHorizontal 16 * 2
+  const containerPadding = 40; // padding 20 * 2
+  const gap = 8; // gap entre les cartes
+  // Largeur disponible = largeur écran - marges conteneur - padding conteneur - gap entre cartes
+  const availableWidth = screenWidth - containerMargin - containerPadding - gap;
+  const stepWrapperWidth = Math.floor(availableWidth / 2);
 
   return (
     <View style={styles.container}>
@@ -209,14 +219,19 @@ const styles = StyleSheet.create({
   },
   stepsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap', // Permettre le wrap pour 2x2
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 16,
+    gap: 8, // Espacement entre les éléments
   },
   stepWrapper: {
     alignItems: 'center',
-    flex: 1,
+    // Forcer la largeur exacte pour 2x2
+    flexBasis: '48%',
+    maxWidth: '48%',
     paddingHorizontal: 4,
+    marginBottom: 12, // Espacement vertical entre les lignes
   },
   stepCircle: {
     width: 48,

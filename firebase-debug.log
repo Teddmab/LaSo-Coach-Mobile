@@ -1,0 +1,16 @@
+[debug] [2026-02-15T21:02:52.807Z] ----------------------------------------------------------------------
+[debug] [2026-02-15T21:02:52.812Z] Command:       /usr/local/node-v20.18.0/bin/node /usr/local/node-v20.18.0/bin/firebase projects:list
+[debug] [2026-02-15T21:02:52.812Z] CLI Version:   14.17.0
+[debug] [2026-02-15T21:02:52.813Z] Platform:      linux
+[debug] [2026-02-15T21:02:52.813Z] Node Version:  v20.18.0
+[debug] [2026-02-15T21:02:52.813Z] Time:          Sun Feb 15 2026 22:02:52 GMT+0100 (heure normale d’Afrique de l’Ouest)
+[debug] [2026-02-15T21:02:52.814Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-15T21:02:52.829Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-02-15T21:02:54.016Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-15T21:02:54.017Z] > authorizing via signed-in user (moisekapend1290@gmail.com)
+[debug] [2026-02-15T21:02:54.024Z] Checked if tokens are valid: false, expires at: 1769790117101
+[debug] [2026-02-15T21:02:54.025Z] Checked if tokens are valid: false, expires at: 1769790117101
+[debug] [2026-02-15T21:02:54.025Z] > refreshing access token with scopes: []
+[debug] [2026-02-15T21:02:54.027Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-02-15T21:02:54.027Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]

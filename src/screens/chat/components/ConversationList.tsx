@@ -323,7 +323,7 @@ const EmptyConversationsCard: React.FC<{ rendezvousData?: any | null; onFAQPress
       <View style={emptyCardStyles.card}>
         <View style={emptyCardStyles.content}>
           <Text style={emptyCardStyles.title}>
-            Nous vous contactera via le chat, une fois votre rendez-vous confirmé.
+            Nous vous contacterons via le chat, une fois votre rendez-vous confirmé.
           </Text>
           
           {rendezvousDate && (

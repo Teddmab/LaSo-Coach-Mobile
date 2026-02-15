@@ -107,16 +107,40 @@ const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isOwnMessage = String(item.senderId) === String(currentUserId);
+    // ✅ Vérification complète pour déterminer si c'est notre propre message
+    // Vérifier senderId, sender.id, et sender.userId pour gérer tous les formats
+    const messageSenderId = item.senderId || item.sender?.id || item.sender?.userId || '';
+    const currentUserIdStr = String(currentUserId || '').trim();
+    const messageSenderIdStr = String(messageSenderId || '').trim();
     
-    // Pour les messages entrants, vérifier si on doit afficher l'avatar
+    // ✅ Comparaison exacte uniquement
+    const isOwnMessage = currentUserIdStr && messageSenderIdStr && 
+      currentUserIdStr === messageSenderIdStr;
+    
+    // ✅ Pour déterminer si on doit afficher l'avatar
     // Afficher l'avatar si c'est le premier message ou si l'expéditeur précédent est différent
     const prevMessage = index > 0 ? messages[index - 1] : null;
-    const showAvatar = !isOwnMessage && (
-      index === 0 || 
+    
+    // ✅ Vérifier si l'expéditeur précédent est différent (même logique que pour isOwnMessage)
+    let prevIsOwnMessage = false;
+    if (prevMessage) {
+      const prevMessageSenderId = prevMessage.senderId || prevMessage.sender?.id || prevMessage.sender?.userId || '';
+      const prevMessageSenderIdStr = String(prevMessageSenderId || '').trim();
+      prevIsOwnMessage = currentUserIdStr && prevMessageSenderIdStr && 
+        currentUserIdStr === prevMessageSenderIdStr;
+    }
+    
+    // ✅ Afficher l'avatar si :
+    // - C'est le premier message
+    // - Il n'y a pas de message précédent
+    // - L'expéditeur précédent est différent (propre message vs autre, ou autre utilisateur différent)
+    const showAvatar = index === 0 || 
       !prevMessage || 
-      String(prevMessage.senderId) !== String(item.senderId)
-    );
+      (isOwnMessage !== prevIsOwnMessage) ||
+      (!isOwnMessage && !prevIsOwnMessage && (
+        String(prevMessage.senderId || prevMessage.sender?.id || prevMessage.sender?.userId || '') !== 
+        String(messageSenderIdStr)
+      ));
     
     // Obtenir l'initiale de l'expéditeur
     const getSenderInitial = (message: Message): string => {

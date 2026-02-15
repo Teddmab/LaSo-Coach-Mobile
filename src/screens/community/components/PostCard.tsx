@@ -203,45 +203,57 @@ const PostCard: React.FC<PostCardProps> = ({
     // ✅ Vérifier si c'est un like (isLiked devient true) ou un dislike (isLiked devient false)
     const willBeLiked = !isLiked;
     
-    // ✅ Vibration progressive avec dégradation seulement lors d'un like
+    // ✅ Delike : AUCUNE animation, AUCUNE vibration, juste retirer la couleur
+    if (!willBeLiked) {
+      // Pas d'animation, pas de vibration, juste appeler onLike pour retirer le like
+      onLike(post.id);
+      return; // ✅ Sortir immédiatement pour éviter toute animation
+    }
+    
+    // ✅ Like : Animation et vibration
     if (willBeLiked) {
-      const heartCount = 8 + Math.floor(Math.random() * 5); // 8 à 12 cœurs
+      const heartCount = 15 + Math.floor(Math.random() * 6); // 15 à 20 cœurs
       
-      // ✅ Vibration progressive : forte au début, puis dégradation
+      // ✅ Vibration progressive : forte au début, puis dégradation adaptée au nombre de cœurs
       if (Haptics) {
         // Vibration initiale forte
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         
-        // Puis vibrations progressives avec dégradation
-        for (let i = 1; i < Math.min(heartCount, 5); i++) {
+        // Puis vibrations progressives avec dégradation (plus de vibrations pour plus de cœurs)
+        const vibrationCount = Math.min(heartCount, 8); // Maximum 8 vibrations
+        for (let i = 1; i < vibrationCount; i++) {
           setTimeout(() => {
-            const intensity = Haptics.ImpactFeedbackStyle.Light; // Dégradation vers léger
+            // Dégradation progressive : Medium -> Light -> Light
+            const intensity = i < 3 
+              ? Haptics.ImpactFeedbackStyle.Medium 
+              : Haptics.ImpactFeedbackStyle.Light;
             Haptics.impactAsync(intensity);
-          }, i * 80); // Délai progressif
+          }, i * 60); // Délai progressif plus rapide pour plus de cœurs
         }
       } else if (Platform.OS === 'android') {
         // Fallback pour Android - vibration progressive
         const { Vibration } = require('react-native');
-        Vibration.vibrate(100); // Vibration initiale plus longue
+        Vibration.vibrate(120); // Vibration initiale plus longue
         
-        // Vibrations progressives avec dégradation
-        for (let i = 1; i < Math.min(heartCount, 5); i++) {
+        // Vibrations progressives avec dégradation (plus de vibrations pour plus de cœurs)
+        const vibrationCount = Math.min(heartCount, 8); // Maximum 8 vibrations
+        for (let i = 1; i < vibrationCount; i++) {
           setTimeout(() => {
-            Vibration.vibrate(50 - (i * 5)); // Dégradation : 50ms, 45ms, 40ms, etc.
-          }, i * 80);
+            const duration = i < 3 ? 80 - (i * 5) : 60 - (i * 3); // Dégradation progressive
+            Vibration.vibrate(Math.max(30, duration)); // Minimum 30ms
+          }, i * 60);
         }
       }
 
-      // ✅ Créer 8-12 cœurs flottants sur toute la publication avec délai seulement lors d'un like
+      // ✅ Créer 15-20 cœurs flottants sur toute la publication avec délai seulement lors d'un like
       for (let i = 0; i < heartCount; i++) {
         setTimeout(() => {
           createFloatingHeart();
-        }, i * 30); // Délai entre chaque cœur
+        }, i * 25); // Délai entre chaque cœur (plus rapide pour plus de cœurs)
       }
     }
-    // ✅ Si c'est un dislike, AUCUNE animation, AUCUNE vibration, juste retirer le cœur rouge
-
-    // ✅ Appeler la fonction onLike originale
+    
+    // ✅ Appeler la fonction onLike originale (seulement si c'est un like, car le delike a déjà été traité)
     onLike(post.id);
   };
 
@@ -249,13 +261,11 @@ const PostCard: React.FC<PostCardProps> = ({
     <View 
       ref={postContainerRef}
       style={[styles.container, isLast && styles.containerLast]}
-      onLayout={() => {
-        // ✅ Obtenir la position et taille du container du post
-        setTimeout(() => {
-          postContainerRef.current?.measureInWindow((x, y, width, height) => {
-            setPostLayout({ x, y, width, height });
-          });
-        }, 50);
+      onLayout={(event) => {
+        // ✅ Obtenir la taille du container du post (coordonnées relatives)
+        const { width, height } = event.nativeEvent.layout;
+        // Pour les coordonnées relatives au container, x et y sont toujours 0
+        setPostLayout({ x: 0, y: 0, width, height });
       }}
     >
       {/* Post Header - Style Instagram */}
@@ -343,7 +353,7 @@ const PostCard: React.FC<PostCardProps> = ({
         </View>
       )}
 
-      {/* ✅ Cœurs flottants - Sur l'ensemble de la publication */}
+      {/* ✅ Cœurs flottants - Sur l'ensemble de la publication (positionnés relativement au container) */}
       {activeHearts.map((heartId) => {
         const heart = hearts.current.find(h => h.id === heartId);
         if (!heart || !postLayout) return null;
@@ -354,9 +364,9 @@ const PostCard: React.FC<PostCardProps> = ({
             style={[
               styles.floatingHeart,
               {
-                // ✅ Position de départ aléatoire sur toute la publication
-                top: postLayout.y + heart.startY - 10, // -10 pour centrer l'icône
-                left: postLayout.x + heart.startX - 10, // -10 pour centrer l'icône
+                // ✅ Position de départ aléatoire sur toute la publication (coordonnées relatives au container)
+                top: heart.startY - 14, // -14 pour centrer l'icône (taille 28) - coordonnée relative
+                left: heart.startX - 14, // -14 pour centrer l'icône (taille 28) - coordonnée relative
                 transform: [
                   { translateY: heart.translateY },
                   { translateX: heart.translateX },
@@ -367,7 +377,7 @@ const PostCard: React.FC<PostCardProps> = ({
             ]}
             pointerEvents="none"
           >
-            <Ionicons name="heart" size={20} color="#F44336" />
+            <Ionicons name="heart" size={28} color="#F44336" />
           </Animated.View>
         );
       })}

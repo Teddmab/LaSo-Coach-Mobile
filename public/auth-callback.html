@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentification en cours...</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            text-align: center;
+            color: white;
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        p {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <p>Authentification en cours...</p>
+        <p style="font-size: 12px; opacity: 0.8;">Redirection vers l'application...</p>
+    </div>
+
+    <script>
+        // Configuration
+        const APP_DEEP_LINK = 'lasocoach://auth';
+        
+        console.log('🔍 [Auth Callback] Page chargée');
+        console.log('🔍 [Auth Callback] URL actuelle:', window.location.href);
+        console.log('🔍 [Auth Callback] Search params:', window.location.search);
+        console.log('🔍 [Auth Callback] Hash:', window.location.hash);
+        
+        // Extraire les paramètres de l'URL (Firebase Auth Handler peut mettre les paramètres dans query string ou hash)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlHash = new URLSearchParams(window.location.hash.substring(1));
+        
+        // Firebase Auth Handler peut retourner les paramètres dans différents formats
+        const idToken = urlParams.get('id_token') || urlHash.get('id_token') || urlParams.get('__token__') || urlHash.get('__token__');
+        const accessToken = urlParams.get('access_token') || urlHash.get('access_token');
+        const error = urlParams.get('error') || urlHash.get('error');
+        const errorDescription = urlParams.get('error_description') || urlHash.get('error_description');
+        
+        console.log('🔍 [Auth Callback] idToken:', !!idToken);
+        console.log('🔍 [Auth Callback] accessToken:', !!accessToken);
+        console.log('🔍 [Auth Callback] error:', error);
+        console.log('🔍 [Auth Callback] errorDescription:', errorDescription);
+        
+        // Fonction pour rediriger vers l'app
+        function redirectToApp(params) {
+            const deepLinkUrl = APP_DEEP_LINK + '?' + new URLSearchParams(params).toString();
+            console.log('🔗 [Auth Callback] Redirection vers app:', deepLinkUrl);
+            
+            // Essayer plusieurs méthodes de redirection
+            try {
+                // Méthode 1 : window.location.replace (recommandé)
+                window.location.replace(deepLinkUrl);
+            } catch (e) {
+                console.error('❌ [Auth Callback] Erreur redirection méthode 1:', e);
+                try {
+                    // Méthode 2 : Créer un lien et cliquer
+                    const link = document.createElement('a');
+                    link.href = deepLinkUrl;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (e2) {
+                    console.error('❌ [Auth Callback] Erreur redirection méthode 2:', e2);
+                    // Méthode 3 : window.location.href (fallback)
+                    window.location.href = deepLinkUrl;
+                }
+            }
+        }
+        
+        if (error) {
+            // Erreur OAuth
+            console.error('❌ [Auth Callback] Erreur OAuth:', error, errorDescription);
+            redirectToApp({
+                error: error,
+                error_description: errorDescription || 'Erreur lors de l\'authentification'
+            });
+        } else if (idToken) {
+            // Token reçu - rediriger vers l'app avec le token
+            console.log('✅ [Auth Callback] id_token reçu, longueur:', idToken.length);
+            console.log('✅ [Auth Callback] id_token (premiers 50 chars):', idToken.substring(0, 50) + '...');
+            
+            const params = {
+                id_token: idToken
+            };
+            
+            // Ajouter access_token si présent
+            if (accessToken) {
+                params.access_token = accessToken;
+            }
+            
+            // Petit délai pour afficher le message de succès
+            setTimeout(() => {
+                redirectToApp(params);
+            }, 500);
+        } else {
+            // Aucun token ni erreur - peut-être que Firebase Auth Handler n'a pas encore redirigé
+            console.warn('⚠️ [Auth Callback] Aucun token ni erreur détecté');
+            console.warn('⚠️ [Auth Callback] Attente de 2 secondes pour voir si les paramètres arrivent...');
+            
+            // Attendre un peu au cas où les paramètres arrivent via JavaScript
+            setTimeout(() => {
+                // Vérifier à nouveau
+                const retryParams = new URLSearchParams(window.location.search);
+                const retryHash = new URLSearchParams(window.location.hash.substring(1));
+                const retryIdToken = retryParams.get('id_token') || retryHash.get('id_token');
+                const retryError = retryParams.get('error') || retryHash.get('error');
+                
+                if (retryError) {
+                    redirectToApp({ error: retryError });
+                } else if (retryIdToken) {
+                    redirectToApp({ id_token: retryIdToken });
+                } else {
+                    // Aucun paramètre après attente - rediriger avec erreur
+                    console.error('❌ [Auth Callback] Aucun paramètre reçu après attente');
+                    redirectToApp({ error: 'no_token', error_description: 'Aucun token reçu de Firebase Auth Handler' });
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
+

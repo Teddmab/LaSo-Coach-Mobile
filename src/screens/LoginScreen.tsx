@@ -112,7 +112,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps): Re
     signInWithGoogle: triggerGoogleSignIn,
     isAvailable: isGoogleAvailable,
     isPrompting: isGooglePrompting,
-  } = useGoogleAuthHybrid(); // SDK natif sur iOS et Android
+  } = useGoogleAuthHybrid(); // SDK natif sur Android, WebBrowser natif sur iOS
   const { isIOSSimulationEnabled } = useIOSSimulation(); // Pour simuler l'apparence iOS
   const { isCompanionMode } = useCompanionMode(); // Pour vérifier le mode compagnon
   

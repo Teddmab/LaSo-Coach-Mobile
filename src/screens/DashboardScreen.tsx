@@ -29,12 +29,14 @@ import type { Meal } from './nutrition/types';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DashboardOverlayStackParamList } from '../types/navigation';
 import { nutritionSync } from '../utils/nutritionSync';
+import { profileSync } from '../utils/profileSync';
 
 // ✅ PHASE 1: Import feature flags for testing
 import useCompanionMode from '../hooks/useCompanionMode';
 
 // TODO: PHASE 6 - Import entitlements hook for checking user access rights
 import { useEntitlements } from '../hooks/useEntitlements';
+import { useAppDataCache } from '../context/AppDataCacheContext';
 
 // Import all screen components (still in .js, will be migrated later)
 import ProgressScreen from './ProgressScreen';
@@ -50,8 +52,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // TODO: PHASE 6 - Get user entitlements to determine feature access
   const { entitlements, loading: entitlementsLoading, canAccess, refresh: refreshEntitlements } = useEntitlements();
   
+  // ✅ Cache global pour éviter les rechargements
+  const appCache = useAppDataCache();
   
-  // Custom hooks for data management
+  // Custom hooks for data management - Utiliser le cache pour éviter les rechargements
   const { dashboardData, fetchDashboardData, setDashboardData, loading: dashboardLoading } = useDashboardData();
   const { 
     subscriptionData, 
@@ -86,10 +90,61 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }
   }, []);
   
+  const { 
+    communityPosts, 
+    loading: communityLoading, 
+    fetchCommunityPosts,
+    handleLikePress: handleCommunityLikePress 
+  } = useCommunity();
+  
+  // ✅ Charger toutes les données au démarrage UNE SEULE FOIS
+  useEffect(() => {
+    if (appCache.isInitialLoadComplete) {
+      // Données déjà chargées, utiliser le cache
+      if (__DEV__) {
+        console.log('✅ [DashboardScreen] Utilisation du cache - données déjà chargées');
+      }
+      return;
+    }
+
+    // Charger toutes les données en parallèle au démarrage
+    const loadAllData = async () => {
+      if (__DEV__) {
+        console.log('🚀 [DashboardScreen] Chargement initial de toutes les données...');
+      }
+      
+      try {
+        // Charger toutes les données en parallèle
+        await Promise.allSettled([
+          fetchDashboardData(),
+          fetchAchievementsData(),
+          fetchAgendaData(),
+          fetchCommunityPosts(),
+          fetchRendezvousData(),
+        ]);
+        
+        // Marquer le chargement initial comme terminé
+        appCache.setInitialLoadComplete(true);
+        
+        if (__DEV__) {
+          console.log('✅ [DashboardScreen] Chargement initial terminé');
+        }
+      } catch (error) {
+        console.error('❌ [DashboardScreen] Erreur lors du chargement initial:', error);
+      }
+    };
+
+    loadAllData();
+  }, [appCache.isInitialLoadComplete, fetchDashboardData, fetchAchievementsData, fetchAgendaData, fetchCommunityPosts, fetchRendezvousData]);
+
   // ✅ Polling automatique pour rafraîchir les données du rendez-vous toutes les 30 secondes
   useEffect(() => {
-    // Récupérer immédiatement
-    fetchRendezvousData();
+    if (!appCache.isInitialLoadComplete) return; // Attendre le chargement initial
+    
+    // Récupérer immédiatement si pas en cache ou trop vieux
+    if (appCache.shouldRefetch('rendezvousData', 30000)) {
+      fetchRendezvousData();
+    }
     
     // Puis rafraîchir toutes les 30 secondes
     const interval = setInterval(() => {
@@ -97,13 +152,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }, 30000); // 30 secondes
     
     return () => clearInterval(interval);
-  }, [fetchRendezvousData]);
-  const { 
-    communityPosts, 
-    loading: communityLoading, 
-    fetchCommunityPosts,
-    handleLikePress: handleCommunityLikePress 
-  } = useCommunity();
+  }, [fetchRendezvousData, appCache.isInitialLoadComplete]);
   
   // ✅ PHASE 1: Test companion mode hook
   const companionMode = useCompanionMode();
@@ -157,11 +206,17 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   }, [subscriptionData]);
 
   // ✅ Charger automatiquement les données nutrition au montage (comme NutritionScreen)
+  // Mais seulement si pas déjà chargé ou si données trop vieilles
   useEffect(() => {
+    if (!appCache.isInitialLoadComplete) return; // Attendre le chargement initial
+    
     if (subscriptionData && weekDays && weekDays.length > 0) {
-      nutritionDataHook.fetchAllData();
+      // Ne charger que si nécessaire (pas déjà chargé ou trop vieux)
+      if (appCache.shouldRefetch('nutritionData', 5 * 60 * 1000)) { // 5 minutes
+        nutritionDataHook.fetchAllData();
+      }
     }
-  }, [subscriptionData, weekDays?.length]);
+  }, [subscriptionData, weekDays?.length, appCache.isInitialLoadComplete]);
 
   // Ref pour tracker le dernier currentPlanDay chargé pour éviter les boucles
   const lastLoadedPlanDayRef = useRef<number | undefined>(undefined);
@@ -250,11 +305,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       }
     });
     
+    // ✅ Écouter les mises à jour de profil/avatar
+    const unsubscribeAvatarUpdated = profileSync.subscribe('avatar-updated', async () => {
+      // Rafraîchir dashboardData pour mettre à jour l'avatar dans le header
+      console.log('📢 [DashboardScreen] Avatar updated event received, refreshing dashboard data...');
+      try {
+        await fetchDashboardData();
+        console.log('✅ [DashboardScreen] Dashboard data refreshed after avatar update');
+      } catch (error) {
+        console.error('❌ [DashboardScreen] Error refreshing dashboard data after avatar update:', error);
+      }
+    });
+    
     return () => {
       unsubscribeMealCompleted();
       unsubscribeStatusUpdated();
+      unsubscribeAvatarUpdated();
     };
-  }, [currentPlan, completionStatusHook, nutritionDataHook]);
+  }, [currentPlan, completionStatusHook, nutritionDataHook, fetchDashboardData]);
   
   // Local state
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -330,14 +398,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     
     if (isOnOverlay && isBottomNavTab && tabId !== 'more') {
       console.log('✅ [DashboardScreen] Fermeture de l\'overlay avant changement de tab');
+      // ✅ FIX: Mettre à jour activeTab IMMÉDIATEMENT pour que l'indicateur visuel se mette à jour tout de suite
       // Fermer l'overlay et aller directement sur le tab
+      setActiveTab(tabId); // Mettre à jour activeTab en premier pour l'indicateur visuel
       setCurrentScreen(tabId);
       handleTabPressOriginal(tabId);
     } else {
       // Comportement normal
       handleTabPressOriginal(tabId);
     }
-  }, [currentScreen, activeTab, handleTabPressOriginal, setCurrentScreen]);
+  }, [currentScreen, activeTab, handleTabPressOriginal, setCurrentScreen, setActiveTab]);
 
   // Helper function to navigate in overlay stack - defined after setCurrentScreen is available
   const navigateOverlay = useCallback((screenName: keyof DashboardOverlayStackParamList, params?: any) => {
@@ -569,11 +639,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   }
 
   // Mémoriser l'avatar pour éviter les rechargements à chaque changement de page
+  // ✅ Utiliser user?.avatar en priorité car il est mis à jour immédiatement via refreshProfile()
   const avatarData = useMemo(() => {
-    const avatarSource = dashboardData?.Profile?.avatar || dashboardData?.profile?.avatar || user?.avatar;
+    const avatarSource = user?.avatar || dashboardData?.Profile?.avatar || dashboardData?.profile?.avatar;
     const avatarFallbackText = user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U';
     return { avatarSource, avatarFallbackText };
-  }, [dashboardData?.Profile?.avatar, dashboardData?.profile?.avatar, user?.avatar, user?.firstName, user?.name]);
+  }, [user?.avatar, dashboardData?.Profile?.avatar, dashboardData?.profile?.avatar, user?.firstName, user?.name]);
 
   // Refresh all data
   const onRefresh = async (): Promise<void> => {

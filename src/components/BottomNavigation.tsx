@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 
@@ -15,9 +16,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabPre
   // ✅ FIX: Ne pas utiliser de default value pour activeTab
   // Si activeTab est vide (''), aucun tab ne doit être actif
   const currentActiveTab = activeTab || null;
-  
-  // ✅ FIX: Log pour déboguer l'activeTab
-  console.log('🔵 [BottomNavigation] activeTab reçu:', activeTab, '| currentActiveTab:', currentActiveTab);
 
   const tabs = [
     { id: 'home', icon: 'home', activeIcon: 'home' },
@@ -32,55 +30,90 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabPre
   const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom, 16) : 16;
 
   return (
-    <View style={[
-      styles.container, 
-      { 
-        paddingBottom: bottomPadding,
-      }
-    ]}>
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab.id}
-          style={[
-            styles.tab,
-            currentActiveTab === tab.id && styles.activeTab
-          ]}
-          onPress={() => onTabPress?.(tab.id)}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={(currentActiveTab === tab.id ? tab.activeIcon : tab.icon) as any}
-            size={24}
-            color={currentActiveTab === tab.id ? theme.colors.primary : theme.colors.text.secondary}
-          />
-        </TouchableOpacity>
-      ))}
+    <View style={styles.wrapper}>
+      {/* ✅ Effet glassmorphism avec BlurView */}
+      <BlurView
+        intensity={Platform.OS === 'ios' ? 80 : 20}
+        tint="light"
+        style={[
+          styles.blurContainer,
+          { 
+            paddingBottom: bottomPadding,
+          }
+        ]}
+      >
+        {/* Bordure supérieure subtile pour l'effet glass */}
+        <View style={styles.topBorder} />
+        
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.id}
+            style={[
+              styles.tab,
+              currentActiveTab === tab.id && styles.activeTab
+            ]}
+            onPress={() => onTabPress?.(tab.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={(currentActiveTab === tab.id ? tab.activeIcon : tab.icon) as any}
+              size={24}
+              color={currentActiveTab === tab.id ? theme.colors.primary : theme.colors.text.secondary}
+            />
+          </TouchableOpacity>
+        ))}
+      </BlurView>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  blurContainer: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingTop: 9, // Padding généreux en haut
-    paddingHorizontal: 16, // Padding généreux sur les côtés
+    paddingTop: 9,
+    paddingHorizontal: 16,
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0', // Bordure supérieure pour séparer du contenu
-    width: '100%', // Prend toute la largeur de l'écran
-    marginBottom: 10,
+    width: '100%',
+    // ✅ Ajuster l'opacité pour un meilleur effet glassmorphism sur toutes les plateformes
+    backgroundColor: Platform.OS === 'ios' 
+      ? 'rgba(255, 255, 255, 0.7)' // Fond semi-transparent pour iOS avec BlurView natif
+      : 'rgba(255, 255, 255, 0.75)', // Réduire l'opacité sur Android pour voir l'effet blur
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    // Ombre subtile pour l'effet de profondeur
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8, // Pour Android
+  },
+  topBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 0.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12, // Padding généreux vertical
+    paddingVertical: 12,
+    borderRadius: 12,
+    // Note: React Native ne supporte pas la propriété 'transition' dans StyleSheet
+    // Les transitions sont gérées par Animated API ou par les props du composant
   },
   activeTab: {
-    backgroundColor: theme.colors.primaryLight, // Arrière-plan vert clair pour l'onglet actif
-    borderRadius: 12, // Coins arrondis pour une meilleure UX
+    backgroundColor: Platform.OS === 'ios'
+      ? 'rgba(76, 175, 80, 0.15)' // Vert très transparent pour iOS
+      : 'rgba(76, 175, 80, 0.2)', // Légèrement plus opaque pour Android
+    borderRadius: 12,
   },
 });
 

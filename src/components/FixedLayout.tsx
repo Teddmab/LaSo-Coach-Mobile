@@ -55,11 +55,11 @@ const FixedLayout: React.FC<FixedLayoutProps> = ({
   const insets = useSafeAreaInsets();
   
   // Calculer la hauteur de la barre de navigation (utilisée pour éviter que le contenu passe sous la barre)
-  // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
+  // Use a minimum safe area bottom padding, defaulting to 5 if insets aren't ready yet
   // This ensures consistent positioning even on first launch
-  const safeBottomInset = insets.bottom > 0 ? Math.max(insets.bottom, 8) : 8;
-  const bottomNavHeight = 12 + 24 + 8 + safeBottomInset;
-  const contentBottomPadding = Math.max(bottomNavHeight - 20, 16);
+  const safeBottomInset = insets.bottom > 0 ? Math.max(insets.bottom, 5) : 5;
+  // ✅ PaddingBottom réduit à 38 pour optimiser l'espace
+  const contentBottomPadding = 38;
   
   return (
     <SafeAreaView style={styles.container} edges={['top']} pointerEvents="box-none">
@@ -108,14 +108,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   headerContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'white',
     position: 'absolute',
-    top: 0,
+    top: 15,
+    height: 30,
     left: 0,
     right: 0,
     zIndex: 1000,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
     // Pas de paddingTop ici, SafeAreaView le gère déjà
   },
   contentContainer: {
@@ -127,19 +126,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 10000, // Z-index très élevé pour rester au-dessus de tout
+    zIndex: 1000,
     paddingHorizontal: 0, // Les marges sont gérées par BottomNavigation lui-même
     // Note: paddingBottom est géré par BottomNavigation avec useSafeAreaInsets
     // Ne pas ajouter de paddingBottom ici pour éviter le double padding
-    // IMPORTANT: Cette barre ne doit JAMAIS bouger avec le clavier
-    // Elle reste toujours en bas de l'écran, même quand le clavier est ouvert
-    // Utiliser elevation pour Android pour s'assurer qu'elle reste au-dessus
-    elevation: 10000, // Android - très élevé pour rester au-dessus
-    shadowColor: '#000', // iOS
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    backgroundColor: '#FFFFFF', // Fond blanc pour s'assurer qu'elle couvre ce qui est en dessous
   },
 });
 

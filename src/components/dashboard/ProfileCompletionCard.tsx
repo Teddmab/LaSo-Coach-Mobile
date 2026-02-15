@@ -3,7 +3,8 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  TouchableOpacity
+  TouchableOpacity,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -261,6 +262,15 @@ const ProfileCompletionCard: React.FC<ProfileCompletionCardProps> = ({
   // - ET le rendez-vous n'est pas assigné (soit il n'existe pas, soit il est PENDING)
   const isRendezvousPending = hasRendezvous && !isRendezvousAssigned;
 
+  // ✅ Calculer la largeur pour forcer 2x2 sur tous les écrans (même Z Fold)
+  const screenWidth = Dimensions.get('window').width;
+  const containerMargin = 40; // marginHorizontal 20 * 2
+  const containerPadding = 40; // padding 20 * 2
+  const gap = 12; // gap entre les cartes
+  // Largeur disponible = largeur écran - marges conteneur - padding conteneur - gap entre cartes
+  const availableWidth = screenWidth - containerMargin - containerPadding - gap;
+  const stepCardWidth = Math.floor(availableWidth / 2);
+
   return (
     <View 
       style={styles.container}
@@ -451,21 +461,26 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
-  // ✅ MODIFICATION: Grid 2x2 pour les étapes
+  // ✅ MODIFICATION: Grid 2x2 pour les étapes - FORCER 2x2 sur tous les écrans
   stepsGridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
+    width: '100%',
+    alignItems: 'flex-start',
   },
   stepCard: {
-    width: '48%',
+    // La largeur est calculée dynamiquement dans le composant pour forcer 2x2
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    // Forcer la largeur exacte pour 2x2
+    flexBasis: '48%',
+    maxWidth: '48%',
   },
   stepCardCompleted: {
     backgroundColor: '#E8F5E9',

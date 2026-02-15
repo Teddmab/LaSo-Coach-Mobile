@@ -169,9 +169,9 @@ export const nutritionStyles = StyleSheet.create({
     marginBottom: -1,
   },
   mealTypeTitle: {
-    fontSize: 16,
-    fontWeight: '600', // Plus gras comme dans le design du backup
-    color: '#333333',
+    fontSize: 12, // ✅ Même taille que mealTime
+    fontWeight: '400', // ✅ Même poids que mealTime
+    color: '#666666', // ✅ Même couleur que mealTime
   },
   mealTime: {
     fontSize: 12,

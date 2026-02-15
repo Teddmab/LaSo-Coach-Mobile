@@ -10,7 +10,16 @@ import {
   Dimensions,
   ActivityIndicator,
   Animated,
+  Platform,
 } from 'react-native';
+
+// Haptics is optional
+let Haptics: any = null;
+try {
+  Haptics = require('expo-haptics');
+} catch (e) {
+  // Haptics not available
+}
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -456,6 +465,35 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                   }
                   
                   if (isCompleting) return;
+                  
+                  // ✅ Vibration progressive avec dégradation
+                  if (Haptics) {
+                    // Vibration initiale forte
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    
+                    // Puis vibrations progressives avec dégradation
+                    for (let i = 1; i < 5; i++) {
+                      setTimeout(() => {
+                        // Dégradation progressive : Medium -> Light -> Light
+                        const intensity = i < 2 
+                          ? Haptics.ImpactFeedbackStyle.Medium 
+                          : Haptics.ImpactFeedbackStyle.Light;
+                        Haptics.impactAsync(intensity);
+                      }, i * 60); // Délai progressif
+                    }
+                  } else if (Platform.OS === 'android') {
+                    // Fallback pour Android - vibration progressive
+                    const { Vibration } = require('react-native');
+                    Vibration.vibrate(120); // Vibration initiale plus longue
+                    
+                    // Vibrations progressives avec dégradation
+                    for (let i = 1; i < 5; i++) {
+                      setTimeout(() => {
+                        const duration = i < 2 ? 80 - (i * 5) : 60 - (i * 3); // Dégradation progressive
+                        Vibration.vibrate(Math.max(30, duration)); // Minimum 30ms
+                      }, i * 60);
+                    }
+                  }
                   
                   try {
                     await onComplete();
