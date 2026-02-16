@@ -55,9 +55,9 @@ export const MealsList: React.FC<MealsListProps> = ({
         <Text style={nutritionStyles.mealsSectionTitle}>{dayLabel}</Text>
       </View>
       {sortMealsByType(meals).map((meal: Meal) => {
-        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
-        // La vérification de date exacte est réservée à isMealCompletedForDate (pour les past meals)
-        const isCompleted = isMealCompleted(meal.id, completionData, currentPlanDay);
+        // ✅ CORRECTION: Vérifier la date exacte pour éviter que les repas soient marqués comme complétés
+        // lors du retour à une date précédente dans le cycle (même planDay mais date différente)
+        const isCompleted = isMealCompleted(meal.id, completionData, currentPlanDay, selectedDateObj);
         const isSelected = selectedMeal?.id === meal.id;
         
         return (

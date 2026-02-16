@@ -164,7 +164,8 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   }, [propsCurrentPlan, currentPlan]);
 
   // ✅ Même logique que NutritionScreen pour vérifier si un repas est complété
-  const isMealCompleted = useCallback((mealId: string, completionData: any, planDayToCheck?: number): boolean => {
+  // ✅ CORRECTION: Ajouter targetDate optionnel pour vérifier la date spécifique
+  const isMealCompleted = useCallback((mealId: string, completionData: any, planDayToCheck?: number, targetDate?: Date): boolean => {
     if (!completionData) {
       return false;
     }
@@ -175,7 +176,69 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDayToCheck];
         if (Array.isArray(dayCompletions)) {
           const found = dayCompletions.some(
-            (completion: any) => completion?.mealId === mealId && completion?.completedAt
+            (completion: any) => {
+              // Vérifier que le mealId correspond ET qu'il y a un completedAt
+              const mealMatches = completion?.mealId === mealId && completion?.completedAt;
+              if (!mealMatches) {
+                return false;
+              }
+              
+              // ✅ CORRECTION: Si targetDate est fourni, on DOIT TOUJOURS vérifier la date exacte
+              // Même pour aujourd'hui, car il peut y avoir plusieurs complétions pour le même planDay
+              if (targetDate) {
+                // Si completionDate n'existe pas, on peut accepter seulement si c'est aujourd'hui (complétion récente)
+                if (!completion?.completionDate) {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const targetDateNormalized = new Date(targetDate);
+                  targetDateNormalized.setHours(0, 0, 0, 0);
+                  const isToday = targetDateNormalized.getTime() === today.getTime();
+                  if (isToday) {
+                    if (__DEV__) {
+                      console.log(`✅ [NutritionCard] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] sans completionDate mais c'est aujourd'hui - Accepté`);
+                    }
+                    return true;
+                  }
+                  if (__DEV__) {
+                    console.log(`⚠️ [NutritionCard] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] mais SANS completionDate et ce n'est PAS aujourd'hui - Ne peut pas confirmer`);
+                  }
+                  return false;
+                }
+                
+                try {
+                  const completionDate = new Date(completion.completionDate);
+                  completionDate.setHours(0, 0, 0, 0);
+                  const targetDateNormalized = new Date(targetDate);
+                  targetDateNormalized.setHours(0, 0, 0, 0);
+                  
+                  const completionDateISO = completionDate.toISOString().split('T')[0];
+                  const targetDateISO = targetDateNormalized.toISOString().split('T')[0];
+                  
+                  // Le repas est complété seulement si completionDate correspond EXACTEMENT à targetDate
+                  if (completionDateISO !== targetDateISO) {
+                    if (__DEV__) {
+                      console.log(`⚠️ [NutritionCard] Repas ${mealId} complété mais date différente: ${completionDateISO} !== ${targetDateISO} (planDay ${planDayToCheck})`);
+                    }
+                    return false;
+                  }
+                  
+                  // Date correspond exactement
+                  if (__DEV__) {
+                    console.log(`✅ [NutritionCard] Repas ${mealId} complété pour la date exacte: ${completionDateISO} === ${targetDateISO} (planDay ${planDayToCheck})`);
+                  }
+                } catch (error) {
+                  if (__DEV__) {
+                    console.warn(`⚠️ [NutritionCard] Erreur parsing completionDate:`, completion.completionDate, error);
+                  }
+                  return false;
+                }
+              }
+              
+              // Si pas de targetDate, on accepte directement (comportement par défaut)
+              return true;
+              
+              return true;
+            }
           );
           if (found) {
             return true;
@@ -393,22 +456,26 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       return orderA - orderB;
     });
 
-    // Si pas encore de completion status, retourner le premier repas
-    const completionDataToUse = freshCompletionData || completionStatus;
+    // ✅ CORRECTION: Utiliser les props en priorité si disponibles (données les plus récentes depuis DashboardScreen)
+    // Sinon utiliser les données locales
+    const completionDataToUse = propsCompletionData || freshCompletionData || completionStatus;
+    
     if (!completionDataToUse || currentPlanDay === undefined) {
       return sortedMeals[0] || null;
     }
     
     // Sinon, chercher le premier non complété
+    // ✅ CORRECTION: Vérifier la date exacte (aujourd'hui) pour éviter que les repas soient marqués comme complétés
+    // lors du retour à une date précédente dans le cycle
     for (const meal of sortedMeals) {
-      const isCompleted = isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
+      const isCompleted = isMealCompleted(meal.id, completionDataToUse, currentPlanDay, today);
       if (!isCompleted) {
         return meal;
       }
     }
 
     return null; // Tous complétés
-  }, [dayMeals, currentPlanDay, freshCompletionData, completionStatus, isMealCompleted]);
+  }, [dayMeals, currentPlanDay, propsCompletionData, freshCompletionData, completionStatus, isMealCompleted, today]);
 
   // ✅ Calculer youtubeVideoId et hasVideo AVANT le return null pour éviter l'erreur "rendered more hooks"
   // Toujours calculer même si nextMealToComplete est null pour maintenir l'ordre des hooks
@@ -559,10 +626,57 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       if (propsOnMealComplete) {
         try {
           const planDayToUse = propsCurrentPlanDay !== undefined ? propsCurrentPlanDay : currentPlanDay;
+          
+          // ✅ Mise à jour optimiste : marquer le repas comme complété immédiatement dans les données locales
+          const completionDataToUse = freshCompletionData || completionStatus;
+          if (completionDataToUse && planDayToUse !== undefined) {
+            const optimisticUpdate = JSON.parse(JSON.stringify(completionDataToUse));
+            
+            // Ajouter le repas complété dans completionsByDay pour aujourd'hui
+            if (!optimisticUpdate.completionsByDay) {
+              optimisticUpdate.completionsByDay = {};
+            }
+            const dayKey = String(planDayToUse);
+            if (!optimisticUpdate.completionsByDay[dayKey]) {
+              optimisticUpdate.completionsByDay[dayKey] = [];
+            }
+            
+            // Vérifier si le repas n'est pas déjà dans la liste
+            const dayCompletions = optimisticUpdate.completionsByDay[dayKey];
+            const alreadyCompleted = Array.isArray(dayCompletions) && dayCompletions.some(
+              (c: any) => c.mealId === mealId
+            );
+            
+            if (!alreadyCompleted) {
+              const todayISO = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
+              dayCompletions.push({
+                mealId: mealId,
+                completionDate: todayISO,
+                completedAt: new Date().toISOString(),
+                planDay: planDayToUse,
+              });
+              
+              // Mettre à jour les données locales immédiatement pour un feedback visuel instantané
+              setFreshCompletionData(optimisticUpdate);
+              setCompletionStatus(optimisticUpdate);
+            }
+          }
+          
           await propsOnMealComplete(mealId, planDayToUse);
           
-          // Le callback gère déjà le rafraîchissement des données dans DashboardScreen
-          // Les props seront automatiquement mises à jour
+          // ✅ Rafraîchir les données depuis le serveur après la complétion pour être sûr
+          const planToUse = propsCurrentPlan || currentPlan;
+          if (planToUse?.id) {
+            try {
+              const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+              const globalCompletionData = apiResponse?.data || apiResponse;
+              setFreshCompletionData(globalCompletionData);
+              setCompletionStatus(globalCompletionData);
+            } catch (refreshError) {
+              console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut après complétion:', refreshError);
+            }
+          }
+          
           Toast.show({
             type: 'success',
             text1: 'Repas complété ! ✅',
@@ -571,6 +685,20 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
           });
         } catch (error: any) {
           console.error('❌ [NutritionCard] Erreur complétion repas:', error);
+          
+          // ✅ En cas d'erreur, rafraîchir les données pour annuler la mise à jour optimiste
+          const planToUse = propsCurrentPlan || currentPlan;
+          if (planToUse?.id) {
+            try {
+              const apiResponse = await nutritionAPI.getCompletionStatus(planToUse.id);
+              const globalCompletionData = apiResponse?.data || apiResponse;
+              setFreshCompletionData(globalCompletionData);
+              setCompletionStatus(globalCompletionData);
+            } catch (refreshError) {
+              console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut après erreur:', refreshError);
+            }
+          }
+          
           Toast.show({
             type: 'error',
             text1: 'Erreur',

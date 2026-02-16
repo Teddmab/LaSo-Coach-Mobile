@@ -222,11 +222,29 @@ export const useCompletionStatus = (
                 return false;
               }
               
-              // ✅ CORRECTION: Si targetDate est fourni ET completionDate existe, vérifier que les dates correspondent
-              // MAIS: Si targetDate est fourni MAIS completionDate n'existe pas, on assume que c'est complété
-              // (pour la compatibilité avec les anciennes données et pour l'affichage normal de la liste)
-              // La vérification stricte de date est réservée à isMealCompletedForDate (pour les past meals)
-              if (targetDate && completion?.completionDate) {
+              // ✅ CORRECTION: Si targetDate est fourni, on DOIT TOUJOURS vérifier la date exacte
+              // Même pour aujourd'hui, car il peut y avoir plusieurs complétions pour le même planDay
+              // (plan cyclique : planDay 1 peut être complété le 2026-02-08, 2026-02-15, 2026-02-16, etc.)
+              if (targetDate) {
+                // Si completionDate n'existe pas, on peut accepter seulement si c'est aujourd'hui (complétion récente)
+                if (!completion?.completionDate) {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const targetDateNormalized = new Date(targetDate);
+                  targetDateNormalized.setHours(0, 0, 0, 0);
+                  const isToday = targetDateNormalized.getTime() === today.getTime();
+                  if (isToday) {
+                    if (__DEV__) {
+                      console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDayToCheck}] sans completionDate mais c'est aujourd'hui - Accepté`);
+                    }
+                    return true;
+                  }
+                  if (__DEV__) {
+                    console.log(`⚠️ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDayToCheck}] mais SANS completionDate et ce n'est PAS aujourd'hui - Ne peut pas confirmer`);
+                  }
+                  return false;
+                }
+                
                 try {
                   const completionDate = new Date(completion.completionDate);
                   completionDate.setHours(0, 0, 0, 0);
@@ -243,6 +261,11 @@ export const useCompletionStatus = (
                     }
                     return false;
                   }
+                  
+                  // Date correspond exactement
+                  if (__DEV__) {
+                    console.log(`✅ [isMealCompleted] Repas ${mealId} complété pour la date exacte: ${completionDateISO} === ${targetDateISO} (planDay ${planDayToCheck})`);
+                  }
                 } catch (error) {
                   if (__DEV__) {
                     console.warn(`⚠️ [isMealCompleted] Erreur parsing completionDate:`, completion.completionDate, error);
@@ -250,18 +273,8 @@ export const useCompletionStatus = (
                   return false;
                 }
               }
-              // ✅ Si targetDate est fourni MAIS completionDate n'existe pas, on retourne true quand même
-              // (le repas est dans completionsByDay[planDay], donc il est complété pour ce planDay)
               
-              // Si la complétion a un planDay, vérifier qu'il correspond
-              if (completion?.planDay !== undefined) {
-                const dayMatches = completion.planDay === planDayToCheck || 
-                                  completion.planDay === dayKeyString ||
-                                  String(completion.planDay) === dayKeyString;
-                return dayMatches;
-              }
-              
-              // Si pas de planDay dans la complétion, on assume que c'est pour ce planDay (car on l'a trouvé dans completionsByDay[planDay])
+              // Si pas de targetDate, on accepte directement (comportement par défaut)
               return true;
             }
           );

@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     width: '100%',
-    alignItems: 'flex-start',
+    alignItems: 'stretch', // ✅ CORRECTION: Étirer toutes les cartes à la même hauteur
   },
   stepCard: {
     // La largeur est calculée dynamiquement dans le composant pour forcer 2x2
@@ -481,6 +481,11 @@ const styles = StyleSheet.create({
     // Forcer la largeur exacte pour 2x2
     flexBasis: '48%',
     maxWidth: '48%',
+    // ✅ CORRECTION: Forcer la même hauteur pour toutes les cartes (grille 2x2 uniforme)
+    // Augmenté la hauteur minimale pour éviter le débordement des éléments
+    minHeight: 180,
+    aspectRatio: 0.9, // Ratio largeur/hauteur ajusté pour plus de hauteur
+    justifyContent: 'space-between', // Distribuer le contenu uniformément
   },
   stepCardCompleted: {
     backgroundColor: '#E8F5E9',

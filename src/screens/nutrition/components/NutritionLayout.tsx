@@ -226,11 +226,14 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     }
 
     const completionDataToUse = completionStatusHook.completionStatus || completionStatusHook.freshCompletionData;
+    const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+    selectedDateObj.setHours(0, 0, 0, 0);
     return nutritionDataHook.dayMeals.some((meal: Meal) => {
-      // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
-      return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
+      // ✅ CORRECTION: Vérifier la date exacte pour éviter que les repas soient marqués comme complétés
+      // lors du retour à une date précédente dans le cycle
+      return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay, selectedDateObj);
     });
-  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, selectedDate]);
+  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, selectedDate, today]);
 
   // Handle complete meals button press
   const handleCompleteMealsPress = useCallback(async () => {
@@ -256,8 +259,9 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
-        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
-        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter);
+        // ✅ CORRECTION: Vérifier la date exacte pour éviter que les repas soient marqués comme complétés
+        // lors du retour à une date précédente dans le cycle
+        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter, selectedDateObj);
       });
 
       setMealsToComplete(incompleteMeals);
@@ -473,8 +477,10 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
   }
 
   const completionDataToUse = completionStatusHook.completionStatus || completionStatusHook.freshCompletionData;
+  const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+  selectedDateObj.setHours(0, 0, 0, 0);
   const isMealCompletedForModal = selectedMeal 
-    ? completionStatusHook.isMealCompleted(selectedMeal.id, completionDataToUse, currentPlanDay)
+    ? completionStatusHook.isMealCompleted(selectedMeal.id, completionDataToUse, currentPlanDay, selectedDateObj)
     : false;
 
   return (
@@ -587,6 +593,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         onClose={() => setShowCompletionModal(false)}
         meals={mealsToComplete}
         planDay={currentPlanDay}
+        selectedDate={selectedDate}
         completionStatus={completionStatusHook.completionStatus}
         freshCompletionData={completionStatusHook.freshCompletionData}
         onMealComplete={handleMealComplete}
