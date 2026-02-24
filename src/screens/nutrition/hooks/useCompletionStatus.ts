@@ -214,68 +214,12 @@ export const useCompletionStatus = (
         if (Array.isArray(dayCompletions)) {
           const found = dayCompletions.some(
             (completion: any) => {
-              // Vérifier le mealId et que la complétion a un completedAt
+              // ✅ SIMPLIFICATION: Vérifier simplement si le repas est complété, peu importe la date
               const mealMatches = completion?.mealId === mealId;
               const hasCompletedAt = !!completion?.completedAt;
               
-              if (!mealMatches || !hasCompletedAt) {
-                return false;
-              }
-              
-              // ✅ CORRECTION: Si targetDate est fourni, on DOIT TOUJOURS vérifier la date exacte
-              // Même pour aujourd'hui, car il peut y avoir plusieurs complétions pour le même planDay
-              // (plan cyclique : planDay 1 peut être complété le 2026-02-08, 2026-02-15, 2026-02-16, etc.)
-              if (targetDate) {
-                // Si completionDate n'existe pas, on peut accepter seulement si c'est aujourd'hui (complétion récente)
-                if (!completion?.completionDate) {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const targetDateNormalized = new Date(targetDate);
-                  targetDateNormalized.setHours(0, 0, 0, 0);
-                  const isToday = targetDateNormalized.getTime() === today.getTime();
-                  if (isToday) {
-                    if (__DEV__) {
-                      console.log(`✅ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDayToCheck}] sans completionDate mais c'est aujourd'hui - Accepté`);
-                    }
-                    return true;
-                  }
-                  if (__DEV__) {
-                    console.log(`⚠️ [isMealCompleted] Repas ${mealId} trouvé dans completionsByDay[${planDayToCheck}] mais SANS completionDate et ce n'est PAS aujourd'hui - Ne peut pas confirmer`);
-                  }
-                  return false;
-                }
-                
-                try {
-                  const completionDate = new Date(completion.completionDate);
-                  completionDate.setHours(0, 0, 0, 0);
-                  const targetDateNormalized = new Date(targetDate);
-                  targetDateNormalized.setHours(0, 0, 0, 0);
-                  
-                  const completionDateISO = completionDate.toISOString().split('T')[0];
-                  const targetDateISO = targetDateNormalized.toISOString().split('T')[0];
-                  
-                  // Le repas est complété seulement si completionDate correspond EXACTEMENT à targetDate
-                  if (completionDateISO !== targetDateISO) {
-                    if (__DEV__) {
-                      console.log(`⚠️ [isMealCompleted] Repas ${mealId} complété mais date différente: ${completionDateISO} !== ${targetDateISO} (planDay ${planDayToCheck})`);
-                    }
-                    return false;
-                  }
-                  
-                  // Date correspond exactement
-                  if (__DEV__) {
-                    console.log(`✅ [isMealCompleted] Repas ${mealId} complété pour la date exacte: ${completionDateISO} === ${targetDateISO} (planDay ${planDayToCheck})`);
-                  }
-                } catch (error) {
-                  if (__DEV__) {
-                    console.warn(`⚠️ [isMealCompleted] Erreur parsing completionDate:`, completion.completionDate, error);
-                  }
-                  return false;
-                }
-              }
-              
-              // Si pas de targetDate, on accepte directement (comportement par défaut)
-              return true;
+              // Si le repas correspond et a un completedAt, il est complété (peu importe la date)
+              return mealMatches && hasCompletedAt;
             }
           );
           if (found) {
@@ -823,7 +767,11 @@ export const useCompletionStatus = (
         });
       }
       
-      const completionDateISO = completionDate.toISOString().split('T')[0] + 'T00:00:00.000Z';
+      // ✅ CORRECTION: Utiliser la date locale, pas UTC, pour éviter le décalage de -1 jour
+      const year = completionDate.getFullYear();
+      const month = String(completionDate.getMonth() + 1).padStart(2, '0');
+      const day = String(completionDate.getDate()).padStart(2, '0');
+      const completionDateISO = `${year}-${month}-${day}T00:00:00.000Z`;
 
       const completionData = {
         nutritionPlanId: currentPlan.id,
@@ -902,7 +850,67 @@ export const useCompletionStatus = (
           completedAt: new Date().toISOString()
         };
         
+        // ✅ CORRECTION: Ajouter aussi dans completionsByDay pour que isMealCompleted fonctionne correctement
+        if (!newStatus.completionsByDay) {
+          newStatus.completionsByDay = {};
+        }
+        const dayKey = String(planDay);
+        if (!newStatus.completionsByDay[dayKey]) {
+          newStatus.completionsByDay[dayKey] = [];
+        }
+        
+        // Vérifier si le repas n'est pas déjà dans la liste
+        const dayCompletions = newStatus.completionsByDay[dayKey];
+        const alreadyInCompletions = Array.isArray(dayCompletions) && dayCompletions.some(
+          (c: any) => c.mealId === mealId && c.completionDate === completionDateISO
+        );
+        
+        if (!alreadyInCompletions) {
+          newStatus.completionsByDay[dayKey] = [
+            ...dayCompletions,
+            {
+              mealId: mealId,
+              completionDate: completionDateISO,
+              completedAt: new Date().toISOString(),
+              planDay: planDay,
+            }
+          ];
+        }
+        
         return newStatus;
+      });
+      
+      // ✅ CORRECTION: Mettre à jour aussi freshCompletionData avec la même logique
+      setFreshCompletionData(prevData => {
+        const newData = prevData ? { ...prevData } : {};
+        
+        // Copier la même structure que completionStatus
+        if (!newData.completionsByDay) {
+          newData.completionsByDay = {};
+        }
+        const dayKey = String(planDay);
+        if (!newData.completionsByDay[dayKey]) {
+          newData.completionsByDay[dayKey] = [];
+        }
+        
+        const dayCompletions = newData.completionsByDay[dayKey];
+        const alreadyInCompletions = Array.isArray(dayCompletions) && dayCompletions.some(
+          (c: any) => c.mealId === mealId && c.completionDate === completionDateISO
+        );
+        
+        if (!alreadyInCompletions) {
+          newData.completionsByDay[dayKey] = [
+            ...dayCompletions,
+            {
+              mealId: mealId,
+              completionDate: completionDateISO,
+              completedAt: new Date().toISOString(),
+              planDay: planDay,
+            }
+          ];
+        }
+        
+        return newData;
       });
       
       Toast.show({
@@ -934,6 +942,13 @@ export const useCompletionStatus = (
             progress: globalCompletionData?.progress,
             completedMeals: globalCompletionData?.progress?.completedMeals,
           });
+          
+          // ✅ CORRECTION: Rafraîchir aussi les données du jour pour mettre à jour l'affichage
+          if (onLoadDayData) {
+            setTimeout(() => {
+              onLoadDayData();
+            }, 200);
+          }
         } catch (error) {
           logger.warn('Could not refresh completion status from server', { error });
           if (onLoadDayData) {

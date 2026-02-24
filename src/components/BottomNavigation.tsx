@@ -79,10 +79,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    // ✅ Ajuster l'opacité pour un meilleur effet glassmorphism sur toutes les plateformes
-    backgroundColor: Platform.OS === 'ios' 
-      ? 'rgba(255, 255, 255, 0.7)' // Fond semi-transparent pour iOS avec BlurView natif
-      : 'rgba(255, 255, 255, 0.75)', // Réduire l'opacité sur Android pour voir l'effet blur
+    backgroundColor: '#FFFFFF', // Fond opaque
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
     // Ombre subtile pour l'effet de profondeur

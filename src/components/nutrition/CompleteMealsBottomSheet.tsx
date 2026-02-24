@@ -153,67 +153,12 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
         if (Array.isArray(dayCompletions)) {
           const found = dayCompletions.some(
             (completion: any) => {
-              // Vérifier que le mealId correspond ET qu'il y a un completedAt
-              const mealMatches = completion?.mealId === mealId && completion?.completedAt;
-              if (!mealMatches) {
-                return false;
-              }
+              // ✅ SIMPLIFICATION: Vérifier simplement si le repas est complété, peu importe la date
+              const mealMatches = completion?.mealId === mealId;
+              const hasCompletedAt = !!completion?.completedAt;
               
-              // ✅ CORRECTION: Si selectedDate est fourni, on DOIT TOUJOURS vérifier la date exacte
-              // Même pour aujourd'hui, car il peut y avoir plusieurs complétions pour le même planDay
-              if (selectedDate) {
-                // Si completionDate n'existe pas, on peut accepter seulement si c'est aujourd'hui (complétion récente)
-                if (!completion?.completionDate) {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  const targetDateNormalized = new Date(selectedDate);
-                  targetDateNormalized.setHours(0, 0, 0, 0);
-                  const isToday = targetDateNormalized.getTime() === today.getTime();
-                  if (isToday) {
-                    if (__DEV__) {
-                      console.log(`✅ [CompleteMealsBottomSheet] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] sans completionDate mais c'est aujourd'hui - Accepté`);
-                    }
-                    return true;
-                  }
-                  if (__DEV__) {
-                    console.log(`⚠️ [CompleteMealsBottomSheet] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] mais SANS completionDate et ce n'est PAS aujourd'hui - Ne peut pas confirmer`);
-                  }
-                  return false;
-                }
-                
-                try {
-                  const completionDate = new Date(completion.completionDate);
-                  completionDate.setHours(0, 0, 0, 0);
-                  const targetDateNormalized = new Date(selectedDate);
-                  targetDateNormalized.setHours(0, 0, 0, 0);
-                  
-                  const completionDateISO = completionDate.toISOString().split('T')[0];
-                  const targetDateISO = targetDateNormalized.toISOString().split('T')[0];
-                  
-                  // Le repas est complété seulement si completionDate correspond EXACTEMENT à selectedDate
-                  if (completionDateISO !== targetDateISO) {
-                    if (__DEV__) {
-                      console.log(`⚠️ [CompleteMealsBottomSheet] Repas ${mealId} complété mais date différente: ${completionDateISO} !== ${targetDateISO} (planDay ${planDay})`);
-                    }
-                    return false;
-                  }
-                  
-                  // Date correspond exactement
-                  if (__DEV__) {
-                    console.log(`✅ [CompleteMealsBottomSheet] Repas ${mealId} complété pour la date exacte: ${completionDateISO} === ${targetDateISO} (planDay ${planDay})`);
-                  }
-                } catch (error) {
-                  if (__DEV__) {
-                    console.warn(`⚠️ [CompleteMealsBottomSheet] Erreur parsing completionDate:`, completion.completionDate, error);
-                  }
-                  return false;
-                }
-              }
-              
-              if (__DEV__) {
-                console.log(`✅ [CompleteMealsBottomSheet] Repas ${mealId} trouvé dans completionsByDay[${dayKey}] pour le jour ${planDay}`);
-              }
-              return true;
+              // Si le repas correspond et a un completedAt, il est complété (peu importe la date)
+              return mealMatches && hasCompletedAt;
             }
           );
           if (found) {

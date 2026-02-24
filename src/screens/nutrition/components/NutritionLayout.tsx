@@ -61,7 +61,8 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     isSameDate,
   } = useNutritionDate(subscriptionData, plansResponseStatus, currentPlan);
 
-  // ✅ CORRECTION: Créer completionStatusHook avec profileData (état local)
+  // ✅ CORRECTION: Créer completionStatusHook AVANT nutritionDataHook pour éviter la dépendance circulaire
+  // onLoadDayData sera appelé directement dans handleMealComplete
   const completionStatusHook = useCompletionStatus(
     currentPlan,
     subscriptionData,
@@ -69,7 +70,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     selectedDate,
     [],
     calculateNutritionPlanDay,
-    undefined,
+    undefined, // ✅ Ne pas passer loadDayData ici, on l'appellera directement dans handleMealComplete
     false
   );
 
@@ -225,13 +226,13 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       return false;
     }
 
-    const completionDataToUse = completionStatusHook.completionStatus || completionStatusHook.freshCompletionData;
+    // ✅ CORRECTION: Utiliser freshCompletionData en priorité
+    const completionDataToUse = completionStatusHook.freshCompletionData || completionStatusHook.completionStatus;
     const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
     selectedDateObj.setHours(0, 0, 0, 0);
     return nutritionDataHook.dayMeals.some((meal: Meal) => {
-      // ✅ CORRECTION: Vérifier la date exacte pour éviter que les repas soient marqués comme complétés
-      // lors du retour à une date précédente dans le cycle
-      return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay, selectedDateObj);
+      // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
+      return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
     });
   }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, selectedDate, today]);
 
@@ -259,9 +260,8 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
       const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
-        // ✅ CORRECTION: Vérifier la date exacte pour éviter que les repas soient marqués comme complétés
-        // lors du retour à une date précédente dans le cycle
-        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter, selectedDateObj);
+        // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
+        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter);
       });
 
       setMealsToComplete(incompleteMeals);
@@ -380,14 +380,18 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     if (!nutritionDataHook.currentPlan) return;
     
     await completionStatusHook.handleMealComplete(mealId, planDayOverride);
+    
+    // ✅ Rafraîchir les données du jour pour mettre à jour l'affichage
     if (nutritionDataHook.currentPlan.id) {
       await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+      // ✅ CORRECTION: Rafraîchir aussi les données du jour pour mettre à jour la liste des repas
+      await nutritionDataHook.loadDayData();
     }
     
     // ✅ Notifier les autres écrans (DashboardScreen) du changement
     nutritionSync.emit('meal-completed', { mealId, planDayOverride });
     nutritionSync.emit('completion-status-updated');
-  }, [nutritionDataHook.currentPlan, completionStatusHook]);
+  }, [nutritionDataHook.currentPlan, completionStatusHook, nutritionDataHook]);
   
   // ✅ Écouter les changements depuis DashboardScreen (NutritionCard)
   useEffect(() => {
@@ -476,11 +480,12 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     );
   }
 
-  const completionDataToUse = completionStatusHook.completionStatus || completionStatusHook.freshCompletionData;
+    // ✅ CORRECTION: Utiliser freshCompletionData en priorité
+    const completionDataToUse = completionStatusHook.freshCompletionData || completionStatusHook.completionStatus;
   const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
   selectedDateObj.setHours(0, 0, 0, 0);
   const isMealCompletedForModal = selectedMeal 
-    ? completionStatusHook.isMealCompleted(selectedMeal.id, completionDataToUse, currentPlanDay, selectedDateObj)
+    ? completionStatusHook.isMealCompleted(selectedMeal.id, completionDataToUse, currentPlanDay)
     : false;
 
   return (
