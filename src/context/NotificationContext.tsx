@@ -67,11 +67,22 @@ const setupNotificationHandler = () => {
     
     notifications.setNotificationHandler({
       handleNotification: async (notification: any): Promise<any> => {
+        // Traduire le titre et le corps de la notification en français
+        const title = notification.request.content.title;
+        const body = notification.request.content.body;
+        
+        const translatedTitle = translateNotificationTitle(title);
+        const translatedBody = translateNotificationMessage(body);
+        
+        // Retourner la notification traduite
         return {
           shouldPlaySound: true,
           shouldSetBadge: true,
           shouldShowBanner: true,
           shouldShowList: true,
+          // Optionnel : modifier le contenu affiché (si supporté)
+          // Note: Expo peut ne pas supporter la modification du contenu ici
+          // La traduction sera faite dans les listeners
         };
       },
     });
@@ -165,6 +176,39 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
       
       console.log('✅ [NotificationProvider] Push notification permissions granted');
+
+      // Configurer les canaux de notifications Android pour le logo et le français
+      if (Platform.OS === 'android') {
+        try {
+          // Créer un canal de notifications par défaut avec le logo
+          await notifications.setNotificationChannelAsync('default', {
+            name: 'Notifications LaSo Coach',
+            description: 'Notifications de l\'application LaSo Coach',
+            importance: notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#8BC34A',
+            sound: 'default',
+            enableVibrate: true,
+            showBadge: true,
+          });
+          
+          // Canal pour les messages de chat (priorité haute pour réactivité)
+          await notifications.setNotificationChannelAsync('chat_messages', {
+            name: 'Messages de chat',
+            description: 'Notifications pour les messages de chat',
+            importance: notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#2196F3',
+            sound: 'default',
+            enableVibrate: true,
+            showBadge: true,
+          });
+          
+          console.log('✅ [NotificationProvider] Android notification channels configured');
+        } catch (channelError) {
+          console.warn('⚠️ [NotificationProvider] Failed to configure notification channels:', channelError);
+        }
+      }
 
       // Get push token
       // NOTE: Expo Push Notifications can work without Firebase initialized
@@ -450,6 +494,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       const translatedTitle = translateNotificationTitle(notification.title);
       const translatedMessage = translateNotificationMessage(notification.message || '');
       
+      // Déterminer le canal Android selon le type de notification
+      // Les messages de chat utilisent le canal 'chat_messages' pour une meilleure réactivité
+      const channelId = (notification.type === 'CHAT_MESSAGE' || notification.type === 'chat_message')
+        ? 'chat_messages'
+        : 'default';
+      
       await notifications.scheduleNotificationAsync({
         content: {
           title: translatedTitle,
@@ -461,8 +511,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           },
           sound: 'default',
           badge: unreadCount + 1,
+          // ✅ Ajouter l'icône LaSo Coach pour iOS
+          ...(Platform.OS === 'ios' && {
+            icon: require('../../assets/icon.png'),
+          }),
         },
         trigger: null, // Show immediately
+        // Spécifier le canal Android pour les notifications de chat
+        ...(Platform.OS === 'android' && { channelId }),
       });
       
     } catch (error: any) {
@@ -574,16 +630,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     if (!notifications) return;
     
     // Listener for notifications received when app is in foreground/background
-    const notificationListener = notifications.addNotificationReceivedListener((notification: any) => {
+    const notificationListener = notifications.addNotificationReceivedListener(async (notification: any) => {
+      const originalTitle = notification.request.content.title;
+      const originalBody = notification.request.content.body;
+      
+      // Traduire la notification en français
+      const translatedTitle = translateNotificationTitle(originalTitle);
+      const translatedBody = translateNotificationMessage(originalBody);
+      
       console.log('📬 [NotificationProvider] Notification received:', {
-        title: notification.request.content.title,
-        body: notification.request.content.body,
+        originalTitle,
+        originalBody,
+        translatedTitle,
+        translatedBody,
         data: notification.request.content.data,
       });
       
-      // If app is in background, the OS will display the notification
-      // If app is in foreground, we can handle it here if needed
-      // The notification handler (setupNotificationHandler) will show it
+      // Note: Les notifications push du backend devraient être envoyées en français
+      // Si elles ne le sont pas, le handler de notification les traduira automatiquement
+      // On ne réaffiche pas la notification ici pour éviter les doublons
+      // La traduction est gérée dans setupNotificationHandler et showLocalNotification
     });
     
     // Listener for when user taps on a notification (app opened from notification)

@@ -117,6 +117,48 @@ const MeasurementModal: React.FC<MeasurementModalProps> = ({
               </View>
 
               <View style={styles.inputGroup}>
+                <Text style={styles.label}>Activité physique (optionnel)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.activityType || ''}
+                  onChangeText={(text) => onFormChange({ activityType: text })}
+                  placeholder="Ex: Running"
+                  placeholderTextColor={theme.colors.text.secondary}
+                  editable={!form.saving}
+                />
+              </View>
+
+              <View style={styles.activityRow}>
+                <View style={[styles.inputGroup, styles.activityInput]}>
+                  <Text style={styles.label}>Durée (min)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={form.activityDuration || ''}
+                    onChangeText={(text) => onFormChange({ activityDuration: text.replace(/[^0-9]/g, '') })}
+                    placeholder="45"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    placeholderTextColor={theme.colors.text.secondary}
+                    editable={!form.saving}
+                  />
+                </View>
+
+                <View style={[styles.inputGroup, styles.activityInput]}>
+                  <Text style={styles.label}>Calories</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={form.activityCalories || ''}
+                    onChangeText={(text) => onFormChange({ activityCalories: text.replace(/[^0-9]/g, '') })}
+                    placeholder="420"
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    placeholderTextColor={theme.colors.text.secondary}
+                    editable={!form.saving}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
                 <Text style={styles.label}>Notes (optionnel)</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
@@ -274,6 +316,15 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  activityInput: {
+    flex: 1,
+    marginBottom: 0,
   },
   label: {
     fontSize: 14,

@@ -8,18 +8,40 @@ export const useSubscription = (subscriptionData: SubscriptionData | null) => {
   const isIOS = shouldShowIOSOnly();
   const { isCompanionMode } = useCompanionMode();
 
-  // ✅ LOGIQUE D'ABONNEMENT CORRIGÉE (comme la version web)
-  // Sur iOS (mode companion), on considère toujours qu'il y a un accès actif
-  // Sur Android, on vérifie si l'abonnement n'est PAS expiré en utilisant daysRemaining
-  // Tant que daysRemaining > 0, l'utilisateur a accès (même s'il reste peu de jours)
+  // ✅ LOGIQUE D'ABONNEMENT CORRIGÉE
+  // Sur iOS et Android, on vérifie réellement si l'utilisateur a un abonnement actif
+  // Pour la complétion des repas, on a besoin d'un abonnement actif même sur iOS
   const hasActiveSubscription = useMemo(() => {
-    return isIOS || isCompanionMode || 
-           (subscriptionData && 
-            (subscriptionData as any)?.daysRemaining !== undefined &&
-            (subscriptionData as any)?.daysRemaining > 0 &&
-            (subscriptionData as any)?.status !== 'EXPIRED' &&
-            (subscriptionData as any)?.status !== 'CANCELLED');
-  }, [isIOS, isCompanionMode, subscriptionData]);
+    // Vérifier si l'utilisateur a un abonnement actif
+    if (subscriptionData) {
+      const status = (subscriptionData as any)?.status || (subscriptionData as any)?.subscription?.status;
+      const daysRemaining = (subscriptionData as any)?.daysRemaining;
+      const isExpired = (subscriptionData as any)?.isExpired || (subscriptionData as any)?.subscription?.isExpired;
+      
+      // Abonnement actif si :
+      // - Status est ACTIVE
+      // - daysRemaining > 0
+      // - Pas expiré
+      // - Status n'est pas EXPIRED ou CANCELLED
+      const hasActive = 
+        (status === 'ACTIVE' || status?.toUpperCase() === 'ACTIVE') &&
+        (daysRemaining === undefined || daysRemaining > 0) &&
+        !isExpired &&
+        status !== 'EXPIRED' &&
+        status !== 'CANCELLED';
+      
+      if (hasActive) {
+        return true;
+      }
+    }
+    
+    // Fallback : vérifier hasActiveSubscription si disponible
+    if ((subscriptionData as any)?.hasActiveSubscription === true) {
+      return true;
+    }
+    
+    return false;
+  }, [subscriptionData]);
 
   return {
     hasActiveSubscription,

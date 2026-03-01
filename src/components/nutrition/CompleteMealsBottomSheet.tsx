@@ -30,6 +30,7 @@ interface CompleteMealsBottomSheetProps {
   isIOS?: boolean;
   planDay?: number; // Jour du plan pour filtrer les repas complétés par jour
   selectedDate?: Date; // ✅ Date sélectionnée pour vérifier la complétion exacte
+  hasActiveSubscription?: boolean; // ✅ Pour masquer les boutons de complétion si pas d'abonnement
 }
 
 // Meal type configuration
@@ -72,6 +73,7 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   isIOS = false,
   planDay,
   selectedDate,
+  hasActiveSubscription = true, // ✅ Par défaut true pour compatibilité
 }) => {
   const insets = useSafeAreaInsets();
   const [completingMealIds, setCompletingMealIds] = useState<Set<string>>(new Set());
@@ -613,17 +615,20 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
                             <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
                           </TouchableOpacity>
                           
-                          <TouchableOpacity 
-                            style={[styles.completeButton, isCompleting && styles.completeButtonDisabled]}
-                            onPress={() => handleMealComplete(meal.id)}
-                            disabled={isCompleting}
-                          >
-                            {isCompleting ? (
-                              <ActivityIndicator size="small" color="#FFFFFF" />
-                            ) : (
-                              <Ionicons name="checkmark-outline" size={20} color="#FFFFFF" />
-                            )}
-                          </TouchableOpacity>
+                          {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif */}
+                          {hasActiveSubscription && (
+                            <TouchableOpacity 
+                              style={[styles.completeButton, isCompleting && styles.completeButtonDisabled]}
+                              onPress={() => handleMealComplete(meal.id)}
+                              disabled={isCompleting}
+                            >
+                              {isCompleting ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                              ) : (
+                                <Ionicons name="checkmark-outline" size={20} color="#FFFFFF" />
+                              )}
+                            </TouchableOpacity>
+                          )}
                         </View>
                       );
                     })()}

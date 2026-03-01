@@ -657,7 +657,8 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
                 const cleanText = text.replace(/[^0-9.]/g, '');
                 setFormData(prev => ({ ...prev, [formKey]: cleanText }));
               }}
-              placeholder={item.label}
+              placeholder={item.label || 'Entrez une valeur'}
+              placeholderTextColor="#999"
               keyboardType="decimal-pad"
             />
             {item.unit && <Text style={styles.unitText}>{item.unit}</Text>}
@@ -669,7 +670,8 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
           style={styles.input}
           value={formData[formKey as keyof typeof formData]?.toString() || ''}
           onChangeText={(text) => setFormData(prev => ({ ...prev, [formKey]: text }))}
-          placeholder={item.label}
+          placeholder={item.label || (formKey === 'phone' ? 'Numéro de téléphone' : formKey === 'email' ? 'Email' : 'Entrez une valeur')}
+          placeholderTextColor="#999"
           keyboardType={formKey === 'phone' ? 'phone-pad' : formKey === 'email' ? 'email-address' : 'default'}
           multiline={formKey === 'goal' || formKey === 'goals'}
         />

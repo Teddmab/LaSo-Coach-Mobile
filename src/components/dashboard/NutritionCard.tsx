@@ -76,6 +76,8 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   const [showVideoInCard, setShowVideoInCard] = useState(false);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [showCompletionConfirmation, setShowCompletionConfirmation] = useState(false);
+  const [completedMealId, setCompletedMealId] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
@@ -384,7 +386,16 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   );
 
   // ✅ Trouver le premier repas non complété (simplifié et rapide)
+  // ✅ CORRECTION: Ne pas mettre à jour pendant la confirmation (délai de 2 secondes)
   const nextMealToComplete = useMemo(() => {
+    // Si on affiche la confirmation, continuer à afficher le repas complété
+    if (showCompletionConfirmation && completedMealId) {
+      const meal = dayMeals.find(m => m.id === completedMealId);
+      if (meal) {
+        return meal;
+      }
+    }
+    
     // Si pas de repas, retourner null
     if (!dayMeals.length) {
       return null;
@@ -423,7 +434,7 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
     }
 
     return null; // Tous complétés
-  }, [dayMeals, currentPlanDay, propsCompletionData, freshCompletionData, completionStatus, isMealCompleted]);
+  }, [dayMeals, currentPlanDay, propsCompletionData, freshCompletionData, completionStatus, isMealCompleted, showCompletionConfirmation, completedMealId]);
 
   // ✅ Calculer youtubeVideoId et hasVideo AVANT le return null pour éviter l'erreur "rendered more hooks"
   // Toujours calculer même si nextMealToComplete est null pour maintenir l'ordre des hooks
@@ -658,12 +669,24 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
             }
           }
           
+          // ✅ Afficher la confirmation de complétion
+          setShowCompletionConfirmation(true);
+          setCompletedMealId(mealId);
+          
           Toast.show({
             type: 'success',
             text1: 'Repas complété ! ✅',
-            text2: 'Vous avez gagné 25 points. Passage au repas suivant...',
-            visibilityTime: 2500,
+            text2: 'Vous avez gagné 25 points',
+            visibilityTime: 2000,
           });
+          
+          // ✅ Attendre 2 secondes avant de passer au repas suivant
+          // Cela permet au processus de complétion de se terminer complètement
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // ✅ Masquer la confirmation et réinitialiser
+          setShowCompletionConfirmation(false);
+          setCompletedMealId(null);
         } catch (error: any) {
           console.error('❌ [NutritionCard] Erreur complétion repas:', error);
           
@@ -695,6 +718,14 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
             return;
           }
           
+          // ✅ iOS COMPANION MODE: Ignorer l'erreur 403 sur iOS car c'est en mode compagnon
+          // Sur iOS, pas besoin d'abonnement pour compléter un repas
+          if (isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
+            console.log('⚠️ [NutritionCard] [iOS Companion Mode] Erreur 403 ignorée - Mode compagnon activé');
+            // Ne pas afficher d'erreur à l'utilisateur sur iOS, juste logger
+            return;
+          }
+          
           // ✅ En cas d'erreur, rafraîchir les données pour annuler la mise à jour optimiste
           const planToUse = propsCurrentPlan || currentPlan;
           if (planToUse?.id) {
@@ -706,6 +737,18 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
             } catch (refreshError) {
               console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut après erreur:', refreshError);
             }
+          }
+          
+          // ✅ Ne pas afficher l'erreur 403 sur Android non plus si c'est lié à l'abonnement
+          // (mais on l'affiche quand même pour Android car c'est une vraie restriction)
+          if (!isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
+            Toast.show({
+              type: 'error',
+              text1: 'Accès refusé',
+              text2: 'Un abonnement actif est requis pour compléter ce repas',
+              visibilityTime: 4000,
+            });
+            return;
           }
           
           Toast.show({
@@ -754,32 +797,89 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         console.warn('⚠️ [NutritionCard] Erreur rafraîchissement statut:', refreshError);
       }
       
+      // ✅ Afficher la confirmation de complétion
+      setShowCompletionConfirmation(true);
+      setCompletedMealId(mealId);
+      
       Toast.show({
         type: 'success',
         text1: 'Repas complété ! ✅',
-        text2: 'Vous avez gagné 25 points. Passage au repas suivant...',
-        visibilityTime: 2500,
+        text2: 'Vous avez gagné 25 points',
+        visibilityTime: 2000,
       });
+      
+      // ✅ Attendre 2 secondes avant de passer au repas suivant
+      // Cela permet au processus de complétion de se terminer complètement
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // ✅ Masquer la confirmation et réinitialiser
+      setShowCompletionConfirmation(false);
+      setCompletedMealId(null);
     } catch (error: any) {
       console.error('❌ [NutritionCard] Erreur complétion repas:', error);
+      
+      const errorStatus = error?.status || error?.response?.status;
+      const rawErrorMessage = error?.response?.data?.message || error?.data?.message || error?.message || '';
+      const errorMessageLower = rawErrorMessage.toLowerCase();
+      
+      // ✅ iOS COMPANION MODE: Ignorer l'erreur 403 sur iOS car c'est en mode compagnon
+      // Sur iOS, pas besoin d'abonnement pour compléter un repas
+      if (isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
+        console.log('⚠️ [NutritionCard] [iOS Companion Mode] Erreur 403 ignorée - Mode compagnon activé');
+        // Ne pas afficher d'erreur à l'utilisateur sur iOS, juste logger
+        return;
+      }
+      
       Toast.show({
         type: 'error',
         text1: 'Erreur',
-        text2: 'Impossible de compléter le repas',
+        text2: error?.message || 'Impossible de compléter le repas',
         visibilityTime: 2000,
       });
     } finally {
       // ✅ Arrêter l'animation de loader
       setIsCompleting(false);
+      // ✅ S'assurer que la confirmation est masquée en cas d'erreur
+      setShowCompletionConfirmation(false);
+      setCompletedMealId(null);
     }
   }, [propsOnMealComplete, propsCurrentPlan, currentPlan, propsCurrentPlanDay, currentPlanDay]);
 
-  // ✅ ANDROID: Bloquer l'accès si pas d'abonnement actif
-  const hasActiveSubscription = isIOS || 
-    subscriptionData?.status === 'ACTIVE' || 
-    subscriptionData?.hasActiveSubscription === true ||
-    (subscriptionData?.subscription?.status?.toUpperCase() === 'ACTIVE' && !subscriptionData?.isExpired);
+  // ✅ Vérifier si l'utilisateur a un abonnement actif (iOS et Android)
+  const hasActiveSubscription = useMemo(() => {
+    if (!subscriptionData) {
+      return false;
+    }
+    
+    const status = subscriptionData?.status || subscriptionData?.subscription?.status;
+    const daysRemaining = (subscriptionData as any)?.daysRemaining;
+    const isExpired = subscriptionData?.isExpired || subscriptionData?.subscription?.isExpired;
+    
+    // Abonnement actif si :
+    // - Status est ACTIVE
+    // - daysRemaining > 0 (si défini)
+    // - Pas expiré
+    // - Status n'est pas EXPIRED ou CANCELLED
+    const hasActive = 
+      (status === 'ACTIVE' || status?.toUpperCase() === 'ACTIVE') &&
+      (daysRemaining === undefined || daysRemaining > 0) &&
+      !isExpired &&
+      status !== 'EXPIRED' &&
+      status !== 'CANCELLED';
+    
+    if (hasActive) {
+      return true;
+    }
+    
+    // Fallback : vérifier hasActiveSubscription si disponible
+    if (subscriptionData?.hasActiveSubscription === true) {
+      return true;
+    }
+    
+    return false;
+  }, [subscriptionData]);
   
+  // ✅ ANDROID: Bloquer l'accès complet si pas d'abonnement actif
   if (Platform.OS === 'android' && !hasActiveSubscription) {
     return (
       <View style={styles.container}>
@@ -1042,11 +1142,13 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
             <Text style={styles.viewMoreText}>Voir +</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.actionButton, isCompleting && styles.actionButtonDisabled]}
-            onPress={async () => {
-              // ✅ Compléter directement le repas sans ouvrir le modal
-              if (nextMealToComplete && !isCompleting) {
+          {/* ✅ Afficher le bouton "Compléter ce repas" uniquement si l'utilisateur a un abonnement actif */}
+          {hasActiveSubscription && (
+            <TouchableOpacity 
+              style={[styles.actionButton, (isCompleting || showCompletionConfirmation) && styles.actionButtonDisabled]}
+              onPress={async () => {
+                // ✅ Compléter directement le repas sans ouvrir le modal
+                if (nextMealToComplete && !isCompleting && !showCompletionConfirmation) {
                 // ✅ Vérifier une dernière fois avant de compléter pour éviter les appels API inutiles
                 const completionDataToCheck = freshCompletionData || propsCompletionData || completionStatus;
                 const isAlreadyCompleted = completionDataToCheck && currentPlanDay !== undefined
@@ -1076,16 +1178,21 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
                 }
                 
                 await handleMealComplete(nextMealToComplete.id);
-                // Le repas suivant s'affichera automatiquement grâce au useMemo de nextMealToComplete
+                // Le repas suivant s'affichera automatiquement après le délai de 2 secondes
               }
             }}
             activeOpacity={0.7}
-            disabled={isCompleting}
+            disabled={isCompleting || showCompletionConfirmation}
           >
             {isCompleting ? (
               <>
                 <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={styles.actionButtonText}>Complétion...</Text>
+              </>
+            ) : showCompletionConfirmation ? (
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.actionButtonText}>Repas complété !</Text>
               </>
             ) : (
               <>
@@ -1093,7 +1200,8 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
                 <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
               </>
             )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

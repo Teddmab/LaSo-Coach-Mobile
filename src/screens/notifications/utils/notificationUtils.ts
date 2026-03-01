@@ -60,6 +60,11 @@ export const translateNotificationTitle = (title?: string): string => {
     'new message': 'Nouveau message',
     'new message from': 'Nouveau message de',
     'new chat started': 'Nouvelle conversation démarrée',
+    'message': 'Message',
+    'chat': 'Chat',
+    'conversation': 'Conversation',
+    'sent you a message': 'vous a envoyé un message',
+    'has sent you a message': 'vous a envoyé un message',
     'new session': 'Nouvelle session',
     'session reminder': 'Rappel de session',
     'payment received': 'Paiement reçu',
@@ -198,13 +203,19 @@ export const translateNotificationMessage = (message?: string): string => {
     { en: /new content available/gi, fr: 'Nouveau contenu disponible' },
     { en: /\bplan\b/gi, fr: 'plan' },
     
-    // Messages de chat
+    // Messages de chat - améliorations pour réactivité
     { en: /you have a new message from/gi, fr: 'Vous avez un nouveau message de' },
     { en: /you have a new message/gi, fr: 'Vous avez un nouveau message' },
     { en: /new message from/gi, fr: 'Nouveau message de' },
     { en: /sent you a message/gi, fr: 'vous a envoyé un message' },
     { en: /started a conversation with you/gi, fr: 'a démarré une conversation avec vous' },
     { en: /new chat started/gi, fr: 'Nouvelle conversation démarrée' },
+    { en: /has sent you a message/gi, fr: 'vous a envoyé un message' },
+    { en: /wants to chat with you/gi, fr: 'souhaite discuter avec vous' },
+    { en: /is typing/gi, fr: 'est en train d\'écrire' },
+    { en: /message received/gi, fr: 'Message reçu' },
+    { en: /chat message/gi, fr: 'Message de chat' },
+    { en: /conversation/gi, fr: 'conversation' },
     
     // Messages de session
     { en: /your session is starting soon/gi, fr: 'Votre session commence bientôt' },

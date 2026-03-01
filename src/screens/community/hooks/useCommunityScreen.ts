@@ -1003,6 +1003,8 @@ export const useCommunityScreen = (
   const handleSubmitReport = async (postId: string, reason: string): Promise<void> => {
     try {
       await CommunityApi.reportPost(postId, reason);
+      // Supprimer le post de la liste après signalement réussi
+      setCommunityPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
       // Le modal affichera le message de succès
     } catch (error: any) {
       // Extraire le message d'erreur utilisateur

@@ -162,26 +162,37 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     }
   }, []);
 
+  // Ref pour tracker si on a déjà appelé fetchAllData dans useFocusEffect
+  const focusEffectFetchRef = useRef(false);
+  
   // Focus effect
   useFocusEffect(
     useCallback(() => {
+      // Protection contre les appels multiples sur Android
       if (nutritionDataHook.isFetchingAllData || nutritionDataHook.isLoadingDayData || !nutritionDataHook.hasInitialLoadRef.current) {
         return;
       }
 
-      if (!nutritionDataHook.currentPlan?.id || !subscriptionData || !weekDays || weekDays.length === 0) {
-        nutritionDataHook.fetchAllData();
+      // Si on a déjà les données nécessaires, ne pas recharger
+      if (nutritionDataHook.currentPlan?.id && subscriptionData && weekDays && weekDays.length > 0) {
+        // Rafraîchir seulement le statut de complétion si nécessaire
+        if (nutritionDataHook.currentPlan?.id) {
+          completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+        }
+        focusEffectFetchRef.current = true;
         return;
       }
 
-      // ✅ Ne plus charger les données ici sans currentPlanDay
-      // Le useEffect principal (ligne 101) s'occupe de charger avec le bon currentPlanDay calculé automatiquement
-      // On rafraîchit juste le statut de complétion si nécessaire
-
-      if (nutritionDataHook.currentPlan?.id) {
-        completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
+      // Ne charger que si on n'a pas déjà chargé dans ce focus effect
+      if (!focusEffectFetchRef.current) {
+        focusEffectFetchRef.current = true;
+        nutritionDataHook.fetchAllData();
       }
-      // ✅ Ne pas inclure completionStatusHook dans les dépendances pour éviter les boucles
+      
+      // Réinitialiser le flag quand l'écran perd le focus
+      return () => {
+        focusEffectFetchRef.current = false;
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nutritionDataHook.currentPlan?.id, subscriptionData, weekDays?.length])
   );
@@ -527,7 +538,8 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         )}
 
         {/* ✅ Bouton "Compléter des repas" - Monté juste après le calendrier */}
-        {nutritionDataHook.currentPlan && nutritionDataHook.dayMeals.length > 0 && hasIncompleteMeals && (
+        {/* ✅ Afficher uniquement si l'utilisateur a un abonnement actif */}
+        {nutritionDataHook.currentPlan && nutritionDataHook.dayMeals.length > 0 && hasIncompleteMeals && hasActiveSubscription && (
           <CompleteMealsButton onPress={handleCompleteMealsPress} />
         )}
 
@@ -590,6 +602,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           mealInteractions={mealInteractionsHook.mealInteractions}
           onLike={mealInteractionsHook.handleMealLike}
           onDislike={mealInteractionsHook.handleMealDislike}
+          hasActiveSubscription={hasActiveSubscription}
         />
       )}
 
@@ -607,6 +620,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
             await completionStatusHook.fetchCompletionStatus(nutritionDataHook.currentPlan.id);
           }
         }}
+        hasActiveSubscription={hasActiveSubscription}
       />
 
       {/* ✅ PastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup */}

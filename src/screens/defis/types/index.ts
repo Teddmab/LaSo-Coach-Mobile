@@ -40,7 +40,7 @@ export interface Challenge {
   createdAt?: string;
 }
 
-export type ChallengeTab = 'pending' | 'my' | 'completed';
+export type ChallengeTab = 'not_assigned' | 'assigned' | 'completed';
 
 export interface FloatingPointsData {
   points: string;

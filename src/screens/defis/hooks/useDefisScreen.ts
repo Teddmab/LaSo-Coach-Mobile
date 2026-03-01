@@ -39,7 +39,7 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
   const [showFloatingPoints, setShowFloatingPoints] = useState(false);
   const [floatingPointsData, setFloatingPointsData] = useState<FloatingPointsData | null>(null);
   const [socketSubscriptions, setSocketSubscriptions] = useState<Array<() => void>>([]);
-  const [selectedTab, setSelectedTab] = useState<ChallengeTab>('pending');
+  const [selectedTab, setSelectedTab] = useState<ChallengeTab>('not_assigned');
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,8 +52,14 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
     fetchChallenges();
     setupWebSocketListeners();
     
+    // Set up automatic polling for challenges every 30 seconds (aligné avec la version web)
+    const challengesInterval = setInterval(() => {
+      fetchChallenges();
+    }, 30000);
+    
     return () => {
       socketSubscriptions.forEach(unsubscribe => unsubscribe());
+      clearInterval(challengesInterval);
     };
   }, []);
 
@@ -241,12 +247,23 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
     try {
       const response: any = await api.post(API_CONFIG.endpoints.challenges.assign(challengeId), {});
       
+      // Handle different response types (aligné avec la version web)
       if (response.data?.success) {
-        Toast.show({
-          type: 'success',
-          text1: 'Défi accepté',
-          text2: 'Vous avez accepté ce défi avec succès',
-        });
+        if (response.data?.data?.message) {
+          // Challenge was reassigned
+          Toast.show({
+            type: 'success',
+            text1: 'Défi réassigné',
+            text2: response.data.data.message || 'Défi réassigné avec succès !',
+          });
+        } else {
+          // New assignment
+          Toast.show({
+            type: 'success',
+            text1: 'Défi accepté',
+            text2: 'Vous avez accepté ce défi avec succès',
+          });
+        }
         fetchChallenges();
       } else {
         Toast.show({
@@ -255,16 +272,45 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
           text2: 'Impossible d\'accepter ce défi',
         });
       }
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Erreur',
-        text2: 'Impossible d\'accepter ce défi',
-      });
+    } catch (error: any) {
+      // Handle specific error messages for repeatable challenges (aligné avec la version web)
+      const errorMessage = error.response?.data?.error || error.response?.data?.message;
+      
+      if (errorMessage && errorMessage.includes('can be reassigned in')) {
+        // Show the specific countdown message from backend
+        Toast.show({
+          type: 'error',
+          text1: 'Défi non disponible',
+          text2: errorMessage,
+        });
+      } else if (errorMessage && errorMessage.includes('already assigned')) {
+        Toast.show({
+          type: 'error',
+          text1: 'Défi déjà assigné',
+          text2: 'Vous avez déjà ce défi assigné',
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Erreur',
+          text2: errorMessage || 'Impossible d\'accepter ce défi',
+        });
+      }
     }
   };
 
   const leaveChallenge = async (challengeId: string): Promise<void> => {
+    const challenge = challenges.find(c => c.id === challengeId);
+    
+    if (!challenge) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Défi non trouvé',
+      });
+      return;
+    }
+
     try {
       const response: any = await api.post(API_CONFIG.endpoints.challenges.leave(challengeId), {});
       
@@ -272,7 +318,7 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
         Toast.show({
           type: 'success',
           text1: 'Défi quitté',
-          text2: 'Vous avez quitté ce défi avec succès',
+          text2: response.data.message || 'Vous avez quitté ce défi avec succès',
         });
         fetchChallenges();
       } else {
@@ -282,11 +328,12 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
           text2: 'Impossible de quitter ce défi',
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.response?.data?.message;
       Toast.show({
         type: 'error',
         text1: 'Erreur',
-        text2: 'Impossible de quitter ce défi',
+        text2: errorMessage || 'Impossible de quitter ce défi',
       });
     }
   };
@@ -301,10 +348,10 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
     
     let filtered: Challenge[];
     switch (selectedTab) {
-      case 'pending':
+      case 'not_assigned':
         filtered = challenges.filter(challenge => challenge.status === 'not_assigned');
         break;
-      case 'my':
+      case 'assigned':
         filtered = challenges.filter(challenge => 
           challenge.status === 'assigned' || challenge.status === 'in_progress'
         );
@@ -329,10 +376,10 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
     
     let filtered: Challenge[];
     switch (selectedTab) {
-      case 'pending':
+      case 'not_assigned':
         filtered = challenges.filter(challenge => challenge.status === 'not_assigned');
         break;
-      case 'my':
+      case 'assigned':
         filtered = challenges.filter(challenge => 
           challenge.status === 'assigned' || challenge.status === 'in_progress'
         );
@@ -352,11 +399,11 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
   }, [challenges, selectedTab, currentPage]);
 
   const getTabCounts = () => {
-    if (!challenges || challenges.length === 0) return { pending: 0, my: 0, completed: 0 };
+    if (!challenges || challenges.length === 0) return { not_assigned: 0, assigned: 0, completed: 0 };
     
     return {
-      pending: challenges.filter(c => c.status === 'not_assigned').length,
-      my: challenges.filter(c => c.status === 'assigned' || c.status === 'in_progress').length,
+      not_assigned: challenges.filter(c => c.status === 'not_assigned').length,
+      assigned: challenges.filter(c => c.status === 'assigned' || c.status === 'in_progress').length,
       completed: challenges.filter(c => c.status === 'completed').length,
     };
   };

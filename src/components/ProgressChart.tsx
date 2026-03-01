@@ -17,6 +17,7 @@ interface ProgressChartProps {
   onAddMeasurement?: () => void;
   onEditMeasurement?: (measurement: Measurement) => void;
   onViewHistory?: (measurement: Measurement) => void;
+  onMeasurementClick?: (measurement: Measurement) => void;
   getPhotoUrl?: (photo: any) => string | null;
 }
 
@@ -332,6 +333,7 @@ interface RecentMeasurementsProps {
   onEditMeasurement?: (measurement: Measurement) => void;
   onViewHistory?: (measurement: Measurement) => void;
   onDeleteMeasurement?: (id?: string) => void;
+  onMeasurementClick?: (measurement: Measurement) => void;
   onAddMeasurement?: () => void;
 }
 
@@ -341,6 +343,7 @@ export const RecentMeasurements: React.FC<RecentMeasurementsProps> = ({
   onEditMeasurement,
   onViewHistory,
   onDeleteMeasurement,
+  onMeasurementClick,
   onAddMeasurement
   }) => {
   // Calculer les différences par rapport à la mesure initiale
@@ -400,13 +403,15 @@ export const RecentMeasurements: React.FC<RecentMeasurementsProps> = ({
                   style={[styles.measurementCard, hasPhoto && styles.measurementCardWithPhoto]}
                   onPress={() => {
                     console.log('[RecentMeasurements] 🖱️ Card pressed, measurement:', measurement);
-                    console.log('[RecentMeasurements] 🖱️ onViewHistory defined:', !!onViewHistory);
-                    console.log('[RecentMeasurements] 🖱️ isInitial:', measurement.isInitial);
-                    if (onViewHistory && !measurement.isInitial) {
+                    // Si onMeasurementClick est défini, l'utiliser pour la comparaison (même pour la mesure initiale)
+                    if (onMeasurementClick) {
+                      console.log('[RecentMeasurements] 🖱️ Calling onMeasurementClick for comparison...');
+                      onMeasurementClick(measurement);
+                    } else if (onViewHistory && !measurement.isInitial) {
                       console.log('[RecentMeasurements] 🖱️ Calling onViewHistory...');
                       onViewHistory(measurement);
                     } else {
-                      console.log('[RecentMeasurements] 🖱️ Not calling onViewHistory - conditions not met');
+                      console.log('[RecentMeasurements] 🖱️ Not calling any handler - conditions not met');
                     }
                   }}
                   activeOpacity={0.8}
@@ -431,6 +436,11 @@ export const RecentMeasurements: React.FC<RecentMeasurementsProps> = ({
                         <Text style={styles.measurementCardDate}>
                           {formatDateShort(measurement.date || measurement.createdAt || measurement.updatedAt)}
                         </Text>
+                        {measurement.isInitial && (
+                          <View style={styles.initialBadge}>
+                            <Text style={styles.initialBadgeText}>Mesure initiale</Text>
+                          </View>
+                        )}
                       </View>
                       {!measurement.isInitial && (
                         <View style={styles.measurementActions}>
@@ -654,11 +664,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   measurementCardDate: {
     fontSize: 13,
     fontWeight: '600',
     color: theme.colors.text.primary,
+  },
+  initialBadge: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  initialBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   measurementValues: {
     flexDirection: 'row',

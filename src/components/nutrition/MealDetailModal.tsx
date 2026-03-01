@@ -39,6 +39,7 @@ interface MealDetailBottomSheetProps {
   mealInteractions?: { [mealId: string]: 'like' | 'dislike' | null };
   onLike?: (mealId: string) => void;
   onDislike?: (mealId: string) => void;
+  hasActiveSubscription?: boolean; // ✅ Pour masquer le bouton de complétion si pas d'abonnement
 }
 
 const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
@@ -51,6 +52,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   mealInteractions = {},
   onLike,
   onDislike,
+  hasActiveSubscription = true, // ✅ Par défaut true pour compatibilité
 }) => {
   const insets = useSafeAreaInsets();
   const [youtubePlaying, setYoutubePlaying] = useState(false);
@@ -451,14 +453,16 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
             </View>
             
             {/* Footer fixe avec bouton de complétion et logo LaSo (baissé) */}
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-              <TouchableOpacity
-                style={[
-                  styles.completeButton, 
-                  isCompleted && styles.completeButtonCompleted,
-                  (isCompleting || isCompleted) && styles.completeButtonDisabled
-                ]}
-                onPress={async () => {
+            {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif */}
+            {hasActiveSubscription && (
+              <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.completeButton, 
+                    isCompleted && styles.completeButtonCompleted,
+                    (isCompleting || isCompleted) && styles.completeButtonDisabled
+                  ]}
+                  onPress={async () => {
                   if (isCompleted) {
                     // ✅ Ne plus afficher de Toast, le bouton est désactivé
                     return;
@@ -527,20 +531,21 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                   </>
                 )}
               </TouchableOpacity>
-              
-              {/* Logo LaSo en bas (baissé) */}
-              <View style={styles.logoContainer}>
-                <Image
-                  source={require('../../../assets/logo.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
               </View>
+            )}
+            
+            {/* Logo LaSo en bas (baissé) - Toujours visible */}
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
             </View>
-            </View>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-      </BlurView>
+      </TouchableOpacity>
+    </BlurView>
     </Modal>
   );
 };

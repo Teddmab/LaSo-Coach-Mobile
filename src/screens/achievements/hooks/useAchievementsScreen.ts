@@ -18,7 +18,7 @@ import {
   FloatingPointsData,
   AchievementsData,
 } from '../types';
-import { countryCodeToFlagEmoji } from '../utils/achievementsUtils';
+import { countryCodeToFlagEmoji, extractCountryFromAddress } from '../utils/achievementsUtils';
 
 // Haptics is optional
 let Haptics: any = null;
@@ -48,7 +48,7 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
   const [showFloatingPoints, setShowFloatingPoints] = useState(false);
   const [floatingPointsData, setFloatingPointsData] = useState<FloatingPointsData | null>(null);
   const [socketSubscriptions, setSocketSubscriptions] = useState<Array<() => void>>([]);
-  const [selectedTab, setSelectedTab] = useState<ChallengeTab>('pending');
+  const [selectedTab, setSelectedTab] = useState<ChallengeTab>('not_assigned');
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -80,10 +80,10 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
     
     let filtered: Challenge[];
     switch (selectedTab) {
-      case 'pending':
+      case 'not_assigned':
         filtered = challenges.filter(challenge => challenge.status === 'not_assigned');
         break;
-      case 'my':
+      case 'assigned':
         filtered = challenges.filter(challenge => 
           challenge.status === 'assigned' || challenge.status === 'in_progress'
         );
@@ -222,17 +222,20 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
       const responseData = response.data || response;
       
       if (responseData.status === 'success' && responseData.data) {
-        const top5Users = responseData.data.slice(0, 5).map((user: any) => ({
-          rank: user.rank || 1,
-          firstName: user.firstName || '',
-          lastName: user.lastName || '',
-          name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-          points: user.points || 0,
-          avatar: user.avatar || null,
-          address: user.address || '',
-          userId: user.userId || '',
-          flag: countryCodeToFlagEmoji(user.address) || '🏳️',
-        }));
+        const top5Users = responseData.data.slice(0, 5).map((user: any) => {
+          const countryCode = extractCountryFromAddress(user.address || '');
+          return {
+            rank: user.rank || 1,
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            points: user.points || 0,
+            avatar: user.avatar || null,
+            address: user.address || '',
+            userId: user.userId || '',
+            flag: countryCode ? countryCodeToFlagEmoji(countryCode) : '🏳️',
+          };
+        });
         
         setLeaderboardData(top5Users);
       } else {
@@ -261,7 +264,10 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
           address: responseData.data.address || '',
           points: responseData.data.points || 0,
           message: responseData.data.message || '',
-          flag: countryCodeToFlagEmoji(responseData.data.address) || '🏳️',
+          flag: (() => {
+            const countryCode = extractCountryFromAddress(responseData.data.address || '');
+            return countryCode ? countryCodeToFlagEmoji(countryCode) : '🏳️';
+          })(),
         };
         
         setUserPosition(positionData);
@@ -496,10 +502,10 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
     
     let filtered: Challenge[];
     switch (selectedTab) {
-      case 'pending':
+      case 'not_assigned':
         filtered = challenges.filter(challenge => challenge.status === 'not_assigned');
         break;
-      case 'my':
+      case 'assigned':
         filtered = challenges.filter(challenge => 
           challenge.status === 'assigned' || challenge.status === 'in_progress'
         );
@@ -517,11 +523,11 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
   }, [challenges, selectedTab, currentPage]);
 
   const getTabCounts = () => {
-    if (!challenges || challenges.length === 0) return { pending: 0, my: 0, completed: 0 };
+    if (!challenges || challenges.length === 0) return { not_assigned: 0, assigned: 0, completed: 0 };
     
     return {
-      pending: challenges.filter(c => c.status === 'not_assigned').length,
-      my: challenges.filter(c => c.status === 'assigned' || c.status === 'in_progress').length,
+      not_assigned: challenges.filter(c => c.status === 'not_assigned').length,
+      assigned: challenges.filter(c => c.status === 'assigned' || c.status === 'in_progress').length,
       completed: challenges.filter(c => c.status === 'completed').length,
     };
   };

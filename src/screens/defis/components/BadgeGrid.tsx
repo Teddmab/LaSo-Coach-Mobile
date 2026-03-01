@@ -80,33 +80,34 @@ const BadgeGrid: React.FC<BadgeGridProps> = ({ badges, onBadgePress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: 8,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    justifyContent: 'space-around',
+    marginBottom: 24,
+    paddingHorizontal: 8,
   },
   item: {
-    width: '23%',
+    width: '22%',
     alignItems: 'center',
+    minWidth: 70,
   },
   iconContainer: {
     position: 'relative',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   icon: {
-    width: 60,
-    height: 60,
+    width: 64,
+    height: 64,
   },
   iconLocked: {
     opacity: 0.5,
   },
   iconPlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -139,6 +140,8 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     textAlign: 'center',
     fontWeight: '500',
+    marginTop: 4,
+    paddingHorizontal: 4,
   },
   nameLocked: {
     color: '#CCC',

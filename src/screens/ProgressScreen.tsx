@@ -13,6 +13,7 @@ import ProgressTabs from './progress/components/ProgressTabs';
 import ProgressCard from './progress/components/ProgressCard';
 import MeasurementModal from './progress/components/MeasurementModal';
 import MeasurementHistoryBottomSheet from '../components/progress/MeasurementHistoryBottomSheet';
+import MeasurementComparisonBottomSheet from '../components/progress/MeasurementComparisonBottomSheet';
 import { ShimmerCard } from '../components/Shimmer';
 
 const { width } = Dimensions.get('window');
@@ -47,6 +48,11 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
     handleEditMeasurement,
     handleViewHistory,
     handleDeleteMeasurement,
+    handleMeasurementClick,
+    showComparisonModal,
+    setShowComparisonModal,
+    selectedMeasurementForComparison,
+    initialProgressPhoto,
     getAvatarUrl,
     getPhotoUrl,
     progressPhotos,
@@ -148,6 +154,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           }}
           onEditMeasurement={handleEditMeasurement}
           onViewHistory={handleViewHistory}
+          onMeasurementClick={handleMeasurementClick}
           getPhotoUrl={getPhotoUrl}
         />
 
@@ -180,6 +187,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           onEditMeasurement={handleEditMeasurement}
           onViewHistory={handleViewHistory}
           onDeleteMeasurement={handleDeleteMeasurement}
+          onMeasurementClick={handleMeasurementClick}
           onAddMeasurement={() => setShowMeasurementModal(true)}
         />
       </ScrollView>
@@ -203,6 +211,108 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
         }}
         onPhotoSelect={handlePhotoSelection}
       />
+
+      {/* Measurement Comparison Bottom Sheet */}
+      {showComparisonModal && selectedMeasurementForComparison && (() => {
+        // Déterminer la première mesure (initial ou la plus ancienne)
+        // Priorité : utiliser la mesure initiale depuis combinedMeasurements car elle contient déjà la photo
+        let firstMeasurement: any;
+        
+        // Si la mesure sélectionnée est la mesure initiale, utiliser la même mesure pour firstMeasurement
+        const isSelectedInitial = selectedMeasurementForComparison.isInitial || selectedMeasurementForComparison.id === 'initial';
+        
+        // Chercher la mesure initiale dans combinedMeasurements (elle contient déjà la photo initiale)
+        const initialMeasurementFromCombined = combinedMeasurements.find(m => m.isInitial);
+        
+        if (isSelectedInitial && initialMeasurementFromCombined) {
+          // Si on clique sur la mesure initiale, utiliser la mesure initiale comme firstMeasurement
+          const baselinePhotoUrl = initialProgressPhoto 
+            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            : null;
+            
+          // Prioriser selectedMeasurementForComparison.photoUrl (qui a été enrichi dans handleMeasurementClick)
+          // puis initialMeasurementFromCombined.photoUrl, puis baselinePhotoUrl
+          firstMeasurement = {
+            ...initialMeasurementFromCombined,
+            photoUrl: selectedMeasurementForComparison.photoUrl ||
+              initialMeasurementFromCombined.photoUrl || 
+              (initialMeasurementFromCombined as any).url || 
+              (initialMeasurementFromCombined as any).imageUrl ||
+              baselinePhotoUrl
+          };
+          
+          console.log('[ProgressScreen] 📸 Initial measurement photo:', {
+            selectedPhotoUrl: selectedMeasurementForComparison.photoUrl,
+            combinedPhotoUrl: initialMeasurementFromCombined.photoUrl,
+            baselinePhotoUrl,
+            finalPhotoUrl: firstMeasurement.photoUrl
+          });
+        } else if (initialMeasurementFromCombined) {
+          // Utiliser la mesure initiale depuis combinedMeasurements (elle a déjà la photo)
+          // Mais s'assurer que la photo est bien présente en utilisant initialProgressPhoto comme fallback
+          const baselinePhotoUrl = initialProgressPhoto 
+            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            : null;
+            
+          firstMeasurement = {
+            ...initialMeasurementFromCombined,
+            photoUrl: initialMeasurementFromCombined.photoUrl || 
+              (initialMeasurementFromCombined as any).url || 
+              (initialMeasurementFromCombined as any).imageUrl ||
+              baselinePhotoUrl
+          };
+        } else if (initialProgressPhoto || initialMeasurements) {
+          // Fallback : construire la mesure initiale si elle n'est pas dans combinedMeasurements
+          // Utiliser directement les propriétés de initialProgressPhoto comme dans la version web
+          const baselinePhotoUrl = initialProgressPhoto 
+            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            : null;
+            
+          firstMeasurement = {
+            id: initialMeasurements ? 'initial' : (initialProgressPhoto?.id || 'initial'),
+            weight: initialMeasurements?.weight ?? initialProgressPhoto?.weight ?? null,
+            waistSize: initialMeasurements?.waistSize ?? null,
+            photoUrl: baselinePhotoUrl,
+            notes: 'Mesure initiale',
+            createdAt:
+              initialMeasurements?.date ||
+              initialProgressPhoto?.date ||
+              initialProgressPhoto?.createdAt ||
+              profile?.createdAt ||
+              profile?.Profile?.createdAt,
+            date: initialMeasurements?.date ||
+              initialProgressPhoto?.date ||
+              initialProgressPhoto?.createdAt ||
+              profile?.createdAt ||
+              profile?.Profile?.createdAt,
+          };
+        } else if (combinedMeasurements.length > 0) {
+          // Fallback : utiliser la plus ancienne mesure si pas de mesure initiale
+          const sortedMeasurements = [...combinedMeasurements].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          const oldestMeasurement = sortedMeasurements[0];
+          firstMeasurement = {
+            ...oldestMeasurement,
+            photoUrl: oldestMeasurement.photoUrl || (oldestMeasurement as any).url || null
+          };
+        }
+
+        if (!firstMeasurement) return null;
+
+        return (
+          <MeasurementComparisonBottomSheet
+            visible={showComparisonModal}
+            firstMeasurement={firstMeasurement}
+            selectedMeasurement={selectedMeasurementForComparison}
+            onClose={() => {
+              setShowComparisonModal(false);
+            }}
+            getPhotoUrl={getPhotoUrl}
+            initialProgressPhoto={initialProgressPhoto}
+          />
+        );
+      })()}
 
       <MeasurementHistoryBottomSheet
         visible={showHistoryModal}

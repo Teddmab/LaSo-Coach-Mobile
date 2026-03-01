@@ -43,6 +43,16 @@ export const useNutritionData = (
       logger.debug('fetchAllData already in progress, skipping...');
       return;
     }
+    
+    // Protection supplémentaire : vérifier si on a déjà tenté de charger avec les mêmes données
+    const currentPlanId = currentPlan?.id || null;
+    const currentSubscriptionId = (subscriptionData as any)?.subscription?.id || null;
+    if (lastFetchAttemptRef.current?.planId === currentPlanId && 
+        lastFetchAttemptRef.current?.subscriptionId === currentSubscriptionId &&
+        hasInitialLoadRef.current) {
+      logger.debug('fetchAllData already attempted with same data, skipping...');
+      return;
+    }
 
     // ✅ Déclarer en dehors du try pour être accessible dans finally
     let subscription: any = null;
@@ -235,7 +245,8 @@ export const useNutritionData = (
       setIsFetchingAllData(false);
       
       const finalPlanId = loadedPlan?.id || null;
-      const finalSubscriptionId = subscription?.subscription?.id || subscription?.id || null;
+      // Extraire l'ID de l'abonnement depuis la structure subscription
+      const finalSubscriptionId = (subscription as any)?.subscription?.id || (subscription as any)?.id || null;
       lastFetchAttemptRef.current = {
         planId: finalPlanId,
         subscriptionId: finalSubscriptionId,
@@ -252,7 +263,8 @@ export const useNutritionData = (
       // Le useEffect dans NutritionLayout/DashboardScreen appellera loadDayData avec le currentPlanDay calculé automatiquement
       // Cela garantit que le bon jour est utilisé dès le chargement initial
     }
-  }, [isFetchingAllData, isCompanionMode, isIOS, setSubscriptionData, onCompletionStatusFetch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFetchingAllData, isCompanionMode, isIOS]);
 
   const loadDayData = useCallback(async (planToUse?: NutritionPlan | null, planDayOverride?: number) => {
     const plan = planToUse || currentPlan;

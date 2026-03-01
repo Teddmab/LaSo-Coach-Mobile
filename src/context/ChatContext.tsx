@@ -366,9 +366,19 @@ export const ChatProvider = ({ children }) => {
       
       // Si pas de match exact, vérifier si les IDs sont équivalents même avec des formats différents
       if (!idMatch && (currentUserIdStr.length > 0 && messageSenderIdStr.length > 0)) {
+        // Normaliser en supprimant tous les caractères non alphanumériques et convertir en minuscules
         const currentIdNormalized = currentUserIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const senderIdNormalized = messageSenderIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         idMatch = currentIdNormalized === senderIdNormalized && currentIdNormalized.length > 0;
+        
+        // Si toujours pas de match, essayer de comparer les IDs numériques (convertir en nombres)
+        if (!idMatch) {
+          const currentIdNum = parseInt(currentUserIdStr, 10);
+          const senderIdNum = parseInt(messageSenderIdStr, 10);
+          if (!isNaN(currentIdNum) && !isNaN(senderIdNum) && currentIdNum === senderIdNum && currentIdNum > 0) {
+            idMatch = true;
+          }
+        }
       }
     }
     
@@ -417,8 +427,16 @@ export const ChatProvider = ({ children }) => {
             type: 'CHAT_MESSAGE'
           },
           sound: 'default',
+          // ✅ Ajouter l'icône LaSo Coach pour iOS
+          ...(Platform.OS === 'ios' && {
+            icon: require('../../assets/icon.png'),
+          }),
         },
         trigger: null, // Show immediately
+        // Spécifier le canal Android pour les notifications de chat
+        ...(Platform.OS === 'android' && {
+          channelId: 'chat_messages',
+        }),
       });
       
     } catch (error) {
@@ -474,12 +492,21 @@ export const ChatProvider = ({ children }) => {
       // Comparaison exacte
       idMatch = currentUserIdStr === messageSenderIdStr;
       
-      // Si pas de match exact, vérifier si l'un contient l'autre (pour gérer les formats différents)
+      // Si pas de match exact, vérifier si les IDs sont équivalents même avec des formats différents
       if (!idMatch && (currentUserIdStr.length > 0 && messageSenderIdStr.length > 0)) {
-        // Vérifier si les IDs sont équivalents même avec des formats différents
+        // Normaliser en supprimant tous les caractères non alphanumériques et convertir en minuscules
         const currentIdNormalized = currentUserIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const senderIdNormalized = messageSenderIdStr.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         idMatch = currentIdNormalized === senderIdNormalized && currentIdNormalized.length > 0;
+        
+        // Si toujours pas de match, essayer de comparer les IDs numériques (convertir en nombres)
+        if (!idMatch) {
+          const currentIdNum = parseInt(currentUserIdStr, 10);
+          const senderIdNum = parseInt(messageSenderIdStr, 10);
+          if (!isNaN(currentIdNum) && !isNaN(senderIdNum) && currentIdNum === senderIdNum && currentIdNum > 0) {
+            idMatch = true;
+          }
+        }
       }
     }
     
@@ -515,8 +542,10 @@ export const ChatProvider = ({ children }) => {
       },
     });
     
+    // ✅ CRITICAL: Si c'est notre propre message, sortir immédiatement
     if (isFromCurrentUser) {
-      console.log('🔕 [handleNewMessage] Message from current user - skipping notification');
+      console.log('🔕 [handleNewMessage] ⛔ BLOCKED - Message from current user - skipping ALL processing including notifications');
+      return; // Sortir tôt - ne pas traiter le message du tout
     }
     
     // Enhanced logging to debug ID mismatches
@@ -789,7 +818,8 @@ export const ChatProvider = ({ children }) => {
     }
     
     // Show local notification if chat is not active (only for NEW messages from OTHER users)
-    if (!isActiveChat) {
+    // ✅ CRITICAL: Ne pas afficher de notification si le message vient de l'utilisateur actuel
+    if (!isActiveChat && !isFromCurrentUser) {
       // Use the conversation we just updated, or create a minimal one
       if (!conversationForNotification) {
         conversationForNotification = { id: chatId, lastMessage: message };
@@ -802,6 +832,10 @@ export const ChatProvider = ({ children }) => {
       loadUnreadCount();
       loadConversations(); // Refresh conversations to get accurate unread counts
     } else {
+      // Si c'est notre propre message, on ne fait rien (pas de notification)
+      if (isFromCurrentUser) {
+        console.log('🔕 [handleNewMessage] Message from current user - skipping notification and refresh');
+      }
     }
   }, [activeChatId, showMessageNotification, loadUnreadCount, loadConversations]);
 

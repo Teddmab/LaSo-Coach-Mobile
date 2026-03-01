@@ -117,8 +117,8 @@ const DefisScreen: React.FC<DefisScreenProps> = ({
             ) : challenges.length === 0 ? (
               <View style={styles.tabContentContainer}>
                 <Text style={styles.emptyStateText}>
-                  {selectedTab === 'pending' ? 'Aucun défi à relever pour le moment' :
-                   selectedTab === 'my' ? 'Aucun défi en cours' :
+                  {selectedTab === 'not_assigned' ? 'Aucun défi à relever pour le moment' :
+                   selectedTab === 'assigned' ? 'Aucun défi en cours' :
                    selectedTab === 'completed' ? 'Aucun défi complété' :
                    'Aucun défi disponible'}
                 </Text>

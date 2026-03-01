@@ -326,6 +326,45 @@ export const useCompletionStatus = (
       logger.error('Failed to fetch completion status', error);
       
       const errorStatus = error?.response?.status || error?.status;
+      const rawErrorMessage = error?.response?.data?.message || error?.data?.message || error?.message || '';
+      const errorMessageLower = rawErrorMessage.toLowerCase();
+      
+      // ✅ iOS COMPANION MODE: Sur iOS, si c'est une erreur 403, ne pas initialiser avec des valeurs par défaut vides
+      // Cela permet de conserver les données existantes et de détecter les repas complétés
+      if (isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
+        logger.info('⚠️ [iOS Companion Mode] Erreur 403 lors du fetch - Conservation des données existantes');
+        // Ne pas initialiser avec des valeurs par défaut vides, conserver les données existantes
+        // Si pas de données existantes, initialiser avec une structure minimale mais non vide
+        if (!completionStatus || !completionStatus.completionsByDay) {
+          const totalMeals = currentPlan?.menus?.reduce((sum: number, menu: any) => {
+            return sum + (menu.meals?.length || 0);
+          }, 0) || 0;
+          
+          const minimalCompletionData = {
+            planId: planId,
+            progress: {
+              percentage: 0,
+              completedMeals: 0,
+              totalMeals: totalMeals,
+              remainingMeals: totalMeals,
+            },
+            completionsByDay: {}, // Structure vide mais présente pour éviter les erreurs
+            allCompletions: [],
+            dayProgress: {
+              completedMealIds: [],
+            },
+            mealStatus: {},
+          };
+          
+          setCompletionStatus(minimalCompletionData);
+          setFreshCompletionData(JSON.parse(JSON.stringify(minimalCompletionData)));
+        }
+        // Si on a déjà des données, on les conserve (ne pas les écraser)
+        logger.groupEnd();
+        return;
+      }
+      
+      // Pour les autres erreurs ou sur Android, initialiser avec des valeurs par défaut
       const totalMeals = currentPlan?.menus?.reduce((sum: number, menu: any) => {
         return sum + (menu.meals?.length || 0);
       }, 0) || 0;
@@ -983,7 +1022,18 @@ export const useCompletionStatus = (
         return;
       }
       
-      if (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription')) {
+      // ✅ iOS COMPANION MODE: Ignorer l'erreur 403 sur iOS car c'est en mode compagnon
+      // Sur iOS, pas besoin d'abonnement pour compléter un repas
+      // ✅ IMPORTANT: Ne JAMAIS afficher de notifications d'abonnement sur iOS
+      if (isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
+        logger.info('⚠️ [iOS Companion Mode] Erreur 403 ignorée - Mode compagnon activé');
+        // Ne pas afficher d'erreur à l'utilisateur sur iOS, juste logger
+        logger.groupEnd();
+        return;
+      }
+      
+      // ✅ Sur Android uniquement, afficher l'erreur d'accès refusé
+      if (!isIOS && (errorStatus === 403 || errorMessageLower.includes('access denied') || errorMessageLower.includes('subscription'))) {
         Toast.show({
           type: 'error',
           text1: 'Accès refusé',

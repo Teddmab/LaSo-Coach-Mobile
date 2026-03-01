@@ -10,13 +10,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../../constants/theme';
 import { useOnboarding } from '../../hooks/useOnboarding';
 import { useAuth } from '../../context/FirebaseAuthContext';
+import ProgressPhotosApi from '../../services/progressPhotosApi';
 import Toast from 'react-native-toast-message';
 
 interface ProfileStep1BottomSheetProps {
@@ -66,6 +70,49 @@ const COUNTRIES = [
   'Autre'
 ];
 
+// Mapping des pays vers leurs indicatifs téléphoniques
+const COUNTRY_PHONE_PREFIXES: Record<string, string> = {
+  'République démocratique du Congo': '+243',
+  'Algérie': '+213',
+  'Andorre': '+376',
+  'Bénin': '+229',
+  'Belgique': '+32',
+  'Burkina Faso': '+226',
+  'Cameroun': '+237',
+  'Canada': '+1',
+  'Congo': '+242',
+  'Côte d\'Ivoire': '+225',
+  'Comores': '+269',
+  'Djibouti': '+253',
+  'France': '+33',
+  'Gabon': '+241',
+  'Guinée': '+224',
+  'Guinée-Bissau': '+245',
+  'Haïti': '+509',
+  'Luxembourg': '+352',
+  'Madagascar': '+261',
+  'Mali': '+223',
+  'Maroc': '+212',
+  'Maurice': '+230',
+  'Mauritanie': '+222',
+  'Monaco': '+377',
+  'Niger': '+227',
+  'République centrafricaine': '+236',
+  'Sénégal': '+221',
+  'Seychelles': '+248',
+  'Suisse': '+41',
+  'Tchad': '+235',
+  'Togo': '+228',
+  'Tunisie': '+216',
+  'Vanuatu': '+678',
+  'Autre': '+',
+};
+
+// Fonction pour obtenir l'indicatif d'un pays
+const getPhonePrefix = (country: string): string => {
+  return COUNTRY_PHONE_PREFIXES[country] || '+';
+};
+
 // Occupations en français
 const OCCUPATIONS = [
   'Ingénieur logiciel',
@@ -97,6 +144,14 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   const { completeProfileSetup, loading } = useOnboarding();
   const { user: authUser } = useAuth(); // Récupérer l'utilisateur depuis le contexte Firebase
   const [currentSubStep, setCurrentSubStep] = useState(1);
+  const [maxSubStepReached, setMaxSubStepReached] = useState(1); // Track le step maximum atteint
+  const [initialPhoto, setInitialPhoto] = useState<any>(null);
+  const [initialPhotoPreview, setInitialPhotoPreview] = useState<string | null>(null);
+  
+  // Utiliser un ref pour garder les données saisies même après fermeture du modal
+  const persistedFormDataRef = React.useRef<any>(null);
+  // Ref pour tracker si c'est la première ouverture du modal
+  const isFirstOpenRef = React.useRef(true);
   
   // Si l'étape est déjà complétée, empêcher la modification
   useEffect(() => {
@@ -113,6 +168,71 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       }, 2000);
     }
   }, [visible, isStepCompleted, onClose]);
+
+  // Déterminer la progression maximale atteinte en fonction des données existantes
+  useEffect(() => {
+    if (visible) {
+      // Ne réinitialiser currentSubStep que lors de la première ouverture
+      if (isFirstOpenRef.current) {
+        // Déterminer jusqu'où l'utilisateur est allé en fonction des données existantes
+        let maxReached = 1;
+        
+        // Step 1: Informations personnelles (firstName, lastName, phoneNumber, email)
+        const hasStep1 = formData.firstName || formData.lastName || formData.phoneNumber || formData.email;
+        if (hasStep1) maxReached = Math.max(maxReached, 1);
+        
+        // Step 2: Adresse (addressLine1, city, postalCode, country)
+        const hasStep2 = formData.addressLine1 || formData.city || formData.postalCode || formData.country;
+        if (hasStep2) maxReached = Math.max(maxReached, 2);
+        
+        // Step 3: Profil (height, initialWeight, initialWaistSize, gender, occupation)
+        const hasStep3 = formData.height || formData.initialWeight || formData.initialWaistSize || formData.gender || formData.occupation;
+        if (hasStep3) maxReached = Math.max(maxReached, 3);
+        
+        // Step 4: Démonstration (toujours accessible si on a atteint step 3)
+        if (maxReached >= 3) maxReached = Math.max(maxReached, 4);
+        
+        // Step 5: Photo initiale (initialPhotoPreview ou photo persistée)
+        const hasPhoto = initialPhotoPreview || persistedFormDataRef.current?.initialPhotoPreview;
+        if (hasPhoto) maxReached = Math.max(maxReached, 5);
+        
+        // Si l'utilisateur a déjà une photo, commencer au step 5
+        // Sinon, commencer au step maximum atteint ou au step 1
+        if (hasPhoto) {
+          setCurrentSubStep(5);
+        } else if (maxReached >= 4) {
+          setCurrentSubStep(4); // Commencer à la démonstration si on a complété step 3
+        } else {
+          setCurrentSubStep(maxReached);
+        }
+        
+        setMaxSubStepReached(maxReached);
+        isFirstOpenRef.current = false;
+      } else {
+        // Si ce n'est pas la première ouverture, juste mettre à jour maxSubStepReached si nécessaire
+        // mais ne pas changer currentSubStep
+        let maxReached = maxSubStepReached;
+        
+        // Step 5: Photo initiale (initialPhotoPreview ou photo persistée)
+        const hasPhoto = initialPhotoPreview || persistedFormDataRef.current?.initialPhotoPreview;
+        if (hasPhoto && maxReached < 5) {
+          maxReached = 5;
+          setMaxSubStepReached(5);
+        }
+      }
+      
+      // Restaurer la photo persistée si elle existe
+      if (persistedFormDataRef.current?.initialPhotoPreview && !initialPhotoPreview) {
+        setInitialPhotoPreview(persistedFormDataRef.current.initialPhotoPreview);
+        if (persistedFormDataRef.current.initialPhoto) {
+          setInitialPhoto(persistedFormDataRef.current.initialPhoto);
+        }
+      }
+    } else {
+      // Quand le modal se ferme, réinitialiser le flag pour la prochaine ouverture
+      isFirstOpenRef.current = true;
+    }
+  }, [visible]);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -140,7 +260,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
 
-  // Initialize form with user data if available
+  // Initialize form with user data if available (only if formData is empty or data has changed)
   useEffect(() => {
     if (visible) {
       // Récupérer le numéro de téléphone depuis plusieurs sources possibles
@@ -191,8 +311,9 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       const gender = dashboardData?.Profile?.gender || dashboardData?.profile?.gender || '';
       const occupation = dashboardData?.Profile?.occupation || dashboardData?.profile?.occupation || '';
       
-      setFormData(prev => ({
-        ...prev,
+      // Utiliser les données persistées si disponibles, sinon utiliser les données du backend
+      const persistedData = persistedFormDataRef.current;
+      const backendData = {
         firstName,
         lastName,
         email,
@@ -207,14 +328,45 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         initialWaistSize,
         gender,
         occupation,
-      }));
+      };
+      
+      // Si on a des données persistées, les utiliser (priorité aux données saisies)
+      // Sinon, utiliser les données du backend
+      const dataToUse = persistedData || backendData;
+      
+      // Fusionner : données persistées > données du backend
+      setFormData({
+        firstName: persistedData?.firstName || firstName,
+        lastName: persistedData?.lastName || lastName,
+        email: persistedData?.email || email,
+        phoneNumber: persistedData?.phoneNumber || phoneNumber,
+        addressLine1: persistedData?.addressLine1 || addressLine1,
+        addressLine2: persistedData?.addressLine2 || addressLine2,
+        city: persistedData?.city || city,
+        postalCode: persistedData?.postalCode || postalCode,
+        country: persistedData?.country || (country || 'République démocratique du Congo'),
+        height: persistedData?.height || height,
+        initialWeight: persistedData?.initialWeight || initialWeight,
+        initialWaistSize: persistedData?.initialWaistSize || initialWaistSize,
+        gender: persistedData?.gender || gender,
+        occupation: persistedData?.occupation || occupation,
+      });
+      
+      // Restaurer la photo persistée si elle existe
+      if (persistedFormDataRef.current?.initialPhotoPreview && !initialPhotoPreview) {
+        setInitialPhotoPreview(persistedFormDataRef.current.initialPhotoPreview);
+        if (persistedFormDataRef.current.initialPhoto) {
+          setInitialPhoto(persistedFormDataRef.current.initialPhoto);
+        }
+      }
     }
   }, [user, dashboardData, visible, authUser]);
 
-  // Reset form when modal closes
+  // Reset only UI state when modal closes (keep form data)
   useEffect(() => {
     if (!visible) {
-      setCurrentSubStep(1);
+      // Ne pas réinitialiser currentSubStep pour garder la progression
+      // setCurrentSubStep(1); // Commenté pour garder la progression
       setErrors({});
       setShowCountryPicker(false);
       setShowGenderPicker(false);
@@ -223,7 +375,12 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   }, [visible]);
 
   const updateFormData = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      // Persister les données dans le ref
+      persistedFormDataRef.current = updated;
+      return updated;
+    });
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => {
@@ -272,12 +429,20 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   };
 
   const handleNext = () => {
-    if (validateSubStep(currentSubStep)) {
-      if (currentSubStep < 3) {
-        setCurrentSubStep(currentSubStep + 1);
-      } else {
-        handleComplete();
+    // Les étapes 4, 5 sont optionnelles, pas de validation nécessaire
+    if (currentSubStep <= 3 && !validateSubStep(currentSubStep)) {
+      return;
+    }
+    
+    if (currentSubStep < 5) {
+      const nextStep = currentSubStep + 1;
+      setCurrentSubStep(nextStep);
+      // Mettre à jour le step maximum atteint
+      if (nextStep > maxSubStepReached) {
+        setMaxSubStepReached(nextStep);
       }
+    } else {
+      handleComplete();
     }
   };
 
@@ -288,6 +453,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
   };
 
   const handleComplete = async () => {
+    // Valider seulement les étapes obligatoires (1, 2, 3)
     if (!validateSubStep(3)) {
       return;
     }
@@ -303,14 +469,42 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         city: formData.city.trim(),
         postalCode: formData.postalCode.trim(),
         country: formData.country,
-        height: formData.height.trim(),
-        initialWeight: formData.initialWeight.trim(),
-        initialWaistSize: formData.initialWaistSize.trim(),
+        // Convertir les virgules en points pour les valeurs numériques (compatibilité iPhone)
+        height: formData.height.trim().replace(',', '.'),
+        initialWeight: formData.initialWeight.trim().replace(',', '.'),
+        initialWaistSize: formData.initialWaistSize.trim().replace(',', '.'),
         gender: formData.gender,
         occupation: formData.occupation,
       });
 
       if (result.success) {
+        // Upload initial photo if provided (optional)
+        if (initialPhoto) {
+          try {
+            const photoFormData = ProgressPhotosApi.createFormData(initialPhoto, {
+              date: new Date().toISOString(),
+              notes: 'Photo initiale de progression',
+            });
+            
+            const photoResult = await ProgressPhotosApi.addProgressPhoto(photoFormData);
+            if (photoResult.success) {
+              console.log('✅ Photo initiale uploadée avec succès');
+            } else {
+              console.warn('⚠️ Erreur lors de l\'upload de la photo initiale:', photoResult.error);
+              // Ne pas bloquer la complétion si l'upload de photo échoue
+            }
+          } catch (photoError) {
+            console.error('❌ Erreur lors de l\'upload de la photo initiale:', photoError);
+            // Ne pas bloquer la complétion si l'upload de photo échoue
+          }
+        }
+        
+        // Marquer tous les steps comme complétés
+        setMaxSubStepReached(5);
+        
+        // Réinitialiser les données persistées après sauvegarde réussie
+        persistedFormDataRef.current = null;
+        
         Toast.show({
           type: 'success',
           text1: 'Étape 1 complétée !',
@@ -369,7 +563,8 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         <Text style={styles.label}>Numéro de téléphone *</Text>
         <TextInput
           style={[styles.input, errors.phoneNumber && styles.inputError]}
-          placeholder="Entrez votre numéro de téléphone"
+          placeholder={formData.country ? `${getPhonePrefix(formData.country)} 812345678` : "Entrez votre numéro de téléphone"}
+          placeholderTextColor="#999"
           value={formData.phoneNumber}
           onChangeText={(text) => updateFormData('phoneNumber', text.replace(/[^0-9]/g, ''))}
           keyboardType="phone-pad"
@@ -508,7 +703,11 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
           style={[styles.input, errors.height && styles.inputError]}
           placeholder="Ex: 1.75"
           value={formData.height}
-          onChangeText={(text) => updateFormData('height', text.replace(/[^0-9.]/g, ''))}
+          onChangeText={(text) => {
+            // Accepter les chiffres, le point et la virgule, remplacer la virgule par un point
+            const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.');
+            updateFormData('height', cleaned);
+          }}
           keyboardType="decimal-pad"
         />
         {errors.height && <Text style={styles.errorText}>{errors.height}</Text>}
@@ -520,7 +719,11 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
           style={[styles.input, errors.initialWeight && styles.inputError]}
           placeholder="Ex: 70"
           value={formData.initialWeight}
-          onChangeText={(text) => updateFormData('initialWeight', text.replace(/[^0-9.]/g, ''))}
+          onChangeText={(text) => {
+            // Accepter les chiffres, le point et la virgule, remplacer la virgule par un point
+            const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.');
+            updateFormData('initialWeight', cleaned);
+          }}
           keyboardType="decimal-pad"
         />
         {errors.initialWeight && <Text style={styles.errorText}>{errors.initialWeight}</Text>}
@@ -532,7 +735,11 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
           style={[styles.input, errors.initialWaistSize && styles.inputError]}
           placeholder="Ex: 85"
           value={formData.initialWaistSize}
-          onChangeText={(text) => updateFormData('initialWaistSize', text.replace(/[^0-9.]/g, ''))}
+          onChangeText={(text) => {
+            // Accepter les chiffres, le point et la virgule, remplacer la virgule par un point
+            const cleaned = text.replace(/[^0-9.,]/g, '').replace(',', '.');
+            updateFormData('initialWaistSize', cleaned);
+          }}
           keyboardType="decimal-pad"
         />
         {errors.initialWaistSize && <Text style={styles.errorText}>{errors.initialWaistSize}</Text>}
@@ -640,6 +847,135 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
     </View>
   );
 
+  const renderStep4 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepTitle}>Suivi de votre bien-être</Text>
+      <Text style={styles.stepDescription}>
+        Prendre une photo de vous-même au début de votre parcours vous permettra de suivre visuellement votre progression et votre transformation.
+      </Text>
+      
+      <View style={styles.demoPhotoContainer}>
+        <Image
+          source={require('../../../assets/temoin.jpeg')}
+          style={styles.demoPhoto}
+          resizeMode="cover"
+        />
+      </View>
+      
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={24} color={theme.colors.primary} />
+        <Text style={styles.infoText}>
+          Cette photo vous aidera à visualiser vos progrès au fil du temps. Elle reste privée et n'est visible que par vous.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const handlePhotoSelection = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission refusée',
+          'Veuillez autoriser l\'accès à votre galerie pour ajouter une photo'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        setInitialPhoto(asset);
+        setInitialPhotoPreview(asset.uri);
+        // Persister la photo dans le ref
+        if (persistedFormDataRef.current) {
+          persistedFormDataRef.current.initialPhoto = asset;
+          persistedFormDataRef.current.initialPhotoPreview = asset.uri;
+        } else {
+          persistedFormDataRef.current = {
+            initialPhoto: asset,
+            initialPhotoPreview: asset.uri,
+          };
+        }
+        // S'assurer qu'on reste au step 5 après avoir sélectionné la photo
+        if (currentSubStep !== 5) {
+          setCurrentSubStep(5);
+        }
+        // Mettre à jour le step maximum atteint
+        if (maxSubStepReached < 5) {
+          setMaxSubStepReached(5);
+        }
+      }
+    } catch (error) {
+      console.error('Error selecting photo:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Erreur',
+        text2: 'Impossible de sélectionner la photo',
+      });
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setInitialPhoto(null);
+    setInitialPhotoPreview(null);
+    // Retirer la photo du ref
+    if (persistedFormDataRef.current) {
+      persistedFormDataRef.current.initialPhoto = null;
+      persistedFormDataRef.current.initialPhotoPreview = null;
+    }
+  };
+
+  const renderStep5 = () => (
+    <View style={styles.stepContent}>
+      <Text style={styles.stepTitle}>Votre photo initiale</Text>
+      <Text style={styles.stepDescription}>
+        Ajoutez une photo de vous-même pour suivre votre progression (optionnel)
+      </Text>
+      
+      <View style={styles.photoUploadContainer}>
+        {initialPhotoPreview ? (
+          <View style={styles.photoPreviewContainer}>
+            <Image
+              source={{ uri: initialPhotoPreview }}
+              style={styles.photoPreview}
+              resizeMode="cover"
+            />
+            <TouchableOpacity
+              style={styles.removePhotoButton}
+              onPress={handleRemovePhoto}
+            >
+              <Ionicons name="close-circle" size={32} color="#FF3B30" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.photoUploadButton}
+            onPress={handlePhotoSelection}
+          >
+            <Ionicons name="camera" size={48} color={theme.colors.primary} />
+            <Text style={styles.photoUploadText}>Ajouter une photo</Text>
+            <Text style={styles.photoUploadSubtext}>Optionnel</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      <View style={styles.infoBox}>
+        <Ionicons name="information-circle" size={20} color="#7F8C8D" />
+        <Text style={styles.infoTextSmall}>
+          Cette étape est optionnelle. Vous pourrez ajouter votre photo plus tard depuis votre profil.
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <Modal
       visible={visible}
@@ -679,17 +1015,17 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
 
             {/* Step Indicator */}
             <View style={styles.stepIndicator}>
-              {[1, 2, 3].map((step) => (
+              {[1, 2, 3, 4, 5].map((step) => (
                 <React.Fragment key={step}>
                   <View style={[
                     styles.stepDot,
-                    currentSubStep >= step && styles.stepDotActive,
-                    currentSubStep === step && styles.stepDotCurrent
+                    currentSubStep === step && styles.stepDotCurrent,
+                    maxSubStepReached > step && styles.stepDotPassed
                   ]} />
-                  {step < 3 && (
+                  {step < 5 && (
                     <View style={[
                       styles.stepLine,
-                      currentSubStep > step && styles.stepLineActive
+                      maxSubStepReached > step && styles.stepLinePassed
                     ]} />
                   )}
                 </React.Fragment>
@@ -705,6 +1041,8 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
               {currentSubStep === 1 && renderStep1()}
               {currentSubStep === 2 && renderStep2()}
               {currentSubStep === 3 && renderStep3()}
+              {currentSubStep === 4 && renderStep4()}
+              {currentSubStep === 5 && renderStep5()}
             </ScrollView>
 
             {/* Footer Buttons */}
@@ -722,7 +1060,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
               
               <TouchableOpacity
                 style={[styles.completeButton, loading && styles.completeButtonDisabled]}
-                onPress={currentSubStep === 3 ? handleComplete : handleNext}
+                onPress={currentSubStep === 5 ? handleComplete : handleNext}
                 disabled={loading}
               >
                 {loading ? (
@@ -730,7 +1068,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
                 ) : (
                   <>
                     <Text style={styles.completeButtonText}>
-                      {currentSubStep === 3 ? 'Compléter' : 'Suivant'}
+                      {currentSubStep === 5 ? 'Compléter' : 'Suivant'}
                     </Text>
                     <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
                   </>
@@ -804,8 +1142,8 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#E0E0E0',
   },
-  stepDotActive: {
-    backgroundColor: theme.colors.primary,
+  stepDotPassed: {
+    backgroundColor: theme.colors.primary, // Vert pour les steps complétés
   },
   stepDotCurrent: {
     width: 12,
@@ -814,13 +1152,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
   },
   stepLine: {
-    width: 40,
+    width: 20,
     height: 2,
     backgroundColor: '#E0E0E0',
-    marginHorizontal: 8,
+    marginHorizontal: 4,
   },
-  stepLineActive: {
-    backgroundColor: theme.colors.primary,
+  stepLinePassed: {
+    backgroundColor: theme.colors.primary, // Vert pour les lignes complétées
   },
   content: {
     flex: 1,
@@ -973,6 +1311,86 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  demoPhotoContainer: {
+    width: '100%',
+    height: 300,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  demoPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F7FF',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#2C3E50',
+    lineHeight: 20,
+  },
+  infoTextSmall: {
+    flex: 1,
+    fontSize: 12,
+    color: '#7F8C8D',
+    lineHeight: 18,
+  },
+  photoUploadContainer: {
+    marginBottom: 20,
+  },
+  photoUploadButton: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  photoUploadText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  photoUploadSubtext: {
+    fontSize: 12,
+    color: '#7F8C8D',
+  },
+  photoPreviewContainer: {
+    width: '100%',
+    height: 300,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
   },
 });
 

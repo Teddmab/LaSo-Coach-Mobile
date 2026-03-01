@@ -72,7 +72,7 @@
       "color": "#8BC34A",
       "iosDisplayInForeground": true,
       "androidMode": "default",
-      "androidCollapsedTitle": "#{unread_notifications} new notifications"
+      "androidCollapsedTitle": "#{unread_notifications} nouvelles notifications"
     },
     "extra": {
       "env": {

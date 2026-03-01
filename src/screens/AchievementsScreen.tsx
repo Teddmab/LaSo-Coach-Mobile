@@ -115,7 +115,7 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
       >
         <View style={styles.headerSection}>
           <Text style={styles.headerSubtitle}>
-            Relevez des défis et collectez des badges pour progresser
+            Relevez des défis et collectez des badges
           </Text>
         </View>
 
@@ -168,8 +168,8 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
             ) : challenges.length === 0 ? (
               <View style={styles.tabContentContainer}>
                 <Text style={styles.emptyStateText}>
-                  {selectedTab === 'pending' ? 'Aucun défi à relever pour le moment' :
-                   selectedTab === 'my' ? 'Aucun défi en cours' :
+                  {selectedTab === 'not_assigned' ? 'Aucun défi à relever pour le moment' :
+                   selectedTab === 'assigned' ? 'Aucun défi en cours' :
                    selectedTab === 'completed' ? 'Aucun défi complété' :
                    'Aucun défi disponible'}
                 </Text>
@@ -222,12 +222,41 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
               
               {badgesSummary && (
                 <View style={styles.progressSummary}>
-                  <Text style={styles.progressSummaryText}>
-                    {badgesSummary.badgesUnlocked || 0} badges débloqués sur {badgesSummary.totalBadges || 0}
-                  </Text>
-                  <Text style={styles.progressSummaryText}>
-                    Progression globale : {(badgesSummary.overallProgressPercentage?.toFixed(1) || 0)}%
-                  </Text>
+                  <View style={styles.progressSummaryHeader}>
+                    <Ionicons name="stats-chart" size={20} color="#4CAF50" />
+                    <Text style={styles.progressSummaryTitle}>Vos progrès</Text>
+                  </View>
+                  <View style={styles.progressSummaryContent}>
+                    <View style={styles.progressSummaryItem}>
+                      <Text style={styles.progressSummaryValue}>
+                        {badgesSummary.badgesUnlocked || 0}
+                      </Text>
+                      <Text style={styles.progressSummaryLabel}>
+                        badges débloqués sur {badgesSummary.totalBadges || 0}
+                      </Text>
+                    </View>
+                    <View style={styles.progressSummaryDivider} />
+                    <View style={styles.progressSummaryItem}>
+                      <Text style={styles.progressSummaryValue}>
+                        {(badgesSummary.overallProgressPercentage?.toFixed(1) || 0)}%
+                      </Text>
+                      <Text style={styles.progressSummaryLabel}>
+                        Progression globale
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.progressBarContainer}>
+                    <View style={styles.progressBarBackground}>
+                      <View 
+                        style={[
+                          styles.progressBarFill, 
+                          { 
+                            width: `${badgesSummary.overallProgressPercentage || 0}%`,
+                          }
+                        ]} 
+                      />
+                    </View>
+                  </View>
                 </View>
               )}
             </>
@@ -287,9 +316,10 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   headerSubtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#7F8C8D',
-    lineHeight: 22,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   challengesSection: {
     backgroundColor: '#FFFFFF',
@@ -365,16 +395,67 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   progressSummary: {
-    marginTop: 20,
+    marginTop: 24,
     paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#E8F5E8',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
   },
-  progressSummaryText: {
-    fontSize: 14,
+  progressSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    justifyContent: 'center',
+  },
+  progressSummaryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#2C3E50',
+    marginLeft: 8,
+  },
+  progressSummaryContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  progressSummaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressSummaryValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4CAF50',
     marginBottom: 4,
+  },
+  progressSummaryLabel: {
+    fontSize: 13,
+    color: '#7F8C8D',
     textAlign: 'center',
+  },
+  progressSummaryDivider: {
+    width: 1,
+    height: 50,
+    backgroundColor: '#E0E0E0',
+    marginHorizontal: 16,
+  },
+  progressBarContainer: {
+    marginTop: 8,
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 4,
   },
 });
 

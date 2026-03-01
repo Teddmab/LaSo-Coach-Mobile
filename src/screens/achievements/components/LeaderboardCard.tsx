@@ -48,7 +48,11 @@ const LeaderboardCard: React.FC<LeaderboardCardProps> = ({
                 style={styles.avatar}
                 fallbackText={item.name?.charAt(0)}
               />
-              {item.flag && <Text style={styles.flagEmoji}>{item.flag}</Text>}
+              {item.flag && (
+                <View style={styles.flagContainer}>
+                  <Text style={styles.flagEmoji}>{item.flag}</Text>
+                </View>
+              )}
               <Text style={styles.userName} numberOfLines={1}>{item.name}</Text>
             </View>
             
@@ -72,7 +76,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginVertical: 8,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   header: {
     flexDirection: 'row',
@@ -93,19 +105,21 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   rankContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#E8F5E8',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   rankNumber: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#4CAF50',
   },
@@ -113,29 +127,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    minWidth: 0,
   },
   avatar: {
+    marginRight: 10,
+  },
+  flagContainer: {
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 8,
   },
   flagEmoji: {
-    fontSize: 16,
-    marginRight: 8,
+    fontSize: 20,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   userName: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#2C3E50',
+    fontWeight: '500',
     flex: 1,
+    marginRight: 8,
   },
   pointsContainer: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 70,
+    alignItems: 'center',
   },
   pointsText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },

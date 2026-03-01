@@ -6,8 +6,8 @@ interface ChallengeTabsProps {
   selectedTab: ChallengeTab;
   onTabChange: (tab: ChallengeTab) => void;
   tabCounts: {
-    pending: number;
-    my: number;
+    not_assigned: number;
+    assigned: number;
     completed: number;
   };
 }
@@ -20,20 +20,20 @@ const ChallengeTabs: React.FC<ChallengeTabsProps> = ({
   return (
     <View style={styles.container}>
       <TouchableOpacity 
-        style={[styles.tab, selectedTab === 'pending' && styles.activeTab]}
-        onPress={() => onTabChange('pending')}
+        style={[styles.tab, selectedTab === 'not_assigned' && styles.activeTab]}
+        onPress={() => onTabChange('not_assigned')}
       >
-        <Text style={[styles.tabText, selectedTab === 'pending' && styles.activeTabText]}>
-          {tabCounts.pending} À relever
+        <Text style={[styles.tabText, selectedTab === 'not_assigned' && styles.activeTabText]}>
+          {tabCounts.not_assigned} À relever
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={[styles.tab, selectedTab === 'my' && styles.activeTab]}
-        onPress={() => onTabChange('my')}
+        style={[styles.tab, selectedTab === 'assigned' && styles.activeTab]}
+        onPress={() => onTabChange('assigned')}
       >
-        <Text style={[styles.tabText, selectedTab === 'my' && styles.activeTabText]}>
-          {tabCounts.my} Acceptés
+        <Text style={[styles.tabText, selectedTab === 'assigned' && styles.activeTabText]}>
+          {tabCounts.assigned} Acceptés
         </Text>
       </TouchableOpacity>
 

@@ -62,6 +62,10 @@ export interface MeasurementForm {
   saving: boolean;
   selectedPhoto?: any;
   preview?: string | null;
+  // Activité physique (optionnel)
+  activityType?: string;
+  activityDuration?: string;
+  activityCalories?: string;
 }
 
 export interface PhotoForm {

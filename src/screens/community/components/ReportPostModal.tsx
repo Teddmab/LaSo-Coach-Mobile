@@ -95,29 +95,46 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
       ? customReason.trim() 
       : REPORT_REASONS.find(r => r.id === selectedReason)?.label || selectedReason;
 
-    try {
-      setIsSubmitting(true);
-      await onReport(postId, finalReason);
-      Alert.alert(
-        'Signalement envoyé',
-        'Votre signalement a été transmis à notre équipe de modération. Merci de nous aider à maintenir une communauté respectueuse.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              handleClose();
-            },
+    // Demander confirmation avant de signaler
+    Alert.alert(
+      'Confirmer le signalement',
+      'Êtes-vous sûr de vouloir signaler cette publication ? Elle sera retirée de votre fil d\'actualité.',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Confirmer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsSubmitting(true);
+              await onReport(postId, finalReason);
+              Alert.alert(
+                'Signalement envoyé',
+                'Votre signalement a été transmis à notre équipe de modération. La publication a été retirée de votre fil.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      handleClose();
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              Alert.alert(
+                'Erreur',
+                error?.userMessage || error?.message || 'Impossible d\'envoyer le signalement. Veuillez réessayer.'
+              );
+            } finally {
+              setIsSubmitting(false);
+            }
           },
-        ]
-      );
-    } catch (error: any) {
-      Alert.alert(
-        'Erreur',
-        error?.userMessage || error?.message || 'Impossible d\'envoyer le signalement. Veuillez réessayer.'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+        },
+      ]
+    );
   };
 
   const handleClose = () => {
