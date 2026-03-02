@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
       "buildNumber": "35",
-      "version": "1.0.7",
+      "version": "1.0.8",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
