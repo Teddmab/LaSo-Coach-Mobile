@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import useCompanionMode from '../../../hooks/useCompanionMode';
 
 export const useDashboardNavigation = (navigateOverlay?: (screenName: string, params?: any) => void) => {
   const { isCompanionMode } = useCompanionMode();
-  const [activeTab, setActiveTab] = useState<string>('home');
+  // ✅ Ne pas initialiser activeTab à 'home' par défaut - laisser vide pour éviter la sélection par défaut
+  const [activeTab, setActiveTab] = useState<string>('');
   const [currentScreen, setCurrentScreen] = useState<string>('home');
   const [previousScreen, setPreviousScreen] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<boolean>(false);
@@ -120,6 +121,16 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
       return screen;
     });
   }, []);
+
+  // ✅ FIX: S'assurer que activeTab est 'home' si on est sur la page home et qu'activeTab est vide
+  useEffect(() => {
+    if (currentScreen === 'home' && !activeTab) {
+      setActiveTab('home');
+    } else if (currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen) && activeTab) {
+      // ✅ Si on est sur un overlay (pas un tab de navigation), s'assurer que activeTab est vide
+      setActiveTab('');
+    }
+  }, [currentScreen, activeTab]);
 
   return {
     activeTab,

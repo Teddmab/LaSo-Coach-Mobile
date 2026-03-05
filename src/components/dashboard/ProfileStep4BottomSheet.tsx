@@ -210,7 +210,11 @@ const ProfileStep4BottomSheet: React.FC<ProfileStep4BottomSheetProps> = ({
     const firstDay = new Date(currentYear, currentMonth, 1);
     const lastDay = new Date(currentYear, currentMonth + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay() === 0 ? 7 : firstDay.getDay(); // Lundi = 1, Dimanche = 7
+    // ✅ Corriger l'alignement : convertir getDay() (0=dimanche, 1=lundi...) vers système européen (1=lundi, 7=dimanche)
+    // getDay() retourne 0 pour dimanche, 1 pour lundi, etc.
+    // On veut : lundi = 1, mardi = 2, ..., dimanche = 7
+    const dayOfWeek = firstDay.getDay(); // 0 = dimanche, 1 = lundi, ..., 6 = samedi
+    const startDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Convertir dimanche de 0 à 7
     
     const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     const monthNames = [
@@ -996,11 +1000,13 @@ const styles = StyleSheet.create({
   calendarWeekDays: {
     flexDirection: 'row',
     marginBottom: 8,
+    width: '100%', // ✅ S'assurer que la ligne prend toute la largeur
   },
   calendarWeekDay: {
-    flex: 1,
+    width: '14.28%', // ✅ 100% / 7 jours = 14.28% pour correspondre exactement aux cellules
     alignItems: 'center',
     paddingVertical: 8,
+    margin: 0, // ✅ Pas de margin pour un alignement parfait
   },
   calendarWeekDayText: {
     fontSize: 12,
@@ -1012,18 +1018,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 12,
+    width: '100%', // ✅ S'assurer que la grille prend toute la largeur
   },
   calendarEmptyDay: {
-    width: '14.28%',
+    width: '14.28%', // ✅ 100% / 7 jours = 14.28%
     aspectRatio: 1,
+    margin: 0, // ✅ Pas de margin pour un alignement parfait
   },
   calendarDayCell: {
-    width: '14.28%',
+    width: '14.28%', // ✅ 100% / 7 jours = 14.28%
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 8,
-    margin: 2,
+    margin: 0, // ✅ Pas de margin pour un alignement parfait
   },
   calendarDayCellSelected: {
     backgroundColor: theme.colors.primary,

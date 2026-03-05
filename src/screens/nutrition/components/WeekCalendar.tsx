@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, ScrollView, TouchableOpacity, Text, StyleSheet, Alert, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, ScrollView, TouchableOpacity, Text, StyleSheet, Alert, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { WeekDay } from '../types';
@@ -27,6 +27,43 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
   onDateSelect,
   onSubscriptionRenew,
 }) => {
+  // ✅ Animation de surbrillance pour l'indicateur
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animation infinie qui se répète
+    const startAnimation = () => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    };
+
+    startAnimation();
+  }, [shimmerAnim]);
+
+  // Interpolation pour le déplacement de la surbrillance (de droite à gauche - sens inverse)
+  const shimmerTranslateX = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [200, -150], // ✅ Se déplace de droite à gauche (sens inverse)
+  });
+
+  // Interpolation pour l'opacité (fade in/out)
+  const shimmerOpacity = shimmerAnim.interpolate({
+    inputRange: [0, 0.3, 0.7, 1],
+    outputRange: [0, 0.8, 0.8, 0], // Fade in, reste visible, puis fade out
+  });
+
   const handleDatePress = (day: WeekDay) => {
     // Ne pas permettre de sélectionner les dates passées
     if (day.isPast) {
@@ -82,8 +119,26 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
   };
 
   return (
-    <View style={nutritionStyles.calendarContainer}>
-      <ScrollView 
+    <>
+      {/* ✅ Indicateur UX pour défiler les dates - Au-dessus du calendrier */}
+      <View style={nutritionStyles.calendarScrollHint}>
+        <View style={nutritionStyles.calendarScrollHintTextContainer}>
+          <Text style={nutritionStyles.calendarScrollHintText}>Défiler pour voir le reste de la semaine</Text>
+          {/* ✅ Animation de surbrillance - Sens inverse (de droite à gauche) */}
+          <Animated.View
+            style={[
+              nutritionStyles.shimmerOverlay,
+              {
+                transform: [{ translateX: shimmerTranslateX }],
+                opacity: shimmerOpacity,
+              },
+            ]}
+          />
+        </View>
+        <Ionicons name="chevron-back" size={16} color="#999999" />
+      </View>
+      <View style={nutritionStyles.calendarContainer}>
+        <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={nutritionStyles.calendarContent}
@@ -127,8 +182,9 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
             )}
           </TouchableOpacity>
         ))}
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </View>
+    </>
   );
 };
 

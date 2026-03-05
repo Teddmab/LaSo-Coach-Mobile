@@ -49,6 +49,41 @@ export const nutritionStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
+  calendarScrollHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    marginBottom: 4,
+    gap: 6,
+  },
+  calendarScrollHintTextContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 4,
+  },
+  calendarScrollHintText: {
+    fontSize: 12,
+    color: '#999999',
+    fontStyle: 'italic',
+    paddingHorizontal: 4,
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 80,
+    backgroundColor: 'rgba(76, 175, 80, 0.3)', // ✅ Vert thème de l'application (#4CAF50 avec opacité)
+    borderRadius: 4,
+    // Gradient effect avec shadow
+    shadowColor: '#4CAF50',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   calendarContent: {
     paddingHorizontal: 16,
     flexDirection: 'row',

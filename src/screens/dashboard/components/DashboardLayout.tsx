@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import DashboardHeader from './DashboardHeader';
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: 'white',
     position: 'absolute',
-    top: 15,
+    top: Platform.OS === 'android' ? 8 : 15, // ✅ Réduire le top sur Android pour remonter le header
     height: 30,
     left: 0,
     right: 0,

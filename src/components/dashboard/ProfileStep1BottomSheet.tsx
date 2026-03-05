@@ -22,6 +22,8 @@ import { useOnboarding } from '../../hooks/useOnboarding';
 import { useAuth } from '../../context/FirebaseAuthContext';
 import ProgressPhotosApi from '../../services/progressPhotosApi';
 import Toast from 'react-native-toast-message';
+// ✅ Utiliser la bibliothèque de pays centralisée
+import { COUNTRIES, COUNTRY_PHONE_PREFIXES, getPhonePrefix } from '../../utils/countries';
 
 interface ProfileStep1BottomSheetProps {
   visible: boolean;
@@ -31,87 +33,6 @@ interface ProfileStep1BottomSheetProps {
   dashboardData?: any;
   isStepCompleted?: boolean; // Indique si l'étape est déjà complétée
 }
-
-// Liste des pays en ordre alphabétique avec RDC en premier
-const COUNTRIES = [
-  'République démocratique du Congo',
-  'Algérie',
-  'Andorre',
-  'Bénin',
-  'Belgique',
-  'Burkina Faso',
-  'Cameroun',
-  'Canada',
-  'Congo',
-  'Côte d\'Ivoire',
-  'Comores',
-  'Djibouti',
-  'France',
-  'Gabon',
-  'Guinée',
-  'Guinée-Bissau',
-  'Haïti',
-  'Luxembourg',
-  'Madagascar',
-  'Mali',
-  'Maroc',
-  'Maurice',
-  'Mauritanie',
-  'Monaco',
-  'Niger',
-  'République centrafricaine',
-  'Sénégal',
-  'Seychelles',
-  'Suisse',
-  'Tchad',
-  'Togo',
-  'Tunisie',
-  'Vanuatu',
-  'Autre'
-];
-
-// Mapping des pays vers leurs indicatifs téléphoniques
-const COUNTRY_PHONE_PREFIXES: Record<string, string> = {
-  'République démocratique du Congo': '+243',
-  'Algérie': '+213',
-  'Andorre': '+376',
-  'Bénin': '+229',
-  'Belgique': '+32',
-  'Burkina Faso': '+226',
-  'Cameroun': '+237',
-  'Canada': '+1',
-  'Congo': '+242',
-  'Côte d\'Ivoire': '+225',
-  'Comores': '+269',
-  'Djibouti': '+253',
-  'France': '+33',
-  'Gabon': '+241',
-  'Guinée': '+224',
-  'Guinée-Bissau': '+245',
-  'Haïti': '+509',
-  'Luxembourg': '+352',
-  'Madagascar': '+261',
-  'Mali': '+223',
-  'Maroc': '+212',
-  'Maurice': '+230',
-  'Mauritanie': '+222',
-  'Monaco': '+377',
-  'Niger': '+227',
-  'République centrafricaine': '+236',
-  'Sénégal': '+221',
-  'Seychelles': '+248',
-  'Suisse': '+41',
-  'Tchad': '+235',
-  'Togo': '+228',
-  'Tunisie': '+216',
-  'Vanuatu': '+678',
-  'Autre': '+',
-};
-
-// Fonction pour obtenir l'indicatif d'un pays
-const getPhonePrefix = (country: string): string => {
-  return COUNTRY_PHONE_PREFIXES[country] || '+';
-};
 
 // Occupations en français
 const OCCUPATIONS = [

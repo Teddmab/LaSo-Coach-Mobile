@@ -41,6 +41,8 @@ import SubscriptionService from '../services/subscriptionService';
 import AvatarCropBottomSheet from '../components/profile/AvatarCropBottomSheet';
 import ProgressPhotosApi from '../services/progressPhotosApi';
 import api from '../services/api';
+// ✅ Utiliser la bibliothèque de pays centralisée
+import { COUNTRIES } from '../utils/countries';
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPress, activeTab, onClose, initialStep = 1, navigation, onFAQPress, onStepCompleted, activeProfileTab }) => {
   const { refreshProfile } = useAuth();
@@ -96,42 +98,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onLogout, onTabPres
     'Homme',
     'Femme'
   ]);
-  const [countryOptions] = useState([
-    'Algérie',
-    'Andorre',
-    'Bénin',
-    'Belgique',
-    'Burkina Faso',
-    'Cameroun',
-    'Canada',
-    'Congo',
-    'Côte d\'Ivoire',
-    'France',
-    'Gabon',
-    'Guinée',
-    'Guinée-Bissau',
-    'Luxembourg',
-    'Madagascar',
-    'Mali',
-    'Maroc',
-    'Mauritanie',
-    'Monaco',
-    'Niger',
-    'République centrafricaine',
-    'République démocratique du Congo',
-    'Sénégal',
-    'Suisse',
-    'Tchad',
-    'Togo',
-    'Tunisie',
-    'Comores',
-    'Djibouti',
-    'Haïti',
-    'Vanuatu',
-    'Seychelles',
-    'Maurice',
-    'Autre'
-  ]);
+  // ✅ Utiliser la bibliothèque de pays centralisée (tous les pays en ordre alphabétique, RDC en premier)
+  const [countryOptions] = useState(COUNTRIES);
   const [expandedSections, setExpandedSections] = useState({
     dailyInstructions: false,
     mandatoryRequirements: false,

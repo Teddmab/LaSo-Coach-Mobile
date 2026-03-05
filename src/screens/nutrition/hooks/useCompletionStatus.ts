@@ -825,9 +825,17 @@ export const useCompletionStatus = (
       
       const response = await nutritionAPI.completeMeal(mealId, completionData);
       
+      // ✅ Récupérer les points depuis la réponse API ou depuis le meal
+      const pointsFromResponse = response?.data?.pointsAwarded || response?.pointsAwarded || response?.data?.pointsEarned || response?.pointsEarned;
+      const completedMeal = dayMeals.find((m: Meal) => m.id === mealId);
+      const mealPoints = completedMeal?.points || completedMeal?.pointValue || 0;
+      const pointsEarned = pointsFromResponse || mealPoints || 0;
+
       logger.debug('API Response: Meal marked as complete successfully', {
         response: response?.data || response,
-        pointsAwarded: response?.data?.pointsAwarded || response?.pointsAwarded || 25,
+        pointsAwarded: pointsEarned,
+        pointsFromResponse,
+        mealPoints,
       });
       
       // Mettre à jour immédiatement le statut localement
@@ -955,7 +963,7 @@ export const useCompletionStatus = (
       Toast.show({
         type: 'success',
         text1: 'Repas terminé',
-        text2: `+${response?.data?.pointsAwarded || response?.pointsAwarded || 25} points!`
+        text2: pointsEarned > 0 ? `+${pointsEarned} points!` : 'Repas terminé !'
       });
       
       // Rafraîchir le statut depuis le serveur

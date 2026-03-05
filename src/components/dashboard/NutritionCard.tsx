@@ -673,10 +673,14 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
           setShowCompletionConfirmation(true);
           setCompletedMealId(mealId);
           
+          // ✅ Récupérer les points depuis le meal ou depuis la réponse API
+          const completedMeal = dayMeals.find(m => m.id === mealId);
+          const mealPoints = completedMeal?.points || completedMeal?.pointValue || 0;
+          
           Toast.show({
             type: 'success',
             text1: 'Repas complété ! ✅',
-            text2: 'Vous avez gagné 25 points',
+            text2: mealPoints > 0 ? `Vous avez gagné ${mealPoints} points` : 'Repas complété !',
             visibilityTime: 2000,
           });
           
@@ -780,11 +784,17 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       const day = String(selectedDateObj.getDate()).padStart(2, '0');
       const completionDateISO = `${year}-${month}-${day}T00:00:00.000Z`;
       
-      await nutritionAPI.completeMeal(mealId, {
+      const response = await nutritionAPI.completeMeal(mealId, {
         planId: planToUse.id,
         planDay: planDayToUse,
         completionDate: completionDateISO,
       });
+
+      // ✅ Récupérer les points depuis la réponse API ou depuis le meal
+      const pointsFromResponse = response?.data?.pointsAwarded || response?.pointsAwarded || response?.data?.pointsEarned || response?.pointsEarned;
+      const completedMeal = dayMeals.find(m => m.id === mealId);
+      const mealPoints = completedMeal?.points || completedMeal?.pointValue || 0;
+      const pointsEarned = pointsFromResponse || mealPoints || 0;
 
       // Rafraîchir le statut en arrière-plan
       try {
@@ -804,7 +814,7 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       Toast.show({
         type: 'success',
         text1: 'Repas complété ! ✅',
-        text2: 'Vous avez gagné 25 points',
+        text2: pointsEarned > 0 ? `Vous avez gagné ${pointsEarned} points` : 'Repas complété !',
         visibilityTime: 2000,
       });
       

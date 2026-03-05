@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import Avatar from './Avatar';
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
     height: 64, // Hauteur fixe absolue pour tous les écrans (logo ou titre)
     minHeight: 64, // Garantit une hauteur minimale
-    marginTop:32,
+    marginTop: Platform.OS === 'android' ? 24 : 32, // ✅ Réduire le marginTop sur Android pour remonter le header
   },
   headerWithLogo: {
     // Même hauteur que sans logo pour éviter que le contenu monte

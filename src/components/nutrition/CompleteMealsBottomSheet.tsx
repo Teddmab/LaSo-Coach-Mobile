@@ -78,6 +78,16 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   const insets = useSafeAreaInsets();
   const [completingMealIds, setCompletingMealIds] = useState<Set<string>>(new Set());
   const [completedMealIds, setCompletedMealIds] = useState<Set<string>>(new Set());
+  
+  // ✅ Vérifier si la date sélectionnée est aujourd'hui
+  const isToday = useMemo(() => {
+    if (!selectedDate) return true; // Par défaut, permettre si pas de date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return today.getTime() === selected.getTime();
+  }, [selectedDate]);
   const [localCompletionData, setLocalCompletionData] = useState<any>(null);
 
   // Réinitialiser les états quand le bottomsheet se ferme
@@ -615,8 +625,8 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
                             <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
                           </TouchableOpacity>
                           
-                          {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif */}
-                          {hasActiveSubscription && (
+                          {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif ET si c'est aujourd'hui */}
+                          {hasActiveSubscription && isToday && (
                             <TouchableOpacity 
                               style={[styles.completeButton, isCompleting && styles.completeButtonDisabled]}
                               onPress={() => handleMealComplete(meal.id)}

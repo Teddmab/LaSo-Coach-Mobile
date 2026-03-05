@@ -435,14 +435,20 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     
     const screenValue = screenMap[screenName] || 'home';
     
-    // ✅ FIX: Désactiver l'activeTab quand on navigue vers un overlay
+    // ✅ FIX: Gérer l'activeTab correctement selon la destination
     console.log('🗺️ [DashboardScreen] navigateOverlay:', {
       screenName,
       screenValue,
-      willDeactivateTab: screenValue !== 'home'
+      willDeactivateTab: screenValue !== 'home',
+      willActivateHome: screenValue === 'home'
     });
     
-    if (screenValue !== 'home') {
+    // ✅ Si on va sur Home, activer le tab 'home'
+    // ✅ Si on va sur un overlay (pas un tab de navigation), désactiver l'activeTab
+    if (screenValue === 'home') {
+      setActiveTab('home');
+    } else if (!['home', 'progress', 'nutrition', 'achievements'].includes(screenValue)) {
+      // ✅ Désactiver l'activeTab seulement pour les pages qui ne sont pas des tabs de navigation
       setActiveTab('');
     }
     

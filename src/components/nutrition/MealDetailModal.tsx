@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ interface MealDetailBottomSheetProps {
   onLike?: (mealId: string) => void;
   onDislike?: (mealId: string) => void;
   hasActiveSubscription?: boolean; // ✅ Pour masquer le bouton de complétion si pas d'abonnement
+  selectedDate?: Date; // ✅ Date sélectionnée pour vérifier si on peut compléter (uniquement jour en cours)
 }
 
 const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
@@ -53,8 +54,19 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   onLike,
   onDislike,
   hasActiveSubscription = true, // ✅ Par défaut true pour compatibilité
+  selectedDate, // ✅ Date sélectionnée
 }) => {
   const insets = useSafeAreaInsets();
+  
+  // ✅ Vérifier si la date sélectionnée est aujourd'hui
+  const isToday = useMemo(() => {
+    if (!selectedDate) return true; // Par défaut, permettre si pas de date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+    return today.getTime() === selected.getTime();
+  }, [selectedDate]);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [youtubeModalTab, setYoutubeModalTab] = useState<'recipe' | 'ingredients'>('recipe');
   const [showVideoInHeader, setShowVideoInHeader] = useState(false);
@@ -367,8 +379,12 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                 style={styles.tabScrollView}
                 contentContainerStyle={styles.tabContentContainer}
                 showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-                bounces={true}
+                nestedScrollEnabled={Platform.OS === 'android'} // ✅ Seulement sur Android
+                bounces={Platform.OS === 'ios'} // ✅ Seulement sur iOS
+                scrollEnabled={true}
+                alwaysBounceVertical={false}
+                keyboardShouldPersistTaps="handled"
+                removeClippedSubviews={false} // ✅ Important pour éviter les problèmes de scroll
               >
                 {(() => {
                   if (youtubeModalTab === 'recipe') {
@@ -453,8 +469,8 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
             </View>
             
             {/* Footer fixe avec bouton de complétion et logo LaSo (baissé) */}
-            {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif */}
-            {hasActiveSubscription && (
+            {/* ✅ Afficher le bouton de complétion uniquement si l'utilisateur a un abonnement actif ET si c'est aujourd'hui */}
+            {hasActiveSubscription && isToday && (
               <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
                 <TouchableOpacity
                   style={[
@@ -727,10 +743,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
     minHeight: 0, // Important pour permettre le scroll
+    maxHeight: '100%', // ✅ Limiter la hauteur maximale
   },
   body: {
     flex: 1,
     minHeight: 0, // Important pour permettre le scroll dans les ScrollView imbriqués
+    maxHeight: '100%', // ✅ Limiter la hauteur maximale
   },
   bodyContent: {
     padding: 0, // Pas de padding global, chaque section a son propre padding
@@ -775,14 +793,14 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   tabScrollView: {
-    flexShrink: 1,
-    flexGrow: 1,
+    flex: 1, // ✅ Utiliser flex: 1 pour prendre tout l'espace disponible
     minHeight: 0, // Important pour permettre le scroll
   },
   tabContentContainer: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 24, // Augmenté pour s'assurer que tout le contenu est visible et scrollable
+    paddingBottom: 40, // ✅ Augmenté pour s'assurer que tout le contenu est visible et scrollable
+    flexGrow: 1, // ✅ Permettre au contenu de grandir si nécessaire
   },
   contentTitle: {
     fontSize: 16,

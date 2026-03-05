@@ -14,8 +14,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabPre
   const insets = useSafeAreaInsets();
   
   // ✅ FIX: Ne pas utiliser de default value pour activeTab
-  // Si activeTab est vide (''), aucun tab ne doit être actif
-  const currentActiveTab = activeTab || null;
+  // Si activeTab est vide (''), null, ou undefined, aucun tab ne doit être actif
+  // Seuls les tabs de navigation principaux ('home', 'progress', 'nutrition', 'achievements') peuvent être actifs
+  const validTabs = ['home', 'progress', 'nutrition', 'achievements'];
+  const currentActiveTab = activeTab && validTabs.includes(activeTab) ? activeTab : null;
 
   const tabs = [
     { id: 'home', icon: 'home', activeIcon: 'home' },
@@ -30,7 +32,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ activeTab, onTabPre
   const bottomPadding = insets.bottom > 0 ? Math.max(insets.bottom, 16) : 16;
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[
+      styles.wrapper,
+      Platform.OS === 'android' && { marginBottom: 8 } // ✅ MarginBottom pour Android pour remonter la navigation
+    ]}>
       {/* ✅ Effet glassmorphism avec BlurView */}
       <BlurView
         intensity={Platform.OS === 'ios' ? 80 : 20}

@@ -73,12 +73,22 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
   };
   
   const startEditing = (section: 'personalInfo' | 'profile' | 'objectives') => {
-    // Check if onboarding is complete before allowing editing
-    if (!isOnboardingComplete) {
+    // ✅ Vérifier si l'étape correspondante est complétée
+    let isStepCompleted = false;
+    if (section === 'personalInfo' || section === 'profile') {
+      // Les sections personalInfo et profile font partie de l'étape 1
+      isStepCompleted = isStep1Completed;
+    } else if (section === 'objectives') {
+      // La section objectives fait partie de l'étape 2
+      isStepCompleted = isStep2Completed;
+    }
+    
+    // ✅ Permettre l'édition si l'étape correspondante est complétée
+    if (!isStepCompleted) {
       Toast.show({
         type: 'info',
-        text1: 'Onboarding incomplet',
-        text2: 'Veuillez d\'abord compléter l\'onboarding pour débloquer la modification des informations.',
+        text1: 'Étape non complétée',
+        text2: 'Veuillez d\'abord compléter cette étape pour pouvoir la modifier.',
         visibilityTime: 4000,
       });
       return;
@@ -818,28 +828,38 @@ const ProfileInformationsSection: React.FC<ProfileInformationsSectionProps> = ({
             <Ionicons name={icon as any} size={26} color={theme.colors.primary} />
             <Text style={styles.sectionTitle}>{title}</Text>
           </View>
-          {isEditable && !isEditing && (
-            <TouchableOpacity
-              onPress={() => startEditing(sectionKey)}
-              style={[
-                styles.modifyButton,
-                !isOnboardingComplete && styles.modifyButtonDisabled
-              ]}
-              disabled={!isOnboardingComplete}
-            >
-              <Ionicons 
-                name="create-outline" 
-                size={18} 
-                color={!isOnboardingComplete ? theme.colors.text.secondary : theme.colors.primary} 
-              />
-              <Text style={[
-                styles.modifyButtonText,
-                !isOnboardingComplete && styles.modifyButtonTextDisabled
-              ]}>
-                Modifier
-              </Text>
-            </TouchableOpacity>
-          )}
+          {isEditable && !isEditing && (() => {
+            // ✅ Vérifier si l'étape correspondante est complétée
+            let isStepCompleted = false;
+            if (sectionKey === 'personalInfo' || sectionKey === 'profile') {
+              isStepCompleted = isStep1Completed;
+            } else if (sectionKey === 'objectives') {
+              isStepCompleted = isStep2Completed;
+            }
+            
+            return (
+              <TouchableOpacity
+                onPress={() => startEditing(sectionKey)}
+                style={[
+                  styles.modifyButton,
+                  !isStepCompleted && styles.modifyButtonDisabled
+                ]}
+                disabled={!isStepCompleted}
+              >
+                <Ionicons 
+                  name="create-outline" 
+                  size={18} 
+                  color={!isStepCompleted ? theme.colors.text.secondary : theme.colors.primary} 
+                />
+                <Text style={[
+                  styles.modifyButtonText,
+                  !isStepCompleted && styles.modifyButtonTextDisabled
+                ]}>
+                  Modifier
+                </Text>
+              </TouchableOpacity>
+            );
+          })()}
         </View>
         
         {/* Action Buttons - Below title when editing */}

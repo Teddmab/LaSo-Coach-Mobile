@@ -231,21 +231,33 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     setSelectedMeal(null);
   }, [setSelectedDate]);
 
-  // Check if there are incomplete meals
+  // ✅ Vérifier si la date sélectionnée est aujourd'hui
+  const isToday = useMemo(() => {
+    const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
+    selectedDateObj.setHours(0, 0, 0, 0);
+    const todayObj = new Date(today);
+    todayObj.setHours(0, 0, 0, 0);
+    return selectedDateObj.getTime() === todayObj.getTime();
+  }, [selectedDate, today]);
+
+  // Check if there are incomplete meals (uniquement pour aujourd'hui)
   const hasIncompleteMeals = useMemo(() => {
+    // ✅ Ne pas afficher le bouton si ce n'est pas aujourd'hui
+    if (!isToday) {
+      return false;
+    }
+    
     if (!nutritionDataHook.currentPlan || nutritionDataHook.dayMeals.length === 0) {
       return false;
     }
 
     // ✅ CORRECTION: Utiliser freshCompletionData en priorité
     const completionDataToUse = completionStatusHook.freshCompletionData || completionStatusHook.completionStatus;
-    const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
-    selectedDateObj.setHours(0, 0, 0, 0);
     return nutritionDataHook.dayMeals.some((meal: Meal) => {
       // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
       return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
     });
-  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, selectedDate, today]);
+  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, isToday]);
 
   // Handle complete meals button press
   const handleCompleteMealsPress = useCallback(async () => {
@@ -603,6 +615,7 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           onLike={mealInteractionsHook.handleMealLike}
           onDislike={mealInteractionsHook.handleMealDislike}
           hasActiveSubscription={hasActiveSubscription}
+          selectedDate={selectedDate}
         />
       )}
 
