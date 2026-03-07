@@ -123,7 +123,7 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
       {/* ✅ Indicateur UX pour défiler les dates - Au-dessus du calendrier */}
       <View style={nutritionStyles.calendarScrollHint}>
         <View style={nutritionStyles.calendarScrollHintTextContainer}>
-          <Text style={nutritionStyles.calendarScrollHintText}>Défiler pour voir le reste de la semaine</Text>
+          <Text style={nutritionStyles.calendarScrollHintText}>Défilez les jours pour voir le reste de la semaine.</Text>
           {/* ✅ Animation de surbrillance - Sens inverse (de droite à gauche) */}
           <Animated.View
             style={[

@@ -74,6 +74,29 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
+  // ✅ Scrollbar custom (toujours visible)
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(1);
+
+  const isScrollable = contentHeight > scrollViewHeight + 1;
+  const scrollableRange = Math.max(1, contentHeight - scrollViewHeight);
+  const trackHeight = Math.max(1, scrollViewHeight);
+  const minThumbHeight = 28;
+  const thumbHeight = isScrollable
+    ? Math.max(minThumbHeight, (scrollViewHeight * scrollViewHeight) / Math.max(1, contentHeight))
+    : trackHeight;
+  const maxThumbTranslate = Math.max(0, trackHeight - thumbHeight);
+  const thumbTranslateY = isScrollable
+    ? scrollY.interpolate({
+        inputRange: [0, scrollableRange],
+        // Quand on "descend" dans la liste (contentOffset.y augmente),
+        // on veut que le thumb descende aussi.
+        outputRange: [0, maxThumbTranslate],
+        extrapolate: 'clamp',
+      })
+    : 0;
+
   // Extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string | null | undefined): string | null => {
     if (!url) return null;
@@ -177,16 +200,9 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
         tint="dark"
         style={StyleSheet.absoluteFillObject}
       >
-        <TouchableOpacity 
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          <TouchableOpacity 
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={styles.contentContainer}
-          >
+        <View style={styles.overlay}>
+          {/* Contenu : scrollable partout, ne doit pas déclencher la fermeture */}
+          <View style={styles.contentContainer}>
             {/* Handle bar pour indiquer que c'est un bottomsheet */}
             <View style={styles.handleContainer}>
               <View style={styles.handle} />
@@ -374,106 +390,129 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
               </View>
               
               {/* Tab Content - ScrollView pour le contenu uniquement */}
-              <ScrollView 
-                style={styles.tabScrollView}
-                contentContainerStyle={styles.tabContentContainer}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={Platform.OS === 'android'}
-                bounces={Platform.OS === 'ios'}
-                scrollEnabled={true}
-                alwaysBounceVertical={false}
-                keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={false}
-                scrollEventThrottle={16}
-                directionalLockEnabled={true}
-                overScrollMode={Platform.OS === 'android' ? 'always' : undefined}
-                decelerationRate="normal"
-                canCancelContentTouches={true}
-                onStartShouldSetResponder={() => true}
-                onMoveShouldSetResponder={() => true}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchMove={(e) => e.stopPropagation()}
+              <View
+                style={styles.tabScrollWrapper}
+                onLayout={(e) => setScrollViewHeight(e.nativeEvent.layout.height)}
               >
-                {(() => {
-                  if (youtubeModalTab === 'recipe') {
-                    // Recette Content
-                    return (
-                      <>
-                        <Text style={styles.contentTitle}>Recette</Text>
-                        {meal.instructions && meal.instructions.length > 0 ? (
-                          (() => {
-                            let instructions: string[] = [];
-                            if (Array.isArray(meal.instructions)) {
-                              instructions = meal.instructions;
-                            } else if (typeof meal.instructions === 'string') {
-                              try {
-                                const parsed = JSON.parse(meal.instructions);
-                                instructions = Array.isArray(parsed) ? parsed : [meal.instructions];
-                              } catch (e) {
-                                instructions = [meal.instructions];
+                <Animated.ScrollView
+                  style={styles.tabScrollView}
+                  contentContainerStyle={styles.tabContentContainer}
+                  // On cache la scrollbar native (variable selon OS) car on affiche la nôtre (toujours visible)
+                  showsVerticalScrollIndicator={false}
+                  indicatorStyle={Platform.OS === 'ios' ? 'black' : 'default'}
+                  nestedScrollEnabled={Platform.OS === 'android'}
+                  bounces={Platform.OS === 'ios'}
+                  scrollEnabled={true}
+                  alwaysBounceVertical={false}
+                  keyboardShouldPersistTaps="handled"
+                  removeClippedSubviews={false}
+                  scrollEventThrottle={16}
+                  directionalLockEnabled={true}
+                  overScrollMode={Platform.OS === 'android' ? 'always' : undefined}
+                  decelerationRate="normal"
+                  canCancelContentTouches={false}
+                  fadingEdgeLength={0}
+                  onContentSizeChange={(_, h) => setContentHeight(Math.max(1, h))}
+                  onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    { useNativeDriver: false }
+                  )}
+                >
+                  {(() => {
+                    if (youtubeModalTab === 'recipe') {
+                      // Recette Content
+                      return (
+                        <>
+                          <Text style={styles.contentTitle}>Recette</Text>
+                          {meal.instructions && meal.instructions.length > 0 ? (
+                            (() => {
+                              let instructions: string[] = [];
+                              if (Array.isArray(meal.instructions)) {
+                                instructions = meal.instructions;
+                              } else if (typeof meal.instructions === 'string') {
+                                try {
+                                  const parsed = JSON.parse(meal.instructions);
+                                  instructions = Array.isArray(parsed) ? parsed : [meal.instructions];
+                                } catch (e) {
+                                  instructions = [meal.instructions];
+                                }
                               }
-                            }
-                            return instructions.map((instruction: string, index: number) => (
-                              <Text key={index} style={styles.recipeStep}>
-                                {index + 1}. {instruction}
-                              </Text>
-                            ));
-                          })()
-                        ) : (
-                          <Text style={styles.noContentText}>
-                            Aucune recette disponible pour ce repas
-                          </Text>
-                        )}
-                      </>
-                    );
-                  } else {
-                    // Ingredients Content
-                    return (
-                      <>
-                        <Text style={styles.contentTitle}>Liste des ingrédients</Text>
-                        {(() => {
-                          let ingredients = meal.ingredients;
-                          if (typeof ingredients === 'string') {
-                            try {
-                              ingredients = JSON.parse(ingredients);
-                            } catch (e) {
-                              ingredients = [];
-                            }
-                          }
-                          
-                          return ingredients && ingredients.length > 0 ? (
-                            ingredients.map((ingredient: any, index: number) => {
-                              const ingredientName = typeof ingredient === 'string' ? ingredient : (ingredient.name || ingredient);
-                              const ingredientAmount = ingredient.amount;
-                              const ingredientUnit = ingredient.unit;
-                              
-                              return (
-                                <View key={index} style={styles.ingredientItem}>
-                                  <Text style={styles.ingredientNumber}>{index + 1}.</Text>
-                                  <View style={styles.ingredientDetails}>
-                                    <Text style={styles.ingredientText}>
-                                      {ingredientName}
-                                    </Text>
-                                    {ingredientAmount && ingredientUnit && (
-                                      <Text style={styles.ingredientAmount}>
-                                        – {ingredientAmount} {ingredientUnit}
-                                      </Text>
-                                    )}
-                                  </View>
-                                </View>
-                              );
-                            })
+                              return instructions.map((instruction: string, index: number) => (
+                                <Text key={index} style={styles.recipeStep}>
+                                  {index + 1}. {instruction}
+                                </Text>
+                              ));
+                            })()
                           ) : (
                             <Text style={styles.noContentText}>
-                              Aucun ingrédient disponible pour ce repas
+                              Aucune recette disponible pour ce repas
                             </Text>
-                          );
-                        })()}
-                      </>
-                    );
-                  }
-                })()}
-              </ScrollView>
+                          )}
+                        </>
+                      );
+                    } else {
+                      // Ingredients Content
+                      return (
+                        <>
+                          <Text style={styles.contentTitle}>Liste des ingrédients</Text>
+                          {(() => {
+                            let ingredients = meal.ingredients;
+                            if (typeof ingredients === 'string') {
+                              try {
+                                ingredients = JSON.parse(ingredients);
+                              } catch (e) {
+                                ingredients = [];
+                              }
+                            }
+
+                            return ingredients && ingredients.length > 0 ? (
+                              ingredients.map((ingredient: any, index: number) => {
+                                const ingredientName = typeof ingredient === 'string' ? ingredient : (ingredient.name || ingredient);
+                                const ingredientAmount = ingredient.amount;
+                                const ingredientUnit = ingredient.unit;
+
+                                return (
+                                  <View key={index} style={styles.ingredientItem}>
+                                    <Text style={styles.ingredientNumber}>{index + 1}.</Text>
+                                    <View style={styles.ingredientDetails}>
+                                      <Text style={styles.ingredientText}>
+                                        {ingredientName}
+                                      </Text>
+                                      {ingredientAmount && ingredientUnit && (
+                                        <Text style={styles.ingredientAmount}>
+                                          – {ingredientAmount} {ingredientUnit}
+                                        </Text>
+                                      )}
+                                    </View>
+                                  </View>
+                                );
+                              })
+                            ) : (
+                              <Text style={styles.noContentText}>
+                                Aucun ingrédient disponible pour ce repas
+                              </Text>
+                            );
+                          })()}
+                        </>
+                      );
+                    }
+                  })()}
+                </Animated.ScrollView>
+
+                {/* Scrollbar custom (toujours visible) */}
+                <View pointerEvents="none" style={styles.customScrollbarTrack}>
+                  <Animated.View
+                    style={[
+                      styles.customScrollbarThumb,
+                      {
+                        height: thumbHeight,
+                        transform: [{ translateY: thumbTranslateY as any }],
+                        opacity: isScrollable ? 1 : 0,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
             </View>
             
             {/* Footer fixe avec bouton de complétion et logo LaSo (baissé) */}
@@ -572,8 +611,8 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
               />
             </View>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </BlurView>
     </Modal>
 
@@ -810,6 +849,26 @@ const styles = StyleSheet.create({
     flex: 1, // ✅ Prendre tout l'espace disponible entre les tabs et le footer
     minHeight: 0, // ✅ Important pour permettre le scroll correctement
     width: '100%', // ✅ S'assurer que la largeur est complète
+  },
+  tabScrollWrapper: {
+    flex: 1,
+    minHeight: 0,
+    position: 'relative',
+  },
+  customScrollbarTrack: {
+    position: 'absolute',
+    top: 0,
+    right: 6,
+    bottom: 0,
+    width: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    overflow: 'hidden',
+  },
+  customScrollbarThumb: {
+    width: '100%',
+    borderRadius: 2,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   tabContentContainer: {
     paddingHorizontal: 20,
