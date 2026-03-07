@@ -165,6 +165,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   const mealType = mealTypeMap[meal.type] || mealTypeMap.breakfast;
 
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -338,10 +339,8 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
               </View>
             </View>
             
-            {/* Contenu avec tabs fixes */}
+            {/* ✅ Contenu avec tabs (Recette et Ingrédients) */}
             <View style={styles.bodyContainer}>
-              {/* ✅ Vidéo retirée du bas - elle est maintenant dans le header à la place de l'image */}
-              
               {/* Navigation Tabs - Fixes, ne scrollent pas */}
               <View style={styles.tabsContainer}>
                 <View style={styles.tabs}>
@@ -379,12 +378,21 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                 style={styles.tabScrollView}
                 contentContainerStyle={styles.tabContentContainer}
                 showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={Platform.OS === 'android'} // ✅ Seulement sur Android
-                bounces={Platform.OS === 'ios'} // ✅ Seulement sur iOS
+                nestedScrollEnabled={Platform.OS === 'android'}
+                bounces={Platform.OS === 'ios'}
                 scrollEnabled={true}
                 alwaysBounceVertical={false}
                 keyboardShouldPersistTaps="handled"
-                removeClippedSubviews={false} // ✅ Important pour éviter les problèmes de scroll
+                removeClippedSubviews={false}
+                scrollEventThrottle={16}
+                directionalLockEnabled={true}
+                overScrollMode={Platform.OS === 'android' ? 'always' : undefined}
+                decelerationRate="normal"
+                canCancelContentTouches={true}
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
               >
                 {(() => {
                   if (youtubeModalTab === 'recipe') {
@@ -530,7 +538,12 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                 disabled={isCompleted || isCompleting}
               >
                 {isCompleting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.completeButtonText}>
+                      Traitement en cours...
+                    </Text>
+                  </>
                 ) : isCompleted ? (
                   <>
                     <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
@@ -563,6 +576,8 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
       </TouchableOpacity>
     </BlurView>
     </Modal>
+
+    </>
   );
 };
 
@@ -742,8 +757,7 @@ const styles = StyleSheet.create({
   bodyContainer: {
     flex: 1,
     flexDirection: 'column',
-    minHeight: 0, // Important pour permettre le scroll
-    maxHeight: '100%', // ✅ Limiter la hauteur maximale
+    minHeight: 0, // ✅ Important pour permettre au ScrollView de prendre l'espace disponible
   },
   body: {
     flex: 1,
@@ -793,8 +807,9 @@ const styles = StyleSheet.create({
     color: '#000000',
   },
   tabScrollView: {
-    flex: 1, // ✅ Utiliser flex: 1 pour prendre tout l'espace disponible
-    minHeight: 0, // Important pour permettre le scroll
+    flex: 1, // ✅ Prendre tout l'espace disponible entre les tabs et le footer
+    minHeight: 0, // ✅ Important pour permettre le scroll correctement
+    width: '100%', // ✅ S'assurer que la largeur est complète
   },
   tabContentContainer: {
     paddingHorizontal: 20,
@@ -887,6 +902,154 @@ const styles = StyleSheet.create({
     width: 60,
     height: 30,
     opacity: 0.7,
+  },
+  // ✅ Styles pour le choix entre Recette et Ingrédients
+  choiceContainer: {
+    padding: 20,
+    gap: 16,
+  },
+  choiceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  choiceButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    padding: 16,
+  },
+  choiceButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  choiceButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  // ✅ Styles pour le bottom sheet de contenu
+  contentModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  contentBottomSheetContainer: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 20, // ✅ Élévation plus élevée pour être au-dessus du premier bottom sheet
+    zIndex: 10001, // ✅ Z-index élevé pour être au-dessus
+  },
+  contentModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
+  },
+  contentModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  contentModalCloseButton: {
+    padding: 4,
+    borderRadius: 20,
+    backgroundColor: '#F5F5F5',
+  },
+  contentModalScrollView: {
+    flex: 1,
+    maxHeight: Dimensions.get('window').height * 0.6,
+    minHeight: 200, // ✅ Hauteur minimale pour garantir une zone de scroll touchable
+  },
+  contentModalScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  contentModalStep: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 12,
+  },
+  contentModalStepNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  contentModalStepNumberText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  contentModalStepText: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    lineHeight: 22,
+  },
+  contentModalIngredientItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 12,
+    alignItems: 'center',
+  },
+  contentModalIngredientNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  contentModalIngredientNumberText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  contentModalIngredientDetails: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  contentModalIngredientText: {
+    flex: 1,
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    fontWeight: '500',
+  },
+  contentModalIngredientAmount: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginLeft: 12,
+  },
+  contentModalNoContent: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 40,
   },
 });
 

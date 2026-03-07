@@ -41,7 +41,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10000, // ✅ Élévation très élevée pour être au-dessus des modals et bottom sheets
+    zIndex: 10000, // ✅ Z-index très élevé pour être au-dessus de tout
     borderLeftWidth: 4,
     borderLeftColor: '#FF6B6B',
   },
@@ -66,7 +67,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10000, // ✅ Élévation très élevée pour être au-dessus des modals et bottom sheets
+    zIndex: 10000, // ✅ Z-index très élevé pour être au-dessus de tout
     borderLeftWidth: 4,
     borderLeftColor: '#4CAF50',
   },
@@ -90,7 +92,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10000, // ✅ Élévation très élevée pour être au-dessus des modals et bottom sheets
+    zIndex: 10000, // ✅ Z-index très élevé pour être au-dessus de tout
     borderLeftWidth: 4,
     borderLeftColor: '#2196F3',
   },
