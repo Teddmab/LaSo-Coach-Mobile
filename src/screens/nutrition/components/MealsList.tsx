@@ -55,8 +55,8 @@ export const MealsList: React.FC<MealsListProps> = ({
         <Text style={nutritionStyles.mealsSectionTitle}>{dayLabel}</Text>
       </View>
       {sortMealsByType(meals).map((meal: Meal) => {
-        // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
-        const isCompleted = isMealCompleted(meal.id, completionData, currentPlanDay);
+        // ✅ Vérifier si le repas est complété POUR LA DATE SÉLECTIONNÉE (et le planDay courant)
+        const isCompleted = isMealCompleted(meal.id, completionData, currentPlanDay, selectedDateObj);
         const isSelected = selectedMeal?.id === meal.id;
         
         return (

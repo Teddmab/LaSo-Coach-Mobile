@@ -6,8 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Image,
-  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,8 @@ interface MeasurementHistoryBottomSheetProps {
   initialMeasurements?: InitialMeasurement | null;
   onClose: () => void;
   getPhotoUrl?: (photo: any) => string | null;
+  onEditMeasurement?: (measurement: Measurement) => void;
+  onDeleteMeasurement?: (id?: string) => void;
 }
 
 const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps> = ({
@@ -29,12 +30,10 @@ const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps
   initialMeasurements,
   onClose,
   getPhotoUrl,
+  onEditMeasurement,
+  onDeleteMeasurement,
 }) => {
   const insets = useSafeAreaInsets();
-
-  console.log('[MeasurementHistoryBottomSheet] 🔍 Component rendered, visible:', visible);
-  console.log('[MeasurementHistoryBottomSheet] 🔍 Measurements count:', measurements?.length || 0);
-  console.log('[MeasurementHistoryBottomSheet] 🔍 Initial measurements:', !!initialMeasurements);
 
   // Format date to dd/mm/yyyy
   const formatDate = (dateString: string | undefined | null): string => {
@@ -66,32 +65,15 @@ const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps
       });
     }
     
-    // Sort by date (oldest first)
-    return allMeasurements.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return dateA - dateB;
-    });
+    return allMeasurements.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  };
+
+  const getActivityLabel = (m: Measurement & { isInitial?: boolean }): string => {
+    if (m.notes && m.notes.trim()) return m.notes.trim();
+    return '—';
   };
 
   const sortedMeasurements = getAllMeasurements();
-
-  // Calculate differences compared to initial measurement
-  const calculateDifferences = (measurement: Measurement & { isInitial?: boolean }) => {
-    if (!initialMeasurements || measurement.isInitial) {
-      return { weightDiff: null, waistDiff: null };
-    }
-    
-    const weightDiff = measurement.weight && initialMeasurements.weight
-      ? measurement.weight - initialMeasurements.weight
-      : null;
-    
-    const waistDiff = measurement.waistSize && initialMeasurements.waistSize
-      ? measurement.waistSize - initialMeasurements.waistSize
-      : null;
-    
-    return { weightDiff, waistDiff };
-  };
 
   return (
     <Modal
@@ -141,111 +123,59 @@ const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps
                 </Text>
               </View>
             ) : (
-              <View style={styles.measurementsList}>
-                {sortedMeasurements.map((measurement, index) => {
-                  const { weightDiff, waistDiff } = calculateDifferences(measurement);
-                  const hasPhoto = !!measurement.photoUrl;
-                  const photoUrl = hasPhoto && getPhotoUrl ? getPhotoUrl(measurement) : measurement.photoUrl;
-
-                  return (
-                    <View key={measurement.id || index} style={styles.measurementItem}>
-                      {/* Date Header */}
-                      <View style={styles.measurementDateHeader}>
-                        <View style={styles.dateRow}>
-                          <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
-                          <Text style={styles.measurementDate}>
-                            {formatDate(measurement.date || measurement.createdAt || measurement.updatedAt)}
-                          </Text>
-                          {measurement.isInitial && (
-                            <View style={styles.initialBadge}>
-                              <Text style={styles.initialBadgeText}>Initiale</Text>
-                            </View>
-                          )}
-                        </View>
+              <View style={styles.tableContainer}>
+                <View style={styles.tableHeaderRow}>
+                  <Text style={[styles.tableHeaderCell, styles.tableColPoids]}>Poids (kg)</Text>
+                  <Text style={[styles.tableHeaderCell, styles.tableColActivite]}>Activité</Text>
+                  <Text style={[styles.tableHeaderCell, styles.tableColSource]}>Source</Text>
+                  <Text style={[styles.tableHeaderCell, styles.tableColDate]}>Date</Text>
+                  <View style={[styles.tableHeaderCell, styles.tableColActions]} />
+                </View>
+                {sortedMeasurements.map((measurement, index) => (
+                  <View key={measurement.id || index} style={styles.tableRow}>
+                    <Text style={[styles.tableCell, styles.tableColPoids]} numberOfLines={1}>
+                      {measurement.weight ?? '—'}
+                    </Text>
+                    <Text style={[styles.tableCell, styles.tableColActivite]} numberOfLines={1}>
+                      {getActivityLabel(measurement)}
+                    </Text>
+                    <View style={styles.tableColSource}>
+                      <View style={[
+                        styles.sourceBadge,
+                        measurement.isInitial ? styles.sourceBadgeMesure : (measurement.isFromPhoto ? styles.sourceBadgePhoto : styles.sourceBadgeMesure)
+                      ]}>
+                        <Text style={[styles.sourceBadgeText, { color: measurement.isFromPhoto ? theme.colors.primary : '#6B7280' }]}>
+                          {measurement.isInitial ? 'Mesure initiale' : (measurement.isFromPhoto ? 'Photo' : 'Mesure')}
+                        </Text>
                       </View>
-
-                      {/* Photo if available */}
-                      {hasPhoto && photoUrl && (
-                        <View style={styles.photoContainer}>
-                          <Image
-                            source={{ uri: photoUrl }}
-                            style={styles.measurementPhoto}
-                            resizeMode="cover"
-                          />
-                        </View>
-                      )}
-
-                      {/* Values */}
-                      <View style={styles.valuesContainer}>
-                        {measurement.weight && (
-                          <View style={styles.valueRow}>
-                            <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
-                            <Text style={styles.valueLabel}>Poids:</Text>
-                            <Text style={styles.valueText}>{measurement.weight} kg</Text>
-                          </View>
-                        )}
-                        {measurement.waistSize && (
-                          <View style={styles.valueRow}>
-                            <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
-                            <Text style={styles.valueLabel}>Tour de taille:</Text>
-                            <Text style={styles.valueText}>{measurement.waistSize} cm</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      {/* Differences (only for non-initial measurements) */}
-                      {!measurement.isInitial && initialMeasurements && (weightDiff !== null || waistDiff !== null) && (
-                        <View style={styles.differencesContainer}>
-                          {weightDiff !== null && (
-                            <View style={styles.differenceRow}>
-                              <Ionicons 
-                                name={weightDiff < 0 ? "trending-down" : weightDiff > 0 ? "trending-up" : "remove"} 
-                                size={14} 
-                                color={weightDiff < 0 ? "#10B981" : weightDiff > 0 ? "#EF4444" : "#6B7280"} 
-                              />
-                              <Text style={[
-                                styles.differenceText,
-                                weightDiff < 0 && styles.differenceTextPositive,
-                                weightDiff > 0 && styles.differenceTextNegative
-                              ]}>
-                                Poids: {Math.abs(weightDiff).toFixed(1)} kg {weightDiff < 0 ? 'en moins' : weightDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
-                              </Text>
-                            </View>
-                          )}
-                          {waistDiff !== null && (
-                            <View style={styles.differenceRow}>
-                              <Ionicons 
-                                name={waistDiff < 0 ? "trending-down" : waistDiff > 0 ? "trending-up" : "remove"} 
-                                size={14} 
-                                color={waistDiff < 0 ? "#10B981" : waistDiff > 0 ? "#EF4444" : "#6B7280"} 
-                              />
-                              <Text style={[
-                                styles.differenceText,
-                                waistDiff < 0 && styles.differenceTextPositive,
-                                waistDiff > 0 && styles.differenceTextNegative
-                              ]}>
-                                Tour de taille: {Math.abs(waistDiff).toFixed(1)} cm {waistDiff < 0 ? 'en moins' : waistDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      )}
-
-                      {/* Notes */}
-                      {measurement.notes && (
-                        <View style={styles.notesContainer}>
-                          <Text style={styles.notesLabel}>Notes:</Text>
-                          <Text style={styles.notesText}>{measurement.notes}</Text>
-                        </View>
-                      )}
-
-                      {/* Separator */}
-                      {index < sortedMeasurements.length - 1 && (
-                        <View style={styles.separator} />
+                    </View>
+                    <Text style={[styles.tableCell, styles.tableColDate]}>
+                      {formatDate(measurement.date || measurement.createdAt || measurement.updatedAt)}
+                    </Text>
+                    <View style={[styles.tableCell, styles.tableColActions, styles.actionsCell]}>
+                      {!measurement.isInitial && onEditMeasurement && onDeleteMeasurement && (
+                        <>
+                          <TouchableOpacity style={styles.actionButton} onPress={() => onEditMeasurement(measurement)}>
+                            <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={() => Alert.alert(
+                              'Supprimer la mesure',
+                              'Êtes-vous sûr de vouloir supprimer cette mesure ?',
+                              [
+                                { text: 'Annuler', style: 'cancel' },
+                                { text: 'Supprimer', style: 'destructive', onPress: () => onDeleteMeasurement(measurement.id) }
+                              ]
+                            )}
+                          >
+                            <Ionicons name="trash-outline" size={18} color="#F44336" />
+                          </TouchableOpacity>
+                        </>
                       )}
                     </View>
-                  );
-                })}
+                  </View>
+                ))}
               </View>
             )}
           </ScrollView>
@@ -333,6 +263,69 @@ const styles = StyleSheet.create({
     color: theme.colors.text.secondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  tableContainer: {
+    paddingBottom: 20,
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  tableCell: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+  },
+  tableColPoids: { width: '14%', minWidth: 44 },
+  tableColActivite: { flex: 1, minWidth: 60, paddingHorizontal: 4 },
+  tableColSource: { width: '22%', minWidth: 80, paddingHorizontal: 2 },
+  tableColDate: { width: '22%', minWidth: 72 },
+  tableColActions: { width: '18%', minWidth: 56, flexDirection: 'row', justifyContent: 'flex-end' },
+  sourceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  sourceBadgePhoto: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+  },
+  sourceBadgeMesure: {
+    backgroundColor: 'rgba(107, 114, 128, 0.15)',
+  },
+  sourceBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionsCell: {
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'flex-end',
+  },
+  actionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8F9FA',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   measurementsList: {
     gap: 0,

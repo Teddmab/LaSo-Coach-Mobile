@@ -52,13 +52,18 @@ interface ProgressCardProps {
   isProfileComplete?: boolean; // Optional: show completion badge
 }
 
+const formatPoints = (points: number): string => {
+  if (points >= 1000) return '1K';
+  return String(points);
+};
+
 const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress, isProfileComplete = false }) => {
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['weight', 'waist']);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['weight', 'waist', 'points']);
 
   /**
    * Transform progress overview API response to match our expected format
@@ -453,6 +458,14 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
               label="Poids"
               color="#C6E54A"
             />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{progressData.weight.initial}{progressData.weight.initial != null ? ' kg' : ''}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{progressData.weight.target}{progressData.weight.target != null ? ' kg' : ''}</Text>
+              </View>
+            </View>
           </View>
         )}
         {selectedMetrics.includes('waist') && (
@@ -467,6 +480,36 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
               label="Tour de taille"
               color="#60A5FA"
             />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{progressData.waist.initial}{progressData.waist.initial != null ? ' cm' : ''}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{progressData.waist.target}{progressData.waist.target != null ? ' cm' : ''}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        {selectedMetrics.includes('points') && (
+          <View style={styles.circleWrapper}>
+            <CircularProgress
+              size={90}
+              progress={progressData.points.progress}
+              initial={0}
+              current={progressData.points.current}
+              target={progressData.points.max}
+              unit=""
+              label="Points"
+              color="#10B981"
+            />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{formatPoints(progressData.points.current)}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{formatPoints(progressData.points.max)}</Text>
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -530,6 +573,36 @@ const styles = StyleSheet.create({
     width: 110,
     alignItems: 'center',
     marginHorizontal: 8,
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  pill: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pillTarget: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  pillTextTarget: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
   },
   learnMoreButton: {
     backgroundColor: '#8BC34A',

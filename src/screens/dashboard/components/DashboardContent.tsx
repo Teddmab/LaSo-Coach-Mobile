@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, RefreshControl, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, ScrollView, RefreshControl, StyleSheet, Text, TouchableOpacity, NativeSyntheticEvent, LayoutChangeEvent } from 'react-native';
 import { theme } from '../../../constants/theme';
 import ProgressCard from '../../../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../../../components/dashboard/ProfileCompletionCard';
@@ -43,6 +43,12 @@ interface DashboardContentProps {
   nutritionCompletionData?: any;
   nutritionCurrentPlan?: any;
   onNutritionMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
+  onOpenVideo?: (videoId: string, title?: string) => void;
+  /** Pour le tuto guidé Home : ref du ScrollView et rapport des positions des sections */
+  scrollViewRef?: React.RefObject<ScrollView | null>;
+  onSectionLayout?: (index: number, y: number, height: number) => void;
+  /** Enregistre une fonction pour mesurer la position écran d’une section (spotlight) */
+  onRegisterGetSectionRect?: (getter: (index: number) => Promise<{ x: number; y: number; width: number; height: number } | null>) => void;
 }
 
 const DashboardContent: React.FC<DashboardContentProps> = ({
@@ -74,7 +80,31 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   nutritionCompletionData,
   nutritionCurrentPlan,
   onNutritionMealComplete,
+  onOpenVideo,
+  scrollViewRef,
+  onSectionLayout,
+  onRegisterGetSectionRect,
 }) => {
+  const sectionRefs = React.useRef<(View | null)[]>([]);
+
+  React.useEffect(() => {
+    if (!onRegisterGetSectionRect) return;
+    onRegisterGetSectionRect(async (index: number) => {
+      const ref = sectionRefs.current[index];
+      if (ref == null) return null;
+      return new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+        (ref as any).measureInWindow?.((x: number, y: number, w: number, h: number) => {
+          resolve({ x, y, width: w, height: h });
+        });
+      });
+    });
+  }, [onRegisterGetSectionRect]);
+
+  const handleSectionLayout = (index: number) => (e: NativeSyntheticEvent<LayoutChangeEvent>) => {
+    const { y, height } = e.nativeEvent.layout;
+    onSectionLayout?.(index, y, height);
+  };
+
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
 
@@ -140,6 +170,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.content}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.scrollContent}
@@ -147,6 +178,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      {/* Section 0 : Onboarding / Profil complété + Progression */}
+      <View ref={(r) => { sectionRefs.current[0] = r; }} onLayout={handleSectionLayout(0)} collapsable={false}>
       {/* Profile Completion Card or Progress Section */}
       {/* 
         IMPORTANT: Show ProfileCompletionCard only if onboarding is NOT complete.
@@ -187,8 +220,10 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           />
         </>
       )}
+      </View>
 
-      {/* Achievements Card */}
+      {/* Section 1 : Badge et progression (points / succès) */}
+      <View ref={(r) => { sectionRefs.current[1] = r; }} onLayout={handleSectionLayout(1)} collapsable={false}>
       <AchievementsCard
         key={achievementsData?.fetchedAt || 'initial'}
         badgesData={mergedAchievementsData}
@@ -196,8 +231,10 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         subscriptionData={subscriptionData}
         onSubscriptionRenew={onSubscriptionRenew}
       />
+      </View>
 
-      {/* Nutrition Card - Utilise les données de NutritionScreen */}
+      {/* Section 2 : Menu du jour */}
+      <View ref={(r) => { sectionRefs.current[2] = r; }} onLayout={handleSectionLayout(2)} collapsable={false}>
       <NutritionCard
         onPress={() => {
           if (shouldBlurOnIOS) {
@@ -222,9 +259,12 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         completionData={nutritionCompletionData}
         currentPlan={nutritionCurrentPlan}
         onMealComplete={onNutritionMealComplete}
+        onOpenVideo={onOpenVideo}
       />
+      </View>
 
-      {/* News Card */}
+      {/* Section 3 : News */}
+      <View ref={(r) => { sectionRefs.current[3] = r; }} onLayout={handleSectionLayout(3)} collapsable={false}>
       <NewsCard
         news={(() => {
           // ✅ Filtrer uniquement les items de type 'content' (exclure les rendezvous)
@@ -251,7 +291,10 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         }}
         onMarkComplete={onMarkContentComplete}
       />
+      </View>
 
+      {/* Section 4 : L'Agora */}
+      <View ref={(r) => { sectionRefs.current[4] = r; }} onLayout={handleSectionLayout(4)} collapsable={false}>
       <LAgoraCard
         posts={communityPosts}
         loading={communityLoading}
@@ -263,6 +306,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onLikePress={onLikePress}
         onCommentPress={onCommentPress}
       />
+      </View>
     </ScrollView>
   );
 };

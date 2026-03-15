@@ -12,6 +12,7 @@ import {
   InitialMeasurement,
   ProgressPhoto,
   MeasurementForm,
+  UserActivity,
 } from '../types';
 import { getCurrentWeight, getCurrentWaistSize, generateChartData } from '../utils/progressUtils';
 
@@ -23,6 +24,7 @@ export const useProgressScreen = (
   const [initialMeasurements, setInitialMeasurements] = useState<InitialMeasurement | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,11 +96,12 @@ export const useProgressScreen = (
       
       // Comme dans la version web, récupérer les données séparément
       // Le frontend web utilise /progress/overview pour profile/measurements mais récupère les photos séparément
-      const [profileRes, measurementsRes, photosRes, initialPhotoRes] = await Promise.allSettled([
+      const [profileRes, measurementsRes, photosRes, initialPhotoRes, activitiesRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
         api.get('/onboarding/measurements'),
-        api.get('/progress-photos'), // Récupérer les photos séparément comme dans la version web
-        api.get('/progress-photos/initial').catch(() => ({ data: { data: null } })), // Photo initiale (optionnel)
+        api.get('/progress-photos'),
+        api.get('/progress-photos/initial').catch(() => ({ data: { data: null } })),
+        api.get('/user-settings/activities').catch(() => ({ data: { data: [], activities: [] } })),
       ]);
 
       const profileData = profileRes.status === 'fulfilled' ? profileRes.value : null;
@@ -130,6 +133,11 @@ export const useProgressScreen = (
           date: p.date || p.createdAt
         }))
       });
+
+      const activitiesData = activitiesRes.status === 'fulfilled'
+        ? (activitiesRes.value.data?.data ?? activitiesRes.value.data?.activities ?? activitiesRes.value.data ?? [])
+        : [];
+      setActivities(Array.isArray(activitiesData) ? activitiesData : []);
 
       setProfile(profileData);
       setMeasurements(measurementsData);
@@ -344,19 +352,26 @@ export const useProgressScreen = (
         return;
       }
 
+      // Inclure la durée d'activité dans les notes pour que le graphique puisse l'afficher (courbe Activité)
+      const activityDurationNum = parseInt(measurementForm.activityDuration || '0', 10);
+      const activityPart = (measurementForm.activityType?.trim() && activityDurationNum > 0)
+        ? ` ${measurementForm.activityType.trim()} ${activityDurationNum} min`
+        : '';
+      const notesWithActivity = [measurementForm.notes, activityPart].filter(Boolean).join('').trim() || measurementForm.notes;
+
       // Si on édite une mesure existante
       if (editingMeasurement && editingMeasurement.id) {
         await api.put(`/onboarding/measurements/${editingMeasurement.id}`, {
           weight,
           ...(waistSize !== undefined && { waistSize }),
-          notes: measurementForm.notes,
+          notes: notesWithActivity,
         });
       } else {
         // Nouvelle mesure
         await api.post('/onboarding/measurements', {
           weight,
           ...(waistSize !== undefined && { waistSize }),
-          notes: measurementForm.notes,
+          notes: notesWithActivity,
         });
       }
 
@@ -680,7 +695,7 @@ export const useProgressScreen = (
 
   const currentWeight = getCurrentWeight(combinedMeasurements, profile?.Profile?.weight);
   const currentWaistSize = getCurrentWaistSize(combinedMeasurements, profile?.Profile?.waistSize);
-  const chartData = generateChartData(initialMeasurements, combinedMeasurements);
+  const chartData = generateChartData(initialMeasurements, combinedMeasurements, activities);
 
   return {
     profile,

@@ -83,12 +83,9 @@ export const useCompletionStatus = (
                     console.log(`✅ [isMealCompletedForDate] Repas ${mealId} complété pour date ${targetDateISO} (planDay ${planDay})`);
                   }
                   return true;
-                } else {
-                  if (__DEV__) {
-                    console.log(`⚠️ [isMealCompletedForDate] Repas ${mealId} complété mais date différente: ${completionDateISO} !== ${targetDateISO} (planDay ${planDay})`);
-                  }
-                  return false;
                 }
+                // completionDate différent de la date cible → pas complété pour ce jour
+                return false;
               } catch (error) {
                 if (__DEV__) {
                   console.warn(`⚠️ [isMealCompletedForDate] Erreur parsing completionDate:`, completion.completionDate, error);
@@ -97,84 +94,12 @@ export const useCompletionStatus = (
               }
             }
             
-            // ✅ CORRECTION: Si pas de completionDate, utiliser une logique intelligente
-            // Pour un plan cyclique, on doit vérifier si c'est la première occurrence de ce planDay
-            // Calculer planStartDate de la même manière que dans pastIncompleteMeals
-            let calculatedPlanStartDate: Date | null = null;
-            
-            if (isIOS) {
-              // iOS: Utiliser la date de création du compte (chercher dans plusieurs sources)
-              const createdAt = 
-                profileData?.createdAt || 
-                profileData?.Profile?.createdAt || 
-                profileData?.user?.createdAt ||
-                currentUser?.createdAt;
-              
-              if (createdAt) {
-                calculatedPlanStartDate = new Date(createdAt);
-                calculatedPlanStartDate.setHours(0, 0, 0, 0);
-              }
-            } else {
-              // Android: Utiliser la date de souscription
-              if (subscriptionData?.subscription?.startDate) {
-                calculatedPlanStartDate = new Date(subscriptionData.subscription.startDate);
-                calculatedPlanStartDate.setHours(0, 0, 0, 0);
-              }
+            // ✅ Sans completionDate, on ne peut pas savoir pour quelle date c'est complété.
+            // On considère donc NON complété pour la date cible → le bouton "Compléter des repas" reste visible.
+            if (__DEV__) {
+              console.log(`⚠️ [isMealCompletedForDate] Repas ${mealId} dans completionsByDay[${planDay}] sans completionDate → non complété pour ${targetDateISO}`);
             }
-            
-            if (!calculatedPlanStartDate) {
-              // Si on ne peut pas calculer planStartDate, on ne peut pas confirmer
-              if (__DEV__) {
-                console.warn(`⚠️ [isMealCompletedForDate] Repas ${mealId} trouvé mais impossible de calculer planStartDate - Ne peut pas confirmer pour date ${targetDateISO}`);
-              }
-              return false;
-            }
-            
-            const planNumDays = currentPlan?.numDays || 7;
-            const isCyclicPlan = planNumDays > 0 && planNumDays < 100; // Plans cycliques typiquement < 100 jours
-            
-            if (!isCyclicPlan) {
-              // Plan non cyclique : si le repas est dans completionsByDay[planDay], c'est complété
-              if (__DEV__) {
-                console.log(`✅ [isMealCompletedForDate] Repas ${mealId} complété (plan non cyclique, planDay ${planDay})`);
-              }
-              return true;
-            } else {
-              // Plan cyclique : sans completionDate, on doit vérifier si c'est la première occurrence
-              try {
-                // Calculer le nombre de jours depuis le début du plan jusqu'à la date cible
-                const daysSinceStart = Math.floor((targetDateNormalized.getTime() - calculatedPlanStartDate.getTime()) / (1000 * 60 * 60 * 24));
-                
-                // Si la date cible est avant le début du plan, ce n'est pas complété
-                if (daysSinceStart < 0) {
-                  return false;
-                }
-                
-                // Calculer quel cycle on est (0 = premier cycle, 1 = deuxième cycle, etc.)
-                const cycleNumber = Math.floor(daysSinceStart / planNumDays);
-                
-                // Si on est dans le premier cycle (cycleNumber === 0), alors c'est la première occurrence
-                // Dans ce cas, si le repas est dans completionsByDay[planDay], c'est complété pour cette date
-                if (cycleNumber === 0) {
-                  if (__DEV__) {
-                    console.log(`✅ [isMealCompletedForDate] Repas ${mealId} complété (premier cycle, planDay ${planDay}, date ${targetDateISO})`);
-                  }
-                  return true;
-                }
-                
-                // Pour les cycles suivants, sans completionDate, on ne peut pas être sûr
-                // On retourne false pour être sûr (mieux vaut afficher un repas non complété que l'inverse)
-                if (__DEV__) {
-                  console.warn(`⚠️ [isMealCompletedForDate] Repas ${mealId} trouvé dans completionsByDay[${planDay}] mais SANS completionDate - Cycle ${cycleNumber + 1} (${planNumDays} jours) - Ne peut pas confirmer pour date ${targetDateISO}`);
-                }
-                return false;
-              } catch (error) {
-                if (__DEV__) {
-                  console.warn(`⚠️ [isMealCompletedForDate] Erreur calcul cycle:`, error);
-                }
-                return false;
-              }
-            }
+            return false;
           }
         );
         if (found) {
@@ -202,6 +127,11 @@ export const useCompletionStatus = (
     // Ne pas vérifier dans allCompletions ou mealStatus car ils contiennent des complétions pour TOUS les jours
     // On veut savoir si le repas est complété pour CE planDay spécifique uniquement
     if (planDayToCheck !== undefined) {
+      // ✅ Si une date cible est fournie, déléguer à isMealCompletedForDate pour respecter la logique "complété par jour réel"
+      if (targetDate) {
+        return isMealCompletedForDate(mealId, completionData, targetDate, planDayToCheck);
+      }
+
       if (completionData?.completionsByDay) {
         // ✅ Vérifier avec les deux formats de clé (string et number) pour être sûr
         const dayKeyString = String(planDayToCheck);
@@ -214,11 +144,10 @@ export const useCompletionStatus = (
         if (Array.isArray(dayCompletions)) {
           const found = dayCompletions.some(
             (completion: any) => {
-              // ✅ SIMPLIFICATION: Vérifier simplement si le repas est complété, peu importe la date
+              // ✅ SIMPLIFICATION (sans targetDate) : Repas complété si present dans ce planDay avec completedAt
               const mealMatches = completion?.mealId === mealId;
               const hasCompletedAt = !!completion?.completedAt;
               
-              // Si le repas correspond et a un completedAt, il est complété (peu importe la date)
               return mealMatches && hasCompletedAt;
             }
           );
@@ -262,7 +191,7 @@ export const useCompletionStatus = (
     }
     
     return false;
-  }, []);
+  }, [isMealCompletedForDate]);
 
   // Fetch completion status from API
   const fetchCompletionStatus = useCallback(async (planId: string) => {
@@ -928,8 +857,8 @@ export const useCompletionStatus = (
       });
       
       // ✅ CORRECTION: Mettre à jour aussi freshCompletionData avec la même logique
-      setFreshCompletionData(prevData => {
-        const newData = prevData ? { ...prevData } : {};
+      setFreshCompletionData((prevData: any) => {
+        const newData: any = prevData ? { ...prevData } : {};
         
         // Copier la même structure que completionStatus
         if (!newData.completionsByDay) {

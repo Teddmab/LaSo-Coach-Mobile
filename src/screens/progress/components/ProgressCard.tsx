@@ -85,21 +85,24 @@ const ProgressCard: React.FC<ProgressCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
-    padding: 24,
+    padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    margin: 20,
-    marginTop: 0,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 16,
+    marginBottom: 12,
     textAlign: 'center',
   },
   row: {
@@ -111,16 +114,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 8,
-    fontWeight: '500',
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 6,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   value: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   currentWeightValue: {
     color: '#10b981',
@@ -142,7 +147,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#E5E7EB',
-    marginVertical: 20,
+    marginVertical: 16,
   },
 });
 

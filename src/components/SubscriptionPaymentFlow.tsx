@@ -1667,6 +1667,8 @@ export default function SubscriptionPaymentFlow({
         )}
 
         <View style={styles.paymentMethods}>
+        {/* Stripe masqué pour l'instant */}
+        {false && (
         <TouchableOpacity
           style={[
             styles.paymentMethodOption,
@@ -1687,6 +1689,7 @@ export default function SubscriptionPaymentFlow({
             <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
           )}
         </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[

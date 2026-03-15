@@ -146,11 +146,15 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
   }, [visible, freshCompletionData, completionStatus, planDay]);
 
   // Fonction helper pour vérifier si un repas est complété
-  // ✅ MODIFIÉ: Filtrer uniquement les repas complétés du jour sélectionné (planDay)
+  // ✅ Filtrer uniquement les repas complétés pour la DATE sélectionnée (planDay + completionDate)
   const isMealCompleted = (mealId: string, completionData: any): boolean => {
     if (!completionData) {
       return false;
     }
+
+    const targetDate = selectedDate ? new Date(selectedDate) : new Date();
+    targetDate.setHours(0, 0, 0, 0);
+    const targetDateISO = targetDate.toISOString().split('T')[0];
 
     // ✅ IMPORTANT: Si planDay est fourni, vérifier UNIQUEMENT ce jour spécifique
     // Ne pas utiliser les sources globales (allCompletions, mealStatus) car elles contiennent
@@ -165,12 +169,27 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
         if (Array.isArray(dayCompletions)) {
           const found = dayCompletions.some(
             (completion: any) => {
-              // ✅ SIMPLIFICATION: Vérifier simplement si le repas est complété, peu importe la date
               const mealMatches = completion?.mealId === mealId;
               const hasCompletedAt = !!completion?.completedAt;
               
-              // Si le repas correspond et a un completedAt, il est complété (peu importe la date)
-              return mealMatches && hasCompletedAt;
+              if (!mealMatches || !hasCompletedAt) {
+                return false;
+              }
+
+              // ✅ Vérifier la date exacte si completionDate est disponible
+              if (completion?.completionDate) {
+                try {
+                  const completionDate = new Date(completion.completionDate);
+                  completionDate.setHours(0, 0, 0, 0);
+                  const completionDateISO = completionDate.toISOString().split('T')[0];
+                  return completionDateISO === targetDateISO;
+                } catch {
+                  return false;
+                }
+              }
+
+              // Sans completionDate, on ne peut pas confirmer la date → non complété pour cette journée
+              return false;
             }
           );
           if (found) {
@@ -351,9 +370,9 @@ const CompleteMealsBottomSheet: React.FC<CompleteMealsBottomSheetProps> = ({
       if (currentData) {
         const updatedData = { ...currentData };
         const now = new Date().toISOString();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const completionDateISO = today.toISOString();
+        const d = new Date(selectedDate ? selectedDate : new Date());
+        d.setHours(0, 0, 0, 0);
+        const completionDateISO = d.toISOString();
         
         // Ajouter le mealId à completedMealIds
         if (!updatedData.dayProgress) {

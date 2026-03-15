@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
 import { SettingsScreenProps } from './settings/types';
@@ -11,6 +13,7 @@ import { ScreenContent } from './shared';
 import { useIOSSimulation } from '../hooks/useIOSSimulation';
 import useCompanionMode from '../hooks/useCompanionMode';
 import { IOS_COMPANION_MODE } from '../config/featureFlags';
+import { HOME_TOUR_STORAGE_KEY } from '../components/guidedTour/HomeGuidedTour';
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({
   user,
@@ -37,9 +40,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
     // isCompanionMode est true si : Platform.OS === 'ios' && IOS_COMPANION_MODE && !isOverrideEnabled
     // On filtre aussi directement si on est sur iOS et que IOS_COMPANION_MODE est activé
     const shouldFilter = isCompanionMode || (Platform.OS === 'ios' && IOS_COMPANION_MODE);
-    
+    // Revoir le tutoriel : masqué pour l'instant
+    const hideReplayTour = (items: typeof SETTINGS_ITEMS) => items.filter(item => item.id !== 'replay-tour');
+
     if (shouldFilter) {
-      const filtered = SETTINGS_ITEMS.filter(item => 
+      const filtered = SETTINGS_ITEMS.filter(item =>
         item.id !== 'subscription' && item.id !== 'security-connection'
       );
       if (__DEV__) {
@@ -55,7 +60,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
           securityItemExists: SETTINGS_ITEMS.some(item => item.id === 'security-connection'),
         });
       }
-      return filtered;
+      return hideReplayTour(filtered);
     }
     if (__DEV__) {
       console.log('✅ [SettingsScreen] Showing all settings items (not in companion mode):', {
@@ -66,7 +71,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
         itemsCount: SETTINGS_ITEMS.length,
       });
     }
-    return SETTINGS_ITEMS;
+    return hideReplayTour(SETTINGS_ITEMS);
   }, [isCompanionMode, isIOS]);
 
   const handleSettingPress = (itemId: string): void => {
@@ -110,6 +115,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({
       onClose('contact-support');
     } else if (itemId === 'about' && onClose) {
       onClose('about');
+    } else if (itemId === 'replay-tour' && onClose) {
+      AsyncStorage.removeItem(HOME_TOUR_STORAGE_KEY).then(() => {
+        Toast.show({ type: 'info', text1: 'Tutoriel réinitialisé', text2: 'Tu reviendras sur l\'accueil pour le revoir.' });
+        onClose('replay-tour');
+      });
     }
   };
 

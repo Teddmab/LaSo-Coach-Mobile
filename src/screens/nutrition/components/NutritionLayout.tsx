@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { ShimmerCard } from '../../../components/Shimmer';
 import MealDetailBottomSheet from '../../../components/nutrition/MealDetailModal';
+import VideoBottomSheet from '../../../components/nutrition/VideoBottomSheet';
 import CompleteMealsBottomSheet from '../../../components/nutrition/CompleteMealsBottomSheet';
 // ✅ PastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup
 import SubscriptionAlert from '../../../components/nutrition/SubscriptionAlert';
@@ -149,6 +150,8 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [mealsToComplete, setMealsToComplete] = useState<Meal[]>([]);
+  const [videoSheetVideoId, setVideoSheetVideoId] = useState<string | null>(null);
+  const [videoSheetTitle, setVideoSheetTitle] = useState<string | null>(null);
   // ✅ showPastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup
 
   // ✅ Ne plus mettre à jour currentPlanDay manuellement ici
@@ -240,24 +243,20 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     return selectedDateObj.getTime() === todayObj.getTime();
   }, [selectedDate, today]);
 
-  // Check if there are incomplete meals (uniquement pour aujourd'hui)
-  const hasIncompleteMeals = useMemo(() => {
-    // ✅ Ne pas afficher le bouton si ce n'est pas aujourd'hui
-    if (!isToday) {
-      return false;
+  // Nombre de repas restant à compléter pour la journée (aujourd'hui uniquement)
+  const incompleteMealsCountForDay = useMemo(() => {
+    if (!isToday || !nutritionDataHook.currentPlan || nutritionDataHook.dayMeals.length === 0) {
+      return 0;
     }
-    
-    if (!nutritionDataHook.currentPlan || nutritionDataHook.dayMeals.length === 0) {
-      return false;
-    }
-
-    // ✅ CORRECTION: Utiliser freshCompletionData en priorité
     const completionDataToUse = completionStatusHook.freshCompletionData || completionStatusHook.completionStatus;
-    return nutritionDataHook.dayMeals.some((meal: Meal) => {
-      // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
-      return !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
-    });
-  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, isToday]);
+    const d = new Date(selectedDate instanceof Date ? selectedDate : today);
+    d.setHours(0, 0, 0, 0);
+    return nutritionDataHook.dayMeals.filter((meal: Meal) =>
+      !completionStatusHook.isMealCompleted(meal.id, completionDataToUse, currentPlanDay, d)
+    ).length;
+  }, [nutritionDataHook.dayMeals, completionStatusHook.completionStatus, completionStatusHook.freshCompletionData, nutritionDataHook.currentPlan, currentPlanDay, completionStatusHook.isMealCompleted, isToday, selectedDate, today]);
+
+  const hasIncompleteMeals = incompleteMealsCountForDay > 0;
 
   // Handle complete meals button press
   const handleCompleteMealsPress = useCallback(async () => {
@@ -278,13 +277,12 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         completionsByDay: globalCompletionData?.completionsByDay || prevStatus?.completionsByDay,
       }));
 
-      const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
-      selectedDateObj.setHours(0, 0, 0, 0);
-      const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
+      const d = new Date(selectedDate instanceof Date ? selectedDate : today);
+      d.setHours(0, 0, 0, 0);
+      const planDayForFilter = calculateNutritionPlanDay(d);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
-        // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
-        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter);
+        return !completionStatusHook.isMealCompleted(meal.id, globalCompletionData, planDayForFilter, d);
       });
 
       setMealsToComplete(incompleteMeals);
@@ -301,13 +299,12 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         return;
       }
 
-      const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
-      selectedDateObj.setHours(0, 0, 0, 0);
-      const planDayForFilter = calculateNutritionPlanDay(selectedDateObj);
+      const d = new Date(selectedDate instanceof Date ? selectedDate : today);
+      d.setHours(0, 0, 0, 0);
+      const planDayForFilter = calculateNutritionPlanDay(d);
 
       const incompleteMeals = nutritionDataHook.dayMeals.filter((meal: Meal) => {
-        // ✅ Pour l'affichage normal, vérifier seulement le planDay (pas la date exacte)
-        return !completionStatusHook.isMealCompleted(meal.id, completionStatusHook.completionStatus, planDayForFilter);
+        return !completionStatusHook.isMealCompleted(meal.id, completionStatusHook.completionStatus, planDayForFilter, d);
       });
 
       setMealsToComplete(incompleteMeals);
@@ -508,7 +505,12 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
   const selectedDateObj = selectedDate instanceof Date ? selectedDate : today;
   selectedDateObj.setHours(0, 0, 0, 0);
   const isMealCompletedForModal = selectedMeal 
-    ? completionStatusHook.isMealCompleted(selectedMeal.id, completionDataToUse, currentPlanDay)
+    ? completionStatusHook.isMealCompleted(
+        selectedMeal.id, 
+        completionDataToUse, 
+        currentPlanDay,
+        selectedDateObj
+      )
     : false;
 
   return (
@@ -552,7 +554,10 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
         {/* ✅ Bouton "Compléter des repas" - Monté juste après le calendrier */}
         {/* ✅ Afficher uniquement si l'utilisateur a un abonnement actif */}
         {nutritionDataHook.currentPlan && nutritionDataHook.dayMeals.length > 0 && hasIncompleteMeals && hasActiveSubscription && (
-          <CompleteMealsButton onPress={handleCompleteMealsPress} />
+          <CompleteMealsButton
+            remainingCount={incompleteMealsCountForDay}
+            onPress={handleCompleteMealsPress}
+          />
         )}
 
         {(nutritionDataHook.plansResponseStatus === 200 || (nutritionDataHook.currentPlan && hasActiveSubscription) || nutritionDataHook.dayMeals.length > 0) && (
@@ -616,8 +621,24 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           onDislike={mealInteractionsHook.handleMealDislike}
           hasActiveSubscription={hasActiveSubscription}
           selectedDate={selectedDate}
+          onOpenVideo={(videoId, title) => {
+            setVideoSheetVideoId(videoId);
+            setVideoSheetTitle(title ?? null);
+            setShowYoutubeModal(false);
+          }}
         />
       )}
+
+      <VideoBottomSheet
+        visible={!!videoSheetVideoId}
+        videoId={videoSheetVideoId}
+        title={videoSheetTitle ?? undefined}
+        onClose={() => {
+          setVideoSheetVideoId(null);
+          setVideoSheetTitle(null);
+          setShowYoutubeModal(true);
+        }}
+      />
 
       <CompleteMealsBottomSheet
         visible={showCompletionModal}
@@ -646,7 +667,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 48,
   },
   lockedScrollContent: {
     flexGrow: 1,
@@ -659,7 +680,7 @@ const styles = StyleSheet.create({
   },
   mealsContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 32,
   },
   lockedContainer: {
     alignItems: 'center',

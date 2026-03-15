@@ -1056,7 +1056,8 @@ export default function SubscriptionPaymentFlowImproved({
                     <Text style={styles.sectionTitle}>Choisissez votre méthode de paiement</Text>
                     <Text style={styles.sectionSubtitle}>Sélectionnez comment vous souhaitez payer</Text>
 
-                    {/* Sélecteur Stripe */}
+                    {/* Stripe masqué pour l'instant */}
+                    {false && (
                     <TouchableOpacity
                         style={[
                             styles.paymentMethodCard,
@@ -1078,6 +1079,7 @@ export default function SubscriptionPaymentFlowImproved({
                             )}
                         </View>
                     </TouchableOpacity>
+                    )}
 
                     {/* Sélecteur Mobile Money */}
                     <TouchableOpacity

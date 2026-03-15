@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../constants/theme';
 import NewsDetailBottomSheet from '../components/dashboard/NewsDetailBottomSheet';
+import VideoBottomSheet from '../components/nutrition/VideoBottomSheet';
 import type { DashboardScreenProps } from './dashboard/types';
 import type { Meal } from './nutrition/types';
 import type { StackNavigationProp } from '@react-navigation/stack';
@@ -37,6 +38,7 @@ import useCompanionMode from '../hooks/useCompanionMode';
 // TODO: PHASE 6 - Import entitlements hook for checking user access rights
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useAppDataCache } from '../context/AppDataCacheContext';
+import HomeGuidedTour from '../components/guidedTour/HomeGuidedTour';
 
 // Import all screen components (still in .js, will be migrated later)
 import ProgressScreen from './ProgressScreen';
@@ -67,6 +69,23 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const { achievementsData, fetchAchievementsData } = useAchievements();
   const { agendaData, loading: agendaLoading, fetchAgendaData } = useAgenda();
   const [rendezvousData, setRendezvousData] = useState<any>(null);
+
+  /** Tuto guidé Home : ref du ScrollView et positions des sections pour défilement dynamique */
+  const homeScrollViewRef = useRef<ScrollView | null>(null);
+  const [homeSectionLayouts, setHomeSectionLayouts] = useState<{ y: number; height: number }[]>([]);
+  const handleHomeSectionLayout = useCallback((index: number, y: number, height: number) => {
+    setHomeSectionLayouts((prev) => {
+      const next = [...prev];
+      next[index] = { y, height };
+      return next;
+    });
+  }, []);
+
+  /** Forcer l’affichage du tuto (ex. Paramètres > Revoir le tutoriel) */
+  const [forceShowHomeTour, setForceShowHomeTour] = useState(false);
+  /** Mesure écran des sections pour le spotlight du tuto */
+  const getSectionRectRef = useRef<((index: number) => Promise<{ x: number; y: number; width: number; height: number } | null>) | null>(null);
+  const getSectionRect = useCallback((index: number) => getSectionRectRef.current?.(index) ?? Promise.resolve(null), []);
   
   // ✅ Fonction pour récupérer le rendez-vous actuel
   const fetchRendezvousData = useCallback(async (): Promise<void> => {
@@ -343,6 +362,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // ✅ News detail bottom sheet state
   const [selectedNews, setSelectedNews] = useState<any | null>(null);
   const [showNewsBottomSheet, setShowNewsBottomSheet] = useState<boolean>(false);
+
+  // ✅ Vidéo repas (bottom sheet dédié, lecture dans l'app)
+  const [videoSheetVideoId, setVideoSheetVideoId] = useState<string | null>(null);
+  const [videoSheetTitle, setVideoSheetTitle] = useState<string | null>(null);
   
   // BackHandler: gestion du bouton retour Android
   const backHandlerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -845,7 +868,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         onLogout={handleLogout}
         onTabPress={(tabId: string) => {
           if (tabId === 'home') {
-            // Reset to home - close overlay stack
             setCurrentScreen('home');
           } else {
             handleTabPress(tabId);
@@ -860,6 +882,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         navigation={navigation}
         overlayNavigationRef={overlayNavigationRef}
         initialRouteName={overlayInitialRoute}
+        onRequestShowHomeTour={() => {
+          setCurrentScreen('home');
+          setForceShowHomeTour(true);
+        }}
       />
       </>
     );
@@ -963,8 +989,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // Default home screen
   return (
     <>
-
-
       <DashboardLayout
         user={user}
         activeTab={activeTab}
@@ -1003,7 +1027,35 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         nutritionCompletionData={completionStatusHook.freshCompletionData || completionStatusHook.completionStatus}
         nutritionCurrentPlan={currentPlan}
         onNutritionMealComplete={handleNutritionMealComplete}
+        onOpenVideo={(videoId, title) => {
+          setVideoSheetVideoId(videoId);
+          setVideoSheetTitle(title ?? null);
+        }}
+        scrollViewRef={homeScrollViewRef}
+        onSectionLayout={handleHomeSectionLayout}
+        onRegisterGetSectionRect={(getter: (index: number) => Promise<{ x: number; y: number; width: number; height: number } | null>) => { getSectionRectRef.current = getter; }}
       />
+
+      <VideoBottomSheet
+        visible={!!videoSheetVideoId}
+        videoId={videoSheetVideoId}
+        title={videoSheetTitle ?? undefined}
+        onClose={() => {
+          setVideoSheetVideoId(null);
+          setVideoSheetTitle(null);
+        }}
+      />
+
+      {/* Tuto guidé Home : masqué pour l'instant (on reviendra dessus) */}
+      {false && (
+        <HomeGuidedTour
+          scrollViewRef={homeScrollViewRef}
+          sectionLayouts={homeSectionLayouts}
+          getSectionRect={getSectionRect}
+          forceShow={forceShowHomeTour}
+          onComplete={() => setForceShowHomeTour(false)}
+        />
+      )}
 
       {/* Meal Details Modal */}
       <Modal

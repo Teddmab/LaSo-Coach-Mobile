@@ -47,6 +47,10 @@ interface DashboardLayoutProps {
   nutritionCompletionData?: any;
   nutritionCurrentPlan?: any;
   onNutritionMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
+  onOpenVideo?: (videoId: string, title?: string) => void;
+  scrollViewRef?: React.RefObject<any>;
+  onSectionLayout?: (index: number, y: number, height: number) => void;
+  onRegisterGetSectionRect?: (getter: (index: number) => Promise<{ x: number; y: number; width: number; height: number } | null>) => void;
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -86,6 +90,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   nutritionCompletionData,
   nutritionCurrentPlan,
   onNutritionMealComplete,
+  onOpenVideo,
+  scrollViewRef,
+  onSectionLayout,
+  onRegisterGetSectionRect,
 }) => {
   const insets = useSafeAreaInsets();
   // Use a minimum safe area bottom padding, defaulting to 8 if insets aren't ready yet
@@ -146,8 +154,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           nutritionCurrentPlanDay={nutritionCurrentPlanDay}
           nutritionCompletionData={nutritionCompletionData}
           nutritionCurrentPlan={nutritionCurrentPlan}
-          onNutritionMealComplete={onNutritionMealComplete}
-        />
+        onNutritionMealComplete={onNutritionMealComplete}
+        onOpenVideo={onOpenVideo}
+        scrollViewRef={scrollViewRef}
+        onSectionLayout={onSectionLayout}
+        onRegisterGetSectionRect={onRegisterGetSectionRect}
+      />
       </View>
 
       {/* Barre de navigation fixe - position absolute comme FixedLayout */}

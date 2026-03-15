@@ -45,6 +45,17 @@ export interface ChartDataPoint {
   waistSize: number;
   notes?: string;
   isInitial: boolean;
+  /** Durée d'activité physique en minutes (pour la courbe Activité), fusionnée depuis l'API activités */
+  activityMinutes?: number;
+}
+
+/** Entrée activité physique (API user-settings/activities) */
+export interface UserActivity {
+  id?: string;
+  type?: string;
+  duration: number;
+  date?: string;
+  createdAt?: string;
 }
 
 export interface ChartYAxisData {

@@ -12,6 +12,7 @@ interface ProgressChartProps {
   chartData?: any[];
   initialMeasurements?: InitialMeasurement | null;
   measurements?: Measurement[];
+  initialProgressPhoto?: any | null;
   onDataPointPress?: (data: any) => void;
   onDeleteMeasurement?: (id?: string) => void;
   onAddMeasurement?: () => void;
@@ -25,14 +26,16 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
   chartData = [], 
   initialMeasurements, 
   measurements = [],
+  initialProgressPhoto = null,
   onDataPointPress,
   onDeleteMeasurement,
   onAddMeasurement,
   onEditMeasurement,
   onViewHistory,
+  onMeasurementClick,
   getPhotoUrl
 }) => {
-  const [selectedDataPoint, setSelectedDataPoint] = useState(null);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
 
   // Calculer les différences par rapport à la mesure initiale
   const calculateDifferences = (measurement: Measurement) => {
@@ -66,30 +69,25 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
     return `${day}/${month}/${year}`;
   };
 
-  // Format data for weight chart
-  const formatWeightChartData = () => {
+  // Graphique aligné web référence : Poids (kg) + Tour de taille (cm) + Activité physique (min)
+  const formatCombinedChartData = () => {
     if (!chartData || chartData.length === 0) {
       return {
-        labels: [],
+        labels: [] as string[],
         datasets: [
-          {
-            data: [],
-            color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`, // Green
-            strokeWidth: 3
-          }
-        ]
+          { data: [] as number[], color: () => 'rgba(52, 211, 153, 1)', strokeWidth: 3 },
+          { data: [] as number[], color: () => 'rgba(96, 165, 250, 1)', strokeWidth: 3 },
+          { data: [] as number[], color: () => 'rgba(245, 158, 11, 1)', strokeWidth: 3 },
+        ],
+        sortedData: [] as any[],
       };
     }
-
-    // Sort data by date
     const sortedData = [...chartData].sort((a: any, b: any) => {
       const dateA = a.date || a.createdAt || a.updatedAt;
       const dateB = b.date || b.createdAt || b.updatedAt;
       return new Date(dateA).getTime() - new Date(dateB).getTime();
     });
-
-    // Create labels - show only first, middle, and last for mobile
-    const labels = [];
+    const labels: string[] = [];
     if (sortedData.length === 1) {
       labels.push(formatDateShort(sortedData[0].date || sortedData[0].createdAt || sortedData[0].updatedAt));
     } else if (sortedData.length === 2) {
@@ -100,71 +98,26 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
       labels.push(formatDateShort(sortedData[Math.floor(sortedData.length / 2)].date || sortedData[Math.floor(sortedData.length / 2)].createdAt || sortedData[Math.floor(sortedData.length / 2)].updatedAt));
       labels.push(formatDateShort(sortedData[sortedData.length - 1].date || sortedData[sortedData.length - 1].createdAt || sortedData[sortedData.length - 1].updatedAt));
     }
-
-    // Extract weight data
-    const weightData = sortedData.map(item => parseFloat(item.weight) || 0);
-
-    return {
-      labels,
-      datasets: [
-        {
-          data: weightData,
-          color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`, // Green
-          strokeWidth: 3
-        }
-      ]
-    };
-  };
-
-  // Format data for waist chart
-  const formatWaistChartData = () => {
-    if (!chartData || chartData.length === 0) {
-      return {
-        labels: [],
-        datasets: [
-          {
-            data: [],
-            color: (opacity = 1) => `rgba(96, 165, 250, ${opacity})`, // Blue
-            strokeWidth: 3
-          }
-        ]
-      };
-    }
-
-    // Sort data by date
-    const sortedData = [...chartData].sort((a: any, b: any) => {
-      const dateA = a.date || a.createdAt || a.updatedAt;
-      const dateB = b.date || b.createdAt || b.updatedAt;
-      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    const weightData = sortedData.map((item: any) => parseFloat(item.weight) || 0);
+    const waistData = sortedData.map((item: any) => parseFloat(item.waistSize) || 0);
+    const activityData = sortedData.map((item: any) => {
+      if (item.activityMinutes != null && !isNaN(Number(item.activityMinutes))) return Number(item.activityMinutes);
+      const notes = item.notes || '';
+      const match = notes.match(/(\d+)\s*min/);
+      return match ? parseInt(match[1], 10) : 0;
     });
-
-    // Create labels - show only first, middle, and last for mobile
-    const labels = [];
-    if (sortedData.length === 1) {
-      labels.push(formatDateShort(sortedData[0].date || sortedData[0].createdAt || sortedData[0].updatedAt));
-    } else if (sortedData.length === 2) {
-      labels.push(formatDateShort(sortedData[0].date || sortedData[0].createdAt || sortedData[0].updatedAt));
-      labels.push(formatDateShort(sortedData[1].date || sortedData[1].createdAt || sortedData[1].updatedAt));
-    } else {
-      labels.push(formatDateShort(sortedData[0].date || sortedData[0].createdAt || sortedData[0].updatedAt));
-      labels.push(formatDateShort(sortedData[Math.floor(sortedData.length / 2)].date || sortedData[Math.floor(sortedData.length / 2)].createdAt || sortedData[Math.floor(sortedData.length / 2)].updatedAt));
-      labels.push(formatDateShort(sortedData[sortedData.length - 1].date || sortedData[sortedData.length - 1].createdAt || sortedData[sortedData.length - 1].updatedAt));
-    }
-
-    // Extract waist data
-    const waistData = sortedData.map(item => parseFloat(item.waistSize) || 0);
-
     return {
       labels,
+      sortedData,
       datasets: [
-        {
-          data: waistData,
-          color: (opacity = 1) => `rgba(96, 165, 250, ${opacity})`, // Blue
-          strokeWidth: 3
-        }
-      ]
+        { data: weightData, color: (opacity = 1) => `rgba(52, 211, 153, ${opacity})`, strokeWidth: 3 },
+        { data: waistData, color: (opacity = 1) => `rgba(96, 165, 250, ${opacity})`, strokeWidth: 3 },
+        { data: activityData, color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`, strokeWidth: 3 },
+      ],
     };
   };
+
+  const combinedChartData = formatCombinedChartData();
 
   // Get chart configuration
   const getChartConfig = (color: string) => ({
@@ -231,96 +184,182 @@ const ProgressChart: React.FC<ProgressChartProps> = ({
     });
   };
 
-  const weightChartData = formatWeightChartData();
-  const waistChartData = formatWaistChartData();
   const sortedMeasurements = getSortedMeasurements();
+  const hasAnyChartData = combinedChartData.datasets.some(d => d.data.length > 0);
+
+  const initialPhotoUrl = initialProgressPhoto && getPhotoUrl ? getPhotoUrl(initialProgressPhoto) : null;
+  const selectedPoint = selectedPointIndex != null && combinedChartData.sortedData[selectedPointIndex] ? combinedChartData.sortedData[selectedPointIndex] : null;
+  const selectedMeasurement = selectedPoint && measurements?.length ? measurements.find((m: Measurement) => {
+    if ((selectedPoint as any).isInitial && (m.isInitial || m.id === 'initial')) return true;
+    const pointDate = selectedPoint.date || selectedPoint.createdAt;
+    const mDate = m.date || m.createdAt;
+    return pointDate && mDate && new Date(pointDate).getTime() === new Date(mDate).getTime();
+  }) : null;
+  const latestWithPhoto = measurements?.length ? [...measurements].filter((m: Measurement) => (m as any).photoUrl || m.photoId).pop() : null;
+  const resolvePhotoUrl = (m: Measurement | null): string | null => {
+    if (!m) return null;
+    const direct = (m as any).photoUrl;
+    if (typeof direct === 'string' && direct) return direct;
+    return getPhotoUrl ? getPhotoUrl(m as any) ?? null : null;
+  };
+  const currentPhotoUrl = resolvePhotoUrl(selectedMeasurement ?? null) ?? resolvePhotoUrl(latestWithPhoto ?? null);
+  // Format date comme sur le web : toLocaleDateString('fr-FR') ex. 12/03/2025
+  const formatDateForInitial = (dateString: string | undefined | null) => {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `le ${day}/${month}/${year}`;
+  };
 
   return (
     <View style={styles.container}>
-      {/* Weight Chart */}
-      <View style={styles.chartSection}>
-        <View style={styles.chartHeader}>
-          <View style={styles.chartTitleContainer}>
-            <View style={[styles.chartIndicator, { backgroundColor: '#34D399' }]} />
-            <Text style={styles.chartTitle}>Poids (kg)</Text>
+      {/* Titre + Mesures initiales (une seule ligne) */}
+      <Text style={styles.sectionTitle}>Historique des mesures</Text>
+      {initialMeasurements && (initialMeasurements.weight != null || initialMeasurements.waistSize != null) && (
+        <Text style={styles.initialMeasuresText} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={styles.initialMeasuresBold}>Init.</Text> {initialMeasurements.weight ?? '-'} kg, {initialMeasurements.waistSize ?? '-'} cm
+          {initialMeasurements.date ? ` (${formatDateForInitial(initialMeasurements.date)})` : ''}
+        </Text>
+      )}
+
+      {/* Légende sur une seule ligne */}
+      {hasAnyChartData && (
+        <View style={styles.legendRow}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#34D399' }]} />
+            <Text style={styles.legendLabel}>Poids</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#60A5FA' }]} />
+            <Text style={styles.legendLabel}>T. taille</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+            <Text style={styles.legendLabel}>Activité</Text>
           </View>
         </View>
-        
-        {weightChartData.datasets[0].data.length > 0 ? (
-          <LineChart
-            data={weightChartData}
-            width={chartWidth}
-            height={220}
-            chartConfig={getChartConfig('#34D399')}
-            bezier
-            style={styles.chart}
-            withHorizontalLabels={true}
-            withVerticalLabels={true}
-            withInnerLines={true}
-            withOuterLines={false}
-            withDots={true}
-            withShadow={false}
-            withScrollableDot={false}
-            decorator={() => null}
-            onDataPointClick={(data: any) => {
-              if (onDataPointPress) {
-                onDataPointPress(data);
-              }
-            }}
-          />
+      )}
+
+      {/* Un seul graphique : Poids (kg) + Tour de taille (cm) + Activité (min) avec grille, image au centre */}
+      <View style={styles.chartSection}>
+        {hasAnyChartData ? (
+          <View style={styles.combinedChartWrapper}>
+            <LineChart
+              data={{
+                labels: combinedChartData.labels,
+                datasets: combinedChartData.datasets,
+              }}
+              width={chartWidth}
+              height={240}
+              chartConfig={getChartConfig('#34D399')}
+              bezier
+              style={styles.chart}
+              withHorizontalLabels={true}
+              withVerticalLabels={true}
+              withInnerLines={true}
+              withOuterLines={false}
+              withDots={true}
+              withShadow={false}
+              withScrollableDot={false}
+              decorator={() => null}
+              onDataPointClick={(data: any) => {
+                const index = data?.index ?? null;
+                setSelectedPointIndex(index != null ? index : null);
+                if (onDataPointPress) onDataPointPress(data);
+              }}
+            />
+            {/* Tooltip au clic sur un point + bouton fermer */}
+            {selectedPointIndex != null && selectedPoint && (
+              <View style={styles.tooltipCard}>
+                <View style={styles.tooltipHeader}>
+                  <Text style={styles.tooltipDate}>
+                    {(() => {
+                      const d = selectedPoint.date || selectedPoint.createdAt;
+                      if (!d) return '—';
+                      const date = new Date(d);
+                      if (isNaN(date.getTime())) return '—';
+                      const day = String(date.getDate()).padStart(2, '0');
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const year = date.getFullYear();
+                      return `${day}/${month}/${year}`;
+                    })()}
+                  </Text>
+                  <TouchableOpacity
+                    hitSlop={12}
+                    onPress={() => setSelectedPointIndex(null)}
+                    style={styles.tooltipCloseBtn}
+                  >
+                    <Ionicons name="close" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.tooltipMetrics}>
+                  <Text style={[styles.tooltipMetric, { color: '#34D399' }]}>
+                    Poids: {selectedPoint.weight ?? '—'} kg
+                  </Text>
+                  <Text style={[styles.tooltipMetric, { color: '#60A5FA' }]}>
+                    T. taille: {selectedPoint.waistSize ?? '—'} cm
+                  </Text>
+                  <Text style={[styles.tooltipMetric, { color: '#F59E0B' }]}>
+                    Activité: {selectedPoint.activityMinutes != null ? selectedPoint.activityMinutes : ((selectedPoint.notes || '').match(/(\d+)\s*min/)?.[1] ?? '0')} min
+                  </Text>
+                </View>
+                {(selectedPoint.notes && selectedPoint.notes.trim()) ? (
+                  <Text style={styles.tooltipActivity} numberOfLines={1} ellipsizeMode="tail">{selectedPoint.notes.trim()}</Text>
+                ) : null}
+                <View style={styles.tooltipPhotosRow}>
+                  <View style={styles.tooltipPhotoBox}>
+                    <Text style={styles.tooltipPhotoLabel}>Avant</Text>
+                    {initialPhotoUrl ? (
+                      <Image source={{ uri: initialPhotoUrl }} style={styles.tooltipPhoto} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.tooltipPhotoPlaceholder}>
+                        <Ionicons name="person-outline" size={20} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.tooltipPhotoBox}>
+                    <Text style={styles.tooltipPhotoLabel}>Après</Text>
+                    {currentPhotoUrl ? (
+                      <Image source={{ uri: currentPhotoUrl }} style={styles.tooltipPhoto} resizeMode="cover" />
+                    ) : (
+                      <View style={styles.tooltipPhotoPlaceholder}>
+                        <Ionicons name="person-outline" size={20} color="#9CA3AF" />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
         ) : (
           <View style={styles.emptyChart}>
             <Ionicons name="trending-up-outline" size={48} color="#E0E0E0" />
-            <Text style={styles.emptyChartText}>Aucune donnée de poids disponible</Text>
+            <Text style={styles.emptyChartText}>Aucune donnée disponible</Text>
             <Text style={styles.emptyChartSubtext}>Ajoutez votre première mesure pour voir le graphique</Text>
           </View>
         )}
       </View>
 
-      {/* Waist Chart */}
-      <View style={styles.chartSection}>
-        <View style={styles.chartHeader}>
-          <View style={styles.chartTitleContainer}>
-            <View style={[styles.chartIndicator, { backgroundColor: '#60A5FA' }]} />
-            <Text style={styles.chartTitle}>Tour de taille (cm)</Text>
-          </View>
-        </View>
-        
-        {waistChartData.datasets[0].data.length > 0 ? (
-          <LineChart
-            data={waistChartData}
-            width={chartWidth}
-            height={220}
-            chartConfig={getChartConfig('#60A5FA')}
-            bezier
-            style={styles.chart}
-            withHorizontalLabels={true}
-            withVerticalLabels={true}
-            withInnerLines={true}
-            withOuterLines={false}
-            withDots={true}
-            withShadow={false}
-            withScrollableDot={false}
-            decorator={() => null}
-            onDataPointClick={(data: any) => {
-              if (onDataPointPress) {
-                onDataPointPress(data);
-              }
-            }}
-          />
-        ) : (
-          <View style={styles.emptyChart}>
-            <Ionicons name="trending-up-outline" size={48} color="#E0E0E0" />
-            <Text style={styles.emptyChartText}>Aucune donnée de tour de taille disponible</Text>
-            <Text style={styles.emptyChartSubtext}>Ajoutez votre première mesure pour voir le graphique</Text>
-          </View>
-        )}
-      </View>
+      {/* Tableau des mesures (aligné web : chart → table → add) */}
+      <RecentMeasurements
+        measurements={measurements}
+        initialMeasurements={initialMeasurements}
+        onEditMeasurement={onEditMeasurement}
+        onViewHistory={onViewHistory}
+        onDeleteMeasurement={onDeleteMeasurement}
+        onMeasurementClick={onMeasurementClick}
+        onAddMeasurement={onAddMeasurement}
+      />
 
-      {/* Add Measurement Button - Input carré */}
-      <TouchableOpacity style={styles.addMeasurementInput} onPress={onAddMeasurement}>
-        <Ionicons name="add-circle-outline" size={24} color={theme.colors.primary} />
-        <Text style={styles.addMeasurementInputText}>Ajouter une nouvelle mesure</Text>
+      {/* Add Measurement - zone en pointillés (aligné web) */}
+      <TouchableOpacity style={styles.addMeasurementInput} onPress={onAddMeasurement} activeOpacity={0.7}>
+        <View style={styles.addMeasurementInputInner}>
+          <Ionicons name="add" size={40} color="#9CA3AF" />
+          <Text style={styles.addMeasurementInputText}>Ajouter une nouvelle mesure</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -361,192 +400,129 @@ export const RecentMeasurements: React.FC<RecentMeasurementsProps> = ({
     return { weightDiff, waistDiff };
   };
 
-  // Format date to dd/mm/yy
-  const formatDateShort = (dateString: string | undefined | null): string => {
+  const formatDateTable = (dateString: string | undefined | null): string => {
     if (!dateString) return 'N/A';
-    
     const date = new Date(dateString);
-    
-    // Check if date is valid
-    if (isNaN(date.getTime())) {
-      return 'N/A';
-    }
-    
+    if (isNaN(date.getTime())) return 'N/A';
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear().toString().slice(-2);
+    const year = date.getFullYear();
     return `${day}/${month}/${year}`;
   };
 
-  // Sort measurements by date (most recent first)
-  const sortedMeasurements = [...measurements].sort((a: Measurement, b: Measurement) => {
-    const dateA = a.createdAt;
-    const dateB = b.createdAt;
+  const sortedMeasurements = [...measurements].filter(m => !m.isInitial).sort((a: Measurement, b: Measurement) => {
+    const dateA = a.createdAt || a.date || '';
+    const dateB = b.createdAt || b.date || '';
     return new Date(dateB).getTime() - new Date(dateA).getTime();
   });
+  const hasInitial = initialMeasurements && (initialMeasurements.weight != null || initialMeasurements.waistSize != null);
+  const hasAnyRow = sortedMeasurements.length > 0 || hasInitial;
 
   return (
     <View style={styles.measurementsSection}>
-      <View style={styles.measurementsHeader}>
-        <Text style={styles.measurementsTitle}>Mesures récentes</Text>
-      </View>
-        
-        {sortedMeasurements.length > 0 ? (
-          <ScrollView style={styles.measurementsTable} showsVerticalScrollIndicator={false}>
-            {sortedMeasurements.map((measurement, index) => {
-              const { weightDiff, waistDiff } = calculateDifferences(measurement);
-              const hasPhoto = !!measurement.photoUrl;
-              
-              return (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.measurementCard, hasPhoto && styles.measurementCardWithPhoto]}
-                  onPress={() => {
-                    console.log('[RecentMeasurements] 🖱️ Card pressed, measurement:', measurement);
-                    // Si onMeasurementClick est défini, l'utiliser pour la comparaison (même pour la mesure initiale)
-                    if (onMeasurementClick) {
-                      console.log('[RecentMeasurements] 🖱️ Calling onMeasurementClick for comparison...');
-                      onMeasurementClick(measurement);
-                    } else if (onViewHistory && !measurement.isInitial) {
-                      console.log('[RecentMeasurements] 🖱️ Calling onViewHistory...');
-                      onViewHistory(measurement);
-                    } else {
-                      console.log('[RecentMeasurements] 🖱️ Not calling any handler - conditions not met');
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  {/* Photo si disponible */}
-                  {hasPhoto && (
-                    <View style={styles.photoContainer}>
-                      <Image
-                        source={{ uri: measurement.photoUrl }}
-                        style={styles.measurementPhoto}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  )}
-                  
-                  {/* Contenu de la carte */}
-                  <View style={styles.measurementCardContent}>
-                    {/* Header avec date et actions */}
-                    <View style={styles.measurementCardHeader}>
-                      <View style={styles.dateContainer}>
-                        <Ionicons name="calendar-outline" size={14} color={theme.colors.text.secondary} />
-                        <Text style={styles.measurementCardDate}>
-                          {formatDateShort(measurement.date || measurement.createdAt || measurement.updatedAt)}
-                        </Text>
-                        {measurement.isInitial && (
-                          <View style={styles.initialBadge}>
-                            <Text style={styles.initialBadgeText}>Mesure initiale</Text>
-                          </View>
-                        )}
-                      </View>
-                      {!measurement.isInitial && (
-                        <View style={styles.measurementActions}>
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              if (onEditMeasurement) {
-                                onEditMeasurement(measurement);
-                              }
-                            }}
-                          >
-                            <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.actionButton}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              Alert.alert(
-                                'Supprimer la mesure',
-                                'Êtes-vous sûr de vouloir supprimer cette mesure ?',
-                                [
-                                  { text: 'Annuler', style: 'cancel' },
-                                  {
-                                    text: 'Supprimer',
-                                    style: 'destructive',
-                                    onPress: () => onDeleteMeasurement && onDeleteMeasurement(measurement.id)
-                                  }
-                                ]
-                              );
-                            }}
-                          >
-                            <Ionicons name="trash-outline" size={16} color="#F44336" />
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                    
-                    {/* Poids et taille sur une ligne */}
-                    <View style={styles.measurementValues}>
-                      {measurement.weight && (
-                        <View style={styles.measurementValue}>
-                          <View style={[styles.valueIndicator, { backgroundColor: '#34D399' }]} />
-                          <Text style={styles.valueText}>{measurement.weight} kg</Text>
-                        </View>
-                      )}
-                      {measurement.waistSize && (
-                        <View style={styles.measurementValue}>
-                          <View style={[styles.valueIndicator, { backgroundColor: '#60A5FA' }]} />
-                          <Text style={styles.valueText}>{measurement.waistSize} cm</Text>
-                        </View>
-                      )}
-                    </View>
-                    
-                    {/* Stats en pleine largeur */}
-                    {!measurement.isInitial && initialMeasurements && (weightDiff !== null || waistDiff !== null) && (
-                      <View style={styles.measurementSummary}>
-                        {weightDiff !== null && (
-                          <View style={styles.summaryRow}>
-                            <View style={styles.summaryRowContent}>
-                              <Ionicons 
-                                name={weightDiff < 0 ? "trending-down" : weightDiff > 0 ? "trending-up" : "remove"} 
-                                size={16} 
-                                color={weightDiff < 0 ? "#10B981" : weightDiff > 0 ? "#EF4444" : "#6B7280"} 
-                              />
-                              <Text style={[
-                                styles.summaryText,
-                                weightDiff < 0 && styles.summaryTextPositive,
-                                weightDiff > 0 && styles.summaryTextNegative
-                              ]}>
-                                Poids: {Math.abs(weightDiff).toFixed(1)} kg {weightDiff < 0 ? 'en moins' : weightDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-                        {waistDiff !== null && (
-                          <View style={styles.summaryRow}>
-                            <View style={styles.summaryRowContent}>
-                              <Ionicons 
-                                name={waistDiff < 0 ? "trending-down" : waistDiff > 0 ? "trending-up" : "remove"} 
-                                size={16} 
-                                color={waistDiff < 0 ? "#10B981" : waistDiff > 0 ? "#EF4444" : "#6B7280"} 
-                              />
-                              <Text style={[
-                                styles.summaryText,
-                                waistDiff < 0 && styles.summaryTextPositive,
-                                waistDiff > 0 && styles.summaryTextNegative
-                              ]}>
-                                Tour de taille: {Math.abs(waistDiff).toFixed(1)} cm {waistDiff < 0 ? 'en moins' : waistDiff > 0 ? 'en plus' : ''} par rapport à la mesure initiale
-                              </Text>
-                            </View>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        ) : (
-          <View style={styles.emptyMeasurements}>
-            <Ionicons name="clipboard-outline" size={32} color="#E0E0E0" />
-            <Text style={styles.emptyMeasurementsText}>Aucune mesure disponible</Text>
+      {hasAnyRow ? (
+        <ScrollView style={styles.measurementsTable} showsVerticalScrollIndicator={true}>
+          {/* En-tête aligné web référence : Poids | Activité | Source | Date | Actions */}
+          <View style={styles.tableHeaderRow}>
+            <Text style={[styles.tableHeaderCell, styles.tableColPoids]}>Poids (kg)</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableColActivite]}>Activité</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableColSource]}>Source</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableColDate]}>Date</Text>
+            <View style={styles.tableColActions} />
           </View>
-        )}
+          {sortedMeasurements.map((measurement, index) => (
+            <TouchableOpacity
+              key={measurement.id || index}
+              style={styles.tableRow}
+              onPress={() => onMeasurementClick && onMeasurementClick(measurement)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tableCell, styles.tableColPoids]} numberOfLines={1}>
+                {measurement.weight ?? '—'}
+              </Text>
+              <Text style={[styles.tableCell, styles.tableColActivite]} numberOfLines={1}>
+                {measurement.notes && measurement.notes.trim() ? measurement.notes.trim() : '—'}
+              </Text>
+              <View style={styles.tableColSource}>
+                <View style={[styles.sourceBadge, measurement.isFromPhoto ? styles.sourceBadgePhoto : styles.sourceBadgeMesure]}>
+                  <Text style={[styles.sourceBadgeText, { color: measurement.isFromPhoto ? theme.colors.primary : '#6B7280' }]}>
+                    {measurement.isFromPhoto ? 'Photo' : 'Mesure'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.tableCell, styles.tableColDate]}>
+                {formatDateTable(measurement.date || measurement.createdAt || measurement.updatedAt)}
+              </Text>
+              <View style={[styles.tableColActions, styles.actionsCell]}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onEditMeasurement && onEditMeasurement(measurement);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    Alert.alert(
+                      'Supprimer la mesure',
+                      'Êtes-vous sûr de vouloir supprimer cette mesure ?',
+                      [
+                        { text: 'Annuler', style: 'cancel' },
+                        { text: 'Supprimer', style: 'destructive', onPress: () => onDeleteMeasurement && onDeleteMeasurement(measurement.id) }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#F44336" />
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          ))}
+          {hasInitial && (
+            <View style={[styles.tableRow, styles.initialRow]}>
+              <Text style={[styles.tableCell, styles.tableColPoids]}>
+                {initialMeasurements!.weight != null ? initialMeasurements!.weight : '—'}
+              </Text>
+              <Text style={[styles.tableCell, styles.tableColActivite]}>Mesure initiale</Text>
+              <View style={styles.tableColSource}>
+                <View style={[styles.sourceBadge, styles.sourceBadgeMesure]}>
+                  <Text style={[styles.sourceBadgeText, { color: '#6B7280' }]}>Mesure</Text>
+                </View>
+              </View>
+              <Text style={[styles.tableCell, styles.tableColDate]}>
+                {initialMeasurements!.date ? formatDateTable(initialMeasurements!.date as string) : '—'}
+              </Text>
+              <View style={[styles.tableColActions, styles.actionsCell]}>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => {
+                    const initialM: Measurement = {
+                      id: 'initial',
+                      weight: initialMeasurements!.weight ?? undefined,
+                      waistSize: initialMeasurements!.waistSize ?? undefined,
+                      notes: 'Mesure initiale',
+                      createdAt: initialMeasurements!.date || new Date().toISOString(),
+                      isInitial: true,
+                    };
+                    onEditMeasurement && onEditMeasurement(initialM);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptyMeasurements}>
+          <Ionicons name="clipboard-outline" size={32} color="#E0E0E0" />
+          <Text style={styles.emptyMeasurementsText}>Aucune mesure enregistrée.</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -556,16 +532,174 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
-    margin: 20,
-    marginTop: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 6,
+  },
+  initialMeasuresText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: 16,
+  },
+  initialMeasuresBold: {
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+    gap: 10,
+    marginBottom: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
   },
   chartSection: {
     marginBottom: 30,
+  },
+  combinedChartWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  chartCenterOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  comparisonImagesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFFFFF',
+    padding: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  comparisonImageBox: {
+    alignItems: 'center',
+    width: 72,
+  },
+  comparisonImageLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+    marginBottom: 6,
+  },
+  comparisonImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  comparisonImagePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooltipCard: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  tooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  tooltipCloseBtn: {
+    padding: 4,
+  },
+  tooltipDate: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  tooltipMetrics: {
+    marginBottom: 6,
+  },
+  tooltipMetric: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  tooltipActivity: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    marginBottom: 8,
+  },
+  tooltipPhotosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  tooltipPhotoBox: {
+    alignItems: 'center',
+  },
+  tooltipPhotoLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: theme.colors.text.secondary,
+    marginBottom: 4,
+  },
+  tooltipPhoto: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  tooltipPhotoPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chartHeader: {
     marginBottom: 15,
@@ -610,20 +744,65 @@ const styles = StyleSheet.create({
   },
   measurementsSection: {
     marginTop: 20,
-    paddingHorizontal: 4, // Padding sur les bords
-  },
-  measurementsHeader: {
-    marginBottom: 15,
-    paddingHorizontal: 4, // Padding pour le titre
-  },
-  measurementsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    paddingHorizontal: 4,
   },
   measurementsTable: {
-    // Pas de maxHeight pour permettre le scroll complet
-    paddingBottom: 20, // Espace en bas pour que la dernière mesure soit entièrement visible
+    paddingBottom: 20,
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  tableCell: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+  },
+  tableColPoids: { width: '14%', minWidth: 44 },
+  tableColActivite: { flex: 1, minWidth: 60, paddingHorizontal: 4 },
+  tableColSource: { width: '20%', minWidth: 64, paddingHorizontal: 2 },
+  tableColDate: { width: '22%', minWidth: 72 },
+  tableColActions: { width: '18%', minWidth: 56, flexDirection: 'row', justifyContent: 'flex-end' },
+  initialRow: {
+    backgroundColor: '#ECFDF5',
+  },
+  sourceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  sourceBadgePhoto: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+  },
+  sourceBadgeMesure: {
+    backgroundColor: 'rgba(107, 114, 128, 0.15)',
+  },
+  sourceBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  actionsCell: {
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'flex-end',
   },
   measurementCard: {
     backgroundColor: '#FFFFFF',
@@ -757,24 +936,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   addMeasurementInput: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: '#D1D5DB',
     borderStyle: 'dashed',
-    paddingVertical: 16,
+    paddingVertical: 24,
     paddingHorizontal: 16,
     borderRadius: 12,
     marginTop: 15,
-    minHeight: 56,
+    minHeight: 100,
+  },
+  addMeasurementInputInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addMeasurementInputText: {
-    color: theme.colors.text.secondary,
-    fontSize: 16,
+    color: '#6B7280',
+    fontSize: 15,
     fontWeight: '500',
-    marginLeft: 12,
+    marginTop: 8,
   },
 });
 

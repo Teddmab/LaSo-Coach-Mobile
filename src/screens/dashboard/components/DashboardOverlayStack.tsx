@@ -45,6 +45,8 @@ interface DashboardOverlayStackProps {
     canGoBack: () => boolean;
   } | null>;
   initialRouteName?: keyof DashboardOverlayStackParamList;
+  /** Réouvrir l’accueil et afficher le tutoriel guidé (depuis Paramètres > Revoir le tutoriel) */
+  onRequestShowHomeTour?: () => void;
 }
 
 export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
@@ -66,6 +68,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
   navigation,
   overlayNavigationRef,
   initialRouteName = 'Home',
+  onRequestShowHomeTour,
 }) => {
   const { isCompanionMode } = useCompanionMode();
   // Navigation stack state - simule une pile de navigation
@@ -249,6 +252,8 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
                   stackNavigation.navigate('ContactSupport');
                 } else if (target === 'about') {
                   stackNavigation.navigate('About');
+                } else if (target === 'replay-tour') {
+                  onRequestShowHomeTour?.();
                 } else {
                   stackNavigation.navigate('Home');
                 }

@@ -61,5 +61,11 @@ export const SETTINGS_ITEMS: SettingsItem[] = [
     icon: 'information-circle-outline',
     color: '#4CAF50',
   },
+  {
+    id: 'replay-tour',
+    title: 'Revoir le tutoriel',
+    icon: 'school-outline',
+    color: '#4CAF50',
+  },
 ];
 

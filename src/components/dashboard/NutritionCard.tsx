@@ -10,8 +10,8 @@ import {
   Dimensions,
   ActivityIndicator
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../../constants/theme';
 import nutritionAPI from '../../services/nutritionApi';
 import { Shimmer } from '../Shimmer';
@@ -45,6 +45,8 @@ interface NutritionCardProps {
   currentPlan?: any;
   // ✅ Callback pour compléter un repas (utilise les hooks de NutritionScreen)
   onMealComplete?: (mealId: string, planDayOverride?: number) => Promise<void>;
+  /** Ouvre le bottom sheet vidéo dédié (lecture dans l'app, format 16:9) */
+  onOpenVideo?: (videoId: string, title?: string) => void;
 }
 
 const NutritionCard: React.FC<NutritionCardProps> = ({ 
@@ -57,10 +59,12 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   completionData: propsCompletionData,
   currentPlan: propsCurrentPlan,
   onMealComplete: propsOnMealComplete,
+  onOpenVideo,
 }) => {
   const { shouldShowIOSOnly } = useIOSSimulation();
   const isIOS = shouldShowIOSOnly();
   const { refreshProfile } = useAuth();
+  const insets = useSafeAreaInsets();
   
   // ✅ Utiliser les données passées en props si disponibles (de NutritionScreen), sinon charger
   const usePropsData = !!(propsDayMeals && propsDayMeals.length > 0);
@@ -73,13 +77,9 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
   const [currentPlanDay, setCurrentPlanDay] = useState<number | undefined>(propsCurrentPlanDay);
   const [dayMeals, setDayMeals] = useState<Meal[]>(propsDayMeals || []);
   // ✅ showMealDetailModal et completingMealInModal retirés - On complète directement
-  const [showVideoInCard, setShowVideoInCard] = useState(false);
-  const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [showCompletionConfirmation, setShowCompletionConfirmation] = useState(false);
   const [completedMealId, setCompletedMealId] = useState<string | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
   
   // Extract YouTube video ID from URL
@@ -169,8 +169,7 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
     };
   }, [propsCurrentPlan, currentPlan]);
 
-  // ✅ Même logique que NutritionScreen pour vérifier si un repas est complété
-  // ✅ CORRECTION: Ajouter targetDate optionnel pour vérifier la date spécifique
+  // ✅ Même logique que NutritionScreen : complété = pour le JOUR donné (planDay + date réelle)
   const isMealCompleted = useCallback((mealId: string, completionData: any, planDayToCheck?: number, targetDate?: Date): boolean => {
     if (!completionData) {
       return false;
@@ -181,14 +180,24 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         const dayKey = String(planDayToCheck);
         const dayCompletions = completionData.completionsByDay[dayKey] || completionData.completionsByDay[planDayToCheck];
         if (Array.isArray(dayCompletions)) {
+          const targetISO = targetDate
+            ? (() => {
+                const d = new Date(targetDate);
+                d.setHours(0, 0, 0, 0);
+                return d.toISOString().split('T')[0];
+              })()
+            : null;
           const found = dayCompletions.some(
             (completion: any) => {
-              // ✅ SIMPLIFICATION: Vérifier simplement si le repas est complété, peu importe la date
-              const mealMatches = completion?.mealId === mealId;
-              const hasCompletedAt = !!completion?.completedAt;
-              
-              // Si le repas correspond et a un completedAt, il est complété (peu importe la date)
-              return mealMatches && hasCompletedAt;
+              if (completion?.mealId !== mealId || !completion?.completedAt) return false;
+              if (!targetISO) return true;
+              if (completion?.completionDate) {
+                const compDate = new Date(completion.completionDate);
+                compDate.setHours(0, 0, 0, 0);
+                const compISO = compDate.toISOString().split('T')[0];
+                return compISO === targetISO;
+              }
+              return false;
             }
           );
           if (found) {
@@ -309,7 +318,7 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
             selectedDate: selectedDateObj.toISOString().split('T')[0],
             planNumDays: activePlan.numDays || 7,
             mealsCount: meals.length,
-            breakfastMeal: meals.find(m => m.type === 'breakfast')?.name || 'N/A',
+            breakfastMeal: meals.find((m: Meal) => m.type === 'breakfast')?.name || 'N/A',
           });
         }
       } else {
@@ -424,16 +433,16 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       return sortedMeals[0] || null;
     }
     
-    // Sinon, chercher le premier non complété
-    // ✅ SIMPLIFICATION: Vérifier si le repas est complété, peu importe la date
+    const todayForCheck = new Date();
+    todayForCheck.setHours(0, 0, 0, 0);
     for (const meal of sortedMeals) {
-      const isCompleted = isMealCompleted(meal.id, completionDataToUse, currentPlanDay);
+      const isCompleted = isMealCompleted(meal.id, completionDataToUse, currentPlanDay, todayForCheck);
       if (!isCompleted) {
         return meal;
       }
     }
 
-    return null; // Tous complétés
+    return null; // Tous complétés pour aujourd'hui
   }, [dayMeals, currentPlanDay, propsCompletionData, freshCompletionData, completionStatus, isMealCompleted, showCompletionConfirmation, completedMealId]);
 
   // ✅ Calculer youtubeVideoId et hasVideo AVANT le return null pour éviter l'erreur "rendered more hooks"
@@ -483,9 +492,9 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
     }
   }, [allMealsCompleted, celebrationScale, celebrationOpacity, iconScale]);
 
-  // Animation du bouton clignotant - TOUJOURS appelé (même si hasVideo est false)
+  // Animation du bouton clignotant
   useEffect(() => {
-    if (hasVideo && !showVideoInCard) {
+    if (hasVideo) {
       const pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(buttonPulseAnim, {
@@ -503,45 +512,13 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
       pulseAnimation.start();
       return () => pulseAnimation.stop();
     }
-  }, [hasVideo, showVideoInCard, buttonPulseAnim]);
-
-  // Animation fluide lors du remplacement de l'image par la vidéo - TOUJOURS appelé
-  useEffect(() => {
-    if (showVideoInCard) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      // ✅ Forcer le démarrage de la vidéo avec un petit délai pour laisser le composant se charger
-      setTimeout(() => {
-        setYoutubePlaying(true);
-        if (__DEV__) {
-          console.log('🎬 [NutritionCard] Video should start playing now');
-        }
-      }, 300);
-    } else {
-      fadeAnim.setValue(0);
-      scaleAnim.setValue(1);
-      setYoutubePlaying(false);
-    }
-  }, [showVideoInCard, fadeAnim, scaleAnim]);
+  }, [hasVideo, buttonPulseAnim]);
 
   const handleVideoButtonPress = () => {
-    if (__DEV__) {
-      console.log('🎬 [NutritionCard] Video button pressed, launching video immediately');
+    if (!youtubeVideoId) return;
+    if (onOpenVideo) {
+      onOpenVideo(youtubeVideoId, nextMealToComplete?.name);
     }
-    // ✅ D'abord afficher la vidéo, puis la lancer
-    setShowVideoInCard(true);
-    // Le useEffect ci-dessus va automatiquement mettre youtubePlaying à true
   };
 
   // ✅ isTimePassed retiré - On n'affiche plus l'urgence, juste l'heure
@@ -1044,90 +1021,50 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
           </Text>
         </View>
 
-        {/* Image/Video avec timer */}
+        {/* Image + bouton "Voir la vidéo" (lecture en plein écran) */}
         <View style={styles.mealImageContainer}>
-          {showVideoInCard && youtubeVideoId ? (
-            <Animated.View
-              style={[
-                {
-                  width: '100%',
-                  height: '100%',
-                  opacity: fadeAnim,
-                  transform: [{ scale: scaleAnim }],
-                },
-              ]}
-            >
-              <YoutubePlayer
-                height={200}
-                width={Dimensions.get('window').width - 32}
-                videoId={youtubeVideoId}
-                play={youtubePlaying} // ✅ Démarre automatiquement car youtubePlaying est true
-                onChangeState={(event: string) => {
-                  if (event === 'playing') {
-                    setYoutubePlaying(true);
-                  } else if (event === 'paused' || event === 'ended') {
-                    setYoutubePlaying(false);
-                  }
-                }}
-                webViewStyle={{ 
-                  opacity: 0.99,
-                  borderRadius: 12,
-                }}
-                initialPlayerParams={{
-                  autoplay: 1, // ✅ Autoplay activé (1 = true)
-                  playsinline: 1, // ✅ Lecture en ligne (iOS)
-                }}
-              />
-            </Animated.View>
+          {nextMealToComplete.imageUrl ? (
+            <ImagePersistent
+              source={{ uri: nextMealToComplete.imageUrl }}
+              style={styles.mealImage}
+            />
           ) : (
-            <>
-              {nextMealToComplete.imageUrl ? (
-                <ImagePersistent
-                  source={{ uri: nextMealToComplete.imageUrl }}
-                  style={styles.mealImage}
-                />
-              ) : (
-                <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
-                  <Text style={styles.mealImagePlaceholderText}>{mealIcon}</Text>
-                </View>
-              )}
-              
-              {/* Bouton vidéo clignotant si vidéo disponible */}
-              {hasVideo && (
-                <TouchableOpacity
-                  style={styles.videoButtonOverlay}
-                  onPress={handleVideoButtonPress}
-                  activeOpacity={0.8}
-                >
-                  <Animated.View
-                    style={[
-                      styles.videoButtonBadge,
-                      {
-                        transform: [{ scale: buttonPulseAnim }],
-                      },
-                    ]}
-                  >
-                    <Ionicons name="play-circle" size={28} color="#FFFFFF" />
-                    <Text style={styles.videoButtonText}>Voir la vidéo</Text>
-                  </Animated.View>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
-          
-          {/* Timer overlay - Afficher uniquement l'heure, sans urgence */}
-          {!showVideoInCard && (
-            <View style={styles.timerOverlay}>
-              <Ionicons 
-                name="time-outline" 
-                size={24} 
-                color={theme.colors.text.primary} 
-              />
-              <Text style={styles.timerText}>
-                {mealTime}
-              </Text>
+            <View style={[styles.mealImage, styles.mealImagePlaceholder]}>
+              <Text style={styles.mealImagePlaceholderText}>{mealIcon}</Text>
             </View>
           )}
+          {hasVideo && (
+            <TouchableOpacity
+              style={styles.videoButtonOverlay}
+              onPress={handleVideoButtonPress}
+              activeOpacity={0.8}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel="Voir la vidéo"
+            >
+              <Animated.View
+                style={[
+                  styles.videoButtonBadge,
+                  { transform: [{ scale: buttonPulseAnim }] },
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons name="play-circle" size={28} color="#FFFFFF" />
+                <Text style={styles.videoButtonText}>Voir la vidéo</Text>
+              </Animated.View>
+            </TouchableOpacity>
+          )}
+          <View style={styles.timerOverlay}>
+            <Ionicons 
+              name="time-outline" 
+              size={24} 
+              color={theme.colors.text.primary} 
+            />
+            <Text style={styles.timerText}>
+              {mealTime}
+            </Text>
+          </View>
         </View>
 
         {/* Nom du repas */}
@@ -1161,8 +1098,10 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
                 if (nextMealToComplete && !isCompleting && !showCompletionConfirmation) {
                 // ✅ Vérifier une dernière fois avant de compléter pour éviter les appels API inutiles
                 const completionDataToCheck = freshCompletionData || propsCompletionData || completionStatus;
+                const todayForCheck = new Date();
+                todayForCheck.setHours(0, 0, 0, 0);
                 const isAlreadyCompleted = completionDataToCheck && currentPlanDay !== undefined
-                  ? isMealCompleted(nextMealToComplete.id, completionDataToCheck, currentPlanDay)
+                  ? isMealCompleted(nextMealToComplete.id, completionDataToCheck, currentPlanDay, todayForCheck)
                   : false;
                 
                 if (isAlreadyCompleted) {
@@ -1288,7 +1227,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 12,
     right: 12,
-    zIndex: 10,
+    zIndex: 100,
+    elevation: 100,
+    minWidth: 120,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   videoButtonBadge: {
     backgroundColor: '#FF0000', // ✅ Rouge YouTube
@@ -1508,6 +1452,36 @@ const styles = StyleSheet.create({
   shimmerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  fullscreenVideoRoot: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullscreenVideoContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  fullscreenVideoPlayerWrap: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  fullscreenVideoCloseBtn: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
+  },
+  fullscreenVideoCloseCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 

@@ -23,7 +23,6 @@ try {
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import YoutubePlayer from 'react-native-youtube-iframe';
 import { theme } from '../../constants/theme';
 import Toast from 'react-native-toast-message';
 import { Meal } from '../../screens/nutrition/types';
@@ -41,6 +40,8 @@ interface MealDetailBottomSheetProps {
   onDislike?: (mealId: string) => void;
   hasActiveSubscription?: boolean; // ✅ Pour masquer le bouton de complétion si pas d'abonnement
   selectedDate?: Date; // ✅ Date sélectionnée pour vérifier si on peut compléter (uniquement jour en cours)
+  /** Ouvre le bottom sheet vidéo dédié (lecture dans l'app, format 16:9) */
+  onOpenVideo?: (videoId: string, title?: string) => void;
 }
 
 const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
@@ -55,6 +56,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
   onDislike,
   hasActiveSubscription = true, // ✅ Par défaut true pour compatibilité
   selectedDate, // ✅ Date sélectionnée
+  onOpenVideo,
 }) => {
   const insets = useSafeAreaInsets();
   
@@ -67,11 +69,7 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
     selected.setHours(0, 0, 0, 0);
     return today.getTime() === selected.getTime();
   }, [selectedDate]);
-  const [youtubePlaying, setYoutubePlaying] = useState(false);
   const [youtubeModalTab, setYoutubeModalTab] = useState<'recipe' | 'ingredients'>('recipe');
-  const [showVideoInHeader, setShowVideoInHeader] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
   // ✅ Scrollbar custom (toujours visible)
@@ -107,18 +105,14 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
 
   const youtubeVideoId = meal?.youtubeUrl ? getYouTubeVideoId(meal.youtubeUrl) : null;
 
-  // Reset tab when modal opens
+  // Reset tab when modal opens/closes
   useEffect(() => {
-    if (visible) {
-      setYoutubeModalTab('recipe');
-      setYoutubePlaying(false);
-      setShowVideoInHeader(false); // Réinitialiser l'affichage vidéo
-    }
+    if (visible) setYoutubeModalTab('recipe');
   }, [visible]);
 
   // Animation du bouton vidéo clignotant
   useEffect(() => {
-    if (youtubeVideoId && !showVideoInHeader) {
+    if (youtubeVideoId) {
       const pulseAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(buttonPulseAnim, {
@@ -136,35 +130,12 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
       pulseAnimation.start();
       return () => pulseAnimation.stop();
     }
-  }, [youtubeVideoId, showVideoInHeader, buttonPulseAnim]);
-
-  // Animation fluide lors du remplacement de l'image par la vidéo
-  useEffect(() => {
-    if (showVideoInHeader) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      fadeAnim.setValue(0);
-      scaleAnim.setValue(1);
-    }
-  }, [showVideoInHeader, fadeAnim, scaleAnim]);
+  }, [youtubeVideoId, buttonPulseAnim]);
 
   const handleVideoButtonPress = () => {
-    setShowVideoInHeader(true);
-    setYoutubePlaying(true); // ✅ Lancer directement la vidéo
-    if (__DEV__) {
-      console.log('🎬 [MealDetailModal] Video button pressed, replacing image with video and launching immediately');
+    if (!youtubeVideoId) return;
+    if (onOpenVideo) {
+      onOpenVideo(youtubeVideoId, meal?.name);
     }
   };
 
@@ -211,86 +182,44 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
             <View style={styles.content}>
             {/* Header avec grande image et badge */}
             <View style={styles.header}>
-              {/* Image/Video container avec overlay badge + pouces + close */}
+              {/* Image + bouton "Voir la vidéo" (lecture en plein écran) */}
               <View style={styles.imageContainer}>
-                {showVideoInHeader && youtubeVideoId ? (
-                  <Animated.View
-                    style={[
-                      {
-                        width: '100%',
-                        height: '100%',
-                        opacity: fadeAnim,
-                        transform: [{ scale: scaleAnim }],
-                      },
-                    ]}
-                  >
-                    <YoutubePlayer
-                      height={220}
-                      width={Dimensions.get('window').width}
-                      videoId={youtubeVideoId}
-                      play={youtubePlaying} // ✅ Démarre automatiquement car youtubePlaying est true
-                      onChangeState={(event: string) => {
-                        if (event === 'playing') {
-                          setYoutubePlaying(true);
-                        } else if (event === 'paused' || event === 'ended') {
-                          setYoutubePlaying(false);
-                        }
-                      }}
-                      onError={(error: any) => {
-                        Toast.show({
-                          type: 'error',
-                          text1: 'Erreur',
-                          text2: 'Impossible de charger la vidéo'
-                        });
-                      }}
-                      webViewStyle={{ 
-                        opacity: 0.99,
-                        borderRadius: 0,
-                      }}
-                      initialPlayerParams={{
-                        autoplay: true, // ✅ Autoplay activé
-                      }}
-                    />
-                  </Animated.View>
+                {meal.imageUrl ? (
+                  <Image
+                    source={{ uri: meal.imageUrl }}
+                    style={styles.headerImage}
+                    resizeMode="cover"
+                  />
                 ) : (
-                  <>
-                    {meal.imageUrl ? (
-                      <Image
-                        source={{ uri: meal.imageUrl }}
-                        style={styles.headerImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.placeholderImage}>
-                        <Text style={styles.placeholderText}>🍽️</Text>
-                      </View>
-                    )}
-                    
-                    {/* Bouton vidéo clignotant si vidéo disponible */}
-                    {youtubeVideoId && (
-                      <TouchableOpacity
-                        style={styles.videoButtonOverlay}
-                        onPress={handleVideoButtonPress}
-                        activeOpacity={0.8}
-                      >
-                        <Animated.View
-                          style={[
-                            styles.videoButtonBadge,
-                            {
-                              transform: [{ scale: buttonPulseAnim }],
-                            },
-                          ]}
-                        >
-                          <Ionicons name="play-circle" size={24} color="#FFFFFF" />
-                          <Text style={styles.videoButtonText}>Voir la vidéo</Text>
-                        </Animated.View>
-                      </TouchableOpacity>
-                    )}
-                  </>
+                  <View style={styles.placeholderImage}>
+                    <Text style={styles.placeholderText}>🍽️</Text>
+                  </View>
+                )}
+                {youtubeVideoId && (
+                  <TouchableOpacity
+                    style={styles.videoButtonOverlay}
+                    onPress={handleVideoButtonPress}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel="Voir la vidéo"
+                  >
+                    <Animated.View
+                      style={[
+                        styles.videoButtonBadge,
+                        { transform: [{ scale: buttonPulseAnim }] },
+                      ]}
+                      pointerEvents="none"
+                    >
+                      <Ionicons name="play-circle" size={24} color="#FFFFFF" />
+                      <Text style={styles.videoButtonText}>Voir la vidéo</Text>
+                    </Animated.View>
+                  </TouchableOpacity>
                 )}
                 
-                {/* Overlay: Badge + Pouces à gauche, Close button à droite */}
-                <View style={styles.imageOverlay}>
+                {/* Overlay: Badge + Pouces à gauche, Close button à droite (zIndex < bouton vidéo pour ne pas bloquer le clic) */}
+                <View style={styles.imageOverlay} pointerEvents="box-none">
                   <View style={styles.headerLeftSection}>
                     {/* Badge type de repas */}
                     <View style={styles.mealTypeBadge}>
@@ -680,7 +609,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 12,
     right: 12,
-    zIndex: 10,
+    zIndex: 100,
+    elevation: 100,
+    minWidth: 120,
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   videoButtonBadge: {
     backgroundColor: '#FF0000', // ✅ Rouge YouTube
@@ -721,7 +655,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    zIndex: 10,
+    zIndex: 50,
   },
   headerImage: {
     width: '100%',
@@ -1109,6 +1043,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     paddingVertical: 40,
+  },
+  fullscreenVideoRoot: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  fullscreenVideoContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  fullscreenVideoPlayerWrap: {
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  fullscreenVideoCloseBtn: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
   },
 });
 
