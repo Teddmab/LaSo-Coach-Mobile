@@ -102,7 +102,7 @@ android {
         // Force minSdkVersion 24 to satisfy Hermes tooling
         minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
+        versionCode 14
         versionName "1.1.2"
         
         // react-native-iap removed - no longer needed

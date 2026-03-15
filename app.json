@@ -19,8 +19,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "36",
-      "version": "1.0.8",
+      "buildNumber": "37",
+      "version": "1.1.2",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
       ],
@@ -43,7 +43,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.afrotouch.lasocoach",
       "version": "1.1.2",
-      "versionCode": 13,
+      "versionCode": 14,
       "icon": "./assets/icon.png",
       "intentFilters": [
         {
