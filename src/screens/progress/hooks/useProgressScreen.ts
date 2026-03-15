@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import Toast from 'react-native-toast-message';
 import { ProfileApi } from '../../../services/profileApi';
 import api from '../../../services/api';
 import { API_CONFIG } from '../../../config/apiConfig';
 import ProgressPhotosApi from '../../../services/progressPhotosApi';
 import DashboardService from '../../../services/dashboardService';
 import SubscriptionService from '../../../services/subscriptionService';
+import OnboardingApi from '../../../services/onboardingApi';
 import {
   Measurement,
   InitialMeasurement,
@@ -34,6 +36,8 @@ export const useProgressScreen = (
   const [showComparisonModal, setShowComparisonModal] = useState(false);
   const [selectedMeasurementForComparison, setSelectedMeasurementForComparison] = useState<Measurement | null>(null);
   const [initialProgressPhoto, setInitialProgressPhoto] = useState<ProgressPhoto | null>(null);
+  const [step1Completed, setStep1Completed] = useState(false);
+  const [addInitialPhotoLoading, setAddInitialPhotoLoading] = useState(false);
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | null>(null);
   const [measurementForm, setMeasurementForm] = useState<MeasurementForm>({
     weight: '',
@@ -191,6 +195,15 @@ export const useProgressScreen = (
         measurementsCount: measurementsData.length,
         photosCount: photosData.length
       });
+
+      // Vérifier si l'étape 1 (profile_setup) est complétée pour proposer la photo initiale en mise à jour
+      try {
+        const onboardingRes = await OnboardingApi.getOnboardingProgress();
+        const completedSteps = onboardingRes?.data?.completedSteps ?? onboardingRes?.data?.data?.completedSteps ?? [];
+        setStep1Completed(Array.isArray(completedSteps) && completedSteps.includes('profile_setup'));
+      } catch (_) {
+        setStep1Completed(false);
+      }
       
       if (profileData) {
         const profile = (profileData as any).profile || profileData;
@@ -331,6 +344,75 @@ export const useProgressScreen = (
     } catch (error) {
       console.error('[ProgressScreen] ❌ Error selecting photo:', error);
       Alert.alert('Erreur', 'Erreur lors de la sélection de la photo');
+    }
+  };
+
+  /** Ajouter la photo initiale (mise à jour pour les utilisateurs ayant complété l'étape 1 sans photo) */
+  const handleAddInitialPhoto = async (): Promise<void> => {
+    try {
+      setAddInitialPhotoLoading(true);
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission refusée',
+          'Veuillez autoriser l\'accès à votre galerie pour ajouter la photo initiale.'
+        );
+        setAddInitialPhotoLoading(false);
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) {
+        setAddInitialPhotoLoading(false);
+        return;
+      }
+      const asset = result.assets[0];
+      const imageUri = asset.uri;
+      let mimeType = asset.type || 'image/jpeg';
+      if (mimeType === 'image' || !mimeType.includes('/')) {
+        const uri = imageUri || '';
+        const fileName = asset.fileName || asset.name || '';
+        if (uri.match(/\.(png)$/i) || fileName.match(/\.(png)$/i)) mimeType = 'image/png';
+        else if (uri.match(/\.(jpg|jpeg)$/i) || fileName.match(/\.(jpg|jpeg)$/i)) mimeType = 'image/jpeg';
+        else mimeType = 'image/jpeg';
+      }
+      const accessibleUri = await ProfileApi.copyFileToAccessibleLocation(imageUri, mimeType);
+      const fileName = asset.fileName || asset.name || `progress_${Date.now()}.jpg`;
+      const extension = mimeType.includes('png') ? 'png' : mimeType.includes('gif') ? 'gif' : 'jpg';
+      const finalFileName = fileName.includes('.') ? fileName : `${fileName.replace(/\.[^/.]+$/, '')}.${extension}`;
+      const accessibleAsset = {
+        ...asset,
+        uri: accessibleUri,
+        type: mimeType,
+        mimeType,
+        fileName: finalFileName,
+      };
+      const validation: any = ProgressPhotosApi.validatePhoto(accessibleAsset);
+      if (!validation.isValid) {
+        Toast.show({ type: 'error', text1: (validation.errors || []).join(', ') });
+        setAddInitialPhotoLoading(false);
+        return;
+      }
+      const formData = ProgressPhotosApi.createFormData(accessibleAsset, {
+        date: new Date().toISOString(),
+        notes: 'Photo initiale de progression',
+      });
+      const photoResult = await ProgressPhotosApi.addProgressPhoto(formData);
+      if (!photoResult.success) {
+        Toast.show({ type: 'error', text1: photoResult.error || 'Erreur lors de l\'enregistrement.' });
+        setAddInitialPhotoLoading(false);
+        return;
+      }
+      await fetchAllData();
+      Toast.show({ type: 'success', text1: 'Photo initiale ajoutée avec succès.' });
+    } catch (error) {
+      console.error('[ProgressScreen] ❌ handleAddInitialPhoto:', error);
+      Toast.show({ type: 'error', text1: 'Erreur lors de l\'ajout de la photo.' });
+    } finally {
+      setAddInitialPhotoLoading(false);
     }
   };
 
@@ -733,6 +815,9 @@ export const useProgressScreen = (
     currentWeight,
     currentWaistSize,
     chartData,
+    showAddInitialPhotoPrompt: step1Completed && !initialProgressPhoto,
+    handleAddInitialPhoto,
+    addInitialPhotoLoading,
   };
 };
 

@@ -315,6 +315,7 @@ export default function SubscriptionPaymentFlowImproved({
     const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
     const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState<string | null>(null);
     const [showStripeWebView, setShowStripeWebView] = useState(false);
+    const [stripeEnabled, setStripeEnabled] = useState(false);
 
     // États du paiement
     const [depositId, setDepositId] = useState<string | null>(null);
@@ -331,6 +332,15 @@ export default function SubscriptionPaymentFlowImproved({
     const selectedCountry = PAWAPAY_COUNTRIES.find(c => c.code === country);
     const selectedProvider = selectedCountry?.providers.find(p => p.code === provider);
     const phonePrefix = selectedCountry?.prefix || '+243';
+
+    // Charger la config paiement (Stripe activé ou non par l'admin) à l'ouverture du flux
+    useEffect(() => {
+        if (visible) {
+            SubscriptionApi.getPaymentConfig().then((config) => {
+                setStripeEnabled(config.stripeEnabled);
+            }).catch(() => setStripeEnabled(false));
+        }
+    }, [visible]);
 
     // Charger le taux de change pour CDF
     useEffect(() => {
@@ -1056,8 +1066,8 @@ export default function SubscriptionPaymentFlowImproved({
                     <Text style={styles.sectionTitle}>Choisissez votre méthode de paiement</Text>
                     <Text style={styles.sectionSubtitle}>Sélectionnez comment vous souhaitez payer</Text>
 
-                    {/* Stripe masqué pour l'instant */}
-                    {false && (
+                    {/* Stripe affiché seulement si l'admin l'a activé (config backend) */}
+                    {stripeEnabled && (
                     <TouchableOpacity
                         style={[
                             styles.paymentMethodCard,

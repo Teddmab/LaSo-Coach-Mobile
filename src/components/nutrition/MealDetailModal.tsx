@@ -492,6 +492,8 @@ const MealDetailBottomSheet: React.FC<MealDetailBottomSheetProps> = ({
                   }
                   
                   try {
+                    // Fermer le bottom sheet d'abord pour que le Toast de complétion s'affiche au premier plan
+                    onClose();
                     await onComplete();
                   } catch (error: any) {
                     console.error('❌ [MealDetailModal] Erreur lors de la complétion:', error);

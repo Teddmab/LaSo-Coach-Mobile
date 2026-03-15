@@ -20,6 +20,8 @@ import SummaryCard from './defis/components/SummaryCard';
 import ChallengeCompletionModal from './achievements/components/ChallengeCompletionModal';
 import { formatPoints } from './achievements/utils/achievementsUtils';
 import { ShimmerCard } from '../components/Shimmer';
+import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../hooks/useNouveautes';
 
 const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
   user,
@@ -65,6 +67,12 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
     handleSubscriptionRenew,
     handleCloseCompletionModal,
   } = useAchievementsScreen(onSubscriptionRenew);
+
+  const {
+    visible: showNouveautesAchievements,
+    onComplete: onNouveautesAchievementsComplete,
+    steps: nouveautesAchievementsSteps,
+  } = useNouveautes('achievements');
 
   const userPositionList: typeof leaderboardData = userPosition ? [{
     rank: userPosition.rank,
@@ -292,6 +300,13 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
         visible={showFloatingPoints}
         points={floatingPointsData?.points}
         reason={floatingPointsData?.reason}
+      />
+
+      <NouveautesBottomSheet
+        visible={showNouveautesAchievements}
+        steps={nouveautesAchievementsSteps}
+        onComplete={onNouveautesAchievementsComplete}
+        variant="achievements"
       />
     </>
   );

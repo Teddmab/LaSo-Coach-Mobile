@@ -85,6 +85,7 @@ export default function SubscriptionPaymentFlow({
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
   const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState(null);
   const [showStripeWebView, setShowStripeWebView] = useState(false);
+  const [stripeEnabled, setStripeEnabled] = useState(false);
 
   // États pour PayPal
   const [paypalOrderId, setPaypalOrderId] = useState(null);
@@ -217,6 +218,15 @@ export default function SubscriptionPaymentFlow({
       setMobileMoneyProvider(countryProviders[0]?.code || '');
     }
   }, [mobileMoneyCountry]);
+
+  // Charger la config paiement (Stripe activé ou non par l'admin) à l'ouverture du flux
+  useEffect(() => {
+    if (visible) {
+      SubscriptionApi.getPaymentConfig().then((config) => {
+        setStripeEnabled(config.stripeEnabled);
+      }).catch(() => setStripeEnabled(false));
+    }
+  }, [visible]);
 
   /**
    * Vérifier si le plan est gratuit
@@ -1667,8 +1677,8 @@ export default function SubscriptionPaymentFlow({
         )}
 
         <View style={styles.paymentMethods}>
-        {/* Stripe masqué pour l'instant */}
-        {false && (
+        {/* Stripe affiché seulement si l'admin l'a activé (config backend) */}
+        {stripeEnabled && (
         <TouchableOpacity
           style={[
             styles.paymentMethodOption,

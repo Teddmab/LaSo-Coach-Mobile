@@ -39,6 +39,8 @@ import useCompanionMode from '../hooks/useCompanionMode';
 import { useEntitlements } from '../hooks/useEntitlements';
 import { useAppDataCache } from '../context/AppDataCacheContext';
 import HomeGuidedTour from '../components/guidedTour/HomeGuidedTour';
+import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../hooks/useNouveautes';
 
 // Import all screen components (still in .js, will be migrated later)
 import ProgressScreen from './ProgressScreen';
@@ -650,6 +652,13 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // ✅ MODIFICATION: Le profil est complet seulement si toutes les étapes sont complétées ET le rendez-vous est assigné
   const isProfileComplete = (dashboardData?.onboarding?.data?.isComplete || allFourStepsCompleted) && isRendezvousAssigned;
   
+  // Nouveautés Home : affiché une seule fois quand l'utilisateur est sur l'onglet Home
+  const {
+    visible: showNouveautesHome,
+    onComplete: onNouveautesHomeComplete,
+    steps: nouveautesHomeSteps,
+  } = useNouveautes('home', undefined, { trigger: activeTab === 'home' });
+
   // Debug log to help verify completion status
   if (__DEV__) {
     console.log('📊 [DashboardScreen] Profile completion check:', {
@@ -1275,6 +1284,20 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           setSelectedNews(null);
         }}
         onMarkComplete={handleMarkContentComplete}
+      />
+
+      {/* Nouveautés Home (une étape) - une seule fois à la première connexion / premier passage sur Home */}
+      <NouveautesBottomSheet
+        visible={showNouveautesHome}
+        steps={nouveautesHomeSteps}
+        onComplete={onNouveautesHomeComplete}
+        welcomeUserName={
+          user?.firstName
+          || (typeof user?.name === 'string' ? user.name.trim().split(/\s+/)[0] : null)
+          || (dashboardData?.profile?.firstName || dashboardData?.Profile?.firstName)
+          || undefined
+        }
+        variant="home"
       />
 
     </>

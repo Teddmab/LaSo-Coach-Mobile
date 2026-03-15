@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, TouchableOpacity, Alert, Dimensions, Modal, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Image, TouchableOpacity, Alert, Dimensions, Modal, Pressable, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,8 @@ import MeasurementModal from './progress/components/MeasurementModal';
 import MeasurementHistoryBottomSheet from '../components/progress/MeasurementHistoryBottomSheet';
 import MeasurementComparisonBottomSheet from '../components/progress/MeasurementComparisonBottomSheet';
 import { ShimmerCard } from '../components/Shimmer';
+import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../hooks/useNouveautes';
 
 const { width } = Dimensions.get('window');
 
@@ -66,7 +68,16 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
     currentWeight,
     currentWaistSize,
     chartData,
+    showAddInitialPhotoPrompt,
+    handleAddInitialPhoto,
+    addInitialPhotoLoading,
   } = useProgressScreen(onSubscriptionRenew);
+
+  const {
+    visible: showNouveautesProgress,
+    onComplete: onNouveautesProgressComplete,
+    steps: nouveautesProgressSteps,
+  } = useNouveautes('progress');
 
   const sortedPhotosByDate = useMemo(() =>
     progressPhotos && progressPhotos.length > 0
@@ -165,6 +176,33 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           <Text style={styles.pageTitle}>Ma progression</Text>
           <Text style={styles.pageSubtitle}>Suivez votre évolution poids et tour de taille</Text>
         </View>
+
+        {/* Bannière : étape 1 complétée sans photo initiale — proposer de l'ajouter */}
+        {showAddInitialPhotoPrompt && (
+          <View style={styles.addInitialPhotoBanner}>
+            <View style={styles.addInitialPhotoBannerContent}>
+              <Ionicons name="camera-outline" size={24} color={theme.colors.primary} style={styles.addInitialPhotoIcon} />
+              <View style={styles.addInitialPhotoTextWrap}>
+                <Text style={styles.addInitialPhotoTitle}>Photo initiale manquante</Text>
+                <Text style={styles.addInitialPhotoSubtext}>Vous avez complété l’étape 1 sans photo initiale. Ajoutez-la pour un meilleur suivi de votre progression.</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.addInitialPhotoButton, addInitialPhotoLoading && styles.addInitialPhotoButtonDisabled]}
+              onPress={handleAddInitialPhoto}
+              disabled={addInitialPhotoLoading}
+            >
+              {addInitialPhotoLoading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+                  <Text style={styles.addInitialPhotoButtonText}>Ajouter la photo initiale</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Section 1 : Résumé (où j'en suis) */}
         <View style={styles.section}>
@@ -418,6 +456,13 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           </Pressable>
         </Pressable>
       </Modal>
+
+      <NouveautesBottomSheet
+        visible={showNouveautesProgress}
+        steps={nouveautesProgressSteps}
+        onComplete={onNouveautesProgressComplete}
+        variant="progress"
+      />
     </>
   );
 };
@@ -453,6 +498,55 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
     fontWeight: '500',
+  },
+  addInitialPhotoBanner: {
+    backgroundColor: theme.colors.primary + '14',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '30',
+  },
+  addInitialPhotoBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  addInitialPhotoIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  addInitialPhotoTextWrap: {
+    flex: 1,
+  },
+  addInitialPhotoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  addInitialPhotoSubtext: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    lineHeight: 20,
+  },
+  addInitialPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  addInitialPhotoButtonDisabled: {
+    opacity: 0.7,
+  },
+  addInitialPhotoButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFF',
   },
   section: {
     marginTop: 24,

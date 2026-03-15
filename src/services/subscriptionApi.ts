@@ -427,6 +427,23 @@ export class SubscriptionApi {
       return null;
     }
   }
+
+  /**
+   * Get payment config from backend (admin-controlled).
+   * Stripe is shown as payment method only if the admin has enabled it.
+   * @returns {Promise<{ stripeEnabled: boolean }>}
+   */
+  static async getPaymentConfig() {
+    try {
+      const response = await api.get('/payments/config');
+      const data = response.data?.data || response.data || {};
+      const stripePublishableKey = data.stripePublishableKey || response.data?.stripePublishableKey;
+      const stripeEnabled = data.stripeEnabled ?? (!!stripePublishableKey);
+      return { stripeEnabled: Boolean(stripeEnabled) };
+    } catch (error) {
+      return { stripeEnabled: false };
+    }
+  }
 }
 
 export default SubscriptionApi;

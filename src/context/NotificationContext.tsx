@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { AppState, Platform } from 'react-native';
+import Constants from 'expo-constants';
 // Lazy load native modules to avoid NativeEventEmitter crash at startup
 let Notifications: any = null;
 let Device: any = null;
@@ -214,9 +215,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       // NOTE: Expo Push Notifications can work without Firebase initialized
       // Firebase is only needed for FCM on Android, but Expo handles this internally
       console.log('📱 [NotificationProvider] Getting Expo push token...');
+      // Utiliser le projectId EAS du build (app.json extra.eas.projectId) pour que les push
+      // fonctionnent en build standalone ; un mauvais projectId fait que les notifs ne partent pas quand l'app est fermée
+      const easProjectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+      if (!easProjectId) {
+        console.warn('⚠️ [NotificationProvider] EAS projectId not found in config - push may fail in production build');
+      }
       try {
         const token = await notifications.getExpoPushTokenAsync({
-          projectId: '6f5af143-a419-447d-a44e-3b3e230cf397', // Your EAS project ID
+          projectId: easProjectId || undefined,
         });
         
         console.log('✅ [NotificationProvider] Push token obtained:', token.data.substring(0, 30) + '...');

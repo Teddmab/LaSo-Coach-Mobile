@@ -22,6 +22,8 @@ import { useMealInteractions } from '../hooks/useMealInteractions';
 import { Meal, NutritionScreenProps } from '../types';
 import { createLogger } from '../../../utils/logger';
 import nutritionAPI from '../../../services/nutritionApi';
+import NouveautesBottomSheet from '../../../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../../../hooks/useNouveautes';
 import Toast from 'react-native-toast-message';
 import { nutritionSync } from '../../../utils/nutritionSync';
 
@@ -142,6 +144,13 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     nutritionDataHook.dayMeals,
     null
   );
+
+  // Nouveautés Nutrition : affiché une seule fois au premier passage sur l'onglet
+  const {
+    visible: showNouveautesNutrition,
+    onComplete: onNouveautesNutritionComplete,
+    steps: nouveautesNutritionSteps,
+  } = useNouveautes('nutrition');
 
   // Modal states
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
@@ -655,6 +664,14 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
           }
         }}
         hasActiveSubscription={hasActiveSubscription}
+      />
+
+      {/* Nouveautés Nutrition - une seule fois */}
+      <NouveautesBottomSheet
+        visible={showNouveautesNutrition}
+        steps={nouveautesNutritionSteps}
+        onComplete={onNouveautesNutritionComplete}
+        variant="nutrition"
       />
 
       {/* ✅ PastMealsBottomSheet supprimé - Le bouton complète maintenant tous les plats d'un coup */}

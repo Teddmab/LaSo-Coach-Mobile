@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../constants/theme';
 import { MONTHS, WEEK_DAYS } from '../utils/agendaUtils';
 
-const { width } = Dimensions.get('window');
+// Même principe que le calendrier prise de rendez-vous (ProfileStep4) : 14.28% = 100/7 pour alignement parfait
+const CELL_WIDTH_PCT = '14.28%';
 
 interface CalendarViewProps {
   year: number;
@@ -36,7 +37,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const firstDay = getFirstDayOfMonth(month, year);
   const days: React.ReactNode[] = [];
 
-  // Add empty cells for days before the first day of month
+  // Add empty cells for days before the first day of month (firstDay 1 = Lundi, 7 = Dimanche)
   for (let i = 1; i < firstDay; i++) {
     days.push(<View key={`empty-${i}`} style={styles.emptyDay} />);
   }
@@ -89,19 +90,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Year Header */}
-      <View style={styles.yearHeader}>
-        <TouchableOpacity onPress={() => onYearChange(year - 1)}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.yearText}>{year}</Text>
-        <TouchableOpacity onPress={() => onYearChange(year + 1)}>
-          <Ionicons name="chevron-forward" size={24} color={theme.colors.text.primary} />
-        </TouchableOpacity>
-      </View>
+      <View style={styles.calendarWrapper}>
+        {/* Year Header */}
+        <View style={styles.yearHeader}>
+          <TouchableOpacity onPress={() => onYearChange(year - 1)}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+          <Text style={styles.yearText}>{year}</Text>
+          <TouchableOpacity onPress={() => onYearChange(year + 1)}>
+            <Ionicons name="chevron-forward" size={24} color={theme.colors.text.primary} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Month Calendar */}
-      <View style={styles.calendarContainer}>
+        {/* Month Calendar */}
+        <View style={styles.calendarContainer}>
         <View style={styles.monthHeader}>
           <Text style={styles.monthTitle}>{MONTHS[month - 1]}</Text>
           <Text style={styles.monthYear}>{year}</Text>
@@ -109,13 +111,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
         <View style={styles.weekDaysHeader}>
           {WEEK_DAYS.map((day, index) => (
-            <Text key={index} style={styles.weekDayText}>{day}</Text>
+            <View key={index} style={styles.weekDayCell}>
+              <Text style={styles.weekDayText}>{day}</Text>
+            </View>
           ))}
         </View>
 
         <View style={styles.calendarGrid}>
           {days}
         </View>
+      </View>
       </View>
     </View>
   );
@@ -124,6 +129,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 const styles = StyleSheet.create({
   container: {
     marginBottom: 20,
+    alignItems: 'center',
+  },
+  calendarWrapper: {
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
   },
   yearHeader: {
     flexDirection: 'row',
@@ -131,6 +142,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 20,
     backgroundColor: '#FFFFFF',
+    width: '100%',
   },
   yearText: {
     fontSize: 24,
@@ -144,6 +156,7 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     borderRadius: 16,
     padding: 20,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -167,33 +180,42 @@ const styles = StyleSheet.create({
   },
   weekDaysHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     marginBottom: 12,
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+    width: '100%',
+  },
+  weekDayCell: {
+    width: CELL_WIDTH_PCT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    margin: 0,
   },
   weekDayText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: theme.colors.text.secondary,
-    width: (width - 80) / 7,
     textAlign: 'center',
   },
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    width: '100%',
+    margin: 0,
   },
   emptyDay: {
-    width: (width - 80) / 7,
+    width: CELL_WIDTH_PCT,
     height: 40,
+    margin: 0,
   },
   calendarDay: {
-    width: (width - 80) / 7,
+    width: CELL_WIDTH_PCT,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 2,
+    margin: 0,
   },
   todayDay: {
     backgroundColor: '#000000',

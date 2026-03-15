@@ -16,6 +16,8 @@ import ReportPostModal from './community/components/ReportPostModal';
 import ImageFullScreenModal from './community/components/ImageFullScreenModal';
 import CommentBottomSheet from './community/components/CommentBottomSheet';
 import { ShimmerCard } from '../components/Shimmer';
+import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../hooks/useNouveautes';
 
 const CommunityScreen: React.FC<CommunityScreenProps> = ({
   user,
@@ -145,6 +147,13 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
     setShowBlockModal(false);
     setUserToBlock(null);
   };
+
+  // Nouveautés Agora : affiché une seule fois après acceptation des UGC
+  const {
+    visible: showNouveautesAgora,
+    onComplete: onNouveautesAgoraComplete,
+    steps: nouveautesAgoraSteps,
+  } = useNouveautes('agora', undefined, { trigger: termsAccepted });
 
   return (
     <>
@@ -317,6 +326,14 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
           onCancel={handleCancelBlock}
         />
       )}
+
+      {/* Nouveautés Agora - une seule fois après acceptation UGC */}
+      <NouveautesBottomSheet
+        visible={showNouveautesAgora}
+        steps={nouveautesAgoraSteps}
+        onComplete={onNouveautesAgoraComplete}
+        variant="agora"
+      />
     </>
   );
 };

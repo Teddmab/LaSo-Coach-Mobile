@@ -17,6 +17,8 @@ import BadgeGrid from './defis/components/BadgeGrid';
 import FeaturedBadge from './defis/components/FeaturedBadge';
 import BadgeDetailModal from './defis/components/BadgeDetailModal';
 import { ShimmerCard, ShimmerGrid } from '../components/Shimmer';
+import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
+import { useNouveautes } from '../hooks/useNouveautes';
 
 const DefisScreen: React.FC<DefisScreenProps> = ({
   user,
@@ -53,6 +55,12 @@ const DefisScreen: React.FC<DefisScreenProps> = ({
     assignChallenge,
     leaveChallenge,
   } = useDefisScreen(onSubscriptionRenew);
+
+  const {
+    visible: showNouveautesDefis,
+    onComplete: onNouveautesDefisComplete,
+    steps: nouveautesDefisSteps,
+  } = useNouveautes('defis');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -223,6 +231,12 @@ const DefisScreen: React.FC<DefisScreenProps> = ({
         visible={showFloatingPoints}
         points={floatingPointsData?.points}
         reason={floatingPointsData?.reason}
+      />
+
+      <NouveautesBottomSheet
+        visible={showNouveautesDefis}
+        steps={nouveautesDefisSteps}
+        onComplete={onNouveautesDefisComplete}
       />
     </SafeAreaView>
   );
