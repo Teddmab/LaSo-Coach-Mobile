@@ -1809,7 +1809,7 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 24,
         maxHeight: '95%',
         minHeight: '80%',
-        paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+        paddingBottom: Platform.OS === 'ios' ? 34 : 48,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.25,
@@ -1856,6 +1856,7 @@ const styles = StyleSheet.create({
     stepContainer: {
         flex: 1,
         paddingHorizontal: 20,
+        paddingBottom: Platform.OS === 'android' ? 24 : 0,
     },
 
     // Étape 0: Plan

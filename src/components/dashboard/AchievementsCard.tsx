@@ -116,17 +116,19 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
   }, [badgesData]);
 
   const handlePress = () => {
-    // Check subscription status before proceeding
     const requiresRenewal = subscriptionData?.requiresRenewal || false;
-    
+
     if (requiresRenewal && onSubscriptionRenew) {
       onSubscriptionRenew();
       return;
     }
-    
-    if (onPress) {
-      onPress();
-    }
+
+    onPress?.();
+  };
+
+  /** CTA « Voir les défis » : toujours ouvrir Réalisations, sans bloquer sur l’abonnement */
+  const handleChallengesPress = () => {
+    onPress?.();
   };
 
   return (
@@ -213,7 +215,7 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
       {/* Voir les défis Button */}
       <TouchableOpacity 
         style={styles.challengesButton}
-        onPress={handlePress}
+        onPress={handleChallengesPress}
         activeOpacity={0.7}
       >
         <Text style={styles.challengesButtonText}>Voir les défis</Text>

@@ -31,6 +31,9 @@ import type { StackNavigationProp } from '@react-navigation/stack';
 import type { DashboardOverlayStackParamList } from '../types/navigation';
 import { nutritionSync } from '../utils/nutritionSync';
 import { profileSync } from '../utils/profileSync';
+import { reviewEngagementBridge } from '../utils/reviewEngagementBridge';
+import { reviewEligibilityService } from '../services/review/reviewEligibilityService';
+import ReviewPromptHost from '../components/review/ReviewPromptHost';
 
 // ✅ PHASE 1: Import feature flags for testing
 import useCompanionMode from '../hooks/useCompanionMode';
@@ -302,6 +305,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // ✅ Écouter les changements depuis NutritionScreen
   useEffect(() => {
     const unsubscribeMealCompleted = nutritionSync.subscribe('meal-completed', async (data: any) => {
+      void reviewEligibilityService.recordCoreAction();
+      setReviewEngagementTick((t) => t + 1);
       // Rafraîchir les données quand un repas est complété dans NutritionScreen
       if (currentPlan?.id) {
         try {
@@ -344,6 +349,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       unsubscribeAvatarUpdated();
     };
   }, [currentPlan, completionStatusHook, nutritionDataHook, fetchDashboardData]);
+
+  useEffect(() => {
+    return reviewEngagementBridge.subscribe(() => {
+      setReviewEngagementTick((t) => t + 1);
+    });
+  }, []);
   
   // Local state
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -368,7 +379,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   // ✅ Vidéo repas (bottom sheet dédié, lecture dans l'app)
   const [videoSheetVideoId, setVideoSheetVideoId] = useState<string | null>(null);
   const [videoSheetTitle, setVideoSheetTitle] = useState<string | null>(null);
-  
+  const [reviewEngagementTick, setReviewEngagementTick] = useState(0);
+
   // BackHandler: gestion du bouton retour Android
   const backHandlerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -782,6 +794,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     try {
       await AgendaApi.markContentComplete(contentId);
       await fetchAgendaData();
+      void reviewEligibilityService.recordCoreAction();
+      setReviewEngagementTick((t) => t + 1);
     } catch (error: any) {
     }
   };
@@ -861,6 +875,16 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     return 'Utilisateur';
   }, [user?.firstName, user?.name, dashboardData?.Profile?.firstName, dashboardData?.profile?.Profile?.firstName, dashboardData?.profile?.firstName]);
 
+  const reviewPromptEl = (
+    <ReviewPromptHost
+      activeTab={activeTab}
+      currentScreen={currentScreen}
+      profileComplete={isProfileComplete}
+      user={user}
+      engagementTick={reviewEngagementTick}
+    />
+  );
+
   // Screen routing logic - Use Stack Navigator for overlay screens
   // Always render Stack Navigator, but only show it when currentScreen is an overlay screen
   if (currentScreen !== 'home' && getOverlayRouteName(currentScreen)) {
@@ -896,6 +920,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           setForceShowHomeTour(true);
         }}
       />
+      {reviewPromptEl}
       </>
     );
   }
@@ -930,6 +955,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onClose={handleMoreMenuClose}
           onMenuItemPress={handleMoreMenuItemPress}
         />
+        {reviewPromptEl}
       </>
     );
   }
@@ -961,6 +987,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onClose={handleMoreMenuClose}
           onMenuItemPress={handleMoreMenuItemPress}
         />
+        {reviewPromptEl}
       </>
     );
   }
@@ -991,6 +1018,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           onClose={handleMoreMenuClose}
           onMenuItemPress={handleMoreMenuItemPress}
         />
+        {reviewPromptEl}
       </>
     );
   }
@@ -1299,6 +1327,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         }
         variant="home"
       />
+
+      {reviewPromptEl}
 
     </>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/FirebaseAuthContext';
 import {
@@ -23,6 +23,7 @@ export interface UseNouveautesReturn {
 
 /**
  * Hook pour afficher le bottomsheet Nouveautés une seule fois par utilisateur et par écran.
+ * Évite les réaffichages multiples (race + re-runs) en marquant la clé dès la décision d'afficher.
  */
 export function useNouveautes(
   screenId: NouveautesScreenId,
@@ -32,6 +33,7 @@ export function useNouveautes(
   const { user } = useAuth();
   const userId = user?.id || user?.uid || '';
   const [visible, setVisible] = useState(false);
+  const hasShownOrClaimedRef = useRef(false);
   const [steps] = useState<NouveauteStep[]>(() => {
     if (stepsOverride && stepsOverride.length > 0) return stepsOverride;
     return NOUVEAUTES_STEPS[screenId] || [];
@@ -39,17 +41,23 @@ export function useNouveautes(
 
   const checkAndShow = useCallback(async () => {
     if (!userId) return;
+    if (hasShownOrClaimedRef.current) return;
     const key = getNouveautesStorageKey(screenId, userId);
     try {
       const alreadyShown = await AsyncStorage.getItem(key);
-      if (alreadyShown === 'true') return;
+      if (alreadyShown === 'true') {
+        hasShownOrClaimedRef.current = true;
+        return;
+      }
       if (options?.requireCondition) {
         const ok = await Promise.resolve(options.requireCondition());
         if (!ok) return;
       }
+      hasShownOrClaimedRef.current = true;
+      await AsyncStorage.setItem(key, 'true');
       setVisible(true);
     } catch (e) {
-      // En cas d'erreur, ne pas bloquer l'app
+      hasShownOrClaimedRef.current = false;
     }
   }, [screenId, userId, options?.requireCondition]);
 
@@ -59,17 +67,9 @@ export function useNouveautes(
     checkAndShow();
   }, [trigger, userId, checkAndShow]);
 
-  const onComplete = useCallback(async () => {
-    if (!userId) {
-      setVisible(false);
-      return;
-    }
-    const key = getNouveautesStorageKey(screenId, userId);
-    try {
-      await AsyncStorage.setItem(key, 'true');
-    } catch (_) {}
+  const onComplete = useCallback(() => {
     setVisible(false);
-  }, [screenId, userId]);
+  }, []);
 
   return { visible, onComplete, steps };
 }

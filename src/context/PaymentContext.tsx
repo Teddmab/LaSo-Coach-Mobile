@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { reviewEligibilityService } from '../services/review/reviewEligibilityService';
 
 export interface PaymentTransaction {
   transactionId: string;
@@ -87,6 +88,7 @@ export const PaymentProvider: React.FC<{ children: ReactNode }> = ({ children })
         setCurrentTransaction(failedTransaction);
         setTransactionHistory((prev) => [failedTransaction, ...prev]);
         setIsProcessing(false);
+        void reviewEligibilityService.blockAfterPaymentFailure();
       }
     },
     [currentTransaction]
@@ -104,6 +106,7 @@ export const PaymentProvider: React.FC<{ children: ReactNode }> = ({ children })
         setCurrentTransaction(cancelledTransaction);
         setTransactionHistory((prev) => [cancelledTransaction, ...prev]);
         setIsProcessing(false);
+        void reviewEligibilityService.blockAfterPaymentCancelled();
       }
     },
     [currentTransaction]

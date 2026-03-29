@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import FixedLayout from '../components/FixedLayout';
 import Toast from 'react-native-toast-message';
+import { reviewEligibilityService } from '../services/review/reviewEligibilityService';
 
 interface ContactSupportScreenProps {
   onClose: () => void;
@@ -106,6 +107,7 @@ ID: ${user?.id || 'Non disponible'}
       const canOpen = await Linking.canOpenURL(mailtoUrl);
       if (canOpen) {
         await Linking.openURL(mailtoUrl);
+        void reviewEligibilityService.blockAfterComplaintFlow();
         Toast.show({
           type: 'success',
           text1: 'Succès',

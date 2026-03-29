@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, ScrollView, RefreshControl, StyleSheet, Text, TouchableOpacity, NativeSyntheticEvent, LayoutChangeEvent } from 'react-native';
+import { View, ScrollView, RefreshControl, StyleSheet, Text, TouchableOpacity, NativeSyntheticEvent, LayoutChangeEvent, Platform } from 'react-native';
 import { theme } from '../../../constants/theme';
 import ProgressCard from '../../../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../../../components/dashboard/ProfileCompletionCard';
 import AchievementsCard from '../../../components/dashboard/AchievementsCard';
+import SystemReminderBanner from '../../../components/dashboard/SystemReminderBanner';
 import NutritionCard from '../../../components/dashboard/NutritionCard';
 import AgoraContentCard from '../../../components/dashboard/AgoraContentCard';
 import LAgoraCard from '../../../components/dashboard/LAgoraCard';
@@ -222,6 +223,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       )}
       </View>
 
+      <SystemReminderBanner />
+
       {/* Section 1 : Badge et progression (points / succès) */}
       <View ref={(r) => { sectionRefs.current[1] = r; }} onLayout={handleSectionLayout(1)} collapsable={false}>
       <AchievementsCard
@@ -316,7 +319,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'android' ? 48 : 20,
   },
   profileCompleteBadge: {
     marginHorizontal: 20,

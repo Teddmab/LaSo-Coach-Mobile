@@ -1,2 +1,2 @@
-Web app:moses@inorder:~/Documents/Prog-App/LaSo-Coach-Frontend
+Web app: moses@inorder:~/Documents/Prog-App/LaSo-Coach-Frontend
 Backend : moses@inorder:~/Documents/Prog-App/LaSo-Coach-Backend-main

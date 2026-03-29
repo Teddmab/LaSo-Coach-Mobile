@@ -58,5 +58,7 @@ export interface SubscriptionScreenProps {
   showBackButton?: boolean;
   onBackPress?: () => void;
   onRefresh?: () => void | Promise<void>; // ✅ Callback pour rafraîchir le dashboard après activation
+  /** Ouverture directe de la FAQ (prioritaire quand fourni, ex. depuis l’overlay) */
+  onFAQPress?: () => void;
 }
 

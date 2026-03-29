@@ -529,6 +529,10 @@ export const useProgressScreen = (
       }
 
       await fetchAllData();
+      const { reviewEligibilityService } = await import('../../../services/review/reviewEligibilityService');
+      const { reviewEngagementBridge } = await import('../../../utils/reviewEngagementBridge');
+      void reviewEligibilityService.recordCoreAction();
+      reviewEngagementBridge.notify();
       const wasEditing = !!editingMeasurement;
       setMeasurementForm({
         weight: '',

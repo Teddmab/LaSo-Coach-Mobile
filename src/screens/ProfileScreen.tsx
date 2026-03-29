@@ -3244,7 +3244,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   scrollContent: {
-    paddingBottom: 30, // Padding normal maintenant que la barre n'est plus flottante
+    paddingBottom: Platform.OS === 'android' ? 98 : 30,
   },
   loadingContainer: {
     flex: 1,

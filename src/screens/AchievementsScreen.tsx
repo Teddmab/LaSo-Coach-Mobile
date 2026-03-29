@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 import SubscriptionBanner from '../components/SubscriptionBanner';
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20, // Padding réduit car FixedLayout gère déjà l'espace pour la navigation
+    paddingBottom: Platform.OS === 'android' ? 48 : 20,
   },
   sectionContainer: {
     padding: 20,

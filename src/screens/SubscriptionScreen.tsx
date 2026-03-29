@@ -24,6 +24,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   showBackButton = false,
   onBackPress,
   onRefresh, // ✅ Callback optionnel pour rafraîchir le dashboard
+  onFAQPress: onFAQPressProp,
 }) => {
   const { user: authUser, refreshProfile, currentUser } = useAuth();
   const user = propUser || authUser || currentUser;
@@ -50,9 +51,12 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   } = useSubscriptionScreen(navigation, refreshProfile, onRefresh); // ✅ Passer onRefresh au hook
 
   const handleFAQPress = () => {
-    if (onTabPress) {
+    if (onFAQPressProp) {
+      onFAQPressProp();
+    } else if (onTabPress) {
       onTabPress('faq');
-    } else if (navigation) {
+    } else if (navigation?.navigate) {
+      navigation.navigate('FAQ');
     }
   };
 
@@ -228,11 +232,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F9FA',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 48,
   },
   sectionContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
+    marginBottom: 32,
   },
   loadingContainer: {
     flex: 1,

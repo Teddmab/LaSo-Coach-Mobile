@@ -35,6 +35,23 @@ import chatSocketService from '../services/chatSocketService';
 import { useAuth } from './FirebaseAuthContext';
 import { translateNotificationTitle, translateNotificationMessage } from '../screens/notifications/utils/notificationUtils';
 
+const STORAGE_EXPO_PUSH_TOKEN = 'expoPushToken';
+/** Dernière empreinte (version|build) pour laquelle register-token a réussi */
+const STORAGE_PUSH_REGISTERED_FINGERPRINT = 'lasoPushTokenRegisteredFingerprint';
+
+function getNativeAppFingerprint(): string {
+  const version =
+    Constants.nativeApplicationVersion ??
+    Constants.expoConfig?.version ??
+    '';
+  const build =
+    Constants.nativeBuildVersion ??
+    (Platform.OS === 'android'
+      ? String(Constants.expoConfig?.android?.versionCode ?? '')
+      : '');
+  return `${version}|${build}`;
+}
+
 interface Notification {
   id: string;
   type?: string;
@@ -115,6 +132,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const { isAuthenticated, authReady, user } = useAuth();
   const authInitializedRef = useRef<boolean>(false); // avoid duplicate fetches when auth state flips quickly
+  const isAuthenticatedRef = useRef<boolean>(isAuthenticated);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   // Fetch unread count
   const fetchUnreadCount = async (): Promise<number> => {
@@ -228,19 +249,25 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         
         console.log('✅ [NotificationProvider] Push token obtained:', token.data.substring(0, 30) + '...');
         
-        // Check if token has changed (e.g., after app reinstall)
-        const storedToken = await AsyncStorage.getItem('expoPushToken');
-        const tokenChanged = storedToken !== token.data;
-        
-        // Store token for backend registration
-        await AsyncStorage.setItem('expoPushToken', token.data);
-        
-        // Register token with backend (only if user is authenticated)
-        // We check authentication here because we need a valid token to register
-        if (isAuthenticated) {
-          console.log('📱 [NotificationProvider] Registering push token with backend...');
-          await registerPushToken(token.data, tokenChanged);
-          console.log('✅ [NotificationProvider] Push token registered with backend');
+        const storedToken = await AsyncStorage.getItem(STORAGE_EXPO_PUSH_TOKEN);
+        const storedFingerprint = await AsyncStorage.getItem(STORAGE_PUSH_REGISTERED_FINGERPRINT);
+        const currentFingerprint = getNativeAppFingerprint();
+        const needsBackendRegister =
+          !storedToken ||
+          storedToken !== token.data ||
+          storedFingerprint !== currentFingerprint;
+
+        await AsyncStorage.setItem(STORAGE_EXPO_PUSH_TOKEN, token.data);
+
+        if (isAuthenticatedRef.current) {
+          if (needsBackendRegister) {
+            console.log('📱 [NotificationProvider] Registering push token with backend (new token, app update, or first register)...');
+            const ok = await registerPushToken(token.data, true);
+            if (ok) {
+              await AsyncStorage.setItem(STORAGE_PUSH_REGISTERED_FINGERPRINT, currentFingerprint);
+              console.log('✅ [NotificationProvider] Push token registered with backend');
+            }
+          }
         } else {
           console.log('📱 [NotificationProvider] User not authenticated, token will be registered after login');
         }
@@ -262,12 +289,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Register push token with backend
-  const registerPushToken = async (token: string, isNewToken: boolean = false): Promise<void> => {
+  // Register push token with backend — retourne true si l’API a réussi (pour persister l’empreinte app)
+  const registerPushToken = async (token: string, isNewToken: boolean = false): Promise<boolean> => {
     try {
-      if (!isAuthenticated) {
+      if (!isAuthenticatedRef.current) {
         console.warn('⚠️ [NotificationProvider] User not authenticated, skipping token registration');
-        return;
+        return false;
       }
       
       const device = getDevice();
@@ -287,6 +314,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       });
       
       console.log('✅ [NotificationProvider] Push token successfully registered with backend');
+      return true;
     } catch (error: any) {
       // Pour les erreurs 502 (Bad Gateway), réduire le niveau de log
       const is502Error = error.response?.status === 502 || error.status === 502;
@@ -299,16 +327,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       } else {
         console.error('❌ [NotificationProvider] Failed to register push token:', error);
       }
-      // Don't throw - allow app to continue even if token registration fails
+      return false;
     }
   };
+
+  const refreshPushOnForegroundRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    refreshPushOnForegroundRef.current = () => {
+      void initializePushNotifications();
+    };
+  });
 
   // Unregister push token from backend
   const unregisterPushToken = async (): Promise<void> => {
     try {
-      const token = await AsyncStorage.getItem('expoPushToken');
+      const token = await AsyncStorage.getItem(STORAGE_EXPO_PUSH_TOKEN);
       if (!token) {
         console.log('📱 [NotificationProvider] No push token to unregister');
+        await AsyncStorage.removeItem(STORAGE_PUSH_REGISTERED_FINGERPRINT);
         return;
       }
       
@@ -316,14 +352,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       await notificationsAPI.unregisterPushToken({ token });
       
-      // Remove token from storage
-      await AsyncStorage.removeItem('expoPushToken');
+      await AsyncStorage.multiRemove([STORAGE_EXPO_PUSH_TOKEN, STORAGE_PUSH_REGISTERED_FINGERPRINT]);
       
       console.log('✅ [NotificationProvider] Push token successfully unregistered');
     } catch (error: any) {
       console.error('❌ [NotificationProvider] Failed to unregister push token:', error);
-      // Still remove token from storage even if API call fails
-      await AsyncStorage.removeItem('expoPushToken');
+      await AsyncStorage.multiRemove([STORAGE_EXPO_PUSH_TOKEN, STORAGE_PUSH_REGISTERED_FINGERPRINT]);
     }
   };
 
@@ -590,15 +624,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Handle app state changes
   useEffect(() => {
+    let pushResyncDebounce: ReturnType<typeof setTimeout> | null = null;
     const handleAppStateChange = (nextAppState: string): void => {
       if (nextAppState === 'active') {
-        // App became active, refresh unread count
         fetchUnreadCount();
+        if (isAuthenticatedRef.current) {
+          if (pushResyncDebounce) clearTimeout(pushResyncDebounce);
+          pushResyncDebounce = setTimeout(() => {
+            refreshPushOnForegroundRef.current();
+          }, 700);
+        }
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
+    return () => {
+      if (pushResyncDebounce) clearTimeout(pushResyncDebounce);
+      subscription?.remove();
+    };
   }, []);
 
   // Debug function to check notification permissions
@@ -610,7 +653,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       
       const permissions = await notifications.getPermissionsAsync();
       
-      const token = await AsyncStorage.getItem('expoPushToken');
+      const token = await AsyncStorage.getItem(STORAGE_EXPO_PUSH_TOKEN);
       
       return {
         permissions,
@@ -729,6 +772,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     showLocalNotification,
     testNotification,
     checkNotificationStatus,
+    unregisterPushToken,
   };
 
   return (

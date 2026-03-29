@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking, ActivityIndicator, Platform } from 'react-native';
 import { theme } from '../constants/theme';
 import { AgendaScreenProps, ProgramSession } from './agenda/types';
 import { useAgenda } from './agenda/hooks/useAgenda';
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F0F0',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'android' ? 98 : 20,
   },
   programInfo: {
     backgroundColor: '#FFFFFF',

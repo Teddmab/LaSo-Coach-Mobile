@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 56,
     paddingHorizontal: 20,
   },
   pageHeader: {
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   sectionPhotos: {
-    marginBottom: 32,
+    marginBottom: 48,
   },
   sectionLabel: {
     fontSize: 13,
