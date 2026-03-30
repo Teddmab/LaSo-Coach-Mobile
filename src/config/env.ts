@@ -139,7 +139,7 @@ const Config = {
   
   // App Configuration
   APP_NAME: APP_NAME || Constants.expoConfig?.name || 'LasoCoach',
-  APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.1.3',
+  APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.1.4',
   
   // Debug Configuration
   DEBUG_MODE:
