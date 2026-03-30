@@ -44,7 +44,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.afrotouch.lasocoach",
       "version": "1.1.4",
-      "versionCode": 15,
+      "versionCode": 16,
       "icon": "./assets/icon.png",
       "intentFilters": [
         {
