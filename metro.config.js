@@ -1,8 +1,9 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
-const { getDefaultConfig } = require('expo/metro-config');
+const {
+  getSentryExpoConfig
+} = require("@sentry/react-native/metro");
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // Add resolver configuration to handle engine.io-client issues
 config.resolver = {
@@ -15,7 +16,7 @@ config.resolver = {
   // Prefer CommonJS over ESM to avoid module resolution issues
   resolverMainFields: ['react-native', 'browser', 'main'],
   // Resolve source extensions including .mjs and .cjs for ESM modules
-  sourceExts: [...(config.resolver.sourceExts || []), 'mjs', 'cjs'],
+  sourceExts: [...(config.resolver.sourceExts || []), 'mjs', 'cjs', 'json'],
   // Resolve platform-specific extensions
   platforms: ['ios', 'android', 'native', 'web'],
 };
@@ -33,24 +34,4 @@ config.transformer = {
   unstable_allowRequireContext: true,
 };
 
-// Exclude build directories from watching to prevent ENOENT errors
-config.watchFolders = config.watchFolders || [];
-config.watchFolders = config.watchFolders.filter(folder => {
-  return !folder.includes('android\\build') && !folder.includes('android/build');
-});
-
-// Add watcher configuration to ignore problematic paths
-config.watcher = {
-  ...config.watcher,
-  additionalExts: config.watcher?.additionalExts || [],
-  ignored: [
-    ...(config.watcher?.ignored || []),
-    '**/node_modules/**/android/build/**',
-    '**/node_modules/**/build/tmp/**',
-    '**/android/build/**',
-    '**/android/app/build/**',
-  ],
-};
-
 module.exports = config;
-

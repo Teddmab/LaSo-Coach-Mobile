@@ -2,11 +2,11 @@
   "expo": {
     "name": "LasoCoach",
     "slug": "laso-coach",
-    "version": "1.0.0",
+    "version": "1.1.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "scheme": [
       "lasocoach",
       "com.laso.coach"
@@ -19,18 +19,32 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "icon": "./assets/icon.png",
+      "buildNumber": "38",
+      "version": "1.1.4",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
-      ]
+      ],
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "SKAdNetworkItems": [],
+        "CFBundleIconName": "AppIcon",
+        "NSPhotoLibraryUsageDescription": "Ceci vous permettra de publier vos photos dans l'Agora, suivre votre progression en images, valider des défis ou sélectionner votre avatar.",
+        "NSCameraUsageDescription": "Nous avons besoin d'accéder à votre appareil photo pour vous permettre de prendre des photos pour compléter vos défis.",
+        "NSPhotoLibraryAddUsageDescription": "Nous avons besoin de votre permission pour sauvegarder des photos dans votre galerie."
+      }
     },
     "android": {
+      "playStoreUrl": "https://play.google.com/store/apps/details?id=com.afrotouch.lasocoach",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#8BC34A"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.afrotouch.lasocoach",
+      "version": "1.1.4",
+      "versionCode": 16,
       "icon": "./assets/icon.png",
       "intentFilters": [
         {
@@ -59,7 +73,7 @@
       "color": "#8BC34A",
       "iosDisplayInForeground": true,
       "androidMode": "default",
-      "androidCollapsedTitle": "#{unread_notifications} new notifications"
+      "androidCollapsedTitle": "#{unread_notifications} nouvelles notifications"
     },
     "extra": {
       "env": {
@@ -84,14 +98,19 @@
         "webClientId": "855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com"
       },
       "eas": {
-        "projectId": "202e9298-94fd-42da-ac28-574924c2418b"
+        "projectId": "f509eb43-52af-44a9-b7f0-e8a7179a0aa3"
       }
     },
-    "owner": "moses_jo",
+    "owner": "ohriginal-llc",
     "plugins": [
       "expo-dev-client",
       "expo-web-browser",
-      "./plugins/withReactNativeIAP.js"
+      "./plugins/withFirebaseConfig.js",
+      "./plugins/withPreserveIcons.js",
+      "./plugins/withIOSCrashFix.js",
+      "./plugins/withFixMacOSSupport.js",
+      "./plugins/withPermissionStrings.js",
+      "./plugins/withCocoaPodsGitSource.js"
     ]
   }
 }

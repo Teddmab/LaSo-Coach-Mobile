@@ -5,22 +5,65 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "20.19.4",
+      "ios": {
+        "env": {
+          "RCT_USE_RN_DEP": "0"
+        }
+      },
+      "android": {
+        "env": {
+          "ANDROID_NDK_VERSION": "27.1.12297006"
+        }
+      }
+    },
+    "test": {
+      "distribution": "internal",
+      "node": "20.19.4",
+      "android": {
+        "buildType": "apk",
+        "env": {
+          "ANDROID_NDK_VERSION": "27.1.12297006"
+        }
+      }
     },
     "preview": {
       "distribution": "internal",
+      "node": "20.19.4",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "env": {
+          "ANDROID_NDK_VERSION": "27.1.12297006"
+        }
       },
       "ios": {
         "simulator": false,
-        "buildConfiguration": "Release"
+        "buildConfiguration": "Release",
+        "env": {
+          "RCT_USE_RN_DEP": "0",
+          "FORCE_PREBUILD": "true",
+          "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        }
       }
     },
     "production": {
+      "node": "20.19.4",
+      "ios": {
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "env": {
+          "RCT_USE_RN_DEP": "0",
+          "FORCE_PREBUILD": "true",
+          "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        }
+      },
       "android": {
         "buildType": "app-bundle",
-        "credentialsSource": "remote"
+        "env": {
+          "ANDROID_NDK_VERSION": "27.1.12297006"
+        }
       }
     }
   },

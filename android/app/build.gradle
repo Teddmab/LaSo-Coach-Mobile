@@ -81,6 +81,15 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+apply from: new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim(), "../sentry.gradle")
+
+// Override NDK version to use installed NDK 27.1.12297006 (16KB page size compatible)
+rootProject.ext.ndkVersion = "27.1.12297006"
+
+// Shorten CMake build path to avoid Windows 260-char limit
+// rootProject.buildDir = file("${rootDir}/build")
+// buildDir = file("${rootDir}/build/app")
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -90,14 +99,13 @@ android {
     namespace 'com.afrotouch.lasocoach'
     defaultConfig {
         applicationId 'com.afrotouch.lasocoach'
-        minSdkVersion rootProject.ext.minSdkVersion
+        // Force minSdkVersion 24 to satisfy Hermes tooling
+        minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 16
+        versionName "1.1.4"
         
-        // FIX: react-native-iap variant ambiguity (Amazon vs Play Store)
-        // Force Play Store variant instead of Amazon
-        missingDimensionStrategy 'store', 'play'
+        // react-native-iap removed - no longer needed
     }
     signingConfigs {
         debug {
@@ -106,15 +114,30 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // PRODUCTION: Utiliser le keystore de release
+            // Assurez-vous que les variables sont définies dans ~/.gradle/gradle.properties ou android/gradle.properties
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                storeFile file(MYAPP_UPLOAD_STORE_FILE)
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+            } else {
+                // Fallback to debug for development builds
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Utiliser la config release pour la production
+            signingConfig signingConfigs.release
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -147,6 +170,172 @@ android {
         // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
         options.each {
             android.packagingOptions[prop] += it
+        }
+    }
+}
+
+// Fix pour l'erreur std::format dans React Native prefabs
+// Les prefabs sont téléchargés pendant configureCMake, donc on corrige après configureCMake mais avant buildCMake
+// Le fichier se trouve dans: .gradle/caches/*/transforms/*/transformed/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h
+def fixReactNativePrefabInCache = {
+    def gradleCacheDirs = [
+        new File(System.getProperty("user.home"), ".gradle/caches"),
+        new File("/home/expo/.gradle/caches"),
+        new File(System.getenv("HOME") ?: "", ".gradle/caches")
+    ]
+    
+    def gradleCacheDir = gradleCacheDirs.find { it.exists() }
+    
+    if (!gradleCacheDir || !gradleCacheDir.exists()) {
+        def userHome = System.getProperty("user.home") ?: System.getenv("HOME") ?: "/home/expo"
+        gradleCacheDir = new File(userHome, ".gradle/caches")
+    }
+    
+    if (!gradleCacheDir || !gradleCacheDir.exists()) {
+        println "⚠️ [fix-prefab] Gradle cache directory not found"
+        return
+    }
+    
+    println "🔍 [fix-prefab] Searching for graphicsConversions.h in: ${gradleCacheDir.absolutePath}"
+    
+    def foundFiles = []
+    
+    // Utiliser find avec plusieurs tentatives et patterns
+    try {
+        // Pattern 1: Chercher dans transforms (le plus probable)
+        def cmd1 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}/transforms' -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+        def process1 = cmd1.execute()
+        process1.waitFor()
+        def result1 = process1.text.trim()
+        if (result1) {
+            foundFiles.addAll(result1.split('\n').findAll { it && it.length() > 0 })
+        }
+        
+        // Pattern 2: Chercher partout dans le cache
+        if (foundFiles.isEmpty()) {
+            def cmd2 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process2 = cmd2.execute()
+            process2.waitFor()
+            def result2 = process2.text.trim()
+            if (result2) {
+                foundFiles.addAll(result2.split('\n').findAll { it && it.length() > 0 })
+            }
+        }
+        
+        // Pattern 3: Chercher spécifiquement dans react-android avec path exact
+        if (foundFiles.isEmpty()) {
+            def cmd3 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -path '*/react-android-*/prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process3 = cmd3.execute()
+            process3.waitFor()
+            def result3 = process3.text.trim()
+            if (result3) {
+                foundFiles.addAll(result3.split('\n').findAll { it && it.length() > 0 })
+            }
+        }
+        
+        // Pattern 4: Chercher dans les sous-dossiers transforms avec wildcard
+        if (foundFiles.isEmpty()) {
+            def cmd4 = ["sh", "-c", "find '${gradleCacheDir.absolutePath}' -type d -name 'transforms' 2>/dev/null | head -1 | xargs -I {} find {} -name 'graphicsConversions.h' -type f 2>/dev/null | head -10"]
+            def process4 = cmd4.execute()
+            process4.waitFor()
+            def result4 = process4.text.trim()
+            if (result4) {
+                foundFiles.addAll(result4.split('\n').findAll { it && it.length() > 0 })
+            }
+        }
+    } catch (Exception e) {
+        println "⚠️ [fix-prefab] Error during search: ${e.message}"
+        e.printStackTrace()
+    }
+    
+    // Dédupliquer
+    foundFiles = foundFiles.unique()
+    
+    // Si on ne trouve rien avec find, essayer de chercher directement dans les dossiers transforms
+    if (foundFiles.isEmpty()) {
+        println "⚠️ [fix-prefab] No files found with find, trying direct path search..."
+        try {
+            // Chercher dans les dossiers transforms
+            def transformsDir = new File(gradleCacheDir, "transforms")
+            if (transformsDir.exists()) {
+                transformsDir.eachDir { transformDir ->
+                    def transformedDir = new File(transformDir, "transformed")
+                    if (transformedDir.exists()) {
+                        transformedDir.eachDir { reactAndroidDir ->
+                            if (reactAndroidDir.name.startsWith("react-android-")) {
+                                def graphicsFile = new File(reactAndroidDir, "prefab/modules/reactnative/include/react/renderer/core/graphicsConversions.h")
+                                if (graphicsFile.exists()) {
+                                    foundFiles.add(graphicsFile.absolutePath)
+                                    println "✅ [fix-prefab] Found file via direct search: ${graphicsFile.absolutePath}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            println "⚠️ [fix-prefab] Error in direct search: ${e.message}"
+        }
+    }
+    
+    if (foundFiles.isEmpty()) {
+        println "⚠️ [fix-prefab] No graphicsConversions.h files found after all search attempts"
+        println "🔍 [fix-prefab] Debug: Cache dir exists: ${gradleCacheDir.exists()}, Path: ${gradleCacheDir.absolutePath}"
+        return
+    }
+    
+    println "✅ [fix-prefab] Found ${foundFiles.size()} file(s): ${foundFiles.join(', ')}"
+    
+    def fixedCount = 0
+    foundFiles.each { filePath ->
+        def file = new File(filePath)
+        if (file.exists() && file.isFile()) {
+            try {
+                def content = file.text
+                if (content.contains('std::format("{}%", dimension.value)')) {
+                    println "🔧 [fix-prefab] Fixing: ${file.absolutePath}"
+                    def fixedContent = content.replace(
+                        'return std::format("{}%", dimension.value);',
+                        'return std::to_string(dimension.value) + "%";'
+                    )
+                    file.text = fixedContent
+                    fixedCount++
+                    println "✅ [fix-prefab] Fixed: ${file.absolutePath}"
+                } else if (content.contains('std::to_string(dimension.value) + "%"')) {
+                    println "ℹ️ [fix-prefab] Already fixed: ${file.absolutePath}"
+                }
+            } catch (Exception e) {
+                println "⚠️ [fix-prefab] Error fixing ${file.absolutePath}: ${e.message}"
+            }
+        }
+    }
+    
+    if (fixedCount > 0) {
+        println "✅ [fix-prefab] Fixed ${fixedCount} file(s)"
+    } else {
+        println "ℹ️ [fix-prefab] No files needed fixing (${foundFiles.size()} checked)"
+    }
+}
+
+// Corriger les fichiers après configureCMake mais avant buildCMake
+// S'applique à tous les types de builds (Debug, Release, RelWithDebInfo, etc.)
+afterEvaluate {
+    tasks.matching { task ->
+        task.name.startsWith("configureCMake")
+    }.configureEach { configureTask ->
+        configureTask.doLast {
+            println "🔧 [fix-prefab] Running after ${configureTask.name}"
+            fixReactNativePrefabInCache()
+        }
+    }
+    
+    // Aussi corriger juste avant buildCMake au cas où
+    tasks.matching { task ->
+        task.name.startsWith("buildCMake")
+    }.configureEach { buildTask ->
+        buildTask.doFirst {
+            println "🔧 [fix-prefab] Running before ${buildTask.name}"
+            fixReactNativePrefabInCache()
         }
     }
 }

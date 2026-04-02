@@ -63,6 +63,11 @@ buck-out/
 
 # CocoaPods
 /ios/Pods/
+/ios/Podfile.lock
+
+# iOS native directory (généré par expo prebuild)
+# Ne pas commiter pour permettre à EAS Build d'exécuter le prebuild
+/ios/
 
 # Expo
 .expo/
@@ -87,6 +92,7 @@ secure-keys/
 !package-lock.json
 !tsconfig.json
 !android/app/google-services.json
+!assets/**/*.json
 .env.production
 client_secret_*.json
 

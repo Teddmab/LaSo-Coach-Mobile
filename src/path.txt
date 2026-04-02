@@ -1,0 +1,2 @@
+Documents/Prog-App/LaSo-Coach-Frontend => version web
+Documents/Prog-App/LaSo-Coach-Backend => Backend

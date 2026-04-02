@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import CircularProgress from '../CircularProgress';
 import DashboardService from '../../services/dashboardService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createLogger } from '../../utils/logger';
+import { Shimmer } from '../Shimmer';
 
 // Create logger instance for this component
 const logger = createLogger('ProgressCard');
@@ -48,15 +49,21 @@ interface ProgressCardProps {
   onRefresh?: () => void;
   onAddMetric?: () => void; // Optional: open metric selection/additional chart
   onProgressPress?: (tab: string) => void; // Optional: navigate to progress tab
+  isProfileComplete?: boolean; // Optional: show completion badge
 }
 
-const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress }) => {
+const formatPoints = (points: number): string => {
+  if (points >= 1000) return '1K';
+  return String(points);
+};
+
+const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, onAddMetric, onProgressPress, isProfileComplete = false }) => {
   const [progressData, setProgressData] = useState<ProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['weight', 'waist']);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['weight', 'waist', 'points']);
 
   /**
    * Transform progress overview API response to match our expected format
@@ -64,34 +71,54 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
    * @returns {ProgressData} Transformed progress data
    */
   const transformProgressData = (apiData: any): ProgressData => {
+    // Ensure all values are numbers and properly formatted
+    const parseNumber = (value: any, defaultValue: number = 0): number => {
+      if (value === null || value === undefined) return defaultValue;
+      const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    };
+
+    const initialWeight = parseNumber(apiData.initialWeight, 0);
+    const currentWeight = parseNumber(apiData.currentWeight, 0);
+    const targetWeight = parseNumber(apiData.targetWeight, 0);
+    const initialWaistSize = parseNumber(apiData.initialWaistSize, 0);
+    const currentWaistSize = parseNumber(apiData.currentWaistSize, 0);
+    const targetWaistSize = parseNumber(apiData.targetWaistSize, 0);
+
+    // Log for debugging
+    logger.debug('Transforming progress data', {
+      weight: { initial: initialWeight, current: currentWeight, target: targetWeight },
+      waist: { initial: initialWaistSize, current: currentWaistSize, target: targetWaistSize },
+    });
+
     const base: ProgressData = {
       weight: {
-        progress: apiData.weightProgress || 0,
-        initial: apiData.initialWeight || 0,
-        current: apiData.currentWeight || 0,
-        target: apiData.targetWeight || 0,
-        remaining: Math.max(0, (apiData.targetWeight || 0) - (apiData.currentWeight || 0)),
-        lost: Math.max(0, (apiData.initialWeight || 0) - (apiData.currentWeight || 0)),
+        progress: parseNumber(apiData.weightProgress, 0),
+        initial: initialWeight,
+        current: currentWeight,
+        target: targetWeight,
+        remaining: Math.max(0, targetWeight - currentWeight),
+        lost: Math.max(0, initialWeight - currentWeight),
       },
       waist: {
-        progress: apiData.waistProgress || 0,
-        initial: apiData.initialWaistSize || 0,
-        current: apiData.currentWaistSize || 0,
-        target: apiData.targetWaistSize || 0,
-        remaining: Math.max(0, (apiData.targetWaistSize || 0) - (apiData.currentWaistSize || 0)),
-        reduced: Math.max(0, (apiData.initialWaistSize || 0) - (apiData.currentWaistSize || 0)),
+        progress: parseNumber(apiData.waistProgress, 0),
+        initial: initialWaistSize,
+        current: currentWaistSize,
+        target: targetWaistSize,
+        remaining: Math.max(0, targetWaistSize - currentWaistSize),
+        reduced: Math.max(0, initialWaistSize - currentWaistSize),
       },
       points: {
-        progress: apiData.pointsProgress || 0,
-        current: apiData.currentPoints || 0,
-        max: apiData.maxPoints || 100,
-        remaining: Math.max(0, (apiData.maxPoints || 100) - (apiData.currentPoints || 0)),
+        progress: parseNumber(apiData.pointsProgress, 0),
+        current: parseNumber(apiData.currentPoints, 0),
+        max: parseNumber(apiData.maxPoints, 100),
+        remaining: Math.max(0, parseNumber(apiData.maxPoints, 100) - parseNumber(apiData.currentPoints, 0)),
       },
     };
 
     // Height if present from API (cm)
     // API /profile returns height in meters (e.g., 1.6). Normalize to cm.
-    const rawHeight = apiData.height || apiData.profileHeight || apiData?.profile?.height || 0;
+    const rawHeight = apiData.height || apiData.profileHeight || apiData?.Profile?.height || 0;
     const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
     if (heightCm) {
       base.height = { current: heightCm };
@@ -115,13 +142,13 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     if (dashboardData && !refreshing) {
       try {
         logger.debug('Received dashboard data, calculating progress');
-        const calculatedProgress = DashboardService.calculateProgress(dashboardData);
+        const calculatedProgress: any = DashboardService.calculateProgress(dashboardData);
         logger.debug('Progress calculated from props', calculatedProgress);
         // Enrich with derived/optional metrics from dashboardData
-        const rawHeight = dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
+        const rawHeight = dashboardData?.Profile?.height || dashboardData?.profile?.height || dashboardData?.measurements?.height || 0;
         const heightCm = rawHeight > 3 ? rawHeight : rawHeight * 100;
         const weightKg = calculatedProgress?.weight?.current || 0;
-        const enriched: ProgressData = { ...calculatedProgress };
+        const enriched: ProgressData = calculatedProgress as ProgressData;
         if (heightCm) {
           enriched.height = { current: heightCm };
           const hM = heightCm / 100;
@@ -289,8 +316,28 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
         </View>
         
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Chargement...</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.progressRow}
+            style={styles.progressRowContainer}
+          >
+            {/* Shimmer pour les cercles de progression */}
+            <View style={styles.circleWrapper}>
+              <Shimmer width={90} height={90} borderRadius={45} />
+              <View style={styles.shimmerLabelContainer}>
+                <Shimmer width={60} height={14} borderRadius={4} style={styles.shimmerLabel} />
+                <Shimmer width={40} height={12} borderRadius={4} style={styles.shimmerSubLabel} />
+              </View>
+            </View>
+            <View style={styles.circleWrapper}>
+              <Shimmer width={90} height={90} borderRadius={45} />
+              <View style={styles.shimmerLabelContainer}>
+                <Shimmer width={60} height={14} borderRadius={4} style={styles.shimmerLabel} />
+                <Shimmer width={40} height={12} borderRadius={4} style={styles.shimmerSubLabel} />
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </View>
     );
@@ -330,7 +377,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     if (fromState > 0) return { current: fromState };
     // Fallback to dashboardData profile (can be nested) or measurements.height
     const raw = (
-      (dashboardData?.profile?.profile?.height as number | undefined) ??
+      (dashboardData?.Profile?.height as number | undefined) ??
       (dashboardData?.profile?.height as number | undefined) ??
       (dashboardData?.measurements?.height as number | undefined) ??
       0
@@ -344,7 +391,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     const heightFromState = progressData?.height?.current ?? 0;
     const rawHeight =
       heightFromState ||
-      (dashboardData?.profile?.profile?.height as number | undefined) ||
+      (dashboardData?.Profile?.height as number | undefined) ||
       (dashboardData?.profile?.height as number | undefined) ||
       (dashboardData?.measurements?.height as number | undefined) ||
       0;
@@ -354,7 +401,7 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
     const weightKg =
       progressData?.weight?.current ??
       (dashboardData?.measurements?.currentWeight as number | undefined) ??
-      (dashboardData?.profile?.profile?.initialWeight as number | undefined) ??
+      (dashboardData?.Profile?.initialWeight as number | undefined) ??
       (dashboardData?.profile?.initialWeight as number | undefined) ??
       0;
 
@@ -411,6 +458,14 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
               label="Poids"
               color="#C6E54A"
             />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{progressData.weight.initial}{progressData.weight.initial != null ? ' kg' : ''}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{progressData.weight.target}{progressData.weight.target != null ? ' kg' : ''}</Text>
+              </View>
+            </View>
           </View>
         )}
         {selectedMetrics.includes('waist') && (
@@ -425,6 +480,36 @@ const ProgressCard: React.FC<ProgressCardProps> = ({ dashboardData, onRefresh, o
               label="Tour de taille"
               color="#60A5FA"
             />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{progressData.waist.initial}{progressData.waist.initial != null ? ' cm' : ''}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{progressData.waist.target}{progressData.waist.target != null ? ' cm' : ''}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        {selectedMetrics.includes('points') && (
+          <View style={styles.circleWrapper}>
+            <CircularProgress
+              size={90}
+              progress={progressData.points.progress}
+              initial={0}
+              current={progressData.points.current}
+              target={progressData.points.max}
+              unit=""
+              label="Points"
+              color="#10B981"
+            />
+            <View style={styles.pillsRow}>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>{formatPoints(progressData.points.current)}</Text>
+              </View>
+              <View style={styles.pillTarget}>
+                <Text style={styles.pillTextTarget}>{formatPoints(progressData.points.max)}</Text>
+              </View>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -470,6 +555,9 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 4,
   },
+  refreshButton: {
+    padding: 4,
+  },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -486,6 +574,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 8,
   },
+  pillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+    paddingHorizontal: 4,
+    gap: 4,
+  },
+  pill: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pillTarget: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  pillTextTarget: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
   learnMoreButton: {
     backgroundColor: '#8BC34A',
     paddingVertical: 12,
@@ -501,7 +619,17 @@ const styles = StyleSheet.create({
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
+    paddingVertical: 20,
+  },
+  shimmerLabelContainer: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  shimmerLabel: {
+    marginBottom: 4,
+  },
+  shimmerSubLabel: {
+    marginTop: 4,
   },
   loadingText: {
     marginTop: 12,

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion Google - LaSo Coach</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Connexion en cours...</p>
+        </div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Configuration Google OAuth
+        const GOOGLE_CLIENT_ID = '855620848279-r239q8v3pq6r37156hddd7lrt6j5mfc2.apps.googleusercontent.com';
+        const APP_DEEP_LINK = 'lasocoach://auth';
+        
+        // Logs de debug
+        console.log('🔍 [Google Auth] Page chargée');
+        console.log('🔍 [Google Auth] URL actuelle:', window.location.href);
+        console.log('🔍 [Google Auth] Search params:', window.location.search);
+        
+        // Générer un nonce pour la sécurité
+        function generateNonce() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+        
+        // Vérifier si on a déjà un token dans l'URL (callback de Google)
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlHash = new URLSearchParams(window.location.hash.substring(1)); // Google peut mettre l'id_token dans le hash
+        const idToken = urlParams.get('id_token') || urlHash.get('id_token');
+        const error = urlParams.get('error') || urlHash.get('error');
+        const accessToken = urlParams.get('access_token') || urlHash.get('access_token');
+        
+        console.log('🔍 [Google Auth] idToken dans URL:', !!idToken);
+        console.log('🔍 [Google Auth] error dans URL:', error);
+        console.log('🔍 [Google Auth] accessToken dans URL:', !!accessToken);
+        
+        if (error) {
+            // Erreur OAuth
+            console.error('❌ [Google Auth] Erreur OAuth:', error);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = 'Erreur: ' + error;
+            
+            // Rediriger vers l'app avec l'erreur
+            setTimeout(() => {
+                console.log('🔗 [Google Auth] Redirection vers app avec erreur:', APP_DEEP_LINK + '?error=' + encodeURIComponent(error));
+                window.location.href = APP_DEEP_LINK + '?error=' + encodeURIComponent(error);
+            }, 2000);
+        } else if (idToken) {
+            // Token reçu - rediriger vers l'app
+            console.log('✅ [Google Auth] id_token reçu, longueur:', idToken.length);
+            console.log('✅ [Google Auth] id_token (premiers 50 chars):', idToken.substring(0, 50) + '...');
+            
+            // Rediriger immédiatement vers l'app avec le token
+            const deepLinkUrl = APP_DEEP_LINK + '?id_token=' + encodeURIComponent(idToken);
+            console.log('🔗 [Google Auth] Redirection vers app:', deepLinkUrl);
+            
+            // Afficher un message de succès
+            document.getElementById('loading').innerHTML = '<div class="spinner" style="border-top-color: #4CAF50;"></div><p style="color: #4CAF50;">Connexion réussie !</p><p style="font-size: 12px; color: #666;">Redirection en cours...</p>';
+            
+            // Rediriger vers le deep link - utiliser replace pour éviter de revenir en arrière
+            setTimeout(() => {
+                try {
+                    // Utiliser window.location.replace pour éviter l'historique
+                    window.location.replace(deepLinkUrl);
+                } catch (e) {
+                    console.error('❌ [Google Auth] Erreur redirection:', e);
+                    // Fallback : créer un lien et cliquer
+                    const link = document.createElement('a');
+                    link.href = deepLinkUrl;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            }, 500); // Petit délai pour afficher le message
+        } else {
+            // Démarrer le flux OAuth
+            console.log('🚀 [Google Auth] Démarrage du flux OAuth Google...');
+            
+            // Stocker le nonce dans sessionStorage
+            const nonce = generateNonce();
+            sessionStorage.setItem('oauth_nonce', nonce);
+            console.log('🔐 [Google Auth] Nonce généré:', nonce);
+            
+            // Construire l'URL d'autorisation Google
+            const redirectUri = window.location.origin + window.location.pathname;
+            const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+            authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+            authUrl.searchParams.set('redirect_uri', redirectUri);
+            authUrl.searchParams.set('response_type', 'id_token');
+            authUrl.searchParams.set('scope', 'openid profile email');
+            authUrl.searchParams.set('nonce', nonce);
+            authUrl.searchParams.set('prompt', 'select_account'); // Afficher la liste des comptes au lieu de demander les identifiants
+            
+            console.log('🔗 [Google Auth] Redirect URI:', redirectUri);
+            console.log('🔗 [Google Auth] Auth URL:', authUrl.toString());
+            
+            // Rediriger vers Google
+            window.location.href = authUrl.toString();
+        }
+    </script>
+</body>
+</html>
+
