@@ -110,7 +110,13 @@
       "./plugins/withIOSCrashFix.js",
       "./plugins/withFixMacOSSupport.js",
       "./plugins/withPermissionStrings.js",
-      "./plugins/withCocoaPodsGitSource.js"
+      "./plugins/withCocoaPodsGitSource.js",
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "production"
+        }
+      ]
     ]
   }
 }

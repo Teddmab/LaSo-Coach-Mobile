@@ -27,6 +27,11 @@ import IOSSimulationButton from './src/components/IOSSimulationButton';
 import { RootStackParamList } from './src/types/navigation';
 import './src/utils/consoleFilter';
 import imageCache from './src/utils/imageCache';
+import { OneSignal } from 'react-native-onesignal';
+
+// Initialize OneSignal
+OneSignal.initialize('81e99d4e-f1a5-4b3a-b4f6-94345f06e158');
+OneSignal.Notifications.requestPermission(true);
 
 // Preload profile components at app startup to avoid delay when navigating
 // These imports force immediate loading instead of lazy loading
