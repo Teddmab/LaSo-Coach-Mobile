@@ -27,6 +27,9 @@
       "config": {
         "usesNonExemptEncryption": false
       },
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "SKAdNetworkItems": [],
         "CFBundleIconName": "AppIcon",
@@ -99,6 +102,10 @@
       },
       "eas": {
         "projectId": "f509eb43-52af-44a9-b7f0-e8a7179a0aa3"
+      },
+      "onesignal": {
+        "appIdAndroid": "85b6a1dc-5ec6-46b3-8e78-9df1bb2422f3",
+        "appIdIos": "42fea0e5-c168-48c5-bfd9-beaded8233f1"
       }
     },
     "owner": "ohriginal-llc",

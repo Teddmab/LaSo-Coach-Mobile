@@ -34,6 +34,10 @@ import chatSocketService from '../services/chatSocketService';
 // Firebase is only needed for FCM on Android, but Expo handles this internally
 import { useAuth } from './FirebaseAuthContext';
 import { translateNotificationTitle, translateNotificationMessage } from '../screens/notifications/utils/notificationUtils';
+import {
+  logoutOneSignalUser,
+  syncOneSignalExternalUser,
+} from '../services/onesignal';
 
 const STORAGE_EXPO_PUSH_TOKEN = 'expoPushToken';
 /** Dernière empreinte (version|build) pour laquelle register-token a réussi */
@@ -743,9 +747,25 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     } else if (!isAuthenticated && authInitializedRef.current) {
       // User logged out - unregister push token
       authInitializedRef.current = false;
+      logoutOneSignalUser();
       unregisterPushToken();
     }
   }, [authReady, isAuthenticated]);
+
+  // OneSignal : même external_id que le userId backend (ciblage API include_aliases.external_id)
+  useEffect(() => {
+    if (!authReady || !isAuthenticated || !user) {
+      return;
+    }
+    const uid =
+      (user as { id?: string }).id ||
+      (user as { uid?: string }).uid ||
+      (user as { userId?: string }).userId ||
+      '';
+    if (uid) {
+      syncOneSignalExternalUser(String(uid));
+    }
+  }, [authReady, isAuthenticated, user]);
 
   // Test function to manually trigger a notification
   const testNotification = async (): Promise<void> => {

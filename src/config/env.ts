@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import {
   API_BASE_URL,
   API_BASE_URL_DEV,
@@ -140,6 +141,20 @@ const Config = {
   // App Configuration
   APP_NAME: APP_NAME || Constants.expoConfig?.name || 'LasoCoach',
   APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.1.4',
+
+  /** OneSignal App ID actif pour cette plateforme (extra.onesignal.appIdIos / appIdAndroid ou appId legacy) */
+  ONESIGNAL_APP_ID: (() => {
+    const o = Constants.expoConfig?.extra?.onesignal as
+      | { appId?: string; appIdIos?: string; appIdAndroid?: string }
+      | undefined;
+    const legacy = typeof o?.appId === 'string' ? o.appId.trim() : '';
+    const ios = typeof o?.appIdIos === 'string' ? o.appIdIos.trim() : '';
+    const android = typeof o?.appIdAndroid === 'string' ? o.appIdAndroid.trim() : '';
+    if (Platform.OS === 'ios') {
+      return ios || legacy;
+    }
+    return android || legacy;
+  })(),
   
   // Debug Configuration
   DEBUG_MODE:

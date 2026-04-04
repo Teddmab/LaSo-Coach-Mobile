@@ -13,7 +13,7 @@ import { AppDataCacheProvider } from './src/context/AppDataCacheContext';
 // TODO: PHASE 4 - Import companion mode guard
 import { isIOSCompanionMode } from './src/config/featureFlags';
 import { initializeTokenManager } from './src/services/api';
-import Config from './src/config/env';
+import { initializeOneSignal } from './src/services/onesignal';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
@@ -270,6 +270,7 @@ export default function App() {
   // This ensures AsyncStorage is ready before any API requests
   useEffect(() => {
     try {
+      initializeOneSignal();
       initializeTokenManager();
       
       // Stripe/payment infrastructure removed - using backend entitlements for feature gating

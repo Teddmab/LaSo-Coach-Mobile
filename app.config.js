@@ -21,7 +21,14 @@ const {
   OFFLINE_MODE,
   NODE_ENV,
   STRIPE_PUBLISHABLE_KEY,
+  ONESIGNAL_APP_ID,
+  ONESIGNAL_APP_ID_IOS,
+  ONESIGNAL_APP_ID_ANDROID,
 } = process.env;
+
+/** App IDs OneSignal — Android / iOS (même clé si un seul projet multi-plateformes : utiliser ONESIGNAL_APP_ID). */
+const DEFAULT_ONESIGNAL_APP_ID_ANDROID = '85b6a1dc-5ec6-46b3-8e78-9df1bb2422f3';
+const DEFAULT_ONESIGNAL_APP_ID_IOS = '42fea0e5-c168-48c5-bfd9-beaded8233f1';
 
 const DEFAULT_FIREBASE = {
   apiKey: 'AIzaSyDubBwQF27OUZyOMhzmNpIizw2D4dHxzO0',
@@ -47,6 +54,31 @@ const DEFAULT_ENV = {
   offlineMode: 'false',
 };
 
+/** Si ONESIGNAL_APP_ID est défini, il s’applique aux deux plateformes. Sinon IDs séparés. */
+const resolvedOnesignalAppIdIos =
+  ONESIGNAL_APP_ID || ONESIGNAL_APP_ID_IOS || DEFAULT_ONESIGNAL_APP_ID_IOS;
+const resolvedOnesignalAppIdAndroid =
+  ONESIGNAL_APP_ID || ONESIGNAL_APP_ID_ANDROID || DEFAULT_ONESIGNAL_APP_ID_ANDROID;
+const oneSignalPluginMode =
+  NODE_ENV === 'production' ? 'production' : 'development';
+
+/** Projet EAS — toujours présent dans extra (évite projectId absent hors build EAS). */
+const DEFAULT_EAS_PROJECT_ID = 'f509eb43-52af-44a9-b7f0-e8a7179a0aa3';
+
+/**
+ * APNs : l’entitlement aps-environment doit être présent sur l’IPA (souvent oublié en bare workflow).
+ * - production : App Store / TestFlight / profils « distribution »
+ * - development : dev client / certificats dev
+ * Surcharge : IOS_APS_ENVIRONMENT=production|development
+ */
+const iosApsEnvironment =
+  process.env.IOS_APS_ENVIRONMENT ||
+  (['production', 'preview', 'store'].includes(
+    String(process.env.EAS_BUILD_PROFILE || '')
+  ) || NODE_ENV === 'production'
+    ? 'production'
+    : 'development');
+
 export default ({ config }) => ({
   ...appJson,
   expo: {
@@ -54,6 +86,18 @@ export default ({ config }) => ({
     ...config,
     name: APP_NAME || appJson.expo.name,
     version: APP_VERSION || appJson.expo.version,
+    ios: {
+      ...(appJson.expo.ios ?? {}),
+      entitlements: {
+        ...(appJson.expo.ios?.entitlements ?? {}),
+        'aps-environment': iosApsEnvironment,
+      },
+    },
+    /** Le plugin OneSignal doit rester en tête (recommandation OneSignal / Expo). */
+    plugins: [
+      ['onesignal-expo-plugin', { mode: oneSignalPluginMode }],
+      ...(appJson.expo.plugins ?? []),
+    ],
     extra: {
       ...(appJson.expo.extra ?? {}),
       env: {
@@ -86,6 +130,17 @@ export default ({ config }) => ({
         androidClientId:
           FIREBASE_ANDROID_CLIENT_ID || DEFAULT_FIREBASE.androidClientId,
         webClientId: FIREBASE_WEB_CLIENT_ID || DEFAULT_FIREBASE.webClientId,
+      },
+      onesignal: {
+        appIdIos: resolvedOnesignalAppIdIos,
+        appIdAndroid: resolvedOnesignalAppIdAndroid,
+      },
+      /** Repris explicitement pour getExpoPushTokenAsync / Constants.expoConfig.extra.eas.projectId */
+      eas: {
+        projectId:
+          process.env.EAS_PROJECT_ID ||
+          appJson.expo.extra?.eas?.projectId ||
+          DEFAULT_EAS_PROJECT_ID,
       },
     },
   },
