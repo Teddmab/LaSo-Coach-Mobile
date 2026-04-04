@@ -99,4 +99,6 @@ client_secret_*.json
 # Google Service Account (SECURITY - DO NOT COMMIT)
 google-service-account.json
 *service-account*.json
-.env.local
+
+# Documentation files
+docs/

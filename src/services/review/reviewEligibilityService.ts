@@ -31,13 +31,13 @@ const emptyState = (): ReviewEligibilityPersisted => ({
 });
 
 export const REVIEW_RULES = {
-  MIN_CORE_ACTIONS: 3,
-  MIN_ACTIVE_DAYS: 2,
+  MIN_CORE_ACTIONS: 6,
+  MIN_ACTIVE_DAYS: 5,
   /** Entre deux affichages du prompt (sentiment) */
   PROMPT_COOLDOWN_MS: 90 * 24 * 60 * 60 * 1000,
   /** Après fermeture / refus sans aller au store */
-  DISMISS_COOLDOWN_MS: 14 * 24 * 60 * 60 * 1000,
-  AUTH_GRACE_MS: 5 * 60 * 1000,
+  DISMISS_COOLDOWN_MS: 21 * 24 * 60 * 60 * 1000,
+  AUTH_GRACE_MS: 30 * 60 * 1000,
   ONBOARDING_GRACE_MS: 60 * 60 * 1000,
   PAYMENT_FAILURE_BLOCK_MS: 3 * 24 * 60 * 60 * 1000,
   COMPLAINT_BLOCK_MS: 7 * 24 * 60 * 60 * 1000,

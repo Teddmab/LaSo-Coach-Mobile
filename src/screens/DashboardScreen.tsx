@@ -426,12 +426,12 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       tabId,
       currentScreen,
       activeTab,
-      isOnOverlay: currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen)
+      isOnOverlay: currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements', 'defis'].includes(currentScreen)
     });
-    
+
     // Si on est sur un overlay et on clique sur un tab du bottom navigation
-    const isOnOverlay = currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen);
-    const isBottomNavTab = ['home', 'progress', 'nutrition', 'achievements', 'more'].includes(tabId);
+    const isOnOverlay = currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements', 'defis'].includes(currentScreen);
+    const isBottomNavTab = ['home', 'progress', 'nutrition', 'achievements', 'defis', 'more'].includes(tabId);
     
     if (isOnOverlay && isBottomNavTab && tabId !== 'more') {
       console.log('✅ [DashboardScreen] Fermeture de l\'overlay avant changement de tab');
@@ -1014,6 +1014,36 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
           />
         </FixedLayout>
         <MoreMenu 
+          visible={showMoreMenu}
+          onClose={handleMoreMenuClose}
+          onMenuItemPress={handleMoreMenuItemPress}
+        />
+        {reviewPromptEl}
+      </>
+    );
+  }
+
+  if (activeTab === 'defis') {
+    return (
+      <>
+        <FixedLayout
+          headerTitle="Défis"
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+          onHelpPress={() => navigateOverlay('FAQ')}
+          onNotificationPress={() => navigateOverlay('Notifications')}
+          onProfilePress={() => navigateOverlay('Settings')}
+          avatarSource={avatarData.avatarSource}
+          avatarFallbackText={avatarData.avatarFallbackText}
+        >
+          <DefisScreen
+            user={user}
+            onTabPress={handleTabPress}
+            activeTab={activeTab}
+            onSubscriptionRenew={handleSubscriptionRenew}
+          />
+        </FixedLayout>
+        <MoreMenu
           visible={showMoreMenu}
           onClose={handleMoreMenuClose}
           onMenuItemPress={handleMoreMenuItemPress}

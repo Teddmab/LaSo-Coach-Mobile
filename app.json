@@ -110,13 +110,20 @@
     },
     "owner": "ohriginal-llc",
     "plugins": [
+      "expo-dev-client",
       "expo-web-browser",
       "./plugins/withFirebaseConfig.js",
       "./plugins/withPreserveIcons.js",
       "./plugins/withIOSCrashFix.js",
       "./plugins/withFixMacOSSupport.js",
       "./plugins/withPermissionStrings.js",
-      "./plugins/withCocoaPodsGitSource.js"
+      "./plugins/withCocoaPodsGitSource.js",
+      [
+        "onesignal-expo-plugin",
+        {
+          "mode": "production"
+        }
+      ]
     ]
   }
 }

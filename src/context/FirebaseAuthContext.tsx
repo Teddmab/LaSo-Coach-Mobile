@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react';
 import { AppState } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { OneSignal } from 'react-native-onesignal';
 import type { 
   AuthContextType, 
   User, 
@@ -197,12 +198,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             dispatch({ type: AUTH_ACTIONS.SET_USER, payload: user });
             savePersistedUser(user); // persist snapshot
             
+            // Set OneSignal external user ID for push targeting
+            const externalId = user.id || user.uid;
+            if (externalId) {
+              OneSignal.login(externalId);
+            }
+            
             // Event Trigger 1: After auth success - Enregistrer l'appareil
             // (Déjà fait dans firebaseAuthServiceNew.js, mais on le fait aussi ici pour être sûr)
             deviceApi.registerDevice().catch((error: any) => {
             });
           } else {
             clearPersistedUser();
+            OneSignal.logout();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
           }
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
@@ -458,6 +466,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async (): Promise<void> => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
+
+      // Remove OneSignal external user ID before logout
+      OneSignal.logout();
 
       await firebaseAuthService.logout();
 

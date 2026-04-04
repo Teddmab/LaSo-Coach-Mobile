@@ -89,22 +89,15 @@ const setupNotificationHandler = () => {
     
     notifications.setNotificationHandler({
       handleNotification: async (notification: any): Promise<any> => {
-        // Traduire le titre et le corps de la notification en français
-        const title = notification.request.content.title;
-        const body = notification.request.content.body;
-        
-        const translatedTitle = translateNotificationTitle(title);
-        const translatedBody = translateNotificationMessage(body);
-        
-        // Retourner la notification traduite
+        // setNotificationHandler only runs when the app is in the FOREGROUND.
+        // In background/closed states, the OS delivers the push directly without calling this.
+        // Since the WebSocket already shows the notification when the app is open,
+        // we suppress the push banner here to avoid duplicates.
         return {
-          shouldPlaySound: true,
+          shouldPlaySound: false,
           shouldSetBadge: true,
-          shouldShowBanner: true,
-          shouldShowList: true,
-          // Optionnel : modifier le contenu affiché (si supporté)
-          // Note: Expo peut ne pas supporter la modification du contenu ici
-          // La traduction sera faite dans les listeners
+          shouldShowBanner: false,
+          shouldShowList: false,
         };
       },
     });

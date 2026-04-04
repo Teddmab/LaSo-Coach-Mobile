@@ -7,6 +7,8 @@ import api from '../../../services/api';
 import { API_CONFIG } from '../../../config/apiConfig';
 import SubscriptionService from '../../../services/subscriptionService';
 import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
+import { reviewEligibilityService } from '../../../services/review/reviewEligibilityService';
+import { reviewEngagementBridge } from '../../../utils/reviewEngagementBridge';
 import {
   Badge,
   BadgeSummary,
@@ -90,6 +92,9 @@ export const useDefisScreen = (onSubscriptionRenew?: () => void) => {
       fetchBadges();
       
       if (data.pointsAdded && data.pointsAdded > 0) {
+        void reviewEligibilityService.recordCoreAction();
+        reviewEngagementBridge.notify();
+
         setFloatingPointsData({
           points: `+${data.pointsAdded}`,
           reason: data.reason || 'Points gagnés',
