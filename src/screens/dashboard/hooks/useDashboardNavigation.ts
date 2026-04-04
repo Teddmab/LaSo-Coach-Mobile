@@ -126,7 +126,11 @@ export const useDashboardNavigation = (navigateOverlay?: (screenName: string, pa
   useEffect(() => {
     if (currentScreen === 'home' && !activeTab) {
       setActiveTab('home');
-    } else if (currentScreen !== 'home' && !['home', 'progress', 'nutrition', 'achievements'].includes(currentScreen) && activeTab) {
+    } else if (
+      currentScreen !== 'home' &&
+      !['home', 'progress', 'nutrition', 'achievements', 'defis'].includes(currentScreen) &&
+      activeTab
+    ) {
       // ✅ Si on est sur un overlay (pas un tab de navigation), s'assurer que activeTab est vide
       setActiveTab('');
     }

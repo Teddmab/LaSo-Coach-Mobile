@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, ReactNode } from 'react';
 import { AppState } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { OneSignal } from 'react-native-onesignal';
+import { logoutOneSignalUser, syncOneSignalExternalUser } from '../services/onesignal';
 import type { 
   AuthContextType, 
   User, 
@@ -201,7 +201,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Set OneSignal external user ID for push targeting
             const externalId = user.id || user.uid;
             if (externalId) {
-              OneSignal.login(externalId);
+              syncOneSignalExternalUser(String(externalId));
             }
             
             // Event Trigger 1: After auth success - Enregistrer l'appareil
@@ -210,7 +210,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             });
           } else {
             clearPersistedUser();
-            OneSignal.logout();
+            logoutOneSignalUser();
             dispatch({ type: AUTH_ACTIONS.LOGOUT });
           }
           dispatch({ type: AUTH_ACTIONS.SET_AUTH_READY, payload: true });
@@ -467,8 +467,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
 
-      // Remove OneSignal external user ID before logout
-      OneSignal.logout();
+      logoutOneSignalUser();
 
       await firebaseAuthService.logout();
 

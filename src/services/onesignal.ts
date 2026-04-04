@@ -1,6 +1,14 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { OneSignal, LogLevel } from 'react-native-onesignal';
+
+/** require() paresseux : évite « module not found » / crash au chargement si natif absent (Expo Go). */
+function loadOneSignalSdk(): typeof import('react-native-onesignal') | null {
+  try {
+    return require('react-native-onesignal');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * App ID OneSignal pour la plateforme courante (Android / iOS peuvent être des projets distincts dans le dashboard).
@@ -37,6 +45,16 @@ export function initializeOneSignal(): void {
     return;
   }
 
+  const sdk = loadOneSignalSdk();
+  if (!sdk) {
+    if (__DEV__) {
+      console.warn(
+        '[OneSignal] Module react-native-onesignal introuvable — utilise un dev client / build EAS (pas Expo Go).'
+      );
+    }
+    return;
+  }
+  const { OneSignal, LogLevel } = sdk;
   try {
     if (__DEV__) {
       OneSignal.Debug.setLogLevel(LogLevel.Verbose);
@@ -59,16 +77,24 @@ export function syncOneSignalExternalUser(externalId: string): void {
   if (!trimmed) {
     return;
   }
+  const sdk = loadOneSignalSdk();
+  if (!sdk) {
+    return;
+  }
   try {
-    OneSignal.login(trimmed);
+    sdk.OneSignal.login(trimmed);
   } catch (e) {
     console.warn('[OneSignal] login failed:', e);
   }
 }
 
 export function logoutOneSignalUser(): void {
+  const sdk = loadOneSignalSdk();
+  if (!sdk) {
+    return;
+  }
   try {
-    OneSignal.logout();
+    sdk.OneSignal.logout();
   } catch (e) {
     console.warn('[OneSignal] logout failed:', e);
   }

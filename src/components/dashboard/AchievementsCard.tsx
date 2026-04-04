@@ -126,7 +126,7 @@ const AchievementsCard: React.FC<AchievementsCardProps> = ({
     onPress?.();
   };
 
-  /** CTA « Voir les défis » : toujours ouvrir Réalisations, sans bloquer sur l’abonnement */
+  /** CTA « Voir les défis » : ouvrir l’onglet Réalisations (le parent passe onTabPress('achievements')). */
   const handleChallengesPress = () => {
     onPress?.();
   };

@@ -1,18 +1,8 @@
 // IMPORTANT: Import firebaseApp FIRST to ensure proper initialization order
 import { getFirebaseAuth, isCompatAuth } from '../config/firebaseApp';
 import { API_CONFIG } from '../config/apiConfig';
-// Import api - utiliser require pour éviter les dépendances circulaires
-// api.ts importe firebaseAuthServiceNew, donc on doit utiliser require() pour l'import dynamique
-let api: any;
-try {
-  // Utiliser require() pour éviter les dépendances circulaires
-  const apiModule = require('./api');
-  api = apiModule.default || apiModule;
-} catch (error: any) {
-  console.error('❌ [FirebaseAuthService] Erreur lors de l\'import de api:', error?.message);
-  // En cas d'échec, api sera null et sera vérifié dans le constructeur
-  api = null;
-}
+// Ne jamais require('./api') au chargement du module : api.ts require ce fichier en premier ;
+// un require circulaire ici laissait default undefined → « API instance non disponible ».
 // Import Firebase auth functions AFTER our config is initialized
 // Use compat fallback to avoid component registration issues in Expo Go; require modular funcs only when available.
 import firebaseCompat from 'firebase/compat/app';
@@ -34,28 +24,8 @@ class FirebaseAuthService {
     this.authInitPromise = null;
     this._authStateListenerAttached = false; // Track if we've attached the Firebase onAuthStateChanged listener
     
-    // Log which API endpoint is being used
-    
-    // Use the shared API instance that automatically includes Firebase ID tokens
-    // Vérifier que api est bien défini avant de l'assigner
-    // Note: api peut être null si l'import a échoué (dépendance circulaire)
-    // On initialise backendApi de manière lazy pour éviter les problèmes de dépendance circulaire
-    try {
-      if (api && typeof api.post === 'function') {
-    this.backendApi = api;
-      } else {
-        // Si api n'est pas disponible, on essaie de le charger dynamiquement
-        const apiModule = require('./api');
-        this.backendApi = apiModule.default || apiModule;
-        if (!this.backendApi || typeof this.backendApi.post !== 'function') {
-          console.error('❌ [FirebaseAuthService] API instance non disponible après chargement dynamique');
-          this.backendApi = null;
-        }
-      }
-    } catch (error: any) {
-      console.error('❌ [FirebaseAuthService] Erreur lors de l\'initialisation de backendApi:', error?.message);
-      this.backendApi = null;
-    }
+    // backendApi : uniquement via _ensureBackendApi() après résolution complète du module api
+    this.backendApi = null;
 
     // Initialize Firebase Auth asynchronously
     // With simplified getAuth init, we attempt to capture the instance immediately.
@@ -201,18 +171,23 @@ class FirebaseAuthService {
     if (this.backendApi && typeof this.backendApi.post === 'function') {
       return true;
     }
-    
-    // Essayer de charger l'API dynamiquement
+
     try {
       const apiModule = require('./api');
-      this.backendApi = apiModule.default || apiModule;
-      if (this.backendApi && typeof this.backendApi.post === 'function') {
+      const inst = apiModule.default ?? apiModule;
+      if (inst && typeof inst.post === 'function') {
+        this.backendApi = inst;
         return true;
+      }
+      if (__DEV__) {
+        console.warn(
+          '⚠️ [FirebaseAuthService] Module api chargé mais instance axios invalide — hot reload ou cycle résiduel.'
+        );
       }
     } catch (error: any) {
       console.error('❌ [FirebaseAuthService] Impossible de charger backendApi:', error?.message);
     }
-    
+
     return false;
   }
 
@@ -893,6 +868,9 @@ class FirebaseAuthService {
    */
   async sendPasswordResetEmail(email) {
     try {
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
       const endpoint = API_CONFIG.endpoints.auth.forgotPassword.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
       await this.backendApi.post(`/${endpoint}`, {
         email: email.toLowerCase().trim(),
@@ -907,6 +885,9 @@ class FirebaseAuthService {
    */
   async verifyPasswordResetToken(token) {
     try {
+      if (!this._ensureBackendApi()) {
+        throw new Error('Service API non disponible. Veuillez réessayer.');
+      }
       const endpoint = API_CONFIG.endpoints.auth.verifyResetToken.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
       const response = await this.backendApi.post(`/${endpoint}`, { token });
       return response.data;
@@ -968,6 +949,9 @@ class FirebaseAuthService {
       // 1. Delete account on backend first (atomic operation)
       console.log('📡 Deleting user account from backend...');
       try {
+        if (!this._ensureBackendApi()) {
+          throw new Error('Service API non disponible. Veuillez réessayer.');
+        }
         const endpoint = API_CONFIG.endpoints.profile.delete.replace(API_CONFIG.BASE_URL, '').replace(/^\/+/, '');
         await this.backendApi.delete(`/${endpoint}`);
         console.log('✅ Backend account deleted');

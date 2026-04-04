@@ -230,7 +230,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       <AchievementsCard
         key={achievementsData?.fetchedAt || 'initial'}
         badgesData={mergedAchievementsData}
-        onPress={() => onTabPress('defis')}
+        onPress={() => onTabPress('achievements')}
         subscriptionData={subscriptionData}
         onSubscriptionRenew={onSubscriptionRenew}
       />
