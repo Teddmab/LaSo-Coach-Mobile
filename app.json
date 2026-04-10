@@ -72,7 +72,7 @@
       "favicon": "./assets/favicon.png"
     },
     "notification": {
-      "icon": "./assets/icon.png",
+      "icon": "./assets/android-notification/ic_stat_onesignal_source.png",
       "color": "#8BC34A",
       "iosDisplayInForeground": true,
       "androidMode": "default",
@@ -117,13 +117,7 @@
       "./plugins/withIOSCrashFix.js",
       "./plugins/withFixMacOSSupport.js",
       "./plugins/withPermissionStrings.js",
-      "./plugins/withCocoaPodsGitSource.js",
-      [
-        "onesignal-expo-plugin",
-        {
-          "mode": "production"
-        }
-      ]
+      "./plugins/withCocoaPodsGitSource.js"
     ]
   }
 }

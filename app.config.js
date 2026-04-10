@@ -95,8 +95,22 @@ export default ({ config }) => ({
     },
     /** Le plugin OneSignal doit rester en tête (recommandation OneSignal / Expo). */
     plugins: [
-      ['onesignal-expo-plugin', { mode: oneSignalPluginMode }],
-      ...(appJson.expo.plugins ?? []),
+      [
+        'onesignal-expo-plugin',
+        {
+          mode: oneSignalPluginMode,
+          /** Icône status bar Android (blanc + transparence, source 96×96) → génère ic_stat_onesignal_default */
+          smallIcons: ['./assets/android-notification/ic_stat_onesignal_source.png'],
+          smallIconAccentColor: '#8BC34A',
+        },
+      ],
+      ...(appJson.expo.plugins ?? []).filter(
+        (p) =>
+          !(
+            Array.isArray(p) &&
+            p[0] === 'onesignal-expo-plugin'
+          ) && p !== 'onesignal-expo-plugin'
+      ),
     ],
     extra: {
       ...(appJson.expo.extra ?? {}),

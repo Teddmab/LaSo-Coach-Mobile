@@ -84,6 +84,9 @@ secure-keys/
 .env
 .env.local
 
+# Fichiers locaux avec clés API (ne pas versionner)
+onsignal.txt
+
 # Google Cloud / Firebase Service Account Keys
 *.json
 !app.json
