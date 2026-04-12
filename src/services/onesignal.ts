@@ -1,8 +1,23 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-/** require() paresseux : évite « module not found » / crash au chargement si natif absent (Expo Go). */
+/**
+ * Expo Go n’embarque pas les libs natives tierces : le JS de react-native-onesignal
+ * appelle TurboModuleRegistry.getEnforcing('OneSignal') au require() → erreur fatale
+ * si on charge le package. Il faut un dev client (`expo run:ios`) ou un build EAS.
+ */
+function isRunningInExpoGo(): boolean {
+  return Constants.appOwnership === 'expo';
+}
+
+/** require() paresseux : ne jamais charger le SDK sous Expo Go / hors mobile. */
 function loadOneSignalSdk(): typeof import('react-native-onesignal') | null {
+  if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+    return null;
+  }
+  if (isRunningInExpoGo()) {
+    return null;
+  }
   try {
     return require('react-native-onesignal');
   } catch {
@@ -48,9 +63,15 @@ export function initializeOneSignal(): void {
   const sdk = loadOneSignalSdk();
   if (!sdk) {
     if (__DEV__) {
-      console.warn(
-        '[OneSignal] Module react-native-onesignal introuvable — utilise un dev client / build EAS (pas Expo Go).'
-      );
+      if (isRunningInExpoGo()) {
+        console.warn(
+          '[OneSignal] Désactivé sous Expo Go (pas de module natif). Pour tester OneSignal : npx expo run:ios ou un build dev EAS.'
+        );
+      } else {
+        console.warn(
+          '[OneSignal] Module react-native-onesignal introuvable — rebuild le dev client / IPA (prebuild + plugin OneSignal).'
+        );
+      }
     }
     return;
   }
