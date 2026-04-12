@@ -80,7 +80,7 @@ export const initSentry = () => {
       initialScope: {
         tags: {
           platform: Constants.expoConfig?.ios ? 'ios' : 'android',
-          app_version: Constants.expoConfig?.version || '1.1.4',
+          app_version: Constants.expoConfig?.version || '1.1.5',
         },
       },
       

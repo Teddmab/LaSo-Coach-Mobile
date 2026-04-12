@@ -103,7 +103,7 @@ android {
         minSdkVersion 24
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 16
-        versionName "1.1.4"
+        versionName "1.1.5"
         
         // react-native-iap removed - no longer needed
     }

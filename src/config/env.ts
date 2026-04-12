@@ -140,7 +140,7 @@ const Config = {
   
   // App Configuration
   APP_NAME: APP_NAME || Constants.expoConfig?.name || 'LasoCoach',
-  APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.1.4',
+  APP_VERSION: APP_VERSION || Constants.expoConfig?.version || '1.1.5',
 
   /** OneSignal App ID actif pour cette plateforme (extra.onesignal.appIdIos / appIdAndroid ou appId legacy) */
   ONESIGNAL_APP_ID: (() => {
