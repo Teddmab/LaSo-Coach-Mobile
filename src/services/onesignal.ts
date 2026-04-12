@@ -46,6 +46,45 @@ let initialized = false;
 let lastLoggedInExternalId = '';
 
 /**
+ * Instant où OneSignal a fini sa phase « critique » (ou a été ignoré : pas d’app id / pas de SDK).
+ * Sert à espacer **expo-notifications** pour éviter les conflits natifs au cold start.
+ */
+let oneSignalNativeGateEpochMs: number | null = null;
+
+function signalOneSignalGateForExpoPush(): void {
+  oneSignalNativeGateEpochMs = Date.now();
+}
+
+/**
+ * Attend au moins `minGapMs` après le signal OneSignal avant de toucher à expo-notifications.
+ * Si le signal n’arrive pas (anomalie), abandonne après `maxWaitMs`.
+ */
+export async function waitForMinDelayAfterOneSignalInit(options?: {
+  minGapMs?: number;
+  maxWaitMs?: number;
+  pollMs?: number;
+}): Promise<void> {
+  const defaultGap =
+    Platform.OS === 'ios' && !__DEV__ ? 4800 : Platform.OS === 'android' && !__DEV__ ? 3200 : 1200;
+  const minGapMs = options?.minGapMs ?? defaultGap;
+  const maxWaitMs = options?.maxWaitMs ?? 25000;
+  const pollMs = options?.pollMs ?? 100;
+  const deadline = Date.now() + maxWaitMs;
+
+  while (Date.now() < deadline) {
+    if (oneSignalNativeGateEpochMs === null) {
+      await new Promise<void>((r) => setTimeout(r, pollMs));
+      continue;
+    }
+    const elapsed = Date.now() - oneSignalNativeGateEpochMs;
+    if (elapsed >= minGapMs) {
+      return;
+    }
+    await new Promise<void>((r) => setTimeout(r, Math.min(minGapMs - elapsed, pollMs)));
+  }
+}
+
+/**
  * Initialise le SDK OneSignal. Nécessite un dev client / build native (pas Expo Go).
  * À appeler une seule fois au démarrage de l’app.
  */
@@ -60,6 +99,7 @@ export function initializeOneSignal(): void {
       if (__DEV__) {
         console.warn('[OneSignal] extra.onesignal.appId manquant — vérifie app.config.js / app.json');
       }
+      signalOneSignalGateForExpoPush();
       return;
     }
 
@@ -76,6 +116,7 @@ export function initializeOneSignal(): void {
           );
         }
       }
+      signalOneSignalGateForExpoPush();
       return;
     }
     const { OneSignal, LogLevel } = sdk;
@@ -85,7 +126,8 @@ export function initializeOneSignal(): void {
       }
       OneSignal.initialize(appId);
       initialized = true;
-      // Court délai en release après initialize() pour stabiliser le bridge natif
+      signalOneSignalGateForExpoPush();
+      // Après le signal : permission OneSignal un peu plus tard (ne pas empiler avec la 1re phase Expo)
       setTimeout(() => {
         try {
           void OneSignal.Notifications.requestPermission(false).catch(() => {
@@ -94,12 +136,14 @@ export function initializeOneSignal(): void {
         } catch {
           /* ignore */
         }
-      }, __DEV__ ? 0 : 250);
+      }, __DEV__ ? 0 : 400);
     } catch (e) {
       console.warn('[OneSignal] Échec initialisation:', e);
+      signalOneSignalGateForExpoPush();
     }
   } catch (e) {
     console.warn('[OneSignal] Erreur inattendue au démarrage:', e);
+    signalOneSignalGateForExpoPush();
   }
 }
 

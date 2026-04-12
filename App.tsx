@@ -275,8 +275,8 @@ export default function App() {
     return (screenHeight * 0.2) - (toastContentHeight / 2) - toastMarginTop;
   }, [screenHeight]);
   
-  // TokenManager tout de suite ; OneSignal après le 1er frame + court délai en release
-  // (Expo Push désactivé — délai surtout pour laisser l’UI / auth se stabiliser avant le natif).
+  // OneSignal en premier (court délai après interactions) ; expo-notifications attend ensuite
+  // un écart minimal côté NotificationProvider (`waitForMinDelayAfterOneSignalInit`).
   useEffect(() => {
     try {
       initializeTokenManager();
@@ -296,7 +296,7 @@ export default function App() {
     };
 
     const interactionTask = InteractionManager.runAfterInteractions(() => {
-      const delayMs = __DEV__ ? 0 : 700;
+      const delayMs = __DEV__ ? 0 : 180;
       deferredTimeout = setTimeout(runOneSignal, delayMs);
     });
 

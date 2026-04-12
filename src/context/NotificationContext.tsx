@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { AppState, Platform, InteractionManager } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
 // Lazy load native modules to avoid NativeEventEmitter crash at startup
 let Notifications: any = null;
@@ -41,6 +41,7 @@ import { translateNotificationTitle, translateNotificationMessage } from '../scr
 import {
   logoutOneSignalUser,
   syncOneSignalExternalUser,
+  waitForMinDelayAfterOneSignalInit,
 } from '../services/onesignal';
 
 const STORAGE_EXPO_PUSH_TOKEN = 'expoPushToken';
@@ -170,13 +171,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
     const task = (async (): Promise<boolean> => {
       try {
-        if (Platform.OS === 'ios' && !__DEV__) {
-          await new Promise<void>((resolve) => {
-            InteractionManager.runAfterInteractions(() => {
-              setTimeout(resolve, 700);
-            });
-          });
-        }
+        // OneSignal d’abord (App.tsx) ; ici on attend un écart net avant expo-notifications (iOS release surtout).
+        await waitForMinDelayAfterOneSignalInit();
 
       // Check if device is physical device (Expo Push only works on physical devices)
       const device = getDevice();

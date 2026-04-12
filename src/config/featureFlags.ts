@@ -1,11 +1,10 @@
 import { Platform } from 'react-native';
 
 /**
- * Expo Push (`expo-notifications` + token Expo) : désactivé pour éviter les crashs natifs
- * iOS en parallèle de OneSignal. Les pushes distants passent par **OneSignal** uniquement.
- * L’in-app (liste, badge, toasts) reste géré par WebSocket / API.
+ * Expo Push (`expo-notifications`) : activé. L’initialisation est **étalée après OneSignal**
+ * (voir `waitForMinDelayAfterOneSignalInit` dans `onesignal.ts`) pour limiter les conflits natifs.
  */
-export const ENABLE_EXPO_PUSH_NOTIFICATIONS = false;
+export const ENABLE_EXPO_PUSH_NOTIFICATIONS = true;
 
 /**
  * Feature Flags Configuration
