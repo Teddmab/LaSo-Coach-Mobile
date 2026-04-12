@@ -333,7 +333,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     refreshPushOnForegroundRef.current = () => {
       void initializePushNotifications();
     };
-  });
+  }, []);
 
   // Unregister push token from backend
   const unregisterPushToken = async (): Promise<void> => {

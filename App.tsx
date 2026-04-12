@@ -18,7 +18,16 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import PasswordResetScreen from './src/screens/PasswordResetScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
-import { ActivityIndicator, View, StyleSheet, Linking, BackHandler, Alert, Dimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  View,
+  StyleSheet,
+  Linking,
+  BackHandler,
+  Alert,
+  Dimensions,
+  InteractionManager,
+} from 'react-native';
 import Toast from 'react-native-toast-message';
 import { toastConfig } from './src/config/toastConfig';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -266,22 +275,37 @@ export default function App() {
     return (screenHeight * 0.2) - (toastContentHeight / 2) - toastMarginTop;
   }, [screenHeight]);
   
-  // Initialize TokenManager at app startup
-  // This ensures AsyncStorage is ready before any API requests
+  // TokenManager tout de suite ; OneSignal après le 1er frame + délai en release
+  // (évite courses avec le bridge RN / expo-notifications au cold start — crash TestFlight fréquent).
   useEffect(() => {
     try {
-      initializeOneSignal();
       initializeTokenManager();
-      
-      // Stripe/payment infrastructure removed - using backend entitlements for feature gating
-      // All payment flows are handled via backend, no client-side payment SDKs
-
-      // Profile components are now preloaded via static imports at the top of the file
-      // This ensures they are bundled and ready immediately at app startup
     } catch (error: any) {
-      console.error('❌ [Startup] Error initializing app dependencies:', error);
-      // Don't crash - continue with default values
+      console.error('❌ [Startup] Error initializing TokenManager:', error);
     }
+
+    let cancelled = false;
+    let deferredTimeout: ReturnType<typeof setTimeout> | null = null;
+    const runOneSignal = () => {
+      if (cancelled) return;
+      try {
+        initializeOneSignal();
+      } catch (e: any) {
+        console.error('❌ [Startup] OneSignal:', e?.message ?? e);
+      }
+    };
+
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      const delayMs = __DEV__ ? 0 : 500;
+      deferredTimeout = setTimeout(runOneSignal, delayMs);
+    });
+
+    return () => {
+      cancelled = true;
+      if (deferredTimeout) clearTimeout(deferredTimeout);
+      const cancel = (interactionTask as { cancel?: () => void })?.cancel;
+      if (typeof cancel === 'function') cancel();
+    };
   }, []);
   
   // Payment infrastructure removed - using backend entitlements for feature gating

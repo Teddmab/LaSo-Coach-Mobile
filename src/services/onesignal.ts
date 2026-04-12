@@ -48,45 +48,56 @@ let initialized = false;
  * À appeler une seule fois au démarrage de l’app.
  */
 export function initializeOneSignal(): void {
-  if (initialized) {
-    return;
-  }
-
-  const appId = getOneSignalAppId();
-  if (!appId) {
-    if (__DEV__) {
-      console.warn('[OneSignal] extra.onesignal.appId manquant — vérifie app.config.js / app.json');
-    }
-    return;
-  }
-
-  const sdk = loadOneSignalSdk();
-  if (!sdk) {
-    if (__DEV__) {
-      if (isRunningInExpoGo()) {
-        console.warn(
-          '[OneSignal] Désactivé sous Expo Go (pas de module natif). Pour tester OneSignal : npx expo run:ios ou un build dev EAS.'
-        );
-      } else {
-        console.warn(
-          '[OneSignal] Module react-native-onesignal introuvable — rebuild le dev client / IPA (prebuild + plugin OneSignal).'
-        );
-      }
-    }
-    return;
-  }
-  const { OneSignal, LogLevel } = sdk;
   try {
-    if (__DEV__) {
-      OneSignal.Debug.setLogLevel(LogLevel.Verbose);
+    if (initialized) {
+      return;
     }
-    OneSignal.initialize(appId);
-    initialized = true;
-    void OneSignal.Notifications.requestPermission(false).catch(() => {
-      /* utilisateur peut refuser */
-    });
+
+    const appId = getOneSignalAppId();
+    if (!appId) {
+      if (__DEV__) {
+        console.warn('[OneSignal] extra.onesignal.appId manquant — vérifie app.config.js / app.json');
+      }
+      return;
+    }
+
+    const sdk = loadOneSignalSdk();
+    if (!sdk) {
+      if (__DEV__) {
+        if (isRunningInExpoGo()) {
+          console.warn(
+            '[OneSignal] Désactivé sous Expo Go (pas de module natif). Pour tester OneSignal : npx expo run:ios ou un build dev EAS.'
+          );
+        } else {
+          console.warn(
+            '[OneSignal] Module react-native-onesignal introuvable — rebuild le dev client / IPA (prebuild + plugin OneSignal).'
+          );
+        }
+      }
+      return;
+    }
+    const { OneSignal, LogLevel } = sdk;
+    try {
+      if (__DEV__) {
+        OneSignal.Debug.setLogLevel(LogLevel.Verbose);
+      }
+      OneSignal.initialize(appId);
+      initialized = true;
+      // Décaler la demande d’autorisation pour ne pas empiler avec expo-notifications au démarrage
+      setTimeout(() => {
+        try {
+          void OneSignal.Notifications.requestPermission(false).catch(() => {
+            /* utilisateur peut refuser */
+          });
+        } catch {
+          /* ignore */
+        }
+      }, __DEV__ ? 0 : 300);
+    } catch (e) {
+      console.warn('[OneSignal] Échec initialisation:', e);
+    }
   } catch (e) {
-    console.warn('[OneSignal] Échec initialisation (normal sous Expo Go sans module natif):', e);
+    console.warn('[OneSignal] Erreur inattendue au démarrage:', e);
   }
 }
 
