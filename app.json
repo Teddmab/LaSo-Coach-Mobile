@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.afrotouch.lasocoach",
-      "buildNumber": "39",
+      "buildNumber": "40",
       "version": "1.1.5",
       "associatedDomains": [
         "applinks:app.lasocoach.com"
@@ -35,7 +35,8 @@
         "CFBundleIconName": "AppIcon",
         "NSPhotoLibraryUsageDescription": "Ceci vous permettra de publier vos photos dans l'Agora, suivre votre progression en images, valider des défis ou sélectionner votre avatar.",
         "NSCameraUsageDescription": "Nous avons besoin d'accéder à votre appareil photo pour vous permettre de prendre des photos pour compléter vos défis.",
-        "NSPhotoLibraryAddUsageDescription": "Nous avons besoin de votre permission pour sauvegarder des photos dans votre galerie."
+        "NSPhotoLibraryAddUsageDescription": "Nous avons besoin de votre permission pour sauvegarder des photos dans votre galerie.",
+        "NSLocationWhenInUseUsageDescription": "LasoCoach peut accéder à votre position uniquement pendant que vous utilisez l'application, pour des fonctionnalités liées au coaching ou à des services tiers (cartes, rappels). Vous pouvez refuser : l'app reste utilisable."
       }
     },
     "android": {
