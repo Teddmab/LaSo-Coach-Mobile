@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, InteractionManager } from 'react-native';
 import Constants from 'expo-constants';
 // Lazy load native modules to avoid NativeEventEmitter crash at startup
 let Notifications: any = null;
@@ -130,6 +130,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const { isAuthenticated, authReady, user } = useAuth();
   const authInitializedRef = useRef<boolean>(false); // avoid duplicate fetches when auth state flips quickly
   const isAuthenticatedRef = useRef<boolean>(isAuthenticated);
+  /** Évite deux init Expo Push en parallèle (mount + auth) — courses natives sur iOS release. */
+  const pushInitFlightRef = useRef<Promise<boolean> | null>(null);
   useEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -154,9 +156,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Initialize push notifications
+  // Initialize push notifications (sérialisé + étalement iOS release pour limiter les crashs natifs)
   const initializePushNotifications = async (): Promise<boolean> => {
-    try {
+    if (pushInitFlightRef.current) {
+      return pushInitFlightRef.current;
+    }
+    const task = (async (): Promise<boolean> => {
+      try {
+        if (Platform.OS === 'ios' && !__DEV__) {
+          await new Promise<void>((resolve) => {
+            InteractionManager.runAfterInteractions(() => {
+              setTimeout(resolve, 700);
+            });
+          });
+        }
+
       // Check if device is physical device (Expo Push only works on physical devices)
       const device = getDevice();
       if (!device || !device.isDevice) {
@@ -279,11 +293,16 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         }
         throw tokenError; // Re-throw other errors
       }
-    } catch (error: any) {
-      console.error('❌ [NotificationProvider] Error initializing push notifications:', error);
-      // Don't block app startup if push notifications fail
-      return false;
-    }
+      } catch (error: any) {
+        console.error('❌ [NotificationProvider] Error initializing push notifications:', error);
+        // Don't block app startup if push notifications fail
+        return false;
+      } finally {
+        pushInitFlightRef.current = null;
+      }
+    })();
+    pushInitFlightRef.current = task;
+    return task;
   };
 
   // Register push token with backend — retourne true si l’API a réussi (pour persister l’empreinte app)
@@ -670,7 +689,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       // Do NOT fetch unread count here; wait for authReady
       initializeWebSocket();
     };
-    initialize();
+    void initialize().catch((err: unknown) => {
+      console.error('❌ [NotificationProvider] Échec bootstrap push au montage:', err);
+    });
 
     // Add notification event listeners
     const notifications = getNotifications();

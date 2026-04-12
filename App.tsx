@@ -296,7 +296,9 @@ export default function App() {
     };
 
     const interactionTask = InteractionManager.runAfterInteractions(() => {
-      const delayMs = __DEV__ ? 0 : 500;
+      // Délai plus long en release : le loader disparaît puis Dashboard + Expo Push démarrent ;
+      // chevaucher OneSignal ici provoquait encore des sorties brutales sur TestFlight.
+      const delayMs = __DEV__ ? 0 : 2000;
       deferredTimeout = setTimeout(runOneSignal, delayMs);
     });
 

@@ -92,7 +92,7 @@ export function initializeOneSignal(): void {
         } catch {
           /* ignore */
         }
-      }, __DEV__ ? 0 : 300);
+      }, __DEV__ ? 0 : 1000);
     } catch (e) {
       console.warn('[OneSignal] Échec initialisation:', e);
     }
