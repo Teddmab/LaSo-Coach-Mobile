@@ -1,6 +1,13 @@
 import { Platform } from 'react-native';
 
 /**
+ * Expo Push (`expo-notifications` + token Expo) : désactivé pour éviter les crashs natifs
+ * iOS en parallèle de OneSignal. Les pushes distants passent par **OneSignal** uniquement.
+ * L’in-app (liste, badge, toasts) reste géré par WebSocket / API.
+ */
+export const ENABLE_EXPO_PUSH_NOTIFICATIONS = false;
+
+/**
  * Feature Flags Configuration
  * 
  * IOS_COMPANION_MODE: When enabled on iOS, the app becomes a "companion app"
@@ -72,6 +79,7 @@ export const getCompanionModeMessage = (): string => {
  */
 export const FeatureFlags = {
   IOS_COMPANION_MODE,
+  ENABLE_EXPO_PUSH_NOTIFICATIONS,
   isIOSCompanionMode,
   shouldShowPurchaseFlows,
   shouldInitializePaymentProviders,

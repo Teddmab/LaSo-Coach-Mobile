@@ -42,6 +42,8 @@ export function getOneSignalAppId(): string {
 }
 
 let initialized = false;
+/** Évite les appels répétés à OneSignal.login avec le même external_id. */
+let lastLoggedInExternalId = '';
 
 /**
  * Initialise le SDK OneSignal. Nécessite un dev client / build native (pas Expo Go).
@@ -83,7 +85,7 @@ export function initializeOneSignal(): void {
       }
       OneSignal.initialize(appId);
       initialized = true;
-      // Décaler la demande d’autorisation pour ne pas empiler avec expo-notifications au démarrage
+      // Court délai en release après initialize() pour stabiliser le bridge natif
       setTimeout(() => {
         try {
           void OneSignal.Notifications.requestPermission(false).catch(() => {
@@ -92,7 +94,7 @@ export function initializeOneSignal(): void {
         } catch {
           /* ignore */
         }
-      }, __DEV__ ? 0 : 1000);
+      }, __DEV__ ? 0 : 250);
     } catch (e) {
       console.warn('[OneSignal] Échec initialisation:', e);
     }
@@ -109,18 +111,23 @@ export function syncOneSignalExternalUser(externalId: string): void {
   if (!trimmed) {
     return;
   }
+  if (trimmed === lastLoggedInExternalId) {
+    return;
+  }
   const sdk = loadOneSignalSdk();
   if (!sdk) {
     return;
   }
   try {
     sdk.OneSignal.login(trimmed);
+    lastLoggedInExternalId = trimmed;
   } catch (e) {
     console.warn('[OneSignal] login failed:', e);
   }
 }
 
 export function logoutOneSignalUser(): void {
+  lastLoggedInExternalId = '';
   const sdk = loadOneSignalSdk();
   if (!sdk) {
     return;

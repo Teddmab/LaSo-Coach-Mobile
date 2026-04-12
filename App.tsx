@@ -275,8 +275,8 @@ export default function App() {
     return (screenHeight * 0.2) - (toastContentHeight / 2) - toastMarginTop;
   }, [screenHeight]);
   
-  // TokenManager tout de suite ; OneSignal après le 1er frame + délai en release
-  // (évite courses avec le bridge RN / expo-notifications au cold start — crash TestFlight fréquent).
+  // TokenManager tout de suite ; OneSignal après le 1er frame + court délai en release
+  // (Expo Push désactivé — délai surtout pour laisser l’UI / auth se stabiliser avant le natif).
   useEffect(() => {
     try {
       initializeTokenManager();
@@ -296,9 +296,7 @@ export default function App() {
     };
 
     const interactionTask = InteractionManager.runAfterInteractions(() => {
-      // Délai plus long en release : le loader disparaît puis Dashboard + Expo Push démarrent ;
-      // chevaucher OneSignal ici provoquait encore des sorties brutales sur TestFlight.
-      const delayMs = __DEV__ ? 0 : 2000;
+      const delayMs = __DEV__ ? 0 : 700;
       deferredTimeout = setTimeout(runOneSignal, delayMs);
     });
 

@@ -16,6 +16,9 @@ const getNetInfo = () => {
 };
 
 const getNotifications = () => {
+  if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+    return null;
+  }
   if (!Notifications) {
     try {
       Notifications = require('expo-notifications');
@@ -27,6 +30,7 @@ const getNotifications = () => {
 };
 
 import { useAuth } from './FirebaseAuthContext';
+import { ENABLE_EXPO_PUSH_NOTIFICATIONS } from '../config/featureFlags';
 import chatApi from '../services/chatApi';
 import chatSocketService from '../services/chatSocketService';
 
@@ -397,9 +401,12 @@ export const ChatProvider = ({ children }) => {
       });
       return; // Ne pas afficher de notification pour ses propres messages
     }
+
+    if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+      return;
+    }
     
     try {
-      
       const senderName = message.sender?.name || 
                         message.sender?.firstName || 
                         conversation?.name || 

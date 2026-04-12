@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ENABLE_EXPO_PUSH_NOTIFICATIONS } from '../config/featureFlags';
 
 const STORAGE_DISMISS_MAP = '@laso/reminderBanner/dismissedUntilByKind';
 const COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -74,6 +75,9 @@ async function getNotificationsModule(): Promise<typeof import('expo-notificatio
  * en respectant le cooldown de 3 h par type après « OK ».
  */
 export async function fetchLatestSystemReminder(): Promise<ReminderPick | null> {
+  if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+    return null;
+  }
   const dismissMap = await loadDismissMap();
 
   const Notifications = await getNotificationsModule();

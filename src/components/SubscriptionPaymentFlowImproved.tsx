@@ -18,7 +18,7 @@ import Toast from 'react-native-toast-message';
 import SubscriptionApi from '../services/subscriptionApi';
 import { theme } from '../constants/theme';
 import api from '../services/api';
-import * as Notifications from 'expo-notifications';
+import { ENABLE_EXPO_PUSH_NOTIFICATIONS } from '../config/featureFlags';
 
 // Styles pour StripeWebViewModal (définis avant utilisation)
 const stripeWebViewStyles = StyleSheet.create({
@@ -370,11 +370,14 @@ export default function SubscriptionPaymentFlowImproved({
         }
     };
 
-    // Écouter les notifications de paiement
+    // Écouter les notifications de paiement (Expo Push — désactivé si OneSignal seul)
     useEffect(() => {
+        if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) return;
         if (!depositId || paymentStatus !== 'pending') return;
 
         console.log('🎧 [PaymentFlow] Listening for payment notifications for deposit:', depositId);
+
+        const Notifications = require('expo-notifications') as typeof import('expo-notifications');
 
         const subscription = Notifications.addNotificationReceivedListener(notification => {
             try {

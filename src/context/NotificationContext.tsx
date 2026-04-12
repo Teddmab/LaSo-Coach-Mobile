@@ -6,6 +6,9 @@ let Notifications: any = null;
 let Device: any = null;
 
 const getNotifications = () => {
+  if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+    return null;
+  }
   if (!Notifications) {
     try {
       Notifications = require('expo-notifications');
@@ -33,6 +36,7 @@ import chatSocketService from '../services/chatSocketService';
 // Removed Firebase import - Expo Push Notifications doesn't require Firebase to be initialized
 // Firebase is only needed for FCM on Android, but Expo handles this internally
 import { useAuth } from './FirebaseAuthContext';
+import { ENABLE_EXPO_PUSH_NOTIFICATIONS } from '../config/featureFlags';
 import { translateNotificationTitle, translateNotificationMessage } from '../screens/notifications/utils/notificationUtils';
 import {
   logoutOneSignalUser,
@@ -158,6 +162,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Initialize push notifications (sérialisé + étalement iOS release pour limiter les crashs natifs)
   const initializePushNotifications = async (): Promise<boolean> => {
+    if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+      return true;
+    }
     if (pushInitFlightRef.current) {
       return pushInitFlightRef.current;
     }
@@ -539,6 +546,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // Show local notification
   const showLocalNotification = useCallback(async (notification: Notification): Promise<void> => {
     try {
+      if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+        return;
+      }
       // Skip if notification doesn't have required fields
       if (!notification.title || !notification.message) {
         return;
@@ -663,6 +673,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // Debug function to check notification permissions
   const checkNotificationStatus = async (): Promise<any> => {
     try {
+      if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+        return { disabled: true, platform: Platform.OS };
+      }
       const notifications = getNotifications();
       const device = getDevice();
       if (!notifications || !device) return null;
@@ -682,70 +695,88 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  // Initialize on mount
+  // Initialize on mount (Expo Push optionnel ; WebSocket + cleanup toujours sûrs)
   useEffect(() => {
-    const initialize = async (): Promise<void> => {
-      await initializePushNotifications();
-      // Do NOT fetch unread count here; wait for authReady
-      initializeWebSocket();
-    };
-    void initialize().catch((err: unknown) => {
-      console.error('❌ [NotificationProvider] Échec bootstrap push au montage:', err);
-    });
+    let cancelled = false;
+    let notificationListener: { remove: () => void } | null = null;
+    let responseListener: { remove: () => void } | null = null;
+    let checkSocketInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Add notification event listeners
-    const notifications = getNotifications();
-    if (!notifications) return;
-    
-    // Listener for notifications received when app is in foreground/background
-    const notificationListener = notifications.addNotificationReceivedListener(async (notification: any) => {
-      const originalTitle = notification.request.content.title;
-      const originalBody = notification.request.content.body;
-      
-      // Traduire la notification en français
-      const translatedTitle = translateNotificationTitle(originalTitle);
-      const translatedBody = translateNotificationMessage(originalBody);
-      
-      console.log('📬 [NotificationProvider] Notification received:', {
-        originalTitle,
-        originalBody,
-        translatedTitle,
-        translatedBody,
-        data: notification.request.content.data,
-      });
-      
-      // Note: Les notifications push du backend devraient être envoyées en français
-      // Si elles ne le sont pas, le handler de notification les traduira automatiquement
-      // On ne réaffiche pas la notification ici pour éviter les doublons
-      // La traduction est gérée dans setupNotificationHandler et showLocalNotification
-    });
-    
-    // Listener for when user taps on a notification (app opened from notification)
-    const responseListener = notifications.addNotificationResponseReceivedListener((response: any) => {
-      console.log('👆 [NotificationProvider] Notification tapped:', {
-        title: response.notification.request.content.title,
-        data: response.notification.request.content.data,
-      });
-      
-      handleNotificationResponse(response);
-    });
-
-    // Monitor socket connection status and re-initialize when connected
-    const checkSocketInterval = setInterval(() => {
-      const socket = chatSocketService.getSocket();
-      if (socket && socket.connected && !listenerSetupRef.current) {
+    const bootstrap = async (): Promise<void> => {
+      try {
+        await initializePushNotifications();
+        if (cancelled) return;
         initializeWebSocket();
+
+        if (!ENABLE_EXPO_PUSH_NOTIFICATIONS) {
+          checkSocketInterval = setInterval(() => {
+            const socket = chatSocketService.getSocket();
+            if (socket && socket.connected && !listenerSetupRef.current) {
+              initializeWebSocket();
+            }
+          }, 3000);
+          return;
+        }
+
+        const notifications = getNotifications();
+        if (!notifications || cancelled) {
+          checkSocketInterval = setInterval(() => {
+            const socket = chatSocketService.getSocket();
+            if (socket && socket.connected && !listenerSetupRef.current) {
+              initializeWebSocket();
+            }
+          }, 3000);
+          return;
+        }
+
+        notificationListener = notifications.addNotificationReceivedListener(async (notification: any) => {
+          const originalTitle = notification.request.content.title;
+          const originalBody = notification.request.content.body;
+          const translatedTitle = translateNotificationTitle(originalTitle);
+          const translatedBody = translateNotificationMessage(originalBody);
+          if (__DEV__) {
+            console.log('📬 [NotificationProvider] Notification received:', {
+              originalTitle,
+              originalBody,
+              translatedTitle,
+              translatedBody,
+              data: notification.request.content.data,
+            });
+          }
+        });
+
+        responseListener = notifications.addNotificationResponseReceivedListener((response: any) => {
+          if (__DEV__) {
+            console.log('👆 [NotificationProvider] Notification tapped:', {
+              title: response.notification.request.content.title,
+              data: response.notification.request.content.data,
+            });
+          }
+          handleNotificationResponse(response);
+        });
+
+        checkSocketInterval = setInterval(() => {
+          const socket = chatSocketService.getSocket();
+          if (socket && socket.connected && !listenerSetupRef.current) {
+            initializeWebSocket();
+          }
+        }, 3000);
+      } catch (err: unknown) {
+        console.error('❌ [NotificationProvider] Échec bootstrap au montage:', err);
       }
-    }, 3000);
+    };
+
+    void bootstrap();
 
     return () => {
+      cancelled = true;
       if (notificationUnsubscriberRef.current) {
         notificationUnsubscriberRef.current();
         notificationUnsubscriberRef.current = null;
       }
-      clearInterval(checkSocketInterval);
-      notificationListener.remove();
-      responseListener.remove();
+      if (checkSocketInterval) clearInterval(checkSocketInterval);
+      notificationListener?.remove();
+      responseListener?.remove();
     };
   }, []); // Empty deps - only run on mount/unmount
 
@@ -766,7 +797,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   }, [authReady, isAuthenticated]);
 
-  // OneSignal : même external_id que le userId backend (ciblage API include_aliases.external_id)
+  // OneSignal : même external_id que le userId backend (dédoublonné dans onesignal.ts)
   useEffect(() => {
     if (!authReady || !isAuthenticated || !user) {
       return;
