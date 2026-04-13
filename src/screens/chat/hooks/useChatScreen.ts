@@ -128,6 +128,7 @@ export const useChatScreen = () => {
     handleSendMessage,
     handleConversationPress,
     handleBackPress,
+    openChat: openChat as ((chatId: string) => Promise<void>) | undefined,
   };
 };
 

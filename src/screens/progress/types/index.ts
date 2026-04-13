@@ -47,6 +47,8 @@ export interface ChartDataPoint {
   isInitial: boolean;
   /** Durée d'activité physique en minutes (pour la courbe Activité), fusionnée depuis l'API activités */
   activityMinutes?: number;
+  /** Pour ouvrir la comparaison depuis le graphique */
+  measurementId?: string;
 }
 
 /** Entrée activité physique (API user-settings/activities) */

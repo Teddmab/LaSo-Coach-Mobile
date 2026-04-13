@@ -47,6 +47,9 @@ export const generateChartData = (
     if (key) durationByDateKey[key] = (durationByDateKey[key] || 0) + (a.duration || 0);
   });
 
+  /** Évite deux points « initiale » (profil + entrée API) qui décalent l’index au clic sur le graphique */
+  let addedInitialFromProfile = false;
+
   // Add initial measurement if available
   if (initialMeasurements) {
     const weight = parseFloat(String(initialMeasurements.weight));
@@ -59,8 +62,10 @@ export const generateChartData = (
         waistSize: waistSize,
         notes: 'Mesure initiale',
         isInitial: true,
+        measurementId: 'initial',
         activityMinutes: dateKey ? durationByDateKey[dateKey] : undefined,
       });
+      addedInitialFromProfile = true;
     }
   }
 
@@ -70,11 +75,15 @@ export const generateChartData = (
   );
 
   sortedMeasurements.forEach((measurement) => {
+    if (addedInitialFromProfile && (measurement.isInitial || measurement.id === 'initial')) {
+      return;
+    }
     const weight = parseFloat(String(measurement.weight));
     const waistSize = measurement.waistSize !== null && measurement.waistSize !== undefined
       ? parseFloat(String(measurement.waistSize))
       : null;
     const dateKey = toDateKey(measurement.createdAt || measurement.date);
+    const isInitialRow = !!(measurement.isInitial || measurement.id === 'initial');
 
     if (!isNaN(weight) && weight > 0) {
       chartData.push({
@@ -82,7 +91,8 @@ export const generateChartData = (
         weight: weight,
         waistSize: waistSize !== null && !isNaN(waistSize) ? waistSize : 0,
         notes: measurement.notes || '',
-        isInitial: false,
+        isInitial: isInitialRow,
+        measurementId: measurement.id || (isInitialRow ? 'initial' : undefined),
         activityMinutes: dateKey ? durationByDateKey[dateKey] : undefined,
       });
     }

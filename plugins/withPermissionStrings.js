@@ -60,8 +60,10 @@ module.exports = function withPermissionStrings(config) {
     // Notifications - Post notifications permission (Android 13+)
     'android.permission.POST_NOTIFICATIONS',
     
-    // Photos/Media - Read external storage
+    // Photos/Media - Read external storage (API ≤ 32)
     'android.permission.READ_EXTERNAL_STORAGE',
+    // Android 13+ (API 33+) accès images (galerie / copie hors Photo Picker selon OEM)
+    'android.permission.READ_MEDIA_IMAGES',
     
     // Photos/Media - Write external storage (legacy devices)
     'android.permission.WRITE_EXTERNAL_STORAGE',

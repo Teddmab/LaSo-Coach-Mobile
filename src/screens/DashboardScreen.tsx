@@ -44,6 +44,7 @@ import { useAppDataCache } from '../context/AppDataCacheContext';
 import HomeGuidedTour from '../components/guidedTour/HomeGuidedTour';
 import NouveautesBottomSheet from '../components/nouveautes/NouveautesBottomSheet';
 import { useNouveautes } from '../hooks/useNouveautes';
+import { subscribeNotificationNavigation } from '../services/notificationNavigation';
 
 // Import all screen components (still in .js, will be migrated later)
 import ProgressScreen from './ProgressScreen';
@@ -361,7 +362,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
   const [showCompleteDayModal, setShowCompleteDayModal] = useState<boolean>(false);
   const [selectedMeals, setSelectedMeals] = useState<any[]>([]);
   const [totalPoints, setTotalPoints] = useState<number>(0);
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   // État pour savoir d'où on vient (settings ou security) pour les webviews
   const [webViewSource, setWebViewSource] = useState<string>('settings');
   
@@ -499,6 +499,67 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
       setCurrentScreen(screenValue);
     }
   }, [setCurrentScreen, setActiveTab]);
+
+  useEffect(() => {
+    const sub = subscribeNotificationNavigation(({ raw }) => {
+      const pick = (keys: string[]): string | undefined => {
+        for (const k of keys) {
+          const v = raw[k];
+          if (v == null) continue;
+          const s = String(v).trim();
+          if (s) return s;
+        }
+        return undefined;
+      };
+      const typeRaw = pick(['type', 'notificationType', 'notification_type', 'screen', 'target']) || '';
+      const t = typeRaw.toLowerCase();
+
+      const chatId = pick(['chatId', 'conversationId', 'chat_id', 'conversation_id']);
+      const postId = pick(['postId', 'post_id']);
+
+      const isChatTap =
+        !!chatId ||
+        t.includes('chat') ||
+        typeRaw === 'CHAT_MESSAGE' ||
+        raw.type === 'CHAT_MESSAGE';
+
+      const isCommunityTap =
+        !!postId ||
+        t.includes('community') ||
+        t.includes('agora') ||
+        t === 'post';
+
+      const isAgendaTap =
+        t.includes('session') ||
+        t.includes('agenda') ||
+        t === 'content_assigned';
+
+      const isPaymentTap = t.includes('payment') || t.includes('subscription');
+
+      if (isChatTap) {
+        navigateOverlay('Chat', { initialChatId: chatId ?? null });
+        return;
+      }
+      if (isCommunityTap) {
+        navigateOverlay('Community', { selectedPostId: postId ?? null });
+        return;
+      }
+      if (isAgendaTap) {
+        navigateOverlay('Agenda');
+        return;
+      }
+      if (isPaymentTap) {
+        if (companionMode.isCompanionMode) {
+          navigateOverlay('Notifications');
+          return;
+        }
+        navigateOverlay('Subscription');
+        return;
+      }
+      navigateOverlay('Notifications');
+    });
+    return () => sub.remove();
+  }, [navigateOverlay, companionMode.isCompanionMode]);
   
   // ✅ PHASE 1: Log companion mode status for testing
   useEffect(() => {
@@ -783,8 +844,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     }
     
     // Pour les autres types (posts de communauté), rediriger vers Community
-    setSelectedPostId(post?.id || null);
-    navigateOverlay('Community');
+    navigateOverlay('Community', { selectedPostId: post?.id ?? null });
   };
 
   const handleCommentPress = (postId: string): void => {
@@ -897,7 +957,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
         avatarData={avatarData}
         initialProfileStep={initialProfileStep}
         webViewSource={webViewSource}
-        selectedPostId={selectedPostId}
         onLogout={handleLogout}
         onTabPress={(tabId: string) => {
           if (tabId === 'home') {

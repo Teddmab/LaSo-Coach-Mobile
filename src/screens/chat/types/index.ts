@@ -7,6 +7,8 @@ export interface ChatScreenProps {
   activeTab?: string;
   onClose?: () => void;
   onFAQPress?: () => void;
+  /** Ouverture depuis une notification (deep link) */
+  initialChatId?: string | null;
 }
 
 export interface Message {

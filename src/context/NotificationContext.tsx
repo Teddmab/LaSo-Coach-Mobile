@@ -43,6 +43,7 @@ import {
   syncOneSignalExternalUser,
   waitForMinDelayAfterOneSignalInit,
 } from '../services/onesignal';
+import { emitNotificationNavigationFromPayload } from '../services/notificationNavigation';
 
 const STORAGE_EXPO_PUSH_TOKEN = 'expoPushToken';
 /** Dernière empreinte (version|build) pour laquelle register-token a réussi */
@@ -590,7 +591,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Handle notification response (when user taps on notification)
   const handleNotificationResponse = (response: any): void => {
-    // TODO: Navigate to appropriate screen based on notification data
+    try {
+      const data = response?.notification?.request?.content?.data;
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        emitNotificationNavigationFromPayload({ ...(data as Record<string, unknown>) });
+      }
+    } catch (e) {
+      console.warn('⚠️ [NotificationProvider] handleNotificationResponse:', e);
+    }
   };
 
   // Mark notification as read

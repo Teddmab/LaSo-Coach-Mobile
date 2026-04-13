@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,24 @@ import {
   Platform,
   Image,
   Linking,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { WebView } from 'react-native-webview';
 import { theme } from '../../constants/theme';
 import YoutubePlayer from 'react-native-youtube-iframe';
+import { extractYouTubeVideoId, isLikelyYouTubeUrl } from '../../utils/youtubeUrl';
+import {
+  extractTikTokVideoIdFromUrl,
+  getTikTokEmbedPageUrl,
+  getTikTokOembedData,
+  isTikTokUrl,
+} from '../../utils/socialVideoUrl';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { stripHtmlToPlainText } from '../../utils/stripHtml';
 
 interface NewsDetailBottomSheetProps {
   visible: boolean;
@@ -25,274 +34,6 @@ interface NewsDetailBottomSheetProps {
   onClose: () => void;
   onMarkComplete?: (contentId: string) => Promise<void>;
 }
-
-const { width } = Dimensions.get('window');
-
-const NewsDetailBottomSheet: React.FC<NewsDetailBottomSheetProps> = ({
-  visible,
-  news,
-  onClose,
-  onMarkComplete,
-}) => {
-  const insets = useSafeAreaInsets();
-  const [playing, setPlaying] = useState(false);
-  // ✅ RETIRÉ: marking state car le bouton "Ajouter à mon agenda" a été retiré
-
-  if (!visible || !news) {
-    return null;
-  }
-
-  // Extract YouTube video ID from URL
-  const getYouTubeVideoId = (url: string | undefined): string | null => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-  };
-
-  const videoId = getYouTubeVideoId(news.contentUrl || news.content?.contentUrl);
-  const hasVideo = !!videoId;
-  const thumbnailUrl = news.thumbnailUrl || news.content?.thumbnailUrl;
-  const title = news.title || news.content?.title || 'Actualité';
-  const description = news.description || news.content?.description || '';
-  const author = news.author || news.content?.creator?.name || 'Anonyme';
-  const points = news.points || news.content?.points || 0;
-  const assignedDate = news.assignedDate || news.content?.assignedDate;
-  const formattedDate = assignedDate 
-    ? format(parseISO(assignedDate), 'EEEE dd MMMM yyyy', { locale: fr })
-    : '';
-  const formattedTime = assignedDate
-    ? format(parseISO(assignedDate), 'HH:mm', { locale: fr })
-    : '';
-
-  // ✅ RETIRÉ: handleMarkComplete car le bouton "Ajouter à mon agenda" a été retiré
-
-  const handleOpenLink = async (url: string) => {
-    try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      }
-    } catch (error) {
-      console.error('Error opening link:', error);
-    }
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalContainer}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]} />
-          )}
-        </TouchableOpacity>
-        
-        <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={20} style={styles.blurContainer}>
-              <View style={styles.handle} />
-              
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Actualité</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Content */}
-              <ScrollView
-                style={styles.content}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.contentContainer}
-              >
-                {/* Video/Image */}
-                {hasVideo ? (
-                  <View style={styles.videoContainer}>
-                    <YoutubePlayer
-                      height={220}
-                      videoId={videoId}
-                      play={playing}
-                      onChangeState={(state) => {
-                        if (state === 'playing') setPlaying(true);
-                        if (state === 'paused' || state === 'ended') setPlaying(false);
-                      }}
-                      initialPlayerParams={{
-                        preventFullScreen: false,
-                        cc_lang_pref: 'fr',
-                        showClosedCaptions: true,
-                      }}
-                    />
-                  </View>
-                ) : thumbnailUrl ? (
-                  <Image
-                    source={{ uri: thumbnailUrl }}
-                    style={styles.thumbnail}
-                    resizeMode="cover"
-                  />
-                ) : null}
-
-                {/* Title */}
-                <Text style={styles.title}>{title}</Text>
-
-                {/* Meta Info */}
-                <View style={styles.metaContainer}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="person-outline" size={16} color={theme.colors.text.secondary} />
-                    <Text style={styles.metaText}>{author}</Text>
-                  </View>
-                  {formattedDate && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
-                      <Text style={styles.metaText}>{formattedDate}</Text>
-                    </View>
-                  )}
-                  {formattedTime && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={16} color={theme.colors.text.secondary} />
-                      <Text style={styles.metaText}>{formattedTime}</Text>
-                    </View>
-                  )}
-                  {points > 0 && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={[styles.metaText, styles.pointsText]}>+{points} pts</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Description */}
-                {description && (
-                  <View style={styles.descriptionContainer}>
-                    <Text style={styles.description}>{description}</Text>
-                  </View>
-                )}
-
-                {/* Content URL Link */}
-                {news.contentUrl && !hasVideo && (
-                  <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => handleOpenLink(news.contentUrl)}
-                  >
-                    <Ionicons name="link-outline" size={20} color={theme.colors.primary} />
-                    <Text style={styles.linkText}>Ouvrir le lien</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* ✅ RETIRÉ: Le bouton "Ajouter à mon agenda" car les news sont déjà ajoutées par défaut */}
-              </ScrollView>
-            </BlurView>
-          ) : (
-            <>
-              <View style={styles.handle} />
-              
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Actualité</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={theme.colors.text.primary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Content */}
-              <ScrollView
-                style={styles.content}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.contentContainer}
-              >
-                {/* Video/Image */}
-                {hasVideo ? (
-                  <View style={styles.videoContainer}>
-                    <YoutubePlayer
-                      height={220}
-                      videoId={videoId}
-                      play={playing}
-                      onChangeState={(state) => {
-                        if (state === 'playing') setPlaying(true);
-                        if (state === 'paused' || state === 'ended') setPlaying(false);
-                      }}
-                      initialPlayerParams={{
-                        preventFullScreen: false,
-                        cc_lang_pref: 'fr',
-                        showClosedCaptions: true,
-                      }}
-                    />
-                  </View>
-                ) : thumbnailUrl ? (
-                  <Image
-                    source={{ uri: thumbnailUrl }}
-                    style={styles.thumbnail}
-                    resizeMode="cover"
-                  />
-                ) : null}
-
-                {/* Title */}
-                <Text style={styles.title}>{title}</Text>
-
-                {/* Meta Info */}
-                <View style={styles.metaContainer}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="person-outline" size={16} color={theme.colors.text.secondary} />
-                    <Text style={styles.metaText}>{author}</Text>
-                  </View>
-                  {formattedDate && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
-                      <Text style={styles.metaText}>{formattedDate}</Text>
-                    </View>
-                  )}
-                  {formattedTime && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={16} color={theme.colors.text.secondary} />
-                      <Text style={styles.metaText}>{formattedTime}</Text>
-                    </View>
-                  )}
-                  {points > 0 && (
-                    <View style={styles.metaItem}>
-                      <Ionicons name="star" size={16} color="#FFD700" />
-                      <Text style={[styles.metaText, styles.pointsText]}>+{points} pts</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Description */}
-                {description && (
-                  <View style={styles.descriptionContainer}>
-                    <Text style={styles.description}>{description}</Text>
-                  </View>
-                )}
-
-                {/* Content URL Link */}
-                {news.contentUrl && !hasVideo && (
-                  <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => handleOpenLink(news.contentUrl)}
-                  >
-                    <Ionicons name="link-outline" size={20} color={theme.colors.primary} />
-                    <Text style={styles.linkText}>Ouvrir le lien</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* ✅ RETIRÉ: Le bouton "Ajouter à mon agenda" car les news sont déjà ajoutées par défaut */}
-              </ScrollView>
-            </>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
-};
 
 const styles = StyleSheet.create({
   modalContainer: {
@@ -360,6 +101,45 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
     backgroundColor: '#000',
+    position: 'relative',
+  },
+  tiktokVideoContainer: {
+    height: 420,
+    backgroundColor: '#0a0a0a',
+  },
+  tiktokWebView: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#000',
+  },
+  tiktokLoadingBox: {
+    width: '100%',
+    height: 220,
+    borderRadius: 12,
+    marginBottom: 16,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  videoPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    gap: 8,
+  },
+  tiktokPlayLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  youtubeFallbackText: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   thumbnail: {
     width: '100%',
@@ -416,8 +196,361 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '600',
   },
-  // ✅ RETIRÉ: Styles pour le bouton "Ajouter à mon agenda" car il a été retiré
 });
 
-export default NewsDetailBottomSheet;
+type ArticleScrollProps = {
+  hasYoutube: boolean;
+  youtubeVideoId: string | null;
+  playing: boolean;
+  setPlaying: (v: boolean) => void;
+  urlIsTikTok: boolean;
+  tikTokVideoId: string | null;
+  tikTokResolving: boolean;
+  tikTokShowPlayer: boolean;
+  setTikTokShowPlayer: (v: boolean) => void;
+  previewThumb: string | null | undefined;
+  title: string;
+  author: string;
+  formattedDate: string;
+  formattedTime: string;
+  points: number;
+  description: string;
+  rawContentUrl: string;
+  contentUrlForLink?: string;
+  handleOpenLink: (url: string) => void;
+};
 
+function NewsDetailArticleScroll({
+  hasYoutube,
+  youtubeVideoId,
+  playing,
+  setPlaying,
+  urlIsTikTok,
+  tikTokVideoId,
+  tikTokResolving,
+  tikTokShowPlayer,
+  setTikTokShowPlayer,
+  previewThumb,
+  title,
+  author,
+  formattedDate,
+  formattedTime,
+  points,
+  description,
+  rawContentUrl,
+  contentUrlForLink,
+  handleOpenLink,
+}: ArticleScrollProps) {
+  const renderMedia = (): React.ReactNode => {
+    if (hasYoutube && youtubeVideoId) {
+      return (
+        <View style={styles.videoContainer}>
+          <YoutubePlayer
+            height={220}
+            videoId={youtubeVideoId}
+            play={playing}
+            onChangeState={(state) => {
+              if (state === 'playing') setPlaying(true);
+              if (state === 'paused' || state === 'ended') setPlaying(false);
+            }}
+            initialPlayerParams={{
+              preventFullScreen: false,
+              cc_lang_pref: 'fr',
+              showClosedCaptions: true,
+            }}
+          />
+          {!playing && (
+            <TouchableOpacity
+              style={styles.videoPlayOverlay}
+              onPress={() => setPlaying(true)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Lire la vidéo"
+            >
+              <Ionicons name="play-circle" size={64} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    if (urlIsTikTok && tikTokVideoId && tikTokShowPlayer) {
+      return (
+        <View style={[styles.videoContainer, styles.tiktokVideoContainer]}>
+          <WebView
+            source={{ uri: getTikTokEmbedPageUrl(tikTokVideoId) }}
+            style={styles.tiktokWebView}
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={Platform.OS === 'ios'}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsFullscreenVideo
+            setSupportMultipleWindows={false}
+            nestedScrollEnabled
+            startInLoadingState
+            renderLoading={() => (
+              <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              </View>
+            )}
+          />
+        </View>
+      );
+    }
+
+    if (urlIsTikTok && tikTokVideoId && !tikTokShowPlayer) {
+      return (
+        <View style={styles.videoContainer}>
+          {previewThumb ? (
+            <Image source={{ uri: previewThumb }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#111' }]} />
+          )}
+          <TouchableOpacity
+            style={styles.videoPlayOverlay}
+            onPress={() => setTikTokShowPlayer(true)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Lire la vidéo TikTok dans l'application"
+          >
+            <Ionicons name="musical-notes" size={56} color="#FFFFFF" />
+            <Text style={styles.tiktokPlayLabel}>{"Lire dans l'application"}</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (urlIsTikTok && tikTokResolving) {
+      return (
+        <View style={styles.tiktokLoadingBox}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={{ fontSize: 13, color: theme.colors.text.secondary }}>Préparation de la vidéo…</Text>
+        </View>
+      );
+    }
+
+    if (urlIsTikTok && !tikTokVideoId && !tikTokResolving) {
+      return (
+        <Text style={[styles.youtubeFallbackText, { marginBottom: 12 }]}>
+          {"Impossible de lire cette vidéo TikTok dans l'application (lien non reconnu)."}
+        </Text>
+      );
+    }
+
+    if (previewThumb) {
+      return <Image source={{ uri: previewThumb }} style={styles.thumbnail} resizeMode="cover" />;
+    }
+
+    return null;
+  };
+
+  const showGenericLink =
+    !!contentUrlForLink &&
+    !hasYoutube &&
+    !urlIsTikTok &&
+    !isLikelyYouTubeUrl(rawContentUrl);
+
+  const showYoutubeError =
+    !!contentUrlForLink && !hasYoutube && isLikelyYouTubeUrl(rawContentUrl) && !urlIsTikTok;
+
+  return (
+    <ScrollView
+      style={styles.content}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.contentContainer}
+    >
+      {renderMedia()}
+
+      <Text style={styles.title}>{title}</Text>
+
+      <View style={styles.metaContainer}>
+        <View style={styles.metaItem}>
+          <Ionicons name="person-outline" size={16} color={theme.colors.text.secondary} />
+          <Text style={styles.metaText}>{author}</Text>
+        </View>
+        {formattedDate ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
+            <Text style={styles.metaText}>{formattedDate}</Text>
+          </View>
+        ) : null}
+        {formattedTime ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="time-outline" size={16} color={theme.colors.text.secondary} />
+            <Text style={styles.metaText}>{formattedTime}</Text>
+          </View>
+        ) : null}
+        {points > 0 ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="star" size={16} color="#FFD700" />
+            <Text style={[styles.metaText, styles.pointsText]}>+{points} pts</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {description ? (
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.description}>{description}</Text>
+        </View>
+      ) : null}
+
+      {showGenericLink ? (
+        <TouchableOpacity style={styles.linkButton} onPress={() => handleOpenLink(contentUrlForLink!)}>
+          <Ionicons name="link-outline" size={20} color={theme.colors.primary} />
+          <Text style={styles.linkText}>Ouvrir le lien</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {showYoutubeError ? (
+        <Text style={styles.youtubeFallbackText}>
+          {"Impossible de lire cette vidéo YouTube dans l'application (lien non reconnu)."}
+        </Text>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+const NewsDetailBottomSheet: React.FC<NewsDetailBottomSheetProps> = ({
+  visible,
+  news,
+  onClose,
+}) => {
+  const insets = useSafeAreaInsets();
+  const [playing, setPlaying] = useState(false);
+  const [tikTokVideoId, setTikTokVideoId] = useState<string | null>(null);
+  const [tikTokThumb, setTikTokThumb] = useState<string | null>(null);
+  const [tikTokResolving, setTikTokResolving] = useState(false);
+  const [tikTokShowPlayer, setTikTokShowPlayer] = useState(false);
+
+  const rawContentUrl = (news?.contentUrl || news?.content?.contentUrl || '') as string;
+  const youtubeVideoId = extractYouTubeVideoId(rawContentUrl || undefined);
+  const hasYoutube = !!youtubeVideoId;
+  const urlIsTikTok = !!rawContentUrl && isTikTokUrl(rawContentUrl) && !hasYoutube;
+
+  useEffect(() => {
+    if (visible && news) {
+      setPlaying(false);
+      setTikTokShowPlayer(false);
+    }
+  }, [visible, news?.id]);
+
+  useEffect(() => {
+    if (!visible || !urlIsTikTok || !rawContentUrl) {
+      setTikTokVideoId(null);
+      setTikTokThumb(null);
+      setTikTokResolving(false);
+      return;
+    }
+    const direct = extractTikTokVideoIdFromUrl(rawContentUrl);
+    if (direct) {
+      setTikTokVideoId(direct);
+      setTikTokThumb(null);
+      setTikTokResolving(false);
+      return;
+    }
+    let cancelled = false;
+    setTikTokResolving(true);
+    setTikTokVideoId(null);
+    setTikTokThumb(null);
+    void getTikTokOembedData(rawContentUrl).then((d) => {
+      if (cancelled) return;
+      setTikTokVideoId(d.videoId);
+      setTikTokThumb(d.thumbnailUrl);
+      setTikTokResolving(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, news?.id, urlIsTikTok, rawContentUrl]);
+
+  if (!visible || !news) {
+    return null;
+  }
+
+  const thumbnailUrl = news.thumbnailUrl || news.content?.thumbnailUrl;
+  const previewThumb = urlIsTikTok ? tikTokThumb || thumbnailUrl : thumbnailUrl;
+  const title = stripHtmlToPlainText(news.title || news.content?.title || '') || 'Actualité';
+  const description = stripHtmlToPlainText(news.description || news.content?.description || '');
+  const author = news.author || news.content?.creator?.name || 'Anonyme';
+  const points = news.points || news.content?.points || 0;
+  const assignedDate = news.assignedDate || news.content?.assignedDate;
+  const formattedDate = assignedDate
+    ? format(parseISO(assignedDate), 'EEEE dd MMMM yyyy', { locale: fr })
+    : '';
+  const formattedTime = assignedDate ? format(parseISO(assignedDate), 'HH:mm', { locale: fr }) : '';
+
+  const handleOpenLink = async (url: string) => {
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      }
+    } catch (error) {
+      console.error('Error opening link:', error);
+    }
+  };
+
+  const scrollProps: ArticleScrollProps = {
+    hasYoutube,
+    youtubeVideoId,
+    playing,
+    setPlaying,
+    urlIsTikTok,
+    tikTokVideoId,
+    tikTokResolving,
+    tikTokShowPlayer,
+    setTikTokShowPlayer,
+    previewThumb,
+    title,
+    author,
+    formattedDate,
+    formattedTime,
+    points,
+    description,
+    rawContentUrl,
+    contentUrlForLink: news.contentUrl,
+    handleOpenLink,
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.modalContainer}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]} />
+          )}
+        </TouchableOpacity>
+
+        <View style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={20} style={styles.blurContainer}>
+              <View style={styles.handle} />
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>Actualité</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+              <NewsDetailArticleScroll {...scrollProps} />
+            </BlurView>
+          ) : (
+            <>
+              <View style={styles.handle} />
+              <View style={styles.header}>
+                <Text style={styles.headerTitle}>Actualité</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+                </TouchableOpacity>
+              </View>
+              <NewsDetailArticleScroll {...scrollProps} />
+            </>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+export default NewsDetailBottomSheet;

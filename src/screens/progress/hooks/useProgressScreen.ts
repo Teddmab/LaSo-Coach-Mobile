@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
+import { launchImageLibraryForUpload } from '../../../utils/launchImageLibraryForUpload';
 import { ProfileApi } from '../../../services/profileApi';
 import api from '../../../services/api';
 import { API_CONFIG } from '../../../config/apiConfig';
@@ -35,6 +36,8 @@ export const useProgressScreen = (
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showComparisonModal, setShowComparisonModal] = useState(false);
   const [selectedMeasurementForComparison, setSelectedMeasurementForComparison] = useState<Measurement | null>(null);
+  /** Mesure « Avant » (initiale ou précédente chronologiquement) — la sélection reste « Après » */
+  const [comparisonBaselineMeasurement, setComparisonBaselineMeasurement] = useState<Measurement | null>(null);
   const [initialProgressPhoto, setInitialProgressPhoto] = useState<ProgressPhoto | null>(null);
   const [step1Completed, setStep1Completed] = useState(false);
   const [addInitialPhotoLoading, setAddInitialPhotoLoading] = useState(false);
@@ -285,11 +288,7 @@ export const useProgressScreen = (
       }
 
       console.log('[ProgressScreen] 📸 Launching image library...');
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.8,
-      });
+      const result = await launchImageLibraryForUpload();
       
       console.log('[ProgressScreen] 📸 Image picker result:', {
         canceled: result.canceled,
@@ -343,7 +342,9 @@ export const useProgressScreen = (
       }
     } catch (error) {
       console.error('[ProgressScreen] ❌ Error selecting photo:', error);
-      Alert.alert('Erreur', 'Erreur lors de la sélection de la photo');
+      const msg =
+        error instanceof Error ? error.message : 'Erreur lors de la sélection de la photo';
+      Alert.alert('Erreur', msg);
     }
   };
 
@@ -360,11 +361,7 @@ export const useProgressScreen = (
         setAddInitialPhotoLoading(false);
         return;
       }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.8,
-      });
+      const result = await launchImageLibraryForUpload();
       if (result.canceled || !result.assets?.[0]) {
         setAddInitialPhotoLoading(false);
         return;
@@ -410,7 +407,9 @@ export const useProgressScreen = (
       Toast.show({ type: 'success', text1: 'Photo initiale ajoutée avec succès.' });
     } catch (error) {
       console.error('[ProgressScreen] ❌ handleAddInitialPhoto:', error);
-      Toast.show({ type: 'error', text1: 'Erreur lors de l\'ajout de la photo.' });
+      const text1 =
+        error instanceof Error ? error.message : 'Erreur lors de l\'ajout de la photo.';
+      Toast.show({ type: 'error', text1 });
     } finally {
       setAddInitialPhotoLoading(false);
     }
@@ -591,40 +590,6 @@ export const useProgressScreen = (
     setShowHistoryModal(true);
   };
 
-  const handleMeasurementClick = (measurement: Measurement): void => {
-    // Si c'est la mesure initiale, on peut quand même l'afficher pour voir les détails
-    // ou la comparer avec une autre mesure si nécessaire
-    const sortedMeasurements = [...combinedMeasurements].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    const firstMeasurement = sortedMeasurements[0];
-    
-    // Enrichir la mesure avec photoUrl si disponible
-    // Pour la mesure initiale, utiliser initialProgressPhoto comme source principale
-    let photoUrl = measurement.photoUrl || (measurement as any).url || (measurement as any).imageUrl;
-    
-    // Si c'est la mesure initiale et qu'on n'a pas d'URL, utiliser initialProgressPhoto
-    if ((measurement.isInitial || measurement.id === 'initial') && !photoUrl && initialProgressPhoto) {
-      photoUrl = initialProgressPhoto.url || 
-        initialProgressPhoto.photoUrl || 
-        initialProgressPhoto.imageUrl || 
-        getPhotoUrl(initialProgressPhoto);
-    }
-    
-    // Fallback avec photoId si disponible
-    if (!photoUrl && measurement.photoId) {
-      photoUrl = getPhotoUrl({ id: measurement.photoId, url: null, imageUrl: null } as ProgressPhoto);
-    }
-    
-    const enrichedMeasurement = {
-      ...measurement,
-      photoUrl: photoUrl || null
-    };
-    
-    setSelectedMeasurementForComparison(enrichedMeasurement);
-    setShowComparisonModal(true);
-  };
-
   // Fonctions liées aux photos supprimées - seul l'onglet "Mesures & Statistiques" est disponible
 
   const handleDeleteMeasurement = async (measurementId: string): Promise<void> => {
@@ -779,6 +744,75 @@ export const useProgressScreen = (
     });
   }, [measurements, progressPhotos, initialMeasurements, profile, initialProgressPhoto, getPhotoUrl]);
 
+  const enrichMeasurementWithPhoto = React.useCallback(
+    (measurement: Measurement): Measurement => {
+      let photoUrl = measurement.photoUrl || (measurement as any).url || (measurement as any).imageUrl;
+      if ((measurement.isInitial || measurement.id === 'initial') && !photoUrl && initialProgressPhoto) {
+        photoUrl =
+          initialProgressPhoto.url ||
+          initialProgressPhoto.photoUrl ||
+          initialProgressPhoto.imageUrl ||
+          getPhotoUrl(initialProgressPhoto) ||
+          undefined;
+      }
+      if (!photoUrl && measurement.photoId) {
+        photoUrl = getPhotoUrl({ id: measurement.photoId, url: null, imageUrl: null } as ProgressPhoto) || undefined;
+      }
+      return { ...measurement, photoUrl: photoUrl || undefined };
+    },
+    [initialProgressPhoto, getPhotoUrl]
+  );
+
+  /**
+   * Règle alignée web : la 1re mesure après l’initiale se compare à l’initiale ;
+   * les suivantes se comparent à la mesure chronologiquement précédente.
+   */
+  const handleMeasurementClick = React.useCallback(
+    (measurement: Measurement): void => {
+      const enrichedSelected = enrichMeasurementWithPhoto(measurement);
+
+      const chronologicalAsc = [...combinedMeasurements].sort(
+        (a, b) =>
+          new Date(a.createdAt || a.date || 0).getTime() - new Date(b.createdAt || b.date || 0).getTime()
+      );
+
+      const indexOf = (m: Measurement): number =>
+        chronologicalAsc.findIndex((x) => {
+          if (m.id && x.id && m.id === x.id) return true;
+          if ((m.isInitial || m.id === 'initial') && (x.isInitial || x.id === 'initial')) return true;
+          return false;
+        });
+
+      const idx = indexOf(enrichedSelected);
+
+      if (enrichedSelected.isInitial || enrichedSelected.id === 'initial') {
+        setComparisonBaselineMeasurement(enrichedSelected);
+        setSelectedMeasurementForComparison(enrichedSelected);
+        setShowComparisonModal(true);
+        return;
+      }
+
+      let baseline: Measurement | null = null;
+      if (idx <= 0) {
+        baseline =
+          chronologicalAsc.find((x) => x.isInitial || x.id === 'initial') ?? chronologicalAsc[0] ?? null;
+      } else if (idx === 1) {
+        baseline = chronologicalAsc[0];
+      } else {
+        baseline = chronologicalAsc[idx - 1];
+      }
+
+      if (!baseline) {
+        baseline = chronologicalAsc.find((x) => x.isInitial || x.id === 'initial') ?? chronologicalAsc[0] ?? null;
+      }
+
+      setComparisonBaselineMeasurement(baseline ? enrichMeasurementWithPhoto(baseline) : null);
+      setSelectedMeasurementForComparison(enrichedSelected);
+      setShowComparisonModal(true);
+    },
+    [combinedMeasurements, enrichMeasurementWithPhoto]
+  );
+
   const currentWeight = getCurrentWeight(combinedMeasurements, profile?.Profile?.weight);
   const currentWaistSize = getCurrentWaistSize(combinedMeasurements, profile?.Profile?.waistSize);
   const chartData = generateChartData(initialMeasurements, combinedMeasurements, activities);
@@ -813,6 +847,8 @@ export const useProgressScreen = (
     setShowComparisonModal,
     selectedMeasurementForComparison,
     setSelectedMeasurementForComparison,
+    comparisonBaselineMeasurement,
+    setComparisonBaselineMeasurement,
     initialProgressPhoto,
     getAvatarUrl,
     getPhotoUrl,

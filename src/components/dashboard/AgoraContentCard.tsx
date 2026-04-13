@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
+import { stripHtmlToPlainText } from '../../utils/stripHtml';
 import YoutubePlayer from 'react-native-youtube-iframe';
 
 const AgoraContentCard = ({ content, onMarkComplete, onPress }) => {
@@ -66,8 +67,12 @@ const AgoraContentCard = ({ content, onMarkComplete, onPress }) => {
       {/* Content */}
       <View style={styles.content}>
         <Text style={styles.author}>{content.author || 'Anonyme'}</Text>
-        <Text style={styles.title} numberOfLines={2}>{content.title || 'Nouvelle actualité'}</Text>
-        <Text style={styles.description} numberOfLines={2}>{content.description || ''}</Text>
+        <Text style={styles.title} numberOfLines={2}>
+          {stripHtmlToPlainText(content.title || '') || 'Nouvelle actualité'}
+        </Text>
+        <Text style={styles.description} numberOfLines={2}>
+          {stripHtmlToPlainText(content.description || '')}
+        </Text>
         
         {/* Points Display */}
         {content.points && (

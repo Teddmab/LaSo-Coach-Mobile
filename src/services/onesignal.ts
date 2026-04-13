@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { emitNotificationNavigationFromPayload } from './notificationNavigation';
 
 /**
  * Expo Go n’embarque pas les libs natives tierces : le JS de react-native-onesignal
@@ -42,6 +43,8 @@ export function getOneSignalAppId(): string {
 }
 
 let initialized = false;
+/** Un seul listener clic notification par session JS. */
+let oneSignalClickListenerAttached = false;
 /** Évite les appels répétés à OneSignal.login avec le même external_id. */
 let lastLoggedInExternalId = '';
 
@@ -127,6 +130,32 @@ export function initializeOneSignal(): void {
       OneSignal.initialize(appId);
       initialized = true;
       signalOneSignalGateForExpoPush();
+      if (!oneSignalClickListenerAttached) {
+        oneSignalClickListenerAttached = true;
+        try {
+          OneSignal.Notifications.addEventListener('click', (event) => {
+            try {
+              const n = event.notification;
+              const payload: Record<string, unknown> = {};
+              const add = n?.additionalData;
+              if (add && typeof add === 'object' && !Array.isArray(add)) {
+                Object.assign(payload, add as Record<string, unknown>);
+              }
+              if (event.result?.url) {
+                payload._clickResultUrl = event.result.url;
+              }
+              if (n?.launchURL) {
+                payload.launchURL = n.launchURL;
+              }
+              emitNotificationNavigationFromPayload(payload);
+            } catch (err) {
+              console.warn('[OneSignal] notification click handler:', err);
+            }
+          });
+        } catch (err) {
+          console.warn('[OneSignal] addEventListener(click) failed:', err);
+        }
+      }
       // Après le signal : permission OneSignal un peu plus tard (ne pas empiler avec la 1re phase Expo)
       setTimeout(() => {
         try {

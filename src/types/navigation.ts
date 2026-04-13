@@ -42,8 +42,8 @@ export type DashboardOverlayStackParamList = {
   FAQ: undefined;
   Notifications: undefined;
   Agenda: undefined;
-  Community: undefined;
-  Chat: undefined;
+  Community: { selectedPostId?: string | null } | undefined;
+  Chat: { initialChatId?: string | null } | undefined;
   Subscription: undefined;
   Security: undefined;
   Language: undefined;

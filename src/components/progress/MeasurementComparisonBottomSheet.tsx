@@ -38,6 +38,8 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
   // Si c'est la même mesure (mesure initiale cliquée), les différences sont nulles
   const isSameMeasurement = firstMeasurement.id === selectedMeasurement.id || 
     (firstMeasurement.isInitial && selectedMeasurement.isInitial);
+
+  const isInitialOnly = isSameMeasurement && !!firstMeasurement.isInitial;
   
   const weightDiff = isSameMeasurement ? 0 : 
     (selectedMeasurement.weight && firstMeasurement.weight
@@ -77,58 +79,55 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
     return '#4B5563';
   };
 
-  // Get photo URLs
-  // Pour la mesure initiale, essayer plusieurs sources comme dans la version web
-  let firstPhotoUrl = firstMeasurement.photoUrl || 
-    (firstMeasurement as any).url || 
+  // Photos : baseline = « Avant », mesure sélectionnée = « Après »
+  let firstPhotoUrl =
+    firstMeasurement.photoUrl ||
+    (firstMeasurement as any).url ||
     (firstMeasurement as any).imageUrl;
-  
-  // Si c'est la mesure initiale seule, utiliser aussi selectedMeasurement.photoUrl comme source
+
   if (isInitialOnly) {
-    firstPhotoUrl = firstPhotoUrl || 
-      selectedMeasurement.photoUrl || 
-      (selectedMeasurement as any).url || 
+    firstPhotoUrl =
+      firstPhotoUrl ||
+      selectedMeasurement.photoUrl ||
+      (selectedMeasurement as any).url ||
       (selectedMeasurement as any).imageUrl;
   }
-  
-  // Si pas d'URL trouvée et que c'est la mesure initiale, utiliser initialProgressPhoto
-  // Cette vérification doit être faite APRÈS avoir vérifié selectedMeasurement pour isInitialOnly
-  if (!firstPhotoUrl && (firstMeasurement.isInitial || isInitialOnly) && initialProgressPhoto) {
-    const photoFromInitial = initialProgressPhoto.url || 
-      initialProgressPhoto.photoUrl || 
+
+  const baselineIsInitial =
+    !!(firstMeasurement.isInitial || firstMeasurement.id === 'initial');
+  if (!firstPhotoUrl && baselineIsInitial && initialProgressPhoto) {
+    const photoFromInitial =
+      initialProgressPhoto.url ||
+      initialProgressPhoto.photoUrl ||
       initialProgressPhoto.imageUrl ||
       (getPhotoUrl ? getPhotoUrl(initialProgressPhoto) : null);
     if (photoFromInitial) {
       firstPhotoUrl = photoFromInitial;
     }
   }
-  
-  // Fallback avec getPhotoUrl si photoId existe
+
   if (!firstPhotoUrl && getPhotoUrl) {
     if ((firstMeasurement as any).photoId) {
-      firstPhotoUrl = getPhotoUrl({ id: (firstMeasurement as any).photoId, url: null, imageUrl: null });
+      firstPhotoUrl = getPhotoUrl({
+        id: (firstMeasurement as any).photoId,
+        url: null,
+        imageUrl: null,
+      });
     } else if (isInitialOnly && (selectedMeasurement as any).photoId) {
-      firstPhotoUrl = getPhotoUrl({ id: (selectedMeasurement as any).photoId, url: null, imageUrl: null });
+      firstPhotoUrl = getPhotoUrl({
+        id: (selectedMeasurement as any).photoId,
+        url: null,
+        imageUrl: null,
+      });
     }
   }
-  
-  // Debug log pour vérifier la photo
-  if (isInitialOnly) {
-    console.log('[MeasurementComparison] 📸 Initial only mode:', {
-      firstPhotoUrl,
-      firstMeasurementPhotoUrl: firstMeasurement.photoUrl,
-      selectedPhotoUrl: selectedMeasurement.photoUrl,
-      initialProgressPhoto: initialProgressPhoto ? {
-        url: initialProgressPhoto.url,
-        photoUrl: initialProgressPhoto.photoUrl,
-        imageUrl: initialProgressPhoto.imageUrl
-      } : null
-    });
-  }
-  
-  const selectedPhotoUrl = selectedMeasurement.photoUrl || 
-    (selectedMeasurement as any).url || 
-    (getPhotoUrl && (selectedMeasurement as any).photoId ? getPhotoUrl({ id: (selectedMeasurement as any).photoId }) : null);
+
+  const selectedPhotoUrl =
+    selectedMeasurement.photoUrl ||
+    (selectedMeasurement as any).url ||
+    (getPhotoUrl && (selectedMeasurement as any).photoId
+      ? getPhotoUrl({ id: (selectedMeasurement as any).photoId })
+      : null);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -138,9 +137,6 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
       year: 'numeric',
     });
   };
-
-  // Vérifier si c'est la mesure initiale seule (pas de comparaison)
-  const isInitialOnly = isSameMeasurement && firstMeasurement.isInitial;
 
   if (!visible) return null;
 
@@ -164,7 +160,7 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {isInitialOnly ? 'Mesure initiale' : 'Comparaison de mesures'}
+              {isInitialOnly ? 'Mesure initiale' : 'Aperçu avant / après'}
             </Text>
             <TouchableOpacity
               onPress={onClose}
@@ -201,32 +197,72 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
               </View>
             )}
 
+            {!isInitialOnly && (
+              <View style={styles.comparisonPhotosRow}>
+                <View style={styles.comparisonPhotoCol}>
+                  <Text style={styles.comparisonPhotoLabel}>Avant</Text>
+                  <View style={[styles.comparisonPhotoFrame, styles.comparisonPhotoFrameBefore]}>
+                    {firstPhotoUrl ? (
+                      <Image
+                        source={{ uri: firstPhotoUrl }}
+                        style={styles.comparisonPhoto}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.comparisonPhotoPlaceholder}>
+                        <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
+                        <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <View style={styles.comparisonPhotoCol}>
+                  <Text style={styles.comparisonPhotoLabel}>Après</Text>
+                  <View style={[styles.comparisonPhotoFrame, styles.comparisonPhotoFrameAfter]}>
+                    {selectedPhotoUrl ? (
+                      <Image
+                        source={{ uri: selectedPhotoUrl }}
+                        style={styles.comparisonPhoto}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.comparisonPhotoPlaceholder}>
+                        <Ionicons name="camera-outline" size={32} color="#9CA3AF" />
+                        <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            )}
+
             {/* Comparison Grid */}
             <View style={styles.comparisonGrid}>
               {/* First Measurement */}
               <View style={styles.measurementCard}>
                 <View style={styles.measurementHeader}>
                   <Text style={styles.measurementTitle}>
-                    {isInitialOnly ? 'Votre mesure initiale' : 'Mesure initiale'}
+                    {isInitialOnly ? 'Votre mesure initiale' : 'Avant'}
                   </Text>
                   <Text style={styles.measurementDate}>{formatDate(firstDate)}</Text>
                 </View>
 
-                {/* Photo */}
-                <View style={styles.photoContainer}>
-                  {firstPhotoUrl ? (
-                    <Image
-                      source={{ uri: firstPhotoUrl }}
-                      style={styles.photo}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Ionicons name="camera-outline" size={48} color="#9CA3AF" />
-                      <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
-                    </View>
-                  )}
-                </View>
+                {isInitialOnly && (
+                  <View style={styles.photoContainer}>
+                    {firstPhotoUrl ? (
+                      <Image
+                        source={{ uri: firstPhotoUrl }}
+                        style={styles.photo}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.photoPlaceholder}>
+                        <Ionicons name="camera-outline" size={48} color="#9CA3AF" />
+                        <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
 
                 {/* Measurements */}
                 <View style={styles.measurementsBox}>
@@ -257,24 +293,8 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
               {!isInitialOnly && (
                 <View style={styles.measurementCard}>
                 <View style={styles.measurementHeader}>
-                  <Text style={styles.measurementTitle}>Mesure sélectionnée</Text>
+                  <Text style={styles.measurementTitle}>Après</Text>
                   <Text style={styles.measurementDate}>{formatDate(selectedDate)}</Text>
-                </View>
-
-                {/* Photo */}
-                <View style={[styles.photoContainer, styles.selectedPhotoContainer]}>
-                  {selectedPhotoUrl ? (
-                    <Image
-                      source={{ uri: selectedPhotoUrl }}
-                      style={styles.photo}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Ionicons name="camera-outline" size={48} color="#9CA3AF" />
-                      <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
-                    </View>
-                  )}
                 </View>
 
                 {/* Measurements with differences */}
@@ -323,36 +343,6 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
                 </View>
               )}
             </View>
-
-            {/* Progress Summary - seulement si ce n'est pas la mesure initiale seule */}
-            {!isInitialOnly && (weightDiff !== null || waistDiff !== null) && (
-              <View style={styles.summaryBox}>
-                <View style={styles.summaryHeader}>
-                  <Ionicons name="trending-down" size={24} color="#FFFFFF" />
-                  <Text style={styles.summaryTitle}>Résumé de vos progrès</Text>
-                </View>
-                <View style={styles.summaryGrid}>
-                  {weightDiff !== null && (
-                    <View style={styles.summaryItem}>
-                      <Text style={styles.summaryLabel}>Variation de poids</Text>
-                      <Text style={styles.summaryValue}>{formatDiff(weightDiff, 'kg')}</Text>
-                      {weightDiff < 0 && (
-                        <Text style={styles.summaryMessage}>🎉 Excellente progression !</Text>
-                      )}
-                    </View>
-                  )}
-                  {waistDiff !== null && (
-                    <View style={styles.summaryItem}>
-                      <Text style={styles.summaryLabel}>Variation tour de taille</Text>
-                      <Text style={styles.summaryValue}>{formatDiff(waistDiff, 'cm')}</Text>
-                      {waistDiff < 0 && (
-                        <Text style={styles.summaryMessage}>🎉 Continue comme ça !</Text>
-                      )}
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
           </ScrollView>
 
           {/* Footer */}
@@ -436,6 +426,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.colors.primary,
+  },
+  comparisonPhotosRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  comparisonPhotoCol: {
+    flex: 1,
+  },
+  comparisonPhotoLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  comparisonPhotoFrame: {
+    width: '100%',
+    aspectRatio: 3 / 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 2,
+  },
+  comparisonPhotoFrameBefore: {
+    borderColor: '#E5E7EB',
+  },
+  comparisonPhotoFrameAfter: {
+    borderColor: '#10B981',
+  },
+  comparisonPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  comparisonPhotoPlaceholder: {
+    flex: 1,
+    minHeight: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   comparisonGrid: {
     gap: 20,
@@ -542,47 +571,6 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: 14,
     color: '#78350F',
-  },
-  summaryBox: {
-    backgroundColor: theme.colors.primary,
-    padding: 20,
-    borderRadius: 16,
-    marginTop: 8,
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  summaryGrid: {
-    gap: 12,
-  },
-  summaryItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 16,
-    borderRadius: 12,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  summaryMessage: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.75)',
-    marginTop: 4,
   },
   footer: {
     paddingHorizontal: 20,

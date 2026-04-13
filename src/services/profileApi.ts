@@ -183,9 +183,11 @@ export class ProfileApi {
       return sourceUri;
     } catch (error) {
       console.error('❌ Error copying file to accessible location:', error);
-      // If copy fails, return original URI as fallback
-      // But log the error so we can debug
-      return sourceUri;
+      // En release, renvoyer l'URI d'origine (content:// / ph://) casse souvent l'upload FormData :
+      // on propage l'erreur pour afficher un message clair côté UI.
+      throw error instanceof Error
+        ? error
+        : new Error("Impossible de copier l'image vers un emplacement accessible. Réessayez ou choisissez une autre photo.");
     }
   }
 

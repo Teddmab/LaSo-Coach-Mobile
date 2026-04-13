@@ -29,7 +29,8 @@ interface DashboardOverlayStackProps {
   avatarData: { avatarSource: any; avatarFallbackText: string };
   initialProfileStep: number;
   webViewSource: string;
-  selectedPostId: string | null;
+  /** @deprecated Préférer les params de route `Community` (`selectedPostId`) */
+  selectedPostId?: string | null;
   onLogout: () => void;
   onTabPress: (tabId: string) => void;
   onMoreMenuClose: () => void;
@@ -92,9 +93,14 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
   // Navigation methods
   const navigate = useCallback((name: keyof DashboardOverlayStackParamList, params?: any) => {
     setNavigationStack(prev => {
-      // Ne pas ajouter si c'est déjà l'écran actuel
       if (prev.length > 0 && prev[prev.length - 1].name === name) {
-        return prev;
+        const prevParams = prev[prev.length - 1].params;
+        const same =
+          JSON.stringify(prevParams ?? null) === JSON.stringify(params ?? null);
+        if (same) {
+          return prev;
+        }
+        return [...prev.slice(0, -1), { name, params }];
       }
       return [...prev, { name, params }];
     });
@@ -402,7 +408,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
               user={user}
               onTabPress={onTabPress}
               activeTab={activeTab}
-              selectedPostId={selectedPostId}
+              selectedPostId={currentParams?.selectedPostId ?? selectedPostId ?? null}
               onPostPress={onPostPress}
             />
           </FixedLayout>
@@ -429,6 +435,7 @@ export const DashboardOverlayStack: React.FC<DashboardOverlayStackProps> = ({
               activeTab={activeTab}
               onClose={() => stackNavigation.goBack()}
               onFAQPress={() => stackNavigation.navigate('FAQ')}
+              initialChatId={currentParams?.initialChatId ?? null}
             />
           </FixedLayout>
         );

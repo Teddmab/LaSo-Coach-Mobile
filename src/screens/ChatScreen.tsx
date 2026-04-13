@@ -18,6 +18,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
   onTabPress,
   activeTab,
   onFAQPress,
+  initialChatId,
 }) => {
   const navigation = useNavigation();
   
@@ -80,6 +81,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     handleSendMessage,
     handleConversationPress,
     handleBackPress,
+    openChat,
   } = useChatScreen();
 
   // Phase 7 - TODO #7: Test UGC terms modal on chat entry
@@ -90,6 +92,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({
     handleAcceptTerms,
     handleDeclineTerms,
   } = useUgcTerms();
+
+  useEffect(() => {
+    const id = initialChatId?.trim();
+    if (!id || !termsAccepted || termsLoading || !openChat) {
+      return;
+    }
+    void (async () => {
+      try {
+        await openChat(id);
+      } catch (err) {
+        console.warn('[ChatScreen] initialChatId openChat:', err);
+      }
+    })();
+  }, [initialChatId, termsAccepted, termsLoading, openChat]);
 
   const handleViewTerms = () => {
     navigation.navigate('TermsAndPolicies' as never);
