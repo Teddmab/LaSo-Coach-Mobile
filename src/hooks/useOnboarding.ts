@@ -9,7 +9,7 @@ interface ProfileData {
   addressLine1: string;
   addressLine2?: string;
   city: string;
-  postalCode: string;
+  postalCode?: string;
   country: string;
   height: string;
   initialWeight: string;

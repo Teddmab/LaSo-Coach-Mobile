@@ -2,6 +2,10 @@
 // This ensures gesture handler is initialized before React Native components
 import 'react-native-gesture-handler';
 
+// Sentry le plus tôt possible (après gesture-handler) pour capter les crashes natifs / JS au cold start
+import { initSentry } from './src/config/sentry';
+initSentry();
+
 // CRITICAL: Import registerRootComponent early to ensure it's available
 import { registerRootComponent } from 'expo';
 
@@ -39,19 +43,19 @@ if (typeof global !== 'undefined') {
   }
 }
 
-// Provide atob/btoa if missing (Firebase may rely on these in RN Hermes environment)
-if (typeof global.btoa === 'undefined') {
+// atob/btoa : ne pas utiliser Buffer (souvent absent en Hermes / release sans polyfill global)
+if (typeof global.btoa === 'undefined' || typeof global.atob === 'undefined') {
 	try {
-		(global as any).btoa = (data: string) => Buffer.from(data, 'binary').toString('base64');
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const base64 = require('base-64') as { encode: (s: string) => string; decode: (s: string) => string };
+		if (typeof global.btoa === 'undefined') {
+			(global as any).btoa = base64.encode;
+		}
+		if (typeof global.atob === 'undefined') {
+			(global as any).atob = base64.decode;
+		}
 	} catch (error) {
-		console.error('❌ Error setting up btoa polyfill:', error);
-	}
-}
-if (typeof global.atob === 'undefined') {
-	try {
-		(global as any).atob = (data: string) => Buffer.from(data, 'base64').toString('binary');
-	} catch (error) {
-		console.error('❌ Error setting up atob polyfill:', error);
+		console.error('❌ Error setting up btoa/atob polyfill (base-64):', error);
 	}
 }
 

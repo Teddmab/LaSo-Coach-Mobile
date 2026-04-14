@@ -59,11 +59,11 @@ const resolvedOnesignalAppIdIos =
   ONESIGNAL_APP_ID || ONESIGNAL_APP_ID_IOS || DEFAULT_ONESIGNAL_APP_ID_IOS;
 const resolvedOnesignalAppIdAndroid =
   ONESIGNAL_APP_ID || ONESIGNAL_APP_ID_ANDROID || DEFAULT_ONESIGNAL_APP_ID_ANDROID;
-const oneSignalPluginMode =
-  NODE_ENV === 'production' ? 'production' : 'development';
 
 /** Projet EAS — toujours présent dans extra (évite projectId absent hors build EAS). */
 const DEFAULT_EAS_PROJECT_ID = 'f509eb43-52af-44a9-b7f0-e8a7179a0aa3';
+
+const easBuildProfile = String(process.env.EAS_BUILD_PROFILE || '');
 
 /**
  * APNs : l’entitlement aps-environment doit être présent sur l’IPA (souvent oublié en bare workflow).
@@ -73,11 +73,24 @@ const DEFAULT_EAS_PROJECT_ID = 'f509eb43-52af-44a9-b7f0-e8a7179a0aa3';
  */
 const iosApsEnvironment =
   process.env.IOS_APS_ENVIRONMENT ||
-  (['production', 'preview', 'store'].includes(
-    String(process.env.EAS_BUILD_PROFILE || '')
-  ) || NODE_ENV === 'production'
+  ((['production', 'preview', 'store'].includes(easBuildProfile) ||
+    NODE_ENV === 'production')
     ? 'production'
     : 'development');
+
+/**
+ * onesignal-expo-plugin `mode` doit suivre le même monde que `aps-environment`.
+ * Ne pas se baser uniquement sur NODE_ENV : au prebuild local / certaines CI, NODE_ENV peut
+ * différer de EAS_BUILD_PROFILE → plugin "development" + IPA prod = comportements iOS incorrects / crash au cold start.
+ * Surcharge explicite : ONESIGNAL_PLUGIN_MODE=production|development
+ */
+const oneSignalPluginMode =
+  typeof process.env.ONESIGNAL_PLUGIN_MODE === 'string' &&
+  ['production', 'development'].includes(process.env.ONESIGNAL_PLUGIN_MODE)
+    ? process.env.ONESIGNAL_PLUGIN_MODE
+    : iosApsEnvironment === 'production'
+      ? 'production'
+      : 'development';
 
 export default ({ config }) => ({
   ...appJson,
@@ -148,6 +161,13 @@ export default ({ config }) => ({
       onesignal: {
         appIdIos: resolvedOnesignalAppIdIos,
         appIdAndroid: resolvedOnesignalAppIdAndroid,
+      },
+      /** Métadonnées build : vérifier en prod que plugin OneSignal et APNs sont alignés (Constants.expoConfig.extra). */
+      onesignalBuild: {
+        pluginMode: oneSignalPluginMode,
+        iosApsEnvironment,
+        easBuildProfile: easBuildProfile || null,
+        nodeEnv: NODE_ENV || null,
       },
       /** Repris explicitement pour getExpoPushTokenAsync / Constants.expoConfig.extra.eas.projectId */
       eas: {

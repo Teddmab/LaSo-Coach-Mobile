@@ -9,7 +9,9 @@
       "node": "20.19.4",
       "ios": {
         "env": {
-          "RCT_USE_RN_DEP": "0"
+          "RCT_USE_RN_DEP": "0",
+          "IOS_APS_ENVIRONMENT": "development",
+          "ONESIGNAL_PLUGIN_MODE": "development"
         }
       },
       "android": {
@@ -44,7 +46,9 @@
         "env": {
           "RCT_USE_RN_DEP": "0",
           "FORCE_PREBUILD": "true",
-          "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+          "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+          "IOS_APS_ENVIRONMENT": "production",
+          "ONESIGNAL_PLUGIN_MODE": "production"
         }
       }
     },
@@ -56,7 +60,9 @@
         "env": {
           "RCT_USE_RN_DEP": "0",
           "FORCE_PREBUILD": "true",
-          "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+          "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+          "IOS_APS_ENVIRONMENT": "production",
+          "ONESIGNAL_PLUGIN_MODE": "production"
         }
       },
       "android": {

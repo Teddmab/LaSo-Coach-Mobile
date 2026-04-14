@@ -44,10 +44,12 @@ import {
   waitForMinDelayAfterOneSignalInit,
 } from '../services/onesignal';
 import { emitNotificationNavigationFromPayload } from '../services/notificationNavigation';
+import { syncTimeContext } from '../services/timeContextService';
 
 const STORAGE_EXPO_PUSH_TOKEN = 'expoPushToken';
 /** Dernière empreinte (version|build) pour laquelle register-token a réussi */
 const STORAGE_PUSH_REGISTERED_FINGERPRINT = 'lasoPushTokenRegisteredFingerprint';
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 function getNativeAppFingerprint(): string {
   const version =
@@ -138,6 +140,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const isAuthenticatedRef = useRef<boolean>(isAuthenticated);
   /** Évite deux init Expo Push en parallèle (mount + auth) — courses natives sur iOS release. */
   const pushInitFlightRef = useRef<Promise<boolean> | null>(null);
+  const lastTimeContextSyncRef = useRef<number>(0);
   useEffect(() => {
     isAuthenticatedRef.current = isAuthenticated;
   }, [isAuthenticated]);
@@ -356,6 +359,22 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     refreshPushOnForegroundRef.current = () => {
       void initializePushNotifications();
     };
+  }, []);
+
+  const syncTimeContextSafely = useCallback(async (force: boolean = false): Promise<void> => {
+    if (!isAuthenticatedRef.current) {
+      return;
+    }
+
+    const now = Date.now();
+    if (!force && now - lastTimeContextSyncRef.current < ONE_HOUR_MS) {
+      return;
+    }
+
+    const synced = await syncTimeContext();
+    if (synced) {
+      lastTimeContextSyncRef.current = now;
+    }
   }, []);
 
   // Unregister push token from backend
@@ -659,6 +678,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       if (nextAppState === 'active') {
         fetchUnreadCount();
         if (isAuthenticatedRef.current) {
+          void syncTimeContextSafely();
           if (pushResyncDebounce) clearTimeout(pushResyncDebounce);
           pushResyncDebounce = setTimeout(() => {
             refreshPushOnForegroundRef.current();
@@ -672,7 +692,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       if (pushResyncDebounce) clearTimeout(pushResyncDebounce);
       subscription?.remove();
     };
-  }, []);
+  }, [syncTimeContextSafely]);
 
   // Debug function to check notification permissions
   const checkNotificationStatus = async (): Promise<any> => {
@@ -786,6 +806,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // React to auth becoming ready & authenticated
   useEffect(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
     if (!authReady) return;
     if (isAuthenticated && !authInitializedRef.current) {
       authInitializedRef.current = true;
@@ -793,13 +815,22 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       initializeWebSocket();
       // Re-initialize push notifications when user logs in
       initializePushNotifications();
+      void syncTimeContextSafely(true);
+      intervalId = setInterval(() => {
+        void syncTimeContextSafely(true);
+      }, ONE_HOUR_MS);
     } else if (!isAuthenticated && authInitializedRef.current) {
       // User logged out - unregister push token
       authInitializedRef.current = false;
       logoutOneSignalUser();
       unregisterPushToken();
+      lastTimeContextSyncRef.current = 0;
     }
-  }, [authReady, isAuthenticated]);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [authReady, isAuthenticated, syncTimeContextSafely]);
 
   // OneSignal : même external_id que le userId backend (dédoublonné dans onesignal.ts)
   useEffect(() => {

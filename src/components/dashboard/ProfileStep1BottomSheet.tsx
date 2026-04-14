@@ -96,22 +96,49 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       // Ne réinitialiser currentSubStep que lors de la première ouverture
       if (isFirstOpenRef.current) {
         // Déterminer jusqu'où l'utilisateur est allé en fonction des données existantes
+        // en ne considérant qu'une étape réellement complète.
         let maxReached = 1;
         
-        // Step 1: Informations personnelles (firstName, lastName, phoneNumber, email)
-        const hasStep1 = formData.firstName || formData.lastName || formData.phoneNumber || formData.email;
-        if (hasStep1) maxReached = Math.max(maxReached, 1);
-        
-        // Step 2: Adresse (addressLine1, city, postalCode, country)
-        const hasStep2 = formData.addressLine1 || formData.city || formData.postalCode || formData.country;
-        if (hasStep2) maxReached = Math.max(maxReached, 2);
-        
-        // Step 3: Profil (height, initialWeight, initialWaistSize, gender, occupation)
-        const hasStep3 = formData.height || formData.initialWeight || formData.initialWaistSize || formData.gender || formData.occupation;
-        if (hasStep3) maxReached = Math.max(maxReached, 3);
-        
-        // Step 4: Démonstration (toujours accessible si on a atteint step 3)
-        if (maxReached >= 3) maxReached = Math.max(maxReached, 4);
+        const isStep1Complete =
+          !!formData.firstName.trim() &&
+          !!formData.lastName.trim() &&
+          !!formData.phoneNumber.trim() &&
+          !!formData.email.trim() &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim());
+
+        const isStep2Complete =
+          !!formData.addressLine1.trim() &&
+          !!formData.city.trim() &&
+          !!formData.country.trim();
+
+        const heightValue = parseFloat(formData.height);
+        const initialWeightValue = parseFloat(formData.initialWeight);
+        const initialWaistSizeValue = parseFloat(formData.initialWaistSize);
+        const isStep3Complete =
+          !!formData.height.trim() &&
+          !isNaN(heightValue) &&
+          heightValue > 0 &&
+          !!formData.initialWeight.trim() &&
+          !isNaN(initialWeightValue) &&
+          initialWeightValue > 0 &&
+          !!formData.initialWaistSize.trim() &&
+          !isNaN(initialWaistSizeValue) &&
+          initialWaistSizeValue > 0 &&
+          !!formData.gender.trim() &&
+          !!formData.occupation.trim();
+
+        if (isStep1Complete) {
+          maxReached = Math.max(maxReached, 2);
+        }
+
+        if (isStep1Complete && isStep2Complete) {
+          maxReached = Math.max(maxReached, 3);
+        }
+
+        if (isStep1Complete && isStep2Complete && isStep3Complete) {
+          // Step 4: Démonstration accessible uniquement si les 3 premiers steps sont complets
+          maxReached = Math.max(maxReached, 4);
+        }
         
         // Step 5: Photo initiale (initialPhotoPreview ou photo persistée)
         const hasPhoto = initialPhotoPreview || persistedFormDataRef.current?.initialPhotoPreview;
@@ -166,7 +193,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
     addressLine1: '',
     addressLine2: '',
     city: '',
-    postalCode: '',
     country: 'République démocratique du Congo',
     // Step 3: Profil
     height: '',
@@ -212,17 +238,16 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
       let addressLine1 = '';
       let addressLine2 = '';
       let city = '';
-      let postalCode = '';
       let country = 'République démocratique du Congo';
       
       if (address) {
-        // Parser l'adresse (format: "line1; line2; city; postalCode; country")
+        // Parser l'adresse (format tolérant: "line1; line2; city; [postalCode;] country")
         const addressParts = address.split(';').map((part: string) => part.trim());
         addressLine1 = addressParts[0] || '';
         addressLine2 = addressParts[1] || '';
         city = addressParts[2] || '';
-        postalCode = addressParts[3] || '';
-        country = addressParts[4] || 'République démocratique du Congo';
+        // Compat: anciennes adresses peuvent inclure un code postal en 4e position
+        country = addressParts[4] || addressParts[3] || 'République démocratique du Congo';
       }
       
       // Récupérer les données du profil
@@ -242,7 +267,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         addressLine1,
         addressLine2,
         city,
-        postalCode,
         country: country || 'République démocratique du Congo',
         height,
         initialWeight,
@@ -264,7 +288,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         addressLine1: persistedData?.addressLine1 || addressLine1,
         addressLine2: persistedData?.addressLine2 || addressLine2,
         city: persistedData?.city || city,
-        postalCode: persistedData?.postalCode || postalCode,
         country: persistedData?.country || (country || 'République démocratique du Congo'),
         height: persistedData?.height || height,
         initialWeight: persistedData?.initialWeight || initialWeight,
@@ -326,7 +349,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
     } else if (step === 2) {
       if (!formData.addressLine1.trim()) newErrors.addressLine1 = 'L\'adresse ligne 1 est requise';
       if (!formData.city.trim()) newErrors.city = 'La ville est requise';
-      if (!formData.postalCode.trim()) newErrors.postalCode = 'Le code postal est requis';
       if (!formData.country.trim()) newErrors.country = 'Le pays est requis';
     } else if (step === 3) {
       if (!formData.height.trim()) newErrors.height = 'La taille est requise';
@@ -388,7 +410,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         addressLine1: formData.addressLine1.trim(),
         addressLine2: formData.addressLine2.trim(),
         city: formData.city.trim(),
-        postalCode: formData.postalCode.trim(),
         country: formData.country,
         // Convertir les virgules en points pour les valeurs numériques (compatibilité iPhone)
         height: formData.height.trim().replace(',', '.'),
@@ -548,18 +569,6 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
           autoCapitalize="words"
         />
         {errors.city && <Text style={styles.errorText}>{errors.city}</Text>}
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Code postal *</Text>
-        <TextInput
-          style={[styles.input, errors.postalCode && styles.inputError]}
-          placeholder="Entrez votre code postal"
-          value={formData.postalCode}
-          onChangeText={(text) => updateFormData('postalCode', text)}
-          keyboardType="default"
-        />
-        {errors.postalCode && <Text style={styles.errorText}>{errors.postalCode}</Text>}
       </View>
 
       <View style={styles.inputContainer}>
