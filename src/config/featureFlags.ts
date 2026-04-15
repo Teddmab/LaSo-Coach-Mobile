@@ -1,10 +1,10 @@
 import { Platform } from 'react-native';
 
 /**
- * Expo Push (`expo-notifications`) : activé. L’initialisation est **étalée après OneSignal**
- * (voir `waitForMinDelayAfterOneSignalInit` dans `onesignal.ts`) pour limiter les conflits natifs.
+ * Expo Push (`expo-notifications`) : Android uniquement.
+ * iOS utilise uniquement OneSignal natif pour éviter les conflits de stack push.
  */
-export const ENABLE_EXPO_PUSH_NOTIFICATIONS = true;
+export const ENABLE_EXPO_PUSH_NOTIFICATIONS = Platform.OS === 'android';
 
 /**
  * Feature Flags Configuration

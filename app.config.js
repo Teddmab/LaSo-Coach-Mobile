@@ -24,6 +24,8 @@ const {
   ONESIGNAL_APP_ID,
   ONESIGNAL_APP_ID_IOS,
   ONESIGNAL_APP_ID_ANDROID,
+  ENABLE_ONESIGNAL,
+  ONESIGNAL_REQUEST_PERMISSION_AT_STARTUP,
 } = process.env;
 
 /** App IDs OneSignal — Android / iOS (même clé si un seul projet multi-plateformes : utiliser ONESIGNAL_APP_ID). */
@@ -141,6 +143,16 @@ export default ({ config }) => ({
             ? OFFLINE_MODE
             : DEFAULT_ENV.offlineMode,
         stripePublishableKey: STRIPE_PUBLISHABLE_KEY, // Stripe publishable key
+        // Kill-switch runtime pour isoler un crash OneSignal sur iOS prod.
+        enableOneSignal:
+          typeof ENABLE_ONESIGNAL !== 'undefined'
+            ? ENABLE_ONESIGNAL
+            : 'true',
+        // Par défaut, ne pas demander la permission OneSignal au cold start en prod.
+        onesignalRequestPermissionAtStartup:
+          typeof ONESIGNAL_REQUEST_PERMISSION_AT_STARTUP !== 'undefined'
+            ? ONESIGNAL_REQUEST_PERMISSION_AT_STARTUP
+            : 'false',
       },
       firebase: {
         apiKey: FIREBASE_API_KEY || DEFAULT_FIREBASE.apiKey,

@@ -11,6 +11,21 @@ function isRunningInExpoGo(): boolean {
   return Constants.appOwnership === 'expo';
 }
 
+function isOneSignalEnabledByConfig(): boolean {
+  const enabled = (Constants.expoConfig?.extra as any)?.env?.enableOneSignal;
+  if (typeof enabled === 'boolean') return enabled;
+  if (typeof enabled === 'string') return enabled.toLowerCase() !== 'false';
+  return true;
+}
+
+function shouldRequestOneSignalPermissionAtStartup(): boolean {
+  const value = (Constants.expoConfig?.extra as any)?.env?.onesignalRequestPermissionAtStartup;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  // En prod iOS, éviter le prompt OneSignal immédiatement au cold start.
+  return __DEV__;
+}
+
 /** require() paresseux : ne jamais charger le SDK sous Expo Go / hors mobile. */
 function loadOneSignalSdk(): typeof import('react-native-onesignal') | null {
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
@@ -96,6 +111,13 @@ export function initializeOneSignal(): void {
     if (initialized) {
       return;
     }
+    if (!isOneSignalEnabledByConfig()) {
+      if (__DEV__) {
+        console.warn('[OneSignal] Désactivé par config (extra.env.enableOneSignal=false)');
+      }
+      signalOneSignalGateForExpoPush();
+      return;
+    }
 
     const appId = getOneSignalAppId();
     if (!appId) {
@@ -156,16 +178,19 @@ export function initializeOneSignal(): void {
           console.warn('[OneSignal] addEventListener(click) failed:', err);
         }
       }
-      // Après le signal : permission OneSignal un peu plus tard (ne pas empiler avec la 1re phase Expo)
-      setTimeout(() => {
-        try {
-          void OneSignal.Notifications.requestPermission(false).catch(() => {
-            /* utilisateur peut refuser */
-          });
-        } catch {
-          /* ignore */
-        }
-      }, __DEV__ ? 0 : 400);
+      // Éviter le prompt permission OneSignal au tout début en production iOS:
+      // c'est une zone sensible où des apps crashent selon le stack natif/SDK.
+      if (shouldRequestOneSignalPermissionAtStartup()) {
+        setTimeout(() => {
+          try {
+            void OneSignal.Notifications.requestPermission(false).catch(() => {
+              /* utilisateur peut refuser */
+            });
+          } catch {
+            /* ignore */
+          }
+        }, __DEV__ ? 0 : 2000);
+      }
     } catch (e) {
       console.warn('[OneSignal] Échec initialisation:', e);
       signalOneSignalGateForExpoPush();

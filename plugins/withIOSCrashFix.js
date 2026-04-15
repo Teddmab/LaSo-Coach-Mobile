@@ -51,7 +51,7 @@ const withIOSCrashFix = (config) => {
 
     // S'assurer que le build number est correct (toujours mettre à jour pour correspondre à app.json)
     // Lire depuis expo.ios.buildNumber ou config.ios.buildNumber (app.json)
-    const expectedBuildNumber = config.expo?.ios?.buildNumber || config.ios?.buildNumber || config.buildNumber || '44';
+    const expectedBuildNumber = config.expo?.ios?.buildNumber || config.ios?.buildNumber || config.buildNumber || '45';
     if (!infoPlist.CFBundleVersion || infoPlist.CFBundleVersion !== expectedBuildNumber) {
       infoPlist.CFBundleVersion = expectedBuildNumber;
       console.log(`✅ [withIOSCrashFix] Updated CFBundleVersion to: ${expectedBuildNumber}`);

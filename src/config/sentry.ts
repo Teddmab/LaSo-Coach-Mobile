@@ -41,6 +41,25 @@ export const initSentry = () => {
   }
 
   try {
+    const isExpoPushToken503Noise = (event: any): boolean => {
+      try {
+        const urlTag = String(event?.tags?.url || '').toLowerCase();
+        const hasExpoPushUrl =
+          urlTag.includes('exp.host') && urlTag.includes('push/updatedevicetoken');
+
+        const values = event?.exception?.values;
+        const firstValue = Array.isArray(values) && values.length > 0 ? values[0] : null;
+        const errorType = String(firstValue?.type || '').toLowerCase();
+        const errorMessage = String(firstValue?.value || '').toLowerCase();
+        const isHttpClientError = errorType.includes('error') && errorMessage.includes('http client error');
+        const is503 = errorMessage.includes('503');
+
+        return hasExpoPushUrl && isHttpClientError && is503;
+      } catch {
+        return false;
+      }
+    };
+
     Sentry.init({
       dsn: SENTRY_DSN_VALUE,
       
@@ -72,6 +91,11 @@ export const initSentry = () => {
       
       // Configurer les événements avant envoi
       beforeSend(event, hint) {
+        // Expo Push peut renvoyer des 503 transitoires (charge serveur), ce n'est pas un bug applicatif.
+        // On ignore ce bruit pour conserver un signal Sentry utile sur les vrais crashes.
+        if (isExpoPushToken503Noise(event)) {
+          return null;
+        }
         // Vous pouvez filtrer ou modifier les événements ici
         return event;
       },
