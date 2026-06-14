@@ -229,7 +229,7 @@ const DefisScreen: React.FC<DefisScreenProps> = ({
 
       <FloatingPointsAnimation
         visible={showFloatingPoints}
-        points={floatingPointsData?.points}
+        points={floatingPointsData?.points as unknown as number}
         reason={floatingPointsData?.reason}
       />
 

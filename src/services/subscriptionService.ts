@@ -234,7 +234,7 @@ export class SubscriptionService {
    * @param {number} daysRemaining - Days remaining
    * @returns {string} Status message
    */
-  static getStatusMessage(status, daysRemaining) {
+  static getStatusMessage(status: string, daysRemaining: number) {
     switch (status) {
       case SUBSCRIPTION_STATUS.ACTIVE:
         return 'Accès complet aux plans nutritionnels';

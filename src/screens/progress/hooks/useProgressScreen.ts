@@ -148,7 +148,7 @@ export const useProgressScreen = (
       setProgressPhotos(photosData);
       
       // Récupérer la photo initiale si disponible
-      let baselinePhoto = null;
+      let baselinePhoto: any = null;
       if (initialPhotoRes.status === 'fulfilled') {
         const initialPhotoData = initialPhotoRes.value.data?.data ?? initialPhotoRes.value.data;
         baselinePhoto = Array.isArray(initialPhotoData) ? initialPhotoData[0] : initialPhotoData;
@@ -298,9 +298,9 @@ export const useProgressScreen = (
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
+        const asset: any = result.assets[0];
         const imageUri = asset.uri;
-        
+
         let mimeType = asset.type || 'image/jpeg';
         if (mimeType === 'image' || !mimeType.includes('/')) {
           const uri = imageUri || '';
@@ -369,7 +369,7 @@ export const useProgressScreen = (
         setAddInitialPhotoLoading(false);
         return;
       }
-      const asset = result.assets[0];
+      const asset: any = result.assets[0];
       const imageUri = asset.uri;
       let mimeType = asset.type || 'image/jpeg';
       if (mimeType === 'image' || !mimeType.includes('/')) {
@@ -563,11 +563,11 @@ export const useProgressScreen = (
     setEditingMeasurement(measurement);
     
     // Si la mesure vient d'une photo, charger la photo existante
-    let preview = null;
-    if (measurement.isFromPhoto && measurement.photoUrl) {
-      preview = measurement.photoUrl;
-    } else if (measurement.photoUrl) {
-      preview = measurement.photoUrl;
+    let preview: string | null = null;
+    if (measurement.isFromPhoto && (measurement as any).photoUrl) {
+      preview = (measurement as any).photoUrl;
+    } else if ((measurement as any).photoUrl) {
+      preview = (measurement as any).photoUrl;
     }
     
     setMeasurementForm({
@@ -606,14 +606,14 @@ export const useProgressScreen = (
     // Si c'est la mesure initiale et qu'on n'a pas d'URL, utiliser initialProgressPhoto
     if ((measurement.isInitial || measurement.id === 'initial') && !photoUrl && initialProgressPhoto) {
       photoUrl = initialProgressPhoto.url || 
-        initialProgressPhoto.photoUrl || 
-        initialProgressPhoto.imageUrl || 
+        (initialProgressPhoto as any).photoUrl ||
+        initialProgressPhoto.imageUrl ||
         getPhotoUrl(initialProgressPhoto);
     }
     
     // Fallback avec photoId si disponible
     if (!photoUrl && measurement.photoId) {
-      photoUrl = getPhotoUrl({ id: measurement.photoId, url: null, imageUrl: null } as ProgressPhoto);
+      photoUrl = getPhotoUrl({ id: measurement.photoId, url: null, imageUrl: null } as unknown as ProgressPhoto);
     }
     
     const enrichedMeasurement = {
@@ -741,7 +741,7 @@ export const useProgressScreen = (
           const daysDiff = dateDiff / (1000 * 60 * 60 * 24);
           
           // Si la date est à moins de 1 jour d'écart et le poids correspond (tolérance de 0.1 kg)
-          return daysDiff < 1 && Math.abs((m.weight || 0) - photo.weight) < 0.1;
+          return daysDiff < 1 && Math.abs((m.weight || 0) - (photo.weight ?? 0)) < 0.1;
         });
         
         if (existingMeasurementIndex >= 0) {

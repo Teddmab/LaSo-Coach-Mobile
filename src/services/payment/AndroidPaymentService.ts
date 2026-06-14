@@ -1,4 +1,4 @@
-import { PaymentService } from './PaymentService';
+import { PaymentService } from './paymentService';
 
 /**
  * Service de paiement pour Android

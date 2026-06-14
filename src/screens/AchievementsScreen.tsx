@@ -298,7 +298,7 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({
 
       <FloatingPointsAnimation
         visible={showFloatingPoints}
-        points={floatingPointsData?.points}
+        points={floatingPointsData?.points as unknown as number}
         reason={floatingPointsData?.reason}
       />
 

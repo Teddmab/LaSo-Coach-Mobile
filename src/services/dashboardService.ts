@@ -14,7 +14,7 @@ export class DashboardService {
    * Get onboarding progress
    * @returns {Promise<Object>} Onboarding progress data
    */
-  static async getOnboardingProgress() {
+  static async _getOnboardingProgressOffline() {
     try {
       if (Config.OFFLINE_MODE) {
         // Mock data for offline mode
@@ -165,7 +165,7 @@ export class DashboardService {
       const rawData = response.data.data || response.data;
       
       // Extract the latest measurement from the array
-      let latestMeasurement = null;
+      let latestMeasurement: any = null;
       if (rawData.measurements && rawData.measurements.length > 0) {
         // Get the most recent measurement (assuming they're ordered by date)
         latestMeasurement = rawData.measurements[0];
@@ -542,13 +542,13 @@ export class DashboardService {
       
       if (result.success && result.data) {
         
-        const badges = result.data.badges || [];
+        const badges: any[] = result.data.badges || [];
         const summary = result.data.summary || {};
         
         // Find current badge - check summary first, then find from badges array
         // The current badge should be the one with isUnlocked=true and currentLevel > 0
         // Or check if summary has currentBadge field
-        let currentBadgeObj = null;
+        let currentBadgeObj: any = null;
         
         if (summary.currentBadge) {
           // If summary has currentBadge, find it in badges array

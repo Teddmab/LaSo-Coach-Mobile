@@ -129,7 +129,7 @@ const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps
                   <Text style={[styles.tableHeaderCell, styles.tableColActivite]}>Activité</Text>
                   <Text style={[styles.tableHeaderCell, styles.tableColSource]}>Source</Text>
                   <Text style={[styles.tableHeaderCell, styles.tableColDate]}>Date</Text>
-                  <View style={[styles.tableHeaderCell, styles.tableColActions]} />
+                  <View style={[styles.tableHeaderCell, styles.tableColActions] as any} />
                 </View>
                 {sortedMeasurements.map((measurement, index) => (
                   <View key={measurement.id || index} style={styles.tableRow}>
@@ -152,7 +152,7 @@ const MeasurementHistoryBottomSheet: React.FC<MeasurementHistoryBottomSheetProps
                     <Text style={[styles.tableCell, styles.tableColDate]}>
                       {formatDate(measurement.date || measurement.createdAt || measurement.updatedAt)}
                     </Text>
-                    <View style={[styles.tableCell, styles.tableColActions, styles.actionsCell]}>
+                    <View style={[styles.tableCell, styles.tableColActions, styles.actionsCell] as any}>
                       {!measurement.isInitial && onEditMeasurement && onDeleteMeasurement && (
                         <>
                           <TouchableOpacity style={styles.actionButton} onPress={() => onEditMeasurement(measurement)}>

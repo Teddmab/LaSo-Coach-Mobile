@@ -68,11 +68,11 @@ const PostCard: React.FC<PostCardProps> = ({
   const commentsCount = Number(
     post._count?.comments !== undefined && post._count.comments !== null
       ? post._count.comments
-      : (post.comments?.length ?? 0)
+      : ((post as any).comments?.length ?? 0)
   );
   const timeAgo = formatTimeAgo(post.createdAt);
   const [showMenu, setShowMenu] = useState(false);
-  const postUserId = post.userId || post.user?.id;
+  const postUserId = (post as any).userId || post.user?.id;
   const isOwnPost = postUserId && currentUserId && String(postUserId) === String(currentUserId);
   
   // ✅ Animation des cœurs flottants sur l'ensemble de la publication
@@ -293,7 +293,7 @@ const PostCard: React.FC<PostCardProps> = ({
         <ImageCarousel 
           postId={post.id} 
           images={images}
-          onImagePress={(index) => onPostPress && onPostPress({ ...post, selectedImageIndex: index })}
+          onImagePress={(index) => onPostPress && onPostPress({ ...(post as any), selectedImageIndex: index })}
         />
       )}
 

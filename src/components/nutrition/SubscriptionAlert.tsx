@@ -62,7 +62,7 @@ const SubscriptionAlert: React.FC<SubscriptionAlertProps> = ({ subscription, onR
 
   return (
     <LinearGradient
-      colors={gradientColors}
+      colors={gradientColors as [string, string]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}
       style={styles.container}

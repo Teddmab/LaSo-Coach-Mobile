@@ -5,7 +5,8 @@ import ProgressCard from '../../../components/dashboard/ProgressCard';
 import ProfileCompletionCard from '../../../components/dashboard/ProfileCompletionCard';
 import AchievementsCard from '../../../components/dashboard/AchievementsCard';
 import SystemReminderBanner from '../../../components/dashboard/SystemReminderBanner';
-import NutritionCard from '../../../components/dashboard/NutritionCard';
+import NutritionCardBase from '../../../components/dashboard/NutritionCard';
+const NutritionCard = NutritionCardBase as any;
 import AgoraContentCard from '../../../components/dashboard/AgoraContentCard';
 import LAgoraCard from '../../../components/dashboard/LAgoraCard';
 import NewsCard from '../../../components/dashboard/NewsCard';
@@ -101,7 +102,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
     });
   }, [onRegisterGetSectionRect]);
 
-  const handleSectionLayout = (index: number) => (e: NativeSyntheticEvent<LayoutChangeEvent>) => {
+  const handleSectionLayout = (index: number) => (e: LayoutChangeEvent) => {
     const { y, height } = e.nativeEvent.layout;
     onSectionLayout?.(index, y, height);
   };

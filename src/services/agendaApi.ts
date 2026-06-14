@@ -29,7 +29,7 @@ export class AgendaApi {
       const agendaData = response.data.agenda || response.data.data || response.data;
       
       // Transform the data structure from { "2024-01-15": [...] } to flat array
-      const agendaItems = [];
+      const agendaItems: any[] = [];
       
       if (agendaData && typeof agendaData === 'object') {
         Object.keys(agendaData).forEach(dateKey => {

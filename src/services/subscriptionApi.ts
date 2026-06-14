@@ -81,7 +81,7 @@ export class SubscriptionApi {
    * @param {Object} orderData - Order data
    * @returns {Promise<Object>} PayPal order data
    */
-  static async createPayPalOrder(orderData) {
+  static async createPayPalOrder(orderData: any) {
     try {
       // Use api instance - interceptor automatically adds Authorization header
       const response = await api.post('/payments/create-paypal-order', orderData);
@@ -98,7 +98,7 @@ export class SubscriptionApi {
    * @param {Object} sessionData - Session data
    * @returns {Promise<Object>} Stripe session data
    */
-  static async createStripeCheckoutSession(sessionData) {
+  static async createStripeCheckoutSession(sessionData: any) {
     try {
       // Use api instance - interceptor automatically adds Authorization header
       const response = await api.post('/payments/create-stripe-checkout-session', sessionData);
@@ -130,7 +130,7 @@ export class SubscriptionApi {
    * @param {Object} paymentData - Payment confirmation data
    * @returns {Promise<Object>} Subscription data
    */
-  static async confirmStripePayment(paymentData) {
+  static async confirmStripePayment(paymentData: any) {
     try {
       
       const response = await api.post('/payments/confirm-stripe-payment', paymentData);
@@ -147,7 +147,7 @@ export class SubscriptionApi {
    * @param {Object} paymentData - Payment confirmation data
    * @returns {Promise<Object>} Subscription data
    */
-  static async confirmPayPalPayment(paymentData) {
+  static async confirmPayPalPayment(paymentData: any) {
     try {
       
       const response = await api.post('/payments/confirm-paypal-payment', paymentData);
@@ -166,7 +166,7 @@ export class SubscriptionApi {
    * @param {Object} subscriptionData - Subscription data with planId
    * @returns {Promise<Object>} Subscription data
    */
-  static async subscribe(subscriptionData) {
+  static async subscribe(subscriptionData: any) {
     try {
       // API_BASE_URL already contains /api/v1, so use /subscriptions/create
       // Final URL will be: {API_BASE_URL}/subscriptions/create = {API_BASE_URL}/api/v1/subscriptions/create
@@ -208,7 +208,7 @@ export class SubscriptionApi {
    * @param {string} planId - Plan ID
    * @returns {Promise<Object>} Subscription data
    */
-  static async activateFreeTrial(planId) {
+  static async activateFreeTrial(planId: string) {
     try {
       // Utiliser exactement le même format que la version web
       const subscriptionData = {
@@ -261,7 +261,7 @@ export class SubscriptionApi {
    * @param {string} transactionId - Transaction ID
    * @returns {Promise<Object>} Retry payment data
    */
-  static async retryPayment(transactionId) {
+  static async retryPayment(transactionId: string) {
     try {
       
       const response = await api.post(`/payments/retry/${transactionId}`);
@@ -278,7 +278,7 @@ export class SubscriptionApi {
    * @param {number} duration - Duration in days
    * @returns {string} Billing period text
    */
-  static getBillingPeriod(duration) {
+  static getBillingPeriod(duration: number) {
     if (duration === 1) return 'jour';
     if (duration < 7) return `${duration} jours`;
     if (duration === 7) return 'semaine';
@@ -295,7 +295,7 @@ export class SubscriptionApi {
    * @param {string} currency - Currency code
    * @returns {string} Formatted price
    */
-  static formatPrice(price, currency = 'EUR') {
+  static formatPrice(price: number, currency = 'EUR') {
     if (price === 0) return 'Gratuit';
     return `${price}€`;
   }
@@ -305,7 +305,7 @@ export class SubscriptionApi {
    * @param {string} status - Status code
    * @returns {string} Status text
    */
-  static getStatusText(status) {
+  static getStatusText(status: string) {
     const statusMap = {
       'ACTIVE': 'Actif',
       'PENDING': 'En attente',
@@ -321,7 +321,7 @@ export class SubscriptionApi {
    * @param {string} planId - Plan ID
    * @returns {Promise<Object>} Start date calculation
    */
-  static async calculateStartDate(planId) {
+  static async calculateStartDate(planId: string) {
     try {
       const response = await api.post('/subscriptions/calculate-start-date', { planId });
       
@@ -352,7 +352,7 @@ export class SubscriptionApi {
    * @param {string} subscriptionId - Subscription ID
    * @returns {Promise<Object>} Auto-renewal status
    */
-  static async getAutoRenewalStatus(subscriptionId) {
+  static async getAutoRenewalStatus(subscriptionId: string) {
     try {
       const response = await api.get(`/subscriptions/${subscriptionId}/auto-renewal/status`);
       
@@ -368,7 +368,7 @@ export class SubscriptionApi {
    * @param {string} subscriptionId - Subscription ID
    * @returns {Promise<Object>} Enable response
    */
-  static async enableAutoRenewal(subscriptionId) {
+  static async enableAutoRenewal(subscriptionId: string) {
     try {
       const response = await api.put(`/subscriptions/${subscriptionId}/auto-renewal/enable`);
       
@@ -384,7 +384,7 @@ export class SubscriptionApi {
    * @param {string} subscriptionId - Subscription ID
    * @returns {Promise<Object>} Disable response
    */
-  static async disableAutoRenewal(subscriptionId) {
+  static async disableAutoRenewal(subscriptionId: string) {
     try {
       const response = await api.put(`/subscriptions/${subscriptionId}/auto-renewal/disable`);
       
@@ -400,7 +400,7 @@ export class SubscriptionApi {
    * @param {Object} paymentMethod - Payment method data
    * @returns {string} Display name
    */
-  static getPaymentMethodDisplayName(paymentMethod) {
+  static getPaymentMethodDisplayName(paymentMethod: any) {
     if (!paymentMethod) return 'Aucune méthode de paiement';
     
     if (paymentMethod.paymentMethod === 'paypal') {

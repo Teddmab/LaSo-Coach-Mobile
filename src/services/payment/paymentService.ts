@@ -1,7 +1,12 @@
 import { Platform } from 'react-native';
-import { PaymentService } from './PaymentService';
 import { AndroidPaymentService } from './AndroidPaymentService';
 import { IOSPaymentService } from './IOSPaymentService';
+
+export interface PaymentService {
+  isPaymentAvailable(): boolean;
+  initiatePayment(planId: string, amount?: number): Promise<any>;
+  checkPaymentStatus(paymentId: string): Promise<any>;
+}
 
 /**
  * Factory qui retourne le service de paiement approprié selon la plateforme

@@ -384,7 +384,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         phoneNumber: formData.phoneNumber.trim(),
-        email: formData.email.trim(),
+        email: (formData as any).email?.trim(),
         addressLine1: formData.addressLine1.trim(),
         addressLine2: formData.addressLine2.trim(),
         city: formData.city.trim(),
@@ -396,7 +396,7 @@ const ProfileStep1BottomSheet: React.FC<ProfileStep1BottomSheetProps> = ({
         initialWaistSize: formData.initialWaistSize.trim().replace(',', '.'),
         gender: formData.gender,
         occupation: formData.occupation,
-      });
+      } as any);
 
       if (result.success) {
         // Upload initial photo if provided (optional)
