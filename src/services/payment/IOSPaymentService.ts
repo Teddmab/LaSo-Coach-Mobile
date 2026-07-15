@@ -1,4 +1,4 @@
-import { PaymentService } from './paymentService';
+import { PaymentService } from './PaymentService';
 
 /**
  * Service de paiement pour iOS
