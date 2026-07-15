@@ -14,7 +14,8 @@ import AgoraIcon from './icons/AgoraIcon';
 
 const { height } = Dimensions.get('window');
 
-const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
+interface MoreMenuProps { visible: boolean; onClose: () => void; onMenuItemPress: (itemId: string) => void; }
+const MoreMenu = ({ visible, onClose, onMenuItemPress }: MoreMenuProps) => {
   const slideAnim = useRef(new Animated.Value(height)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
@@ -92,7 +93,7 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
     onClose();
   };
 
-  const handleMenuItemPress = (itemId) => {
+  const handleMenuItemPress = (itemId: string) => {
     handleClose();
     onMenuItemPress(itemId);
   };
@@ -145,7 +146,7 @@ const MoreMenu = ({ visible, onClose, onMenuItemPress }) => {
                 {item.id === 'community' ? (
                   <AgoraIcon width={24} height={24} color="#FFFFFF" />
                 ) : (
-                  <Ionicons name={item.icon} size={24} color="#FFFFFF" />
+                  <Ionicons name={item.icon as any} size={24} color="#FFFFFF" />
                 )}
               </View>
               <View style={styles.itemContent}>

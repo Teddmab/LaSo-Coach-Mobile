@@ -137,7 +137,7 @@ const OnboardingProgressCard = ({ progress, navigation }) => {
                   <Ionicons name="checkmark" size={20} color="#FFF" />
                 ) : (
                   <Ionicons
-                    name={step.icon}
+                    name={step.icon as any}
                     size={20}
                     color={
                       state === 'current'

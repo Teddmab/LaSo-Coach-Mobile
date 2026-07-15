@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import { NutritionPlan, Meal, SubscriptionData, WeekDay } from '../types';
 import SubscriptionService from '../../../services/subscriptionService';
 import { ProfileApi } from '../../../services/profileApi';
@@ -91,27 +91,29 @@ export const useNutritionData = (
       }
       
       // Step 2: Fetch profile and plans (conditionally based on subscription)
-      const hasActiveSubscription = subscription && 
+      const hasActiveSubscription = subscription &&
         subscription.daysRemaining !== undefined &&
         subscription.daysRemaining > 0 &&
-        subscription.status !== 'EXPIRED' && 
+        subscription.status !== 'EXPIRED' &&
         subscription.status !== 'CANCELLED';
-      
-      const shouldFetchPlans = isIOS || isCompanionMode || hasActiveSubscription;
-      
+
       logger.debug('Logic: Plans fetch decision', {
         subscriptionStatus: subscription?.status,
         isExpired: subscription?.isExpired,
         hasActiveSubscription,
         isIOS,
         isCompanionMode,
-        shouldFetchPlans,
+        willFetchPlans: true,
       });
-      
+
       logger.debug('API Request: Fetching profile and nutrition plans');
       const [profileRes, plansRes] = await Promise.allSettled([
         ProfileApi.getProfile(),
-        shouldFetchPlans ? nutritionAPI.getPlans() : Promise.resolve({ data: { plans: [] } })
+        // Always call the backend — it handles no-subscription users by returning
+        // directly-assigned plans (MANUALLY_ASSIGNED) or an empty list (NO_ACCESS).
+        // Skipping the call here prevents admin-assigned plans from showing when
+        // the user has no active paid subscription.
+        nutritionAPI.getPlans()
       ]);
 
       // Handle profile data
@@ -321,12 +323,12 @@ export const useNutritionData = (
       
       // Use shared utility for consistent menu finding logic
       let dayMenu = findMenuForPlanDay(plan.menus, menuDay);
-      
+
       // Final fallback: use first menu
       if (!dayMenu && plan.menus && plan.menus.length > 0) {
         dayMenu = plan.menus[0];
       }
-      
+
       if (dayMenu) {
         const meals = dayMenu.meals || [];
         setDayMeals(meals);
@@ -385,11 +387,31 @@ export const useNutritionData = (
 
   const onRefresh = useCallback(async () => {
     logger.info('User Action: Pull-to-refresh triggered');
+    // Reset the duplicate-fetch guard so we always fetch fresh data on manual refresh.
+    lastFetchAttemptRef.current = null;
+    hasInitialLoadRef.current = false;
     setRefreshing(true);
     await fetchAllData();
     setRefreshing(false);
     logger.info('Refresh completed');
   }, [fetchAllData]);
+
+  // Refetch plans when the app comes back to the foreground so admin changes
+  // are visible without requiring a full app restart.
+  useEffect(() => {
+    let appStateRef = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appStateRef.match(/inactive|background/) && nextState === 'active') {
+        logger.info('App came to foreground — refreshing nutrition data');
+        lastFetchAttemptRef.current = null;
+        hasInitialLoadRef.current = false;
+        fetchAllData();
+      }
+      appStateRef = nextState;
+    });
+    return () => subscription.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     profileData,

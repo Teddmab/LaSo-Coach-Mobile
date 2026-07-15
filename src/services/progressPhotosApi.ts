@@ -24,14 +24,14 @@ class ProgressPhotosApi {
         success: true,
         data: response.data?.data || response.data || []
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ ProgressPhotosApi: Error fetching progress photos:', error);
       console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
-      
+
       return {
         success: false,
         error: error.message || 'Failed to fetch progress photos'
@@ -44,7 +44,7 @@ class ProgressPhotosApi {
    * @param {FormData} formData - Form data containing photo and metadata
    * @returns {Promise<{success: boolean, data?: Object, error?: string}>}
    */
-  static async addProgressPhoto(formData) {
+  static async addProgressPhoto(formData: any) {
     try {
       console.log('📸 ProgressPhotosApi: Adding new progress photo...');
       console.log('🌐 API Endpoint:', '/api/v1/progress-photos');
@@ -62,14 +62,14 @@ class ProgressPhotosApi {
         success: true,
         data: response.data?.data || response.data
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ ProgressPhotosApi: Error adding progress photo:', error);
       console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
-      
+
       return {
         success: false,
         error: error.message || 'Failed to add progress photo'
@@ -96,14 +96,14 @@ class ProgressPhotosApi {
       return {
         success: true
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ ProgressPhotosApi: Error deleting progress photo:', error);
       console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
-      
+
       return {
         success: false,
         error: error.message || 'Failed to delete progress photo'
@@ -133,14 +133,14 @@ class ProgressPhotosApi {
         success: true,
         data: response.data?.data || response.data
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ ProgressPhotosApi: Error updating progress photo:', error);
       console.error('❌ Error details:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data
       });
-      
+
       return {
         success: false,
         error: error.message || 'Failed to update progress photo'
@@ -153,7 +153,7 @@ class ProgressPhotosApi {
    * @param {Object} photo - Photo object
    * @returns {string|null} Photo URL or null
    */
-  static getPhotoUrl(photo) {
+  static getPhotoUrl(photo: any) {
     if (!photo || !photo.url) return null;
     
     // If URL is already absolute, return as is
@@ -162,7 +162,7 @@ class ProgressPhotosApi {
     }
     
     // If URL is relative, prepend base URL
-    const baseURL = API_CONFIG.baseURL?.replace('/api/v1', '') || '';
+    const baseURL = API_CONFIG.BASE_URL?.replace('/api/v1', '') || '';
     return `${baseURL}${photo.url}`;
   }
 
@@ -171,8 +171,8 @@ class ProgressPhotosApi {
    * @param {Object} photo - Photo file object (asset from ImagePicker)
    * @returns {Object} Validation result
    */
-  static validatePhoto(photo) {
-    const errors = [];
+  static validatePhoto(photo: any) {
+    const errors: string[] = [];
     
     console.log('🔍 Validation photo:', {
       hasPhoto: !!photo,
@@ -284,7 +284,7 @@ class ProgressPhotosApi {
    * @param {Object} metadata - Additional metadata
    * @returns {FormData} Form data object
    */
-  static createFormData(photo, metadata = {}) {
+  static createFormData(photo: any, metadata: Record<string, any> = {}) {
     const formData = new FormData();
     
     // CRITICAL: Utiliser l'URI accessible (file://) et le type MIME correct
@@ -301,24 +301,24 @@ class ProgressPhotosApi {
       name: photoName
     });
     
-    // Add photo file (comme dans ProfileScreen)
-    formData.append('photo', {
-      uri: photoUri, // URI accessible (file://)
+    // Add photo file (React Native FormData accepts uri/type/name objects)
+    (formData as any).append('photo', {
+      uri: photoUri,
       type: photoType,
-      name: photoName
+      name: photoName,
     });
-    
+
     // Add metadata
     if (metadata.weight) {
-      formData.append('weight', parseFloat(metadata.weight));
+      formData.append('weight', String(parseFloat(metadata.weight)));
     }
-    
+
     if (metadata.notes) {
-      formData.append('notes', metadata.notes);
+      formData.append('notes', String(metadata.notes));
     }
-    
+
     if (metadata.date) {
-      formData.append('date', metadata.date);
+      formData.append('date', String(metadata.date));
     } else {
       formData.append('date', new Date().toISOString());
     }

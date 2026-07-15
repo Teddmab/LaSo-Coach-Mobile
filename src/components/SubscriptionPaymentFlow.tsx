@@ -55,14 +55,22 @@ const PAWAPAY_COUNTRIES = [
  * 3. Confirmation et traitement
  * 4. Résultat (succès/erreur)
  */
+interface SubscriptionPaymentFlowProps {
+  visible: boolean;
+  plan: any;
+  onClose: () => void;
+  onSuccess?: (data?: any) => void;
+  onError?: (error: any) => void;
+  isEmbedded?: boolean;
+}
 export default function SubscriptionPaymentFlow({
   visible,
   plan,
   onClose,
   onSuccess,
   onError,
-  isEmbedded = false, // Si true, ne pas afficher de Modal (intégré dans bottom sheet)
-}) {
+  isEmbedded = false,
+}: SubscriptionPaymentFlowProps) {
   const styles = createStyles(theme);
   // Stripe SDK removed - payments handled server-side via mobile money or web
   const paymentTracking = usePaymentTracking();
@@ -72,16 +80,17 @@ export default function SubscriptionPaymentFlow({
   const [currentStep, setCurrentStep] = useState(0); // 0: informations paiement, 1: formulaire mobile money, 2: confirmation, 3: traitement, 4: résultat
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('mobile'); // Toujours 'mobile' pour Android
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [subscriptionStartDate, setSubscriptionStartDate] = useState(null);
+  const [subscriptionStartDate, setSubscriptionStartDate] = useState<Date | null>(null);
 
   // États pour Stripe (saisie carte)
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvc, setCardCvc] = useState('');
   const [cardholderName, setCardholderName] = useState('');
-  const [stripeSessionId, setStripeSessionId] = useState(null);
+  const [autoRenewal, setAutoRenewal] = useState(false);
+  const [stripeSessionId, setStripeSessionId] = useState<string | null>(null);
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
   const [stripeCheckoutUrl, setStripeCheckoutUrl] = useState(null);
   const [showStripeWebView, setShowStripeWebView] = useState(false);
@@ -361,7 +370,7 @@ export default function SubscriptionPaymentFlow({
   /**
    * Étape 1 : Sélection du moyen de paiement
    */
-  const handlePaymentMethodSelect = (method) => {
+  const handlePaymentMethodSelect = (method: string) => {
     setSelectedPaymentMethod(method);
     // Ne pas créer la session ici, attendre le clic sur "Continuer"
   };
@@ -693,7 +702,7 @@ export default function SubscriptionPaymentFlow({
       console.log('🔵 [PawaPay] Phone Number (formatted):', phoneWithCountry);
       console.log('🔵 [PawaPay] Payload complet:', JSON.stringify(payload, null, 2));
       console.log('🔵 [PawaPay] URL API:', '/payments/pawapay/create-deposit');
-      console.log('🔵 [PawaPay] Base URL:', api.defaults?.baseURL || 'N/A');
+      console.log('🔵 [PawaPay] Base URL:', (api as any).defaults?.baseURL || 'N/A');
 
       // Appeler l'API PawaPay
       let response;
@@ -800,7 +809,7 @@ export default function SubscriptionPaymentFlow({
                 pollingIntervalRef.current = null;
               }
 
-              setPaymentStatus('cancelled');
+              setPaymentStatus('cancelled' as any);
               setError(depositStatus === 'CANCELLED' 
                 ? 'Paiement annulé. Vous pouvez réessayer quand vous êtes prêt.'
                 : 'Le paiement a échoué. Veuillez réessayer ou contacter le support.'
@@ -955,12 +964,12 @@ export default function SubscriptionPaymentFlow({
 
           <View style={styles.confirmationRow}>
             <Text style={styles.confirmationLabel}>Pays</Text>
-            <Text style={styles.confirmationValue}>{country?.name}</Text>
+            <Text style={styles.confirmationValue}>{country?.label}</Text>
           </View>
 
           <View style={styles.confirmationRow}>
             <Text style={styles.confirmationLabel}>Opérateur</Text>
-            <Text style={styles.confirmationValue}>{provider?.name}</Text>
+            <Text style={styles.confirmationValue}>{provider?.label}</Text>
           </View>
 
           <View style={styles.confirmationRow}>
@@ -2208,7 +2217,7 @@ export default function SubscriptionPaymentFlow({
                     setShowProviderPicker(false);
                   }}
                 >
-                  <Text style={styles.pickerItemText}>{p.name}</Text>
+                  <Text style={styles.pickerItemText}>{p.label}</Text>
                   {mobileMoneyProvider === p.code && (
                     <Ionicons name="checkmark" size={20} color={theme.colors.primary} />
                   )}
@@ -3164,6 +3173,45 @@ const createStyles = (theme) => StyleSheet.create({
   paymentDetailValue: {
     fontSize: 14,
     fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: theme.colors.primary,
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  pickerContainer: {
+    backgroundColor: theme.colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '70%' as any,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: theme.colors.text.primary,
+    marginBottom: 16,
+  },
+  pickerItem: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  pickerItemText: {
+    fontSize: 16,
     color: theme.colors.text.primary,
   },
 });

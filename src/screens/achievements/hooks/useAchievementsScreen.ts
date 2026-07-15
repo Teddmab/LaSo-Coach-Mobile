@@ -55,7 +55,7 @@ export const useAchievementsScreen = (onSubscriptionRenew?: () => void) => {
   const [hasMoreChallenges, setHasMoreChallenges] = useState(false);
   const [selectedChallenge, setSelectedChallenge] = useState<Challenge | null>(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [achievementsData, setAchievementsData] = useState<AchievementsData | null>(null);
+  const [achievementsData, setAchievementsData] = useState<any>(null);
 
   useEffect(() => {
     checkSubscriptionStatus();

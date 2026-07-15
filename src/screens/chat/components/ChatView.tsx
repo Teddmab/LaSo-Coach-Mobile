@@ -109,7 +109,7 @@ const ChatView: React.FC<ChatViewProps> = ({
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     // ✅ Vérification complète pour déterminer si c'est notre propre message
     // Vérifier senderId, sender.id, et sender.userId pour gérer tous les formats
-    const messageSenderId = item.senderId || item.sender?.id || item.sender?.userId || '';
+    const messageSenderId = item.senderId || item.sender?.id || (item.sender as any)?.userId || '';
     const currentUserIdStr = String(currentUserId || '').trim();
     const messageSenderIdStr = String(messageSenderId || '').trim();
     
@@ -124,10 +124,10 @@ const ChatView: React.FC<ChatViewProps> = ({
     // ✅ Vérifier si l'expéditeur précédent est différent (même logique que pour isOwnMessage)
     let prevIsOwnMessage = false;
     if (prevMessage) {
-      const prevMessageSenderId = prevMessage.senderId || prevMessage.sender?.id || prevMessage.sender?.userId || '';
+      const prevMessageSenderId = prevMessage.senderId || prevMessage.sender?.id || (prevMessage.sender as any)?.userId || '';
       const prevMessageSenderIdStr = String(prevMessageSenderId || '').trim();
-      prevIsOwnMessage = currentUserIdStr && prevMessageSenderIdStr && 
-        currentUserIdStr === prevMessageSenderIdStr;
+      prevIsOwnMessage = !!(currentUserIdStr && prevMessageSenderIdStr &&
+        currentUserIdStr === prevMessageSenderIdStr);
     }
     
     // ✅ Afficher l'avatar si :
@@ -138,7 +138,7 @@ const ChatView: React.FC<ChatViewProps> = ({
       !prevMessage || 
       (isOwnMessage !== prevIsOwnMessage) ||
       (!isOwnMessage && !prevIsOwnMessage && (
-        String(prevMessage.senderId || prevMessage.sender?.id || prevMessage.sender?.userId || '') !== 
+        String(prevMessage.senderId || prevMessage.sender?.id || (prevMessage.sender as any)?.userId || '') !== 
         String(messageSenderIdStr)
       ));
     

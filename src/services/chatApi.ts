@@ -49,14 +49,14 @@ const chatApi: {
    */
   async getMessages(chatId, options = {}) {
     try {
-      const { limit = 50, before } = options;
-      const params = { limit };
+      const { limit = 50, before } = options as any;
+      const params: Record<string, any> = { limit };
       if (before) {
         params.before = before;
       }
 
       // Use the aligned endpoint format: /chat/conversations/{chatId}/messages
-      const response = await api.get(API_CONFIG.endpoints.chat.messages(chatId), { params });
+      const response = await (api as any).get(API_CONFIG.endpoints.chat.messages(chatId), { params });
       return response.data?.data || response.data || [];
     } catch (error) {
       throw error;

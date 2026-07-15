@@ -9,7 +9,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { MOBILE_MONEY_PROVIDERS } from '../config/mobileMoneyConfig';
+import { MOBILE_MONEY_PROVIDERS, FlatMobileMoneyProvider } from '../config/mobileMoneyConfig';
 
 interface MobileMoneyPaymentFormProps {
   amount: number;
@@ -108,7 +108,7 @@ const MobileMoneyPaymentForm: React.FC<MobileMoneyPaymentFormProps> = ({
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Select Payment Provider</Text>
         <View style={styles.providerGrid}>
-          {MOBILE_MONEY_PROVIDERS.map((provider) => (
+          {MOBILE_MONEY_PROVIDERS.map((provider: FlatMobileMoneyProvider) => (
             <TouchableOpacity
               key={provider.id}
               style={[
@@ -129,7 +129,7 @@ const MobileMoneyPaymentForm: React.FC<MobileMoneyPaymentFormProps> = ({
               >
                 {provider.name}
               </Text>
-              <Text style={styles.providerCountries}>{provider.countries.join(', ')}</Text>
+              <Text style={styles.providerCountries}>{provider.countryCode}</Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   },
   passwordStrengthBar: {
     height: 4,
-    backgroundColor: COLORS.border,
+    backgroundColor: (COLORS as any).border || '#E5E7EB',
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -700,4 +700,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-}); 
+} as any);

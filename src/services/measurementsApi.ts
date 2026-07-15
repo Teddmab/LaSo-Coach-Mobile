@@ -160,8 +160,8 @@ class MeasurementsApi {
       
       if (result.success && result.data.length > 0) {
         // Sort by createdAt descending and get the first one
-        const sortedMeasurements = result.data.sort((a, b) => 
-          new Date(b.createdAt) - new Date(a.createdAt)
+        const sortedMeasurements = result.data.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         
         return {

@@ -17,7 +17,8 @@ import NotificationSettingsScreen from '../../settings/NotificationSettingsScree
 import WebViewScreen from '../../WebViewScreen';
 import ContactSupportScreen from '../../ContactSupportScreen';
 import AboutScreen from '../../AboutScreen';
-import TermsAndPoliciesScreen from '../../TermsAndPoliciesScreen';
+import TermsAndPoliciesScreenBase from '../../TermsAndPoliciesScreen';
+const TermsAndPoliciesScreen = TermsAndPoliciesScreenBase as any;
 import MoreMenu from '../../../components/MoreMenu';
 // ✅ iOS COMPLIANCE: SubscriptionScreen only on Android
 import SubscriptionScreen from '../../SubscriptionScreen';

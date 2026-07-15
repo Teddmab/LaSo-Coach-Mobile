@@ -12,7 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../constants/theme';
 
-const BadgeUnlockModal = ({ visible, badge, onClose }) => {
+interface BadgeUnlockModalProps { visible: boolean; badge: any; onClose: () => void; }
+const BadgeUnlockModal = ({ visible, badge, onClose }: BadgeUnlockModalProps) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 

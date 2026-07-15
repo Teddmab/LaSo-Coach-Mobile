@@ -48,7 +48,7 @@ export const IOSSimulationProvider: React.FC<{ children: ReactNode }> = ({ child
     if (Platform.OS === 'android' && isIOSSimulationEnabled) {
       return 'ios';
     }
-    return Platform.OS;
+    return Platform.OS as 'ios' | 'android';
   }, [isIOSSimulationEnabled]);
 
   const shouldShowAndroidOnly = useCallback((): boolean => {

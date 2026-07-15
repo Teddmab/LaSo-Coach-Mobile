@@ -26,7 +26,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
   onRefresh, // ✅ Callback optionnel pour rafraîchir le dashboard
   onFAQPress: onFAQPressProp,
 }) => {
-  const { user: authUser, refreshProfile, currentUser } = useAuth();
+  const { user: authUser, refreshProfile, currentUser } = useAuth() as any;
   const user = propUser || authUser || currentUser;
   const { isCompanionMode, companionMessage } = useCompanionMode();
 
@@ -48,7 +48,7 @@ const SubscriptionScreen: React.FC<SubscriptionScreenProps> = ({
     handlePaymentError,
     handleViewInvoices,
     isPlanClickable,
-  } = useSubscriptionScreen(navigation, refreshProfile, onRefresh); // ✅ Passer onRefresh au hook
+  } = useSubscriptionScreen(navigation, async () => { await refreshProfile(); }, onRefresh); // ✅ Passer onRefresh au hook
 
   const handleFAQPress = () => {
     if (onFAQPressProp) {

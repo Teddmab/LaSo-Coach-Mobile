@@ -24,7 +24,7 @@ const NetworkStatus: React.FC = () => {
     const netInfo = getNetInfo();
     if (!netInfo) return;
     
-    const unsubscribe = netInfo.addEventListener((state) => {
+    const unsubscribe = netInfo.addEventListener((state: any) => {
       const wasConnected = isConnected;
       setIsConnected(state.isConnected ?? false);
       

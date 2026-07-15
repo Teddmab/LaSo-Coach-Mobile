@@ -1,11 +1,10 @@
 import React from 'react';
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
+  View,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   Modal,
-  BlurView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';

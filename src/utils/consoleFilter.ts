@@ -132,8 +132,8 @@ let filterConfig = {
  * Check if log contains data objects (should be hidden)
  * More aggressive: Hide ANY object/JSON, not just large ones
  */
-const hasDataObject = (args) => {
-  return args.some(arg => {
+const hasDataObject = (args: any[]) => {
+  return args.some((arg: any) => {
     if (typeof arg === 'object' && arg !== null) {
       // Hide all objects (they're likely JSON/data)
       // Only allow if it's a simple object with very few keys (like {socketId: '...'})
@@ -175,7 +175,7 @@ const hasDataObject = (args) => {
 /**
  * Check if a log message should be shown
  */
-const shouldShowLog = (args) => {
+const shouldShowLog = (args: any[]) => {
   if (!filterConfig.enabled) {
     return true; // If filter disabled, show all logs
   }
@@ -186,7 +186,7 @@ const shouldShowLog = (args) => {
   
   // Convert all arguments to string for pattern matching
   const logString = args
-    .map((arg, index) => {
+    .map((arg: any, index: number) => {
       // For first arg, use as-is to preserve emojis
       if (index === 0 && typeof arg === 'string') {
         return arg;
@@ -386,7 +386,7 @@ console.error = function(...args: any[]) {
 /**
  * Update filter configuration
  */
-export const updateConsoleFilter = (config) => {
+export const updateConsoleFilter = (config: Partial<typeof filterConfig>) => {
   filterConfig = { ...filterConfig, ...config };
   originalConsole.log('📝 Console filter updated:', filterConfig);
 };

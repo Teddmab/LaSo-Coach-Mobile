@@ -27,7 +27,7 @@ class IAPReceiptApi {
       if (isIOSCompanionMode()) {
         console.warn('🍎 [IAPReceiptApi] Receipt validation blocked on iOS companion mode');
         const error = new Error('Payment validation not available on iOS companion app');
-        error.code = 'COMPANION_MODE_BLOCKED';
+        (error as any).code = 'COMPANION_MODE_BLOCKED';
         throw error;
       }
       
@@ -78,7 +78,7 @@ class IAPReceiptApi {
       if (receiptData.platform === 'ios' || Platform.OS === 'ios' || isIOSCompanionMode()) {
         console.warn('🍎 [IAPReceiptApi] Receipt validation blocked on iOS');
         const error = new Error('Payment validation not available on iOS companion app');
-        error.code = 'COMPANION_MODE_BLOCKED';
+        (error as any).code = 'COMPANION_MODE_BLOCKED';
         throw error;
       }
       
@@ -194,7 +194,7 @@ class IAPReceiptApi {
     }
 
     const enhancedError = new Error(userMessage);
-    enhancedError.originalError = error;
+    (enhancedError as any).originalError = error;
     return enhancedError;
   }
 

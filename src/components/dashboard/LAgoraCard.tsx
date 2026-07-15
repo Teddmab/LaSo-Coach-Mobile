@@ -25,7 +25,7 @@ const LAgoraCard: React.FC<LAgoraCardProps> = ({ posts, loading, onPostPress, on
   const userAvatars = useMemo(() => {
     if (!posts || posts.length === 0) return [];
     
-    const uniqueAvatars = [];
+    const uniqueAvatars: any[] = [];
     const seenUserIds = new Set();
     
     if (__DEV__) {

@@ -120,9 +120,10 @@ const CommentBottomSheet: React.FC<CommentBottomSheetProps> = ({
               ) : sortedComments.length > 0 ? (
                 sortedComments.map((comment) => {
                   // Gérer différentes structures possibles du backend
-                  const userData = comment.User || comment.user || {};
-                  const commentUserName = userData.firstName || userData.first_name || userData.name || userData.fullName || comment.userFirstName || comment.userName || 'Utilisateur';
-                  const commentUserAvatar = userData.avatar || userData.profilePicture || userData.profile_picture || comment.userAvatar || '';
+                  const commentAny = comment as any;
+                  const userData = commentAny.User || comment.user || {};
+                  const commentUserName = userData.firstName || userData.first_name || userData.name || userData.fullName || commentAny.userFirstName || commentAny.userName || 'Utilisateur';
+                  const commentUserAvatar = userData.avatar || userData.profilePicture || userData.profile_picture || commentAny.userAvatar || '';
                   
                   // Log pour debug si les données utilisateur sont manquantes
                   if (!commentUserName || commentUserName === 'Utilisateur') {

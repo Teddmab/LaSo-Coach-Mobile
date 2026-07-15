@@ -15,8 +15,8 @@ const YourPremiumCard: React.FC<YourPremiumCardProps> = ({ subscription }) => {
 
   const plan = subscription.subscription?.plan;
   const planName = plan?.name || 'Premium';
-  const daysRemaining = subscription.subscription?.daysRemaining || subscription.daysRemaining || 0;
-  const planPrice = plan?.price || plan?.effectivePrice || 0;
+  const daysRemaining = subscription.subscription?.daysRemaining || (subscription as any).daysRemaining || 0;
+  const planPrice = plan?.price || (plan as any)?.effectivePrice || 0;
   const planCurrency = plan?.currency || '$';
   const isAnnual = planName?.toLowerCase().includes('annuel') || planName?.toLowerCase().includes('year');
   const priceSuffix = isAnnual ? '/an' : '/mois';
