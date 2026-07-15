@@ -278,17 +278,22 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         return;
       }
       
-      const activePlan = allPlans.find((plan: any) => plan.isActive) || allPlans[0];
+      // Extract cursor data from API response
+      const apiCurrentPlanId = plansData?.data?.currentPlanId || plansData?.currentPlanId || null;
+      const apiCursorPosition = plansData?.data?.cursorPosition || plansData?.cursorPosition || null;
+
+      // Prefer cursor-pointed plan, then isActive, then first
+      const activePlan = (apiCurrentPlanId && allPlans.find((plan: any) => plan.id === apiCurrentPlanId)) ||
+        allPlans.find((plan: any) => plan.isActive) || allPlans[0];
       setCurrentPlan(activePlan);
-      
+
       // 2. Calculer immédiatement le planDay et charger les repas (sans attendre completion status)
-      // ✅ Utiliser EXACTEMENT la même logique que useNutritionData.loadDayData pour garantir la cohérence
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const selectedDateObj = today;
       selectedDateObj.setHours(0, 0, 0, 0);
-      
-      // Determine plan start date (EXACTEMENT la même logique que useNutritionData.loadDayData)
+
+      // Determine plan start date
       let planStartDate = today;
       if (subscriptionData?.subscription?.startDate) {
         planStartDate = new Date(subscriptionData.subscription.startDate);
@@ -297,15 +302,13 @@ const NutritionCard: React.FC<NutritionCardProps> = ({
         planStartDate = new Date(activePlan.startDate);
         planStartDate.setHours(0, 0, 0, 0);
       }
-      
+
       setPlanStartDate(planStartDate);
-      
-      // Use shared utility to calculate plan day (EXACTEMENT la même logique que useNutritionData.loadDayData)
-      const menuDay = calculatePlanDayFromDate(
-        selectedDateObj,
-        planStartDate,
-        activePlan.numDays || 7
-      );
+
+      // Use cursor planDay for today if available; otherwise fall back to date-math
+      const menuDay = (apiCursorPosition?.planDay != null)
+        ? apiCursorPosition.planDay
+        : calculatePlanDayFromDate(selectedDateObj, planStartDate, activePlan.numDays || 7);
       
       setCurrentPlanDay(menuDay);
       

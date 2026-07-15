@@ -191,6 +191,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     today: nutritionToday,
     selectedDate: nutritionSelectedDate,
     currentPlanDay,
+    setCurrentPlanDay,
     weekDays,
     calculateNutritionPlanDay,
   } = useNutritionDate(nutritionSubscriptionData, plansResponseStatus, currentPlan);
@@ -221,6 +222,19 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ user, onLogout, navig
     setPlansResponseStatus(nutritionDataHook.plansResponseStatus);
     setCurrentPlan(nutritionDataHook.currentPlan);
   }, [nutritionDataHook.plansResponseStatus, nutritionDataHook.currentPlan]);
+
+  // Override currentPlanDay with cursor value when today is selected
+  useEffect(() => {
+    if (nutritionDataHook.cursorPlanDay != null) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const sel = new Date(nutritionSelectedDate);
+      sel.setHours(0, 0, 0, 0);
+      if (sel.getTime() === now.getTime()) {
+        setCurrentPlanDay(nutritionDataHook.cursorPlanDay);
+      }
+    }
+  }, [nutritionDataHook.cursorPlanDay, nutritionSelectedDate]);
 
   // Sync nutritionSubscriptionData with subscriptionData
   useEffect(() => {

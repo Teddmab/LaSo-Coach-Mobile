@@ -27,6 +27,7 @@ export const useNutritionData = (
   const [nutritionPlans, setNutritionPlans] = useState<NutritionPlan[]>([]);
   const [currentPlan, setCurrentPlan] = useState<NutritionPlan | null>(null);
   const [plansResponseStatus, setPlansResponseStatus] = useState<number | null>(null);
+  const [cursorPlanDay, setCursorPlanDay] = useState<number | null>(null);
   const [dayMeals, setDayMeals] = useState<Meal[]>([]);
   const [tomorrowMeals, setTomorrowMeals] = useState<Meal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,9 +163,17 @@ export const useNutritionData = (
         
         const allPlans = plansData?.data?.plans || plansData?.plans || [];
         setNutritionPlans(allPlans);
-        
-        // Logic: Set current plan (first active plan or first available)
-        const activePlan = allPlans.find((plan: NutritionPlan) => plan.isActive) || allPlans[0];
+
+        // Extract cursor data from API response
+        const apiCurrentPlanId = plansData?.data?.currentPlanId || plansData?.currentPlanId || null;
+        const apiCursorPosition = plansData?.data?.cursorPosition || plansData?.cursorPosition || null;
+        if (apiCursorPosition?.planDay != null) {
+          setCursorPlanDay(apiCursorPosition.planDay);
+        }
+
+        // Logic: prefer cursor-pointed plan, then isActive, then first
+        const activePlan = (apiCurrentPlanId && allPlans.find((plan: NutritionPlan) => plan.id === apiCurrentPlanId)) ||
+          allPlans.find((plan: NutritionPlan) => plan.isActive) || allPlans[0];
         logger.debug('Logic: Current plan selection', {
           totalPlans: allPlans.length,
           selectedPlan: activePlan ? {
@@ -407,6 +416,7 @@ export const useNutritionData = (
     fetchAllData,
     loadDayData,
     onRefresh,
+    cursorPlanDay,
   };
 };
 

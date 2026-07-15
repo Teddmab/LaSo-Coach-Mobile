@@ -103,6 +103,19 @@ export const NutritionLayout: React.FC<NutritionScreenProps> = ({
     setCurrentPlan(nutritionDataHook.currentPlan);
   }, [nutritionDataHook.plansResponseStatus, nutritionDataHook.currentPlan]);
 
+  // Override currentPlanDay with cursor value when today is selected
+  useEffect(() => {
+    if (nutritionDataHook.cursorPlanDay != null) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const sel = new Date(selectedDate);
+      sel.setHours(0, 0, 0, 0);
+      if (sel.getTime() === now.getTime()) {
+        setCurrentPlanDay(nutritionDataHook.cursorPlanDay);
+      }
+    }
+  }, [nutritionDataHook.cursorPlanDay, selectedDate]);
+
   // Update currentPlan in completion hook
   useEffect(() => {
     if (nutritionDataHook.currentPlan) {
