@@ -13,7 +13,7 @@ export const useSubscriptionScreen = (
 ) => {
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [currentSubscription, setCurrentSubscription] = useState<SubscriptionData | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -179,7 +179,7 @@ export const useSubscriptionScreen = (
         if (isMounted) {
           setCurrentSubscription(status);
           // Charger les plans avec le statut récupéré
-          await loadPlans(status);
+          await loadPlans(status as any);
         }
       } catch (error) {
         console.error('Error loading subscription data:', error);
@@ -246,7 +246,7 @@ export const useSubscriptionScreen = (
       // ✅ Recharger les plans pour mettre à jour la liste
       console.log('🔄 [SubscriptionScreen] Reloading plans...');
       const status = await SubscriptionService.getSubscriptionStatus();
-      await loadPlans(status);
+      await loadPlans(status as any);
       
       // ✅ MODIFICATION : Rafraîchir le dashboard après activation (surtout pour les plans gratuits)
       if (onDashboardRefresh) {

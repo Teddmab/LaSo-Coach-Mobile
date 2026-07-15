@@ -95,7 +95,7 @@ const SubscriptionBanner: React.FC<SubscriptionBannerProps> = ({
 
   return (
     <LinearGradient
-      colors={config.gradientColors}
+      colors={config.gradientColors as [string, string]}
       style={styles.banner}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 0 }}

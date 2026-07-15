@@ -395,7 +395,7 @@ export default function SubscriptionPaymentFlowImproved({
                         }
 
                         setPaymentStatus('failed');
-                        setError(data.failureMessage || data.message || 'Le paiement a échoué.');
+                        setError(String(data.failureMessage || data.message || 'Le paiement a échoué.'));
                         setCurrentStep(4);
                     } else if (data.paymentStatus === 'COMPLETED' || data.type === 'success' || data.status === 'COMPLETED') {
                         console.log('✅ [PaymentFlow] Payment success via notification');

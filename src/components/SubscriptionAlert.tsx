@@ -11,12 +11,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../constants/theme';
 
-const SubscriptionAlert = ({ 
-  visible, 
-  type, // 'expired', 'expiring_soon'
+interface SubscriptionAlertProps {
+  visible: boolean;
+  type: 'expired' | 'expiring_soon' | string;
+  daysRemaining?: number;
+  onRenew?: () => void;
+}
+const SubscriptionAlert = ({
+  visible,
+  type,
   daysRemaining = 0,
-  onRenew 
-}) => {
+  onRenew,
+}: SubscriptionAlertProps) => {
   const getAlertConfig = () => {
     switch (type) {
       case 'expired':
@@ -75,7 +81,7 @@ const SubscriptionAlert = ({
       <View style={styles.overlay}>
         <View style={styles.container}>
           <LinearGradient
-            colors={config.gradientColors}
+            colors={config.gradientColors as [string, string]}
             style={styles.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -83,10 +89,10 @@ const SubscriptionAlert = ({
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <Ionicons 
-                  name={config.icon} 
-                  size={32} 
-                  color={config.iconColor} 
+                <Ionicons
+                  name={config.icon as any}
+                  size={32}
+                  color={config.iconColor}
                 />
               </View>
             </View>

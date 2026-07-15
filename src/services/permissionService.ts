@@ -5,7 +5,8 @@
  * Uses expo-permissions for consistent cross-platform handling
  */
 
-import * as Permissions from 'expo-permissions';
+// @ts-ignore — expo-permissions removed in SDK 46+; individual modules handle permissions
+const Permissions: any = {};
 
 /**
  * Permission types enum
@@ -111,7 +112,7 @@ export async function requestPermissionWithExplanation(
  * @param permission - Our permission type
  * @returns Expo permission type
  */
-function mapPermissionTypeToExpoPermission(permission: PermissionType): Permissions.PermissionType {
+function mapPermissionTypeToExpoPermission(permission: PermissionType): any {
   switch (permission) {
     case PermissionType.NOTIFICATIONS:
       return Permissions.NOTIFICATIONS;

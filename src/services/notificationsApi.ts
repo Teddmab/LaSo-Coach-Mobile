@@ -15,7 +15,7 @@ export const notificationsAPI = {
    * @param {boolean} params.unreadOnly - Filter only unread notifications (default: false)
    * @returns {Promise<Object>} Notifications data with pagination
    */
-  async getNotifications(params = {}) {
+  async getNotifications(params: any = {}) {
     try {
       const queryParams = new URLSearchParams();
       
@@ -136,6 +136,12 @@ export const notificationsAPI = {
  * Handles real-time notification updates
  */
 export class NotificationWebSocketManager {
+  ws: any;
+  listeners: Map<any, any>;
+  reconnectAttempts: number;
+  maxReconnectAttempts: number;
+  reconnectInterval: number;
+
   constructor() {
     this.ws = null;
     this.listeners = new Map();

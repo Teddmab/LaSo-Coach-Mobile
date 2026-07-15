@@ -10,7 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const FloatingPointsAnimation = ({ visible, points, reason }) => {
+interface FloatingPointsAnimationProps { visible: boolean; points: number; reason?: string; }
+const FloatingPointsAnimation = ({ visible, points, reason }: FloatingPointsAnimationProps) => {
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.5)).current;

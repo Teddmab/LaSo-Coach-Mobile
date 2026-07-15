@@ -248,10 +248,10 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
             return initialMeasurements;
           })()}
           measurements={combinedMeasurements as any}
-          onDataPointPress={(dataPoint: any, index: number) => {
-            console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint, index);
+          onDataPointPress={(dataPoint: any) => {
+            console.log('[ProgressScreen] 📊 Chart: Data point pressed:', dataPoint);
           }}
-          onDeleteMeasurement={handleDeleteMeasurement}
+          onDeleteMeasurement={(id?: string) => { handleDeleteMeasurement(id!); }}
           onAddMeasurement={() => {
             setShowMeasurementModal(true);
           }}
@@ -327,7 +327,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
         if (isSelectedInitial && initialMeasurementFromCombined) {
           // Si on clique sur la mesure initiale, utiliser la mesure initiale comme firstMeasurement
           const baselinePhotoUrl = initialProgressPhoto 
-            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            ? (initialProgressPhoto.url || (initialProgressPhoto as any).photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
             : null;
             
           // Prioriser selectedMeasurementForComparison.photoUrl (qui a été enrichi dans handleMeasurementClick)
@@ -351,7 +351,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           // Utiliser la mesure initiale depuis combinedMeasurements (elle a déjà la photo)
           // Mais s'assurer que la photo est bien présente en utilisant initialProgressPhoto comme fallback
           const baselinePhotoUrl = initialProgressPhoto 
-            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            ? (initialProgressPhoto.url || (initialProgressPhoto as any).photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
             : null;
             
           firstMeasurement = {
@@ -365,7 +365,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
           // Fallback : construire la mesure initiale si elle n'est pas dans combinedMeasurements
           // Utiliser directement les propriétés de initialProgressPhoto comme dans la version web
           const baselinePhotoUrl = initialProgressPhoto 
-            ? (initialProgressPhoto.url || initialProgressPhoto.photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
+            ? (initialProgressPhoto.url || (initialProgressPhoto as any).photoUrl || initialProgressPhoto.imageUrl || getPhotoUrl(initialProgressPhoto))
             : null;
             
           firstMeasurement = {
@@ -421,7 +421,7 @@ const ProgressScreen: React.FC<ProgressScreenProps> = ({
         onClose={() => setShowHistoryModal(false)}
         getPhotoUrl={getPhotoUrl}
         onEditMeasurement={handleEditMeasurement}
-        onDeleteMeasurement={handleDeleteMeasurement}
+        onDeleteMeasurement={(id?: string) => { handleDeleteMeasurement(id!); }}
       />
 
       {/* Modal description photo de progression */}

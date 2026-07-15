@@ -17,7 +17,7 @@ import { Measurement, InitialMeasurement } from '../../screens/progress/types';
 
 interface MeasurementComparisonBottomSheetProps {
   visible: boolean;
-  firstMeasurement: Measurement | InitialMeasurement;
+  firstMeasurement: any;
   selectedMeasurement: Measurement;
   onClose: () => void;
   getPhotoUrl?: (photo: any) => string | null;
@@ -36,8 +36,11 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
 
   // Calculate differences
   // Si c'est la même mesure (mesure initiale cliquée), les différences sont nulles
-  const isSameMeasurement = firstMeasurement.id === selectedMeasurement.id || 
+  const isSameMeasurement = firstMeasurement.id === selectedMeasurement.id ||
     (firstMeasurement.isInitial && selectedMeasurement.isInitial);
+
+  // Vérifier si c'est la mesure initiale seule (pas de comparaison) — declared early to avoid TDZ
+  const isInitialOnly = isSameMeasurement && firstMeasurement.isInitial;
   
   const weightDiff = isSameMeasurement ? 0 : 
     (selectedMeasurement.weight && firstMeasurement.weight
@@ -138,9 +141,6 @@ const MeasurementComparisonBottomSheet: React.FC<MeasurementComparisonBottomShee
       year: 'numeric',
     });
   };
-
-  // Vérifier si c'est la mesure initiale seule (pas de comparaison)
-  const isInitialOnly = isSameMeasurement && firstMeasurement.isInitial;
 
   if (!visible) return null;
 

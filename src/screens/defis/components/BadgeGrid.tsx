@@ -56,7 +56,7 @@ const BadgeGrid: React.FC<BadgeGridProps> = ({ badges, onBadgePress }) => {
   };
 
   // Arrange badges in grid: 4 per row
-  const rows = [];
+  const rows: any[][] = [];
   for (let i = 0; i < badges.length; i += 4) {
     const rowItems = badges.slice(i, i + 4);
     rows.push(rowItems);

@@ -59,7 +59,7 @@ if (!firebaseConfig.apiKey || !firebaseConfig.appId) {
 
 // Initialize Firebase app ONLY (not auth yet)
 let firebaseApp;
-let firebaseAuthInstance = null;
+let firebaseAuthInstance: any = null;
 let firebaseInitError: Error | null = null;
 
 // CRITIQUE: Firebase SDK natif iOS cherche GoogleService-Info.plist au démarrage

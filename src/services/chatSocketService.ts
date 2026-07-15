@@ -8,6 +8,17 @@ import api from './api';
  * Manages Socket.IO connection for real-time chat functionality
  */
 class ChatSocketService {
+  socket: any;
+  isConnected: boolean;
+  isConnecting: boolean;
+  listeners: Map<any, any>;
+  joinedRooms: Set<any>;
+  firstHandshakeTimestamp: number | null;
+  handshakeInFlight: boolean;
+  reconnectAttempts: number;
+  connectionUrl: string | null;
+  tokenWithoutBearer: string | null;
+
   constructor() {
     this.socket = null;
     this.isConnected = false;
@@ -16,6 +27,9 @@ class ChatSocketService {
     this.joinedRooms = new Set();
     this.firstHandshakeTimestamp = null; // Track first handshake attempt
     this.handshakeInFlight = false; // Ensure only one handshake at a time
+    this.reconnectAttempts = 0;
+    this.connectionUrl = null;
+    this.tokenWithoutBearer = null;
   }
 
   /**

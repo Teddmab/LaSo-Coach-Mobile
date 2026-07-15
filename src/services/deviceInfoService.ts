@@ -34,8 +34,8 @@ class DeviceInfoService {
         isDevice: Device.isDevice, // true si c'est un appareil physique (pas un émulateur)
         
         // Informations de l'application
-        appVersion: Constants.expoConfig?.version || Constants.manifest?.version || '1.0.0',
-        appBuildNumber: Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode || Constants.manifest?.ios?.buildNumber || Constants.manifest?.android?.versionCode || null,
+        appVersion: Constants.expoConfig?.version || (Constants.manifest as any)?.version || '1.0.0',
+        appBuildNumber: Constants.expoConfig?.ios?.buildNumber || Constants.expoConfig?.android?.versionCode || (Constants.manifest as any)?.ios?.buildNumber || (Constants.manifest as any)?.android?.versionCode || null,
         
         // Informations supplémentaires Android
         ...(Platform.OS === 'android' && {
@@ -66,7 +66,7 @@ class DeviceInfoService {
         osName: Platform.OS,
         osVersion: Platform.Version,
         isDevice: false,
-        error: error.message,
+        error: (error as any)?.message,
         collectedAt: new Date().toISOString(),
       };
     }
@@ -94,12 +94,11 @@ class DeviceInfoService {
    * @returns {Promise<Object>}
    */
   async getDeviceInfoForBackend() {
-    const deviceInfo = await this.getDeviceInfo();
+    const deviceInfo: any = await this.getDeviceInfo();
     
     // Construire le payload selon la spécification backend
-    const payload = {
-      // Champs obligatoires
-      platform: deviceInfo.platform, // 'android' | 'ios'
+    const payload: Record<string, any> = {
+      platform: deviceInfo.platform,
       manufacturer: deviceInfo.manufacturer || 'Unknown',
       modelName: deviceInfo.modelName || 'Unknown',
       osName: deviceInfo.osName || deviceInfo.platform,

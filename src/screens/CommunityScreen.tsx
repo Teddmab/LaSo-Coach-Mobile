@@ -211,7 +211,7 @@ const CommunityScreen: React.FC<CommunityScreenProps> = ({
               // ✅ COMPLIANCE: Filter out posts from blocked users
               communityPosts
                 .filter(post => {
-                  const postUserId = post.userId || post.user?.id;
+                  const postUserId = (post as any).userId || post.user?.id;
                   return postUserId && !blockedUsers.has(String(postUserId));
                 })
                 .map((post, index) => (
@@ -371,12 +371,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF', // Style Instagram - fond blanc uni
   },
   scrollContent: {
-    paddingBottom: (styleProps: any) => {
-      // Calculer l'espace nécessaire pour la barre de navigation
-      const insets = styleProps?.insets || { bottom: 0 };
-      const bottomNavHeight = 9 + 24 + 24 + Math.max(insets.bottom || 16, 16);
-      return bottomNavHeight + 20;
-    },
+    paddingBottom: 100,
     backgroundColor: '#FFFFFF', // Style Instagram - fond blanc uni
   },
   introCard: {

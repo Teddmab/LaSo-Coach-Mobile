@@ -9,9 +9,9 @@ import { registerRootComponent } from 'expo';
 import 'react-native-url-polyfill/auto';
 
 // Global error handler to catch unhandled errors
-if (typeof global.ErrorUtils !== 'undefined') {
-  const originalHandler = global.ErrorUtils.getGlobalHandler();
-  global.ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+if (typeof (global as any).ErrorUtils !== 'undefined') {
+  const originalHandler = (global as any).ErrorUtils.getGlobalHandler();
+  (global as any).ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
     console.error('🚨 GLOBAL ERROR HANDLER:', error);
     console.error('🚨 Is Fatal:', isFatal);
     console.error('🚨 Stack:', error.stack);

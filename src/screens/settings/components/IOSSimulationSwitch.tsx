@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIOSSimulation } from '../../../hooks/useIOSSimulation';
 
 const IOSSimulationSwitch: React.FC = () => {
-  const { isIOSSimulationEnabled, isLoading, toggleIOSSimulation } = useIOSSimulation();
+  const { isIOSSimulationEnabled, isLoading, toggleIOSSimulation } = useIOSSimulation() as any;
 
   // Ne montrer le switch que sur Android
   if (Platform.OS !== 'android' || isLoading) {

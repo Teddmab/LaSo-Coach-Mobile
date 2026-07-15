@@ -27,12 +27,23 @@ import deviceApi from './deviceApi';
  */
 
 class FirebaseAuthService {
+  currentUser: any;
+  authStateListeners: any[];
+  firebaseAuth: any;
+  authInitPromise: Promise<any> | null;
+  _authStateListenerAttached: boolean;
+  backendApi: any;
+  _interceptorsInitialized: boolean;
+  GoogleSignin: any;
+  ensure: any;
+
   constructor() {
     this.currentUser = null;
     this.authStateListeners = [];
     this.firebaseAuth = null;
     this.authInitPromise = null;
     this._authStateListenerAttached = false; // Track if we've attached the Firebase onAuthStateChanged listener
+    this._interceptorsInitialized = false;
     
     // Log which API endpoint is being used
     
@@ -535,7 +546,7 @@ class FirebaseAuthService {
     try {
       // Vérifier si on est dans Expo Go (qui ne supporte pas les modules natifs)
       // Expo Go a une structure différente, on peut détecter cela
-      const isExpoGo = !__DEV__ || (typeof require.ensure === 'undefined' && !require.extensions);
+      const isExpoGo = !__DEV__ || (typeof (require as any).ensure === 'undefined' && !(require as any).extensions);
       
       if (isExpoGo) {
         // Dans Expo Go, le module natif n'est jamais disponible - skip silencieusement
@@ -571,7 +582,7 @@ class FirebaseAuthService {
         }
       };
       
-      const googleSignInModule = loadModule();
+      const googleSignInModule: any = loadModule();
       return googleSignInModule?.GoogleSignin || null;
     } catch (error) {
       // Ne pas logger l'erreur pour éviter le spam dans les logs
@@ -615,7 +626,7 @@ class FirebaseAuthService {
       };
       
       // Sur iOS, ajouter iosClientId pour éviter l'erreur "failed to determine clientId"
-      if (Platform.OS === 'ios' && firebaseOAuthClientIds.ios) {
+      if ((Platform.OS as string) === 'ios' && firebaseOAuthClientIds.ios) {
         config.iosClientId = firebaseOAuthClientIds.ios;
         console.log('🍎 [iOS] Ajout de iosClientId à la configuration Google Sign-In');
       }

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Platform } from 'react-native';
 import {
   IOS_COMPANION_MODE,
@@ -55,12 +55,12 @@ export const useConditionalRender = () => {
 
   return {
     /** Render only if purchase flows are allowed */
-    renderIfPurchaseAllowed: (component: JSX.Element | null) => {
+    renderIfPurchaseAllowed: (component: React.JSX.Element | null) => {
       return canShowPurchaseFlows ? component : null;
     },
     
     /** Render only if companion mode is active */
-    renderIfCompanionMode: (component: JSX.Element | null) => {
+    renderIfCompanionMode: (component: React.JSX.Element | null) => {
       return !canShowPurchaseFlows ? component : null;
     },
   };

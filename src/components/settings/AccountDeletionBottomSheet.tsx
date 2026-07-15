@@ -82,7 +82,7 @@ const AccountDeletionBottomSheet: React.FC<AccountDeletionBottomSheetProps> = ({
       >
         <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdropTouchable}
+            style={(styles as any).backdropTouchable}
             activeOpacity={1}
             onPress={handleClose}
           >

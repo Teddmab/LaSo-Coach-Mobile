@@ -114,3 +114,13 @@ export const formatPhoneNumber = (phoneNumber: string, countryCode: string): str
   // Otherwise add prefix
   return `${country.phonePrefix}${cleanPhone}`;
 };
+
+export interface FlatMobileMoneyProvider {
+  id: string;
+  name: string;
+  countryCode: string;
+}
+
+export const MOBILE_MONEY_PROVIDERS: FlatMobileMoneyProvider[] = MOBILE_MONEY_COUNTRIES.flatMap(
+  country => country.providers.map(p => ({ id: p.code, name: p.label, countryCode: country.code }))
+);
